@@ -40,3 +40,6 @@ yarn-error.*
 .vercel
 
 .env
+
+
+.README.MD
