@@ -111,7 +111,7 @@ export function IOSAlert({
   // surface and this is never drawn; everywhere else it IS the surface, so the
   // alert looks the same as it always did.
   const materialBg =
-    theme.scheme === "dark" ? "rgba(44,44,46,0.82)" : "rgba(250,250,250,0.82)";
+    theme.scheme === "dark" ? "rgba(44,44,46,0.82)" : "rgba(250,250,250,0.42)";
 
   const renderButton = (action: IOSAlertAction, i: number, group: IOSAlertAction[]) => (
     <Pressable
@@ -124,7 +124,7 @@ export function IOSAlert({
       style={({ pressed }) => [
         styles.button,
         variant === "actionSheet" && styles.sheetButton,
-        horizontal && { flex: 1 },
+        horizontal && { flex: 1, borderWidth: 2, borderColor: 'red', alignItems: 'center' },
         // Hairline between buttons; none after the last.
         horizontal
           ? i > 0 && { borderLeftWidth: IOSMetrics.hairline, borderLeftColor: theme.separator }
@@ -133,7 +133,7 @@ export function IOSAlert({
               borderBottomColor: theme.separator,
             },
         pressed && !action.disabled && { backgroundColor: theme.systemFill },
-      ]}
+        , {}]}
     >
       <Text
         numberOfLines={1}
@@ -141,7 +141,7 @@ export function IOSAlert({
           variant === "actionSheet" ? IOSFont.title3 : IOSFont.body,
           {
             color: colorFor(action.style),
-            fontWeight: action.style === "cancel" ? "600" : "400",
+            fontWeight: action.style === "cancel" ? "600" : "600",
             opacity: action.disabled ? 0.35 : 1,
           },
         ]}
@@ -155,12 +155,13 @@ export function IOSAlert({
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
       <View style={styles.root}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Dismiss">
-          <GlassScrim intensity={12} />
+          {/* <GlassScrim intensity={12} /> */}
+          <GlassScrim intensity={0} />
         </Pressable>
 
         {variant === "alert" ? (
           <Animated.View
-            style={[styles.alertCard, { width: Math.min(width - 96, 270) }, containerStyle]}
+            style={[styles.alertCard, { width: Math.min(width - 96, 270) }, containerStyle, {borderWidth: 1, borderColor: theme.secondarySystemFill}]}
             accessibilityViewIsModal
           >
             <Glass
@@ -168,7 +169,7 @@ export function IOSAlert({
               radius={IOSMetrics.alertRadius}
               style={StyleSheet.absoluteFill}
               pointerEvents="none"
-              fallbackIntensity={70}
+              fallbackIntensity={20}
               fallbackTint={materialBg}
               present={visible}
               animated
@@ -272,14 +273,18 @@ const styles = StyleSheet.create({
     borderRadius: IOSMetrics.alertRadius,
     overflow: "hidden",
   },
-  alertHead: { paddingHorizontal: 16, paddingTop: 19, paddingBottom: 16 },
-  divider: { height: IOSMetrics.hairline, width: "100%" },
-  rowButtons: { flexDirection: "row" },
+  alertHead: { paddingHorizontal: 16, paddingTop: 35, paddingBottom: 35 },
+  divider: {
+    // height: IOSMetrics.hairline, width: "100%"
+  },
+  rowButtons: { flexDirection: "row" , },
   button: {
     minHeight: IOSMetrics.minTouchTarget,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 12,
+    paddingVertical: 13,
+    
   },
 
   sheetWrap: {

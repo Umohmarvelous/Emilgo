@@ -131,6 +131,7 @@ export default function FreeRideTrackScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
       setPhase("blocked");
+      console.log('first',e)
     }
   }, [claimId, destination, isDriver, origin, resetTripState]);
 
@@ -366,7 +367,7 @@ export default function FreeRideTrackScreen() {
         <View style={[styles.warnBar, { top: topPad + 62 }]}>
           <Ionicons name="warning" size={16} color="#fff" />
           <Text style={styles.warnText}>
-            Location is off — turn GPS back on or this ride won't be verified.
+            {`Location is off — turn GPS back on or this ride won't be verified.`}
           </Text>
         </View>
       )}

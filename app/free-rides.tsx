@@ -11,20 +11,18 @@
  */
 
 import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, RefreshControl } from "react-native";
+import { View, Text, StyleSheet, Pressable, RefreshControl } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { StatusBar } from "expo-status-bar";
 import { Colors } from "@/constants/colors";
-import { IOSScreen, useCollapsibleScroll } from "@/components/ios";
 import { useAuthStore } from "@/src/store/useStore";
 import { useSettingsStore } from "@/src/store/useSettingsStore";
 import { useIsPremium, useIsElite } from "@/src/store/useTierStore";
 import { useFreeRidesStore, type FreeRideOffer } from "@/src/store/useFreeRidesStore";
 import { ensureGpsOn } from "@/src/services/locationTracking";
-import { iosAlert } from "@/components/ios";
+import { iosAlert, IOSScreen, useCollapsibleScroll  } from "@/components/ios";
 
 export default function FreeRidesScreen() {
   const scroll = useCollapsibleScroll();
@@ -154,15 +152,15 @@ export default function FreeRidesScreen() {
       }
     >
         {isDriver && (
-          <Pressable style={styles.offerCta} onPress={() => router.push("/(driver)/free-ride" as any)}>
+          <Pressable style={[styles.offerCta, { backgroundColor: 'transparent'}]} onPress={() => router.push("/(driver)/free-ride" as any)}>
             <View style={styles.offerCtaIcon}>
-              <Ionicons name="add" size={22} color="#fff" />
+            <Ionicons name="add" size={22} color={textColor}  />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.offerCtaTitle}>Offer a free ride</Text>
-              <Text style={styles.offerCtaSub}>Earn free fuel — or barter for what you need</Text>
+            <Text style={[styles.offerCtaTitle, {color: textColor}]}>Offer a free ride</Text>
+              <Text style={[styles.offerCtaSub, {color: subColor}]}>Earn free fuel — or barter for what you need</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#fff" />
+          <Ionicons name="chevron-forward" size={20} color={ subColor } />
           </Pressable>
         )}
 
@@ -193,7 +191,7 @@ export default function FreeRidesScreen() {
             const spotsLeft = Math.max(0, o.max_passengers - o.claimed_count);
             const busy = busyId === o.id;
             return (
-              <View key={o.id} style={[styles.offerCard, { backgroundColor: cardBg, borderColor }]}>
+              <View key={o.id} style={[styles.offerCard, { backgroundColor: 'transparent',  },{borderBottomWidth: .5, borderBottomColor: borderColor }]}>
                 <View style={styles.offerTop}>
                   <View style={[styles.modeTag, { backgroundColor: (isReward ? Colors.primary : Colors.gold) + "1F" }]}>
                     <Ionicons name={isReward ? "gift" : "swap-horizontal"} size={13} color={isReward ? Colors.primary : Colors.gold} />
@@ -218,11 +216,11 @@ export default function FreeRidesScreen() {
                     onPress={() => bargain(o)}
                   >
                     <Text style={[styles.bargainText, { color: isReward && !isElite ? subColor : Colors.primary }]}>
-                      {isReward ? (isElite ? "Bargain (Elite)" : "Bargain 🔒") : "Bargain"}
+                      {isReward ? (isElite ? "Bargain price" : "Bargain price") : "Bargain price"}
                     </Text>
                   </Pressable>
-                  <Pressable style={[styles.acceptBtn, busy && { opacity: 0.6 }]} onPress={() => accept(o)} disabled={busy}>
-                    <Text style={styles.acceptText}>{busy ? "…" : "Accept"}</Text>
+                  <Pressable style={[styles.acceptBtn, busy && { opacity: 0.6 }, { backgroundColor:  Colors.overlayLight}]} onPress={() => accept(o)} disabled={busy}>
+                    <Text style={[styles.acceptText, {color: textColor}]}>{busy ? "…" : "Accept"}</Text>
                   </Pressable>
                 </View>
               </View>
@@ -239,9 +237,9 @@ const styles = StyleSheet.create({
   back: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   headerTitle: { fontFamily: "Poppins_700Bold", fontSize: 18 },
 
-  offerCta: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: Colors.primary, borderRadius: 18, padding: 16, marginBottom: 16 },
-  offerCtaIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
-  offerCtaTitle: { fontFamily: "Poppins_700Bold", fontSize: 15, color: "#fff" },
+  offerCta: { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 18, padding: 16, marginBottom: 16 },
+  offerCtaIcon: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  offerCtaTitle: { fontFamily: "Poppins_700Bold", fontSize: 15,  },
   offerCtaSub: { fontFamily: "Poppins_400Regular", fontSize: 11.5, color: "rgba(255,255,255,0.85)", marginTop: 1 },
 
   premiumBanner: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 14, borderWidth: 1, padding: 13, marginBottom: 16 },
@@ -251,16 +249,16 @@ const styles = StyleSheet.create({
   empty: { alignItems: "center", gap: 12, paddingVertical: 50 },
   emptyText: { fontFamily: "Poppins_400Regular", fontSize: 13, textAlign: "center" },
 
-  offerCard: { borderRadius: 18, borderWidth: 1, padding: 16, marginBottom: 12, gap: 6 },
-  offerTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 2 },
+  offerCard: { paddingVertical: 16, marginBottom: 22, gap: 6, },
+  offerTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 2, },
   modeTag: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   modeTagText: { fontFamily: "Poppins_600SemiBold", fontSize: 11 },
   spots: { fontFamily: "Poppins_500Medium", fontSize: 11.5 },
   offerMeta: { fontFamily: "Poppins_600SemiBold", fontSize: 13.5 },
   offerDesc: { fontFamily: "Poppins_400Regular", fontSize: 12.5, lineHeight: 18 },
-  offerActions: { flexDirection: "row", gap: 10, marginTop: 10 },
-  bargainBtn: { flex: 1, borderRadius: 12, borderWidth: 1, paddingVertical: 12, alignItems: "center", justifyContent: "center" },
+  offerActions: { flexDirection: "row", gap: 20, marginTop: 10 },
+  bargainBtn: { flex: 1, borderRadius: 52, borderWidth: 1, paddingVertical: 12, alignItems: "center", justifyContent: "center" },
   bargainText: { fontFamily: "Poppins_600SemiBold", fontSize: 13 },
-  acceptBtn: { flex: 1.2, borderRadius: 12, backgroundColor: Colors.primary, paddingVertical: 12, alignItems: "center", justifyContent: "center" },
-  acceptText: { fontFamily: "Poppins_700Bold", fontSize: 13, color: "#fff" },
+  acceptBtn: { flex: 1.2, borderRadius: 52, paddingVertical: 12, alignItems: "center", justifyContent: "center" },
+  acceptText: { fontFamily: "Poppins_700Bold", fontSize: 13 },
 });

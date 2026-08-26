@@ -87,7 +87,8 @@ const LIGHT: IOSPalette = {
 
   systemBlue: "#007AFF",
   systemRed: "#FF3B30",
-  systemGreen: "#34C759",
+  // systemGreen: "#34C759",
+  systemGreen: "#009A43",
   systemOrange: "#FF9500",
   systemGray: "#8E8E93",
   systemGray2: "#AEAEB2",
@@ -121,7 +122,8 @@ const DARK: IOSPalette = {
 
   systemBlue: "#0A84FF",
   systemRed: "#FF453A",
-  systemGreen: "#30D158",
+  // systemGreen: "#30D158",
+  systemGreen: "#009A43",
   systemOrange: "#FF9F0A",
   systemGray: "#8E8E93",
   systemGray2: "#636366",
@@ -233,9 +235,9 @@ export const IOSMetrics = {
   /** Corner radius of an inset-grouped card. */
   groupedRadius: 10,
   /** Sheet / large modal corner radius. */
-  sheetRadius: 12,
+  sheetRadius: 30,
   /** Alert corner radius. */
-  alertRadius: 14,
+  alertRadius: 30,
   /** Minimum tappable target per the HIG. */
   minTouchTarget: 44,
   /** Standard row height. */

@@ -26,6 +26,7 @@ import {
   StyleSheet,
   type StyleProp,
   type ViewStyle,
+  Dimensions,
 } from "react-native";
 import Animated, {
   useSharedValue,
@@ -40,6 +41,9 @@ import { SymbolView, type SymbolViewProps } from "expo-symbols";
 import { Glass } from "./Glass";
 import { useIOSTheme } from "./theme";
 import { IOSAppFont } from "./theme";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
 
 export interface IOSTitleDropdownOption<K extends string = string> {
   key: K;
@@ -123,7 +127,7 @@ export function IOSTitleDropdown<K extends string = string>({
         hitSlop={8}
       >
         <View>
-          {overline ? (
+          {!overline ? (
             <Text style={[styles.overline, { color: t.tertiaryLabel }]}>{overline}</Text>
           ) : null}
           <View style={styles.titleRow}>
@@ -159,16 +163,17 @@ export function IOSTitleDropdown<K extends string = string>({
         <Animated.View
           style={[
             styles.menuShadow,
-            { top: anchor.y, left: anchor.x, width: menuWidth },
+            // { top: anchor.y, left: anchor.x-100, width: menuWidth },
+            { alignSelf:'center', top: anchor.y, width: menuWidth },
             menuStyle,
-          ]}
+            , {borderWidth: .5, borderColor: t.opaqueSeparator}]}
         >
           <Glass
             variant="regular"
-            radius={18}
+            radius={30}
             style={styles.menu}
-            fallbackIntensity={80}
-            fallbackTint={t.secondarySystemGroupedBackground}
+            fallbackIntensity={20}
+            // fallbackTint={t.secondarySystemBackground}
           >
             {options.map((o, i) => {
               const on = o.key === active;
@@ -191,7 +196,7 @@ export function IOSTitleDropdown<K extends string = string>({
                   accessibilityRole="menuitem"
                   accessibilityState={{ selected: on }}
                 >
-                  {o.symbol ? (
+                  {/* {o.symbol ? (
                     <SymbolView
                       name={o.symbol}
                       size={19}
@@ -199,7 +204,7 @@ export function IOSTitleDropdown<K extends string = string>({
                       resizeMode="scaleAspectFit"
                       fallback={<View style={{ width: 19, height: 19 }} />}
                     />
-                  ) : null}
+                  ) : null} */}
 
                   <View style={styles.rowText}>
                     <Text
@@ -238,24 +243,24 @@ export function IOSTitleDropdown<K extends string = string>({
 }
 
 const styles = StyleSheet.create({
-  trigger: { alignSelf: "flex-start" },
+  trigger: { alignSelf: "center", paddingVertical: 12 },
   overline: { ...IOSAppFont.caption2, letterSpacing: 0.4, textTransform: "uppercase" },
   titleRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  title: { ...IOSAppFont.title3, fontFamily: "Poppins_700Bold" },
+  title: { ...IOSAppFont.label, fontFamily: "Poppins_700Bold" },
 
   // Glass clips, so the shadow lives on a wrapper outside it.
   menuShadow: {
-    position: "absolute",
-    borderRadius: 18,
+    position: "relative",
+    borderRadius: 30,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.18,
     shadowRadius: 24,
     elevation: 12,
   },
-  menu: { borderRadius: 18, overflow: "hidden" },
+  menu: { borderRadius: 30, overflow: "hidden" },
 
-  row: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 13 },
+  row: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 35, paddingVertical: 18 },
   rowText: { flex: 1, minWidth: 0 },
   rowLabel: { ...IOSAppFont.body },
   rowDetail: { ...IOSAppFont.caption1, marginTop: 1 },

@@ -679,10 +679,43 @@ async function tryOfflineLoginByUsername(
  * returns the same answer for a real handle and an invented one, so this cannot
  * be used to find out who has an account.
  */
-export async function sendPasswordResetForUsername(username: string): Promise<void> {
-  const uname = username.trim().toLowerCase().replace(/^@/, "");
-  if (!uname) throw new Error("Enter your username to reset your password.");
+/**
+ * Send a reset link, given either a username or an email address.
+ *
+ * ── Why both ───────────────────────────────────────────────────────────────
+ * This used to take a username only. Registration asks for an email and a
+ * username, and the one people remember six months later is the email — so a
+ * username-only reset locked out exactly the users who most needed it.
+ *
+ * ── Why the two paths differ ───────────────────────────────────────────────
+ * An email goes straight to Supabase. A username cannot: resolving a handle to
+ * an address requires reading `users`, which is not cross-readable and must not
+ * become an "is this handle registered, and what is their email?" oracle. That
+ * resolution happens inside the `username-reset` edge function with the service
+ * key, and the function returns the same answer either way.
+ *
+ * Both paths are silent about whether the account exists. A reset form that
+ * says "no such user" is an account-existence checker.
+ */
+export async function sendPasswordReset(handleOrEmail: string): Promise<void> {
+  const raw = handleOrEmail.trim();
+  if (!raw) throw new Error("Enter your username or email to reset your password.");
 
+  const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(raw);
+
+  if (isEmail) {
+    const { error } = await supabase.auth.resetPasswordForEmail(raw.toLowerCase(), {
+      redirectTo: "teqil://reset-password",
+    });
+    // Supabase deliberately succeeds for an unknown address; a network failure
+    // is the only thing worth surfacing.
+    if (error && !/user not found/i.test(error.message)) {
+      throw new Error("Couldn't send the reset link. Please try again.");
+    }
+    return;
+  }
+
+  const uname = raw.toLowerCase().replace(/^@/, "");
   const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
   const anon = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !anon) throw new Error("App is not configured for password reset.");
@@ -695,6 +728,10 @@ export async function sendPasswordResetForUsername(username: string): Promise<vo
   if (!res.ok) throw new Error("Couldn't send the reset link. Please try again.");
 }
 
+/** @deprecated Use `sendPasswordReset`, which also accepts an email address. */
+export async function sendPasswordResetForUsername(username: string): Promise<void> {
+  return sendPasswordReset(username);
+}
 
 // ─── Sign up ──────────────────────────────────────────────────────────────────
 

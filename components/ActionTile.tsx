@@ -177,8 +177,8 @@ export default function ActionTile({ icon: IconComponent, label, color, onPress 
   const { theme } = useSettingsStore();
 
   const isDark = theme === "dark";
-  const ActionTileIcon = isDark ? Colors.overlay : Colors.overlayLight;
-  // const ActionTileIcon = isDark ? Colors.primaryDarker : Colors.overlayColored;
+  // const ActionTileIcon = isDark ? "rgba(120,120,128,0.22)" : "rgba(120,120,128,0.12)";
+  const ActionTileIcon = isDark ? Colors.overlay : Colors.background;
   const textColor = isDark ? Colors.textWhite : Colors.text;
   const borderColor = isDark ? "rgba(255,255,255,0.08)" : "#E8ECF0";
 

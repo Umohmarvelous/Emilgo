@@ -42,7 +42,7 @@ import { useAuthStore } from "@/src/store/useStore";
 import { Colors } from "@/constants/colors";
 import {
   signInWithUsername,
-  sendPasswordResetForUsername,
+  sendPasswordReset,
   signInOfflineAware,
   saveBiometricCredentials,
   signInWithBiometrics,
@@ -222,20 +222,20 @@ export default function LoginScreen() {
   }, [username]);
 
   const handleForgotSubmit = useCallback(async () => {
-    const name = forgotUsername.trim().toLowerCase();
-    if (!name) {
-      iosAlert("Username required", "Enter your username to reset your password.");
+    const entered = forgotUsername.trim();
+    if (!entered) {
+      iosAlert("Enter your details", "Type your username or the email you signed up with.");
       return;
     }
     setForgotLoading(true);
     try {
-      // Always the same answer, whether or not the handle exists — a reset
+      // Always the same answer, whether or not the account exists — a reset
       // form that says "no such user" is an account-existence checker.
-      await sendPasswordResetForUsername(name);
+      await sendPasswordReset(entered);
       setForgotVisible(false);
       iosAlert(
-        "Reset Link Sent",
-        "If that username has an account, a reset link is on its way to the email on file."
+        "Reset link sent",
+        "If that account exists, a reset link is on its way to the email on file. It expires in an hour."
       );
     } catch (err) {
       iosAlert(
@@ -404,16 +404,18 @@ export default function LoginScreen() {
             </View>
             <Text style={[styles.sheetTitle, { color: textColor }]}>Reset your password</Text>
             <Text style={[styles.sheetSub, { color: subTextColor }]}>
-              Enter your username and we&apos;ll email a reset link to the address on file.
+              Enter your username or the email you signed up with. We&apos;ll send a reset
+              link to the address on file.
             </Text>
             <View style={[styles.inputRow, styles.sheetInput, { backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "#F5F7FA" }]}>
               <Ionicons name="at-outline" size={20} color={subTextColor} style={styles.icon} />
               <TextInput
                 style={[styles.input, { color: textColor }]}
-                placeholder="Your username"
+                placeholder="Username or email"
                 placeholderTextColor={subTextColor}
                 value={forgotUsername}
                 onChangeText={(v) => setForgotUsername(v.replace(/\s/g, "").toLowerCase())}
+                keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
                 maxLength={50}

@@ -34,6 +34,7 @@ import { supabase } from "@/src/services/supabase";
 import { isUsernameAvailable } from "@/src/services/auth";
 import { useSettingsStore } from "@/src/store/useSettingsStore";
 import { iosAlert } from "@/components/ios";
+import { checkPassword, NO_AUTOFILL, MIN_LENGTH } from "@/src/services/password";
 
 /** Extract key/value pairs from a deep-link URL's query string AND fragment. */
 function parseAuthParams(url: string): Record<string, string> {
@@ -124,8 +125,13 @@ export default function ResetPasswordScreen() {
   }, []);
 
   const onSubmit = useCallback(async () => {
-    if (password.length < 8) {
-      iosAlert("Weak password", "Password must be at least 8 characters.");
+    // The SAME rules registration enforces. A reset that accepts a weaker
+    // password than signup does is not a smaller problem than a weak signup —
+    // it is a bigger one, because reset is the path an attacker who already
+    // controls the mailbox will use.
+    const check = checkPassword(password, { username: newUsername.trim() || undefined });
+    if (!check.acceptable) {
+      iosAlert("Password not strong enough", check.advice ?? `Use at least ${MIN_LENGTH} characters.`);
       return;
     }
     if (password !== confirm) {

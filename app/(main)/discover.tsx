@@ -34,7 +34,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSharedValue, useAnimatedReaction, runOnJS } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { HugeiconsIcon } from "@hugeicons/react-native";
-import { PenTool01Icon, FireIcon, UserAdd01Icon } from "@hugeicons/core-free-icons";
+import { PenTool01Icon, FireIcon, UserAdd01Icon, Plus } from "@hugeicons/core-free-icons";
 import { Glass, IOSTitleDropdown, useIOSTheme, type IOSTitleDropdownOption } from "@/components/ios";
 import { IOSAppFont } from "@/components/ios/theme";
 import { FeedList } from "@/components/feed";
@@ -268,7 +268,7 @@ export default function DiscoverTab({ scrollY }: DiscoverTabProps) {
         >
           <Avatar name={user?.full_name || "You"} photoUri={user?.profile_photo} size={38} />
           <Text style={[styles.composerHint, { color: t.tertiaryLabel }]}>
-            What&apos;s happening on the road?
+            What&apos;s happening ?
           </Text>
         </Pressable>
 
@@ -323,7 +323,7 @@ export default function DiscoverTab({ scrollY }: DiscoverTabProps) {
           fallbackTint={t.tint}
           fallbackIntensity={0}
         >
-          <HugeiconsIcon icon={PenTool01Icon} size={22} color="#fff" strokeWidth={2} />
+          <HugeiconsIcon icon={Plus} size={25} color="#fff" strokeWidth={2} />
         </Glass>
       </Pressable>
     </View>

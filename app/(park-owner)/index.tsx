@@ -4,7 +4,7 @@
  * Park Owner dashboard — FirstBank-style layout.
  */
 
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -21,7 +21,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { useAuthStore } from "@/src/store/useStore";
-import { TripsStorage, BroadcastsStorage, PassengersStorage } from "@/src/services/storage";
+import { TripsStorage, PassengersStorage } from "@/src/services/storage";
+import {
+  send as sendBroadcast,
+  listSent as listSentBroadcasts,
+  remove as removeBroadcast,
+  type SentBroadcast,
+} from "@/src/services/broadcasts";
 import { syncAll } from "@/src/services/sync";
 import { generateId, formatNaira } from "@/src/utils/helpers";
 import type { Trip } from "@/src/models/types";
@@ -154,6 +160,13 @@ function ActiveTripItem({ trip }: { trip: Trip & { passengerCount: number } }) {
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
+/** How long a notice stays true. Presets, because nobody wants a date picker here. */
+const EXPIRY_CHOICES: { label: string; hours: number | null }[] = [
+  { label: "No expiry", hours: null },
+  { label: "Today", hours: 12 },
+  { label: "3 days", hours: 72 },
+];
+
 export default function ParkOwnerDashboard() {
   const insets = useSafeAreaInsets();
   const { user, logout } = useAuthStore();
@@ -169,6 +182,29 @@ export default function ParkOwnerDashboard() {
   });
   const [activeTrips, setActiveTrips] = useState<(Trip & { passengerCount: number })[]>([]);
   const [broadcastMsg, setBroadcastMsg] = useState("");
+  const [broadcastTitle, setBroadcastTitle] = useState("");
+  const [broadcastUrgent, setBroadcastUrgent] = useState(false);
+  // NULL means it never expires. A notice about today's fuel queue is actively
+  // misleading tomorrow, so an expiry is offered rather than assumed.
+  const [broadcastExpiry, setBroadcastExpiry] = useState<string | null>(null);
+  const [sent, setSent] = useState<SentBroadcast[]>([]);
+
+  /** Which expiry preset the current draft matches, for the chip's on-state. */
+  const activeExpiryHours = useMemo(() => {
+    if (!broadcastExpiry) return null;
+    const hours = (new Date(broadcastExpiry).getTime() - Date.now()) / 3600_000;
+    return EXPIRY_CHOICES.reduce<number | null>((best, c) => {
+      if (c.hours === null) return best;
+      if (best === null) return c.hours;
+      return Math.abs(c.hours - hours) < Math.abs(best - hours) ? c.hours : best;
+    }, null);
+  }, [broadcastExpiry]);
+
+  const loadSent = useCallback(async () => {
+    setSent(await listSentBroadcasts());
+  }, []);
+
+  useEffect(() => { loadSent(); }, [loadSent]);
   const [isSending, setIsSending] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [balanceHidden, setBalanceHidden] = useState(false);
@@ -242,20 +278,38 @@ export default function ParkOwnerDashboard() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsSending(true);
     try {
-      await BroadcastsStorage.save({
-        id: generateId(),
-        park_id: user?.id || "",
-        message: broadcastMsg.trim(),
-        created_at: new Date().toISOString(),
-        synced: false,
-        updated_at: new Date().toISOString(),
+      // This used to write to AsyncStorage and wait for the sync loop, which is
+      // why a broadcast arrived whenever a driver's app next happened to sync.
+      // The RPC writes it server-side, so realtime delivers it immediately, and
+      // it enforces park ownership — the UI is not an access control.
+      const res = await sendBroadcast(broadcastMsg.trim(), {
+        title: broadcastTitle.trim() || undefined,
+        priority: broadcastUrgent ? "urgent" : "normal",
+        expiresAt: broadcastExpiry,
       });
-      setBroadcastMsg("");
-      if (user) {
-        syncAll({ id: user.id, role: user.role, park_name: user.park_name }).catch(() => {});
+
+      if (!res.ok) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        iosAlert("Not sent", res.message);
+        return;
       }
+
+      setBroadcastMsg("");
+      setBroadcastTitle("");
+      setBroadcastUrgent(false);
+      setBroadcastExpiry(null);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      iosAlert("Sent!", "Message broadcast to all drivers.");
+
+      // Say how far it went. "Sent!" told the owner nothing they could act on,
+      // and a park with no drivers attached looked identical to a successful
+      // broadcast to fifty.
+      iosAlert(
+        res.reach > 0 ? "Sent" : "Sent, but nobody to receive it",
+        res.reach > 0
+          ? `Delivered to ${res.reach} driver${res.reach === 1 ? "" : "s"} in your park. You'll see how many opened it below.`
+          : "No drivers are attached to your park yet, so nobody received this. Drivers join by setting your park name on their profile.",
+      );
+      loadSent();
     } catch {
       iosAlert("Error", "Could not send. Try again.");
     } finally {
@@ -436,6 +490,14 @@ export default function ParkOwnerDashboard() {
 
         <View style={styles.broadcastCard}>
           <TextInput
+            style={styles.broadcastTitleInput}
+            placeholder="Subject (optional) — e.g. Route notice"
+            placeholderTextColor={FB.textSec}
+            value={broadcastTitle}
+            onChangeText={setBroadcastTitle}
+            maxLength={60}
+          />
+          <TextInput
             style={styles.broadcastInput}
             placeholder="Write a message to all drivers..."
             placeholderTextColor={FB.textSec}
@@ -449,6 +511,49 @@ export default function ParkOwnerDashboard() {
           {broadcastMsg.length > 0 && (
             <Text style={styles.charCount}>{broadcastMsg.length}/500</Text>
           )}
+
+          {/* Urgency and expiry.
+              Urgent pins the notice to the top of every driver's inbox until
+              they open it, and is the only kind that fires a notification — a
+              push for every routine notice teaches drivers to swipe them away,
+              which is exactly the wrong reflex for the one that matters. */}
+          <View style={styles.broadcastOptsRow}>
+            <Pressable
+              style={[styles.broadcastOpt, broadcastUrgent && styles.broadcastOptOn]}
+              onPress={() => { Haptics.selectionAsync(); setBroadcastUrgent((v) => !v); }}
+            >
+              <Ionicons
+                name={broadcastUrgent ? "alert-circle" : "alert-circle-outline"}
+                size={14}
+                color={broadcastUrgent ? "#fff" : FB.textSec}
+              />
+              <Text style={[styles.broadcastOptText, broadcastUrgent && styles.broadcastOptTextOn]}>
+                Urgent
+              </Text>
+            </Pressable>
+
+            {EXPIRY_CHOICES.map((c) => {
+              const on = c.hours === null ? broadcastExpiry === null : !!broadcastExpiry && c.hours === activeExpiryHours;
+              return (
+                <Pressable
+                  key={c.label}
+                  style={[styles.broadcastOpt, on && styles.broadcastOptOn]}
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    setBroadcastExpiry(
+                      c.hours === null
+                        ? null
+                        : new Date(Date.now() + c.hours * 3600_000).toISOString(),
+                    );
+                  }}
+                >
+                  <Text style={[styles.broadcastOptText, on && styles.broadcastOptTextOn]}>
+                    {c.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
           <Pressable
             style={[
               styles.broadcastBtn,
@@ -474,6 +579,58 @@ export default function ParkOwnerDashboard() {
             </LinearGradient>
           </Pressable>
         </View>
+
+        {/* What was sent, and how far it got.
+            Without a read count an owner cannot tell "nobody has read it" from
+            "nobody has synced", and will send the same notice again — which is
+            precisely how drivers learn to ignore them. */}
+        {sent.length > 0 && (
+          <View style={styles.sentList}>
+            <Text style={styles.sentHeading}>RECENTLY SENT</Text>
+            {sent.slice(0, 5).map((b) => {
+              const expired = !!b.expires_at && new Date(b.expires_at) <= new Date();
+              return (
+                <Pressable
+                  key={b.id}
+                  style={styles.sentRow}
+                  onLongPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    iosAlert(
+                      "Delete this notice?",
+                      "It disappears from every driver's inbox, along with who had read it.",
+                      [
+                        { text: "Cancel", style: "cancel" },
+                        {
+                          text: "Delete",
+                          style: "destructive",
+                          onPress: async () => {
+                            if (await removeBroadcast(b.id)) loadSent();
+                          },
+                        },
+                      ],
+                    );
+                  }}
+                >
+                  <View style={styles.sentTop}>
+                    <Text style={styles.sentTitle} numberOfLines={1}>
+                      {b.title || b.message}
+                    </Text>
+                    {b.priority === "urgent" ? (
+                      <Text style={styles.sentUrgent}>URGENT</Text>
+                    ) : null}
+                  </View>
+                  <Text style={styles.sentMeta}>
+                    {b.reach === 0
+                      ? "No drivers in your park yet"
+                      : `Read by ${b.read_count} of ${b.reach}`}
+                    {expired ? " · expired" : ""}
+                  </Text>
+                </Pressable>
+              );
+            })}
+            <Text style={styles.sentHint}>Press and hold a notice to delete it.</Text>
+          </View>
+        )}
       </View>
       </Reanimated.ScrollView>
 
@@ -738,6 +895,37 @@ const styles = StyleSheet.create({
   },
 
   // Broadcast
+  broadcastTitleInput: {
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 14,
+    color: FB.textPrimary,
+    paddingBottom: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: FB.border,
+    marginBottom: 10,
+  },
+  broadcastOptsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10, marginBottom: 4 },
+  broadcastOpt: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 14,
+    backgroundColor: FB.border,
+  },
+  broadcastOptOn: { backgroundColor: FB.green },
+  broadcastOptText: { fontFamily: "Poppins_500Medium", fontSize: 11.5, color: FB.textSec },
+  broadcastOptTextOn: { color: "#fff" },
+
+  sentList: { marginTop: 18, gap: 2 },
+  sentHeading: {
+    fontFamily: "Poppins_600SemiBold", fontSize: 10.5, letterSpacing: 0.6,
+    color: FB.textSec, marginBottom: 8,
+  },
+  sentRow: { paddingVertical: 9, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: FB.border },
+  sentTop: { flexDirection: "row", alignItems: "center", gap: 8 },
+  sentTitle: { fontFamily: "Poppins_500Medium", fontSize: 13, color: FB.textPrimary, flexShrink: 1 },
+  sentUrgent: { fontFamily: "Poppins_700Bold", fontSize: 9, color: "#C0392B", letterSpacing: 0.5 },
+  sentMeta: { fontFamily: "Poppins_400Regular", fontSize: 11, color: FB.textSec, marginTop: 2 },
+  sentHint: { fontFamily: "Poppins_400Regular", fontSize: 10.5, color: FB.textSec, marginTop: 10, fontStyle: "italic" },
+
   broadcastCard: {
     backgroundColor: FB.offWhite,
     borderRadius: 16,

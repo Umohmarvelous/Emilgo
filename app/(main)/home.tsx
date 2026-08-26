@@ -477,7 +477,7 @@ const styles = StyleSheet.create({
   shortcutRow: {
     justifyContent: 'space-between',
     borderRadius: 30, 
-    paddingTop: 95,
+    paddingTop: 75,
     gap: 15,
     flexDirection: "column",
     flex: 1,

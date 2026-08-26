@@ -278,7 +278,7 @@ export function CollapsibleHeader({
   }));
 
   return (
-    <Animated.View style={[styles.container, containerStyle, style]} pointerEvents="box-none">
+    <Animated.View style={[styles.container, containerStyle, style ]} pointerEvents="box-none">
       {/* Frosted background, revealed on scroll */}
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
         {/* Liquid Glass nav bar. It materialises via `present` rather than
@@ -289,10 +289,11 @@ export function CollapsibleHeader({
           animated
           style={StyleSheet.absoluteFill}
           pointerEvents="none"
-          fallbackIntensity={100}
+          fallbackIntensity={10}
           fallbackTint={
-            theme.scheme === "dark" ? "rgba(0,0,0,0.62)" : "rgba(255,255,255,0.72)"
+            theme.scheme === "dark" ? "rgba(0,0,0,0.22)" : "rgba(255,255,255,0.72)"
           }
+
           // Android's blur is much weaker, so its veil carries more of the load.
           androidTint={
             theme.scheme === "dark" ? "rgba(0,0,0,0.80)" : "rgba(255,255,255,0.85)"
@@ -308,7 +309,7 @@ export function CollapsibleHeader({
       </View>
 
       {/* Compact bar: back / centred title / action */}
-      <View style={[styles.bar, { marginTop: insets.top }]} pointerEvents="box-none">
+      <View style={[styles.bar, { marginTop: insets.top }, {}]} pointerEvents="box-none">
         <View style={styles.barSide}>{left}</View>
 
         <Pressable
@@ -348,7 +349,7 @@ export function CollapsibleHeader({
           maxFontSizeMultiplier={1.4}
           style={[
             IOSFont.largeTitle,
-            { fontFamily: IOSAppFont.screenTitle.fontFamily, fontSize: 24, color: theme.label },
+            { fontFamily: IOSAppFont.screenTitle.fontFamily, fontSize: 22, color: theme.label },
           ]}
         >
           {title}

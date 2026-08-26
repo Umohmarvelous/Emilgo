@@ -952,13 +952,10 @@ export default function ProfileTab() {
               />
             )}
             <BarButton icon={LogoutIcon} label="Sign out" onPress={confirmSignOut} color={textColor} />
-
-
-
           </View> */}
 
 
-            <View style={[styles.menuListContent, {backgroundColor: Colors.overlay,  alignItems:'center', borderWidth: 1, borderColor: ios.opaqueSeparator, justifyContent:'center'}]}>
+            <View style={[styles.menuListContent, {backgroundColor: ios.secondarySystemBackground,  alignItems:'center', borderWidth: .5, borderColor: ios.opaqueSeparator, justifyContent:'center'}]}>
 
                 {/* Glass, not a coloured pill. */}
                 <Glass
@@ -967,13 +964,13 @@ export default function ProfileTab() {
                   radius={30}
                   style={StyleSheet.absoluteFill}
                   pointerEvents="none"
-                  fallbackIntensity={40}
-                  fallbackTint={isDark ? Colors.overlayLight : Colors.border}
+                  fallbackIntensity={26}
+                  // fallbackTint={ios.secondarySystemBackground}
                 />
 
                 <HugeiconsIcon
                   icon={Search02Icon}
-                  size={26}
+                  size={24}
                   color={textColor}
                   onPress={openSearch}
                 />
@@ -983,7 +980,7 @@ export default function ProfileTab() {
                 {/* {user?.role === "driver" && ( */}
                   <HugeiconsIcon
                     icon={Logout02Icon}
-                    size={26}
+                    size={24}
                     color={textColor}
                     onPress={confirmSignOut} 
                     // onPress={() => setReceiveVisible(true)}
@@ -1027,7 +1024,8 @@ export default function ProfileTab() {
           }
           header={
             <View style={[styles.hero, 
-            {backgroundColor: ios.tertiarySystemFill, borderWidth: .5, borderColor: ios.opaqueSeparator, borderRadius: CARD_RADIUS, marginHorizontal: 10, marginBottom: 6 }
+            {backgroundColor: ios.scheme === "dark" ? "rgba(120,120,128,0.22)" : "rgba(120,120,128,0.12)"
+, borderWidth: .5, borderColor: ios.opaqueSeparator, borderRadius: CARD_RADIUS, marginHorizontal: 10, marginBottom: 6 }
 
             ]}>
               <View style={[styles.heroRow, { }]}>
@@ -1203,15 +1201,15 @@ export default function ProfileTab() {
 
 
                 {user?.role === "driver" ? (
-                  <View style={[styles.coinbalanceSection, { backgroundColor: ios.tertiarySystemFill, borderWidth: .5, borderColor: ios.opaqueSeparator }]}>
+                  <View style={[styles.coinbalanceSection, { backgroundColor: ios.secondarySystemBackground, borderWidth: .5, borderColor: ios.opaqueSeparator }]}>
                     <DriverDashboard />
                   </View>
                 ) : user?.role === "passenger" ? (
-                  <View style={[styles.coinbalanceSection, { backgroundColor: ios.tertiarySystemFill, borderWidth: .5, borderColor: ios.opaqueSeparator }]}>
+                  <View style={[styles.coinbalanceSection, { backgroundColor: ios.secondarySystemBackground, borderWidth: .5, borderColor: ios.opaqueSeparator }]}>
                     <PassengerDashboard />
                   </View>
                 ) : (
-                  <View style={[styles.coinbalanceSection, { backgroundColor: ios.tertiarySystemFill, borderWidth: .5, borderColor: ios.opaqueSeparator }]}>
+                  <View style={[styles.coinbalanceSection, { backgroundColor: ios.secondarySystemBackground, borderWidth: .5, borderColor: ios.opaqueSeparator }]}>
                     <BalanceCard coins={totalEarnedCoins} onQuickTransferPress={() => {}} />
                   </View>
                 )}
@@ -1774,7 +1772,7 @@ const styles = StyleSheet.create({
   },
   partnerBtnText: { fontFamily: "Poppins_600SemiBold", fontSize: 14, color: "#fff" },
   coinbalanceSection: {
-    padding: 20,
+    padding: 10,
     borderRadius: CARD_RADIUS,
     marginBottom: 12,
 

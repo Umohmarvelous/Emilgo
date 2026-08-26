@@ -9,7 +9,13 @@ import {
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "@/constants/colors";
-import { BroadcastsStorage } from "@/src/services/storage";
+import {
+  listForDriver,
+  markRead as markBroadcastReadRemote,
+  subscribe as subscribeBroadcasts,
+  notifyIfUrgent,
+  type DriverBroadcast,
+} from "@/src/services/broadcasts";
 import { triggerSyncNow } from "@/src/services/sync";
 import { formatDateTime } from "@/src/utils/helpers";
 import type { Broadcast } from "@/src/models/types";
@@ -95,42 +101,80 @@ function ChatRow({
 type Row =
   | { kind: "header"; id: string; title: string }
   | { kind: "chat"; id: string; conv: Conversation }
-  | { kind: "broadcast"; id: string; broadcast: Broadcast };
+  | { kind: "broadcast"; id: string; broadcast: DriverBroadcast };
 
-function MessageCard({ broadcast, cardBg }: { broadcast: Broadcast; cardBg: string }) {
+/**
+ * One park announcement.
+ *
+ * Urgent notices are visually distinct and say so, because the previous card
+ * rendered every broadcast identically — a road closure and a reminder about
+ * next month's dues looked exactly the same, which is how both get ignored.
+ *
+ * Tapping marks it read. That receipt is the only honest answer the park owner
+ * gets to "did anyone see this?".
+ */
+function MessageCard({
+  broadcast, cardBg, onRead,
+}: {
+  broadcast: DriverBroadcast;
+  cardBg: string;
+  onRead: (id: string) => void;
+}) {
+  const urgent = broadcast.priority === "urgent";
+  const tint = urgent ? Colors.error : Colors.primary;
+
   return (
-    <View style={styles.cardShadow}>
+    <Pressable
+      style={styles.cardShadow}
+      onPress={() => { if (!broadcast.read) onRead(broadcast.id); }}
+    >
       <Glass
         variant="regular"
         radius={16}
-        style={styles.messageCard}
+        style={[
+          styles.messageCard,
+          urgent && !broadcast.read ? { borderWidth: 1, borderColor: `${Colors.error}55` } : null,
+        ]}
         fallbackIntensity={40}
         fallbackTint={cardBg}
       >
-      <View style={styles.messageIconBg}>
-        <Glass
-          variant="clear"
-          radius={12}
-          style={StyleSheet.absoluteFill}
-          pointerEvents="none"
-          fallbackIntensity={25}
-          fallbackTint={Colors.primaryLight}
-        />
-        <Ionicons name="megaphone" size={20} color={Colors.primary} />
-      </View>
-      <View style={styles.messageContent}>
-        <Text style={styles.messageTitle}>Park Announcement</Text>
-        <Text style={styles.messageText}>{broadcast.message}</Text>
-        <Text style={styles.messageTime}>{formatDateTime(broadcast.created_at)}</Text>
-      </View>
+        <View style={styles.messageIconBg}>
+          <Glass
+            variant="clear"
+            radius={12}
+            style={StyleSheet.absoluteFill}
+            pointerEvents="none"
+            fallbackIntensity={25}
+            fallbackTint={urgent ? `${Colors.error}22` : Colors.primaryLight}
+          />
+          <Ionicons name="megaphone" size={20} color={tint} />
+        </View>
+        <View style={styles.messageContent}>
+          <View style={styles.broadcastTopRow}>
+            <Text style={[styles.messageTitle, !broadcast.read && styles.messageTitleUnread]} numberOfLines={1}>
+              {broadcast.title || "Park announcement"}
+            </Text>
+            {urgent ? (
+              <View style={[styles.urgentPill, { backgroundColor: `${Colors.error}1F` }]}>
+                <Text style={[styles.urgentPillText, { color: Colors.error }]}>URGENT</Text>
+              </View>
+            ) : null}
+            {!broadcast.read ? <View style={[styles.unreadDot, { backgroundColor: tint }]} /> : null}
+          </View>
+          <Text style={styles.messageText}>{broadcast.message}</Text>
+          <Text style={styles.messageTime}>
+            {broadcast.sender_name ? `${broadcast.sender_name} · ` : ""}
+            {formatDateTime(broadcast.created_at)}
+          </Text>
+        </View>
       </Glass>
-    </View>
+    </Pressable>
   );
 }
 
 export default function MessagesScreen() {
   const { t } = useTranslation();
-  const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
+  const [broadcasts, setBroadcasts] = useState<DriverBroadcast[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
   const user = useAuthStore((s) => s.user);
@@ -139,13 +183,11 @@ export default function MessagesScreen() {
   const subscribeToRealtime = useMessagesStore((s) => s.subscribeToRealtime);
 
   const load = useCallback(async () => {
-    const data = await BroadcastsStorage.getAll();
-    // Sort newest first
-    const sorted = [...data].sort(
-      (a, b) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    );
-    setBroadcasts(sorted);
+    // This used to read AsyncStorage and nothing else, so a broadcast appeared
+    // only if a background sync had happened to run first. The RPC also applies
+    // the park-membership check and drops expired notices, neither of which the
+    // local cache could do.
+    setBroadcasts(await listForDriver());
     // 'driver' is not a guess here — this screen only exists inside the driver
     // route group, and the role decides which side of each conversation row is
     // "the other person".
@@ -162,6 +204,32 @@ export default function MessagesScreen() {
     if (!user?.id) return;
     return subscribeToRealtime(user.id);
   }, [user?.id, subscribeToRealtime]);
+
+  /**
+   * Park announcements arrive live.
+   *
+   * Same reasoning as the chat subscription above: a notice that shows up on
+   * the next sync is indistinguishable from one that never arrived, and for
+   * "the road is blocked" that difference is the entire value of the feature.
+   */
+  useEffect(() => {
+    if (!user?.id) return;
+    return subscribeBroadcasts((rows) => {
+      setBroadcasts((prev) => {
+        // Only fire a notification for something genuinely new to this device.
+        const known = new Set(prev.map((b) => b.id));
+        for (const b of rows) if (!known.has(b.id)) notifyIfUrgent(b);
+        return rows;
+      });
+    });
+  }, [user?.id]);
+
+  const markBroadcastRead = useCallback(async (id: string) => {
+    // Optimistic: the receipt is bookkeeping, and a driver should never watch a
+    // spinner to acknowledge a notice they have already read.
+    setBroadcasts((prev) => prev.map((b) => (b.id === id ? { ...b, read: true } : b)));
+    await markBroadcastReadRemote(id);
+  }, []);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -207,7 +275,7 @@ export default function MessagesScreen() {
           if (item.kind === "chat") {
             return <ChatRow conv={item.conv} cardBg={cardBg} subTextColor={subTextColor} />;
           }
-          return <MessageCard broadcast={item.broadcast} cardBg={cardBg} />;
+          return <MessageCard broadcast={item.broadcast} cardBg={cardBg} onRead={markBroadcastRead} />;
         }}
         showsVerticalScrollIndicator={false}
         scrollEnabled={rows.length > 0}
@@ -295,7 +363,13 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins_600SemiBold",
     fontSize: 14,
     color: Colors.text,
+    flexShrink: 1,
   },
+  messageTitleUnread: { fontFamily: "Poppins_700Bold" },
+  broadcastTopRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  urgentPill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
+  urgentPillText: { fontFamily: "Poppins_700Bold", fontSize: 9, letterSpacing: 0.5 },
+  unreadDot: { width: 8, height: 8, borderRadius: 4, marginLeft: "auto" },
   messageText: {
     fontFamily: "Poppins_400Regular",
     fontSize: 14,

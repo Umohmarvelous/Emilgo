@@ -266,7 +266,7 @@ export function SwipeableTabs<T extends string = string>({
       <Animated.View
         onLayout={onStripLayout}
         pointerEvents="box-none"
-        style={[styles.strip, { left: stripInset, right: stripInset }, stripStyle]}
+        style={[styles.strip, { left: stripInset, right: stripInset }, stripStyle, ]}
       >
         <IOSSegmentedTabs
           segments={segments}
@@ -306,7 +306,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    zIndex: 30,
+    zIndex: 30
   },
 });
 

@@ -1,41 +1,3 @@
-// components/ios/IOSSegmentedTabs.tsx
-//
-// A segmented tab strip that reads as ONE control rather than a row of pills.
-//
-// The distinction matters and is easy to get wrong: if every segment carries
-// its own corner radius, you get separate buttons sitting next to each other.
-// What we want is a single surface whose OUTER corners are rounded and whose
-// inner edges are square — so the first segment rounds only on its leading
-// side, the last only on its trailing side, and everything between is flush.
-//
-//        ╭───────────┬───────────╮      one control
-//        │    NIN    │    BVN    │
-//        ╰───────────┴───────────╯
-//
-// Two variants:
-//
-//   "underline" (default) — the strip above, with an accent rule under the
-//   active segment. Only the TOP corners round, because it sits at the head of
-//   a card whose body continues below it. Pass `rounded="all"` where it stands
-//   alone.
-//
-//   "capsule" — the iOS 26 segmented control: a single glass TRACK with a
-//   smaller glass THUMB that slides between segments.
-//
-//        ╭───────────────────────────────╮
-//        │ ⟨ Personal ⟩  Shared  Activity│    track + sliding thumb
-//        ╰───────────────────────────────╯
-//
-//   The thumb is a real second glass surface rather than a tinted View, so on
-//   iOS 26 it refracts what's behind the track exactly like the system control.
-//   It moves with a spring on `transform`, never on opacity — animating alpha
-//   anywhere above a GlassView renders the effect wrong (expo/expo#41024).
-//
-// Sizing is intrinsic in both variants: segments share the width equally via
-// flex, so the strip fills whatever container it's given and adapts to any
-// screen without hard-coded widths. The capsule thumb needs one number the
-// layout can't give it — the track's measured width — so it waits for a single
-// onLayout pass and positions itself without animating that first placement.
 
 import React from "react";
 import {
@@ -137,7 +99,7 @@ export function IOSSegmentedTabs<T extends string = string>({
       : { borderTopLeftRadius: r, borderTopRightRadius: r };
 
   return (
-    <View style={[styles.row, outer, styles.clip, height ? { height } : null, style]}>
+    <View style={[styles.row, outer, styles.clip, height ? { height } : null, style, {}]}>
       {segments.map((segment, i) => {
         const isActive = segment.key === active;
 
@@ -154,21 +116,21 @@ export function IOSSegmentedTabs<T extends string = string>({
           <Pressable
             key={segment.key}
             onPress={() => select(segment.key, isActive)}
-            style={[styles.segment, corners]}
+            style={[styles.segment, corners, {}]}
             accessibilityRole="tab"
             accessibilityState={{ selected: isActive }}
             accessibilityLabel={segment.label}
           >
             {/* Active segments take the fuller material so the selection is
                 legible; inactive ones stay clear and recede. */}
-            <Glass
+            {/* <Glass
               variant={isActive ? "regular" : "clear"}
               interactive
               style={[StyleSheet.absoluteFill, corners]}
               pointerEvents="none"
               fallbackIntensity={isActive ? 40 : 18}
               fallbackTint={isActive ? theme.systemFill : "transparent"}
-            />
+            /> */}
 
             <Text
               numberOfLines={1}
@@ -258,7 +220,7 @@ function CapsuleTabs<T extends string>({
   return (
     <View
       onLayout={onLayout}
-      style={[styles.track, { height, borderRadius: trackRadius }, style]}
+      style={[styles.track, { height, borderRadius: trackRadius }, style, { borderWidth: .8, borderColor: theme.opaqueSeparator}]}
       accessibilityRole="tablist"
     >
       {/* The track is the quieter material: it's a container, not a control. */}
@@ -268,9 +230,7 @@ function CapsuleTabs<T extends string>({
         style={StyleSheet.absoluteFill}
         pointerEvents="none"
         fallbackIntensity={26}
-        fallbackTint={
-          theme.scheme === "dark" ? "rgba(120,120,128,0.22)" : "rgba(120,120,128,0.12)"
-        }
+        fallbackTint={theme.scheme === "dark" ? "rgba(120,120,128,0.22)" : "rgba(120,120,128,0.12)"}
       />
 
       {/* Sliding thumb. Transform only — never opacity, which would corrupt the

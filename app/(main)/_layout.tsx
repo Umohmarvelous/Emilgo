@@ -41,7 +41,6 @@ import {
   useIOSTheme,
 } from "@/components/ios";
 import HeaderActions from "@/components/HeaderActions";
-import AccountMenu from "@/components/AccountMenu";
 import { useUnreadNotificationCount } from "@/src/store/useNotificationsStore";
 import Avatar from "@/components/Avatar";
 import { useAuthStore } from "@/src/store/useStore";
@@ -51,7 +50,6 @@ import SidedBar from "@/components/Sidedbar";
 import FindDriverModal from "@/components/FindDriverModal";
 import OnboardingOverlay from "@/components/OnboardingOverlay";
 import { useOnboarding } from "@/src/hooks/useOnboarding";
-import { SymbolView } from "expo-symbols";
 
 type Tab = "home" | "profile" | "messages" | "notifications";
 type TopTab = "home" | "discover";
@@ -105,7 +103,7 @@ export default function MainLayout() {
   // Notifications tab below.
   const unreadNotifications = useUnreadNotificationCount();
 
-    const ios = useIOSTheme();
+  const ios = useIOSTheme();
 
     
   const { shouldShow, isLoaded, complete } = useOnboarding();
@@ -439,14 +437,14 @@ export default function MainLayout() {
         {/* The whole home screen (top bar + content + bottom bar) lives inside
             this card. It clips to rounded corners (overflow: hidden) so the
             animated border below hugs it neatly. */}
-        <View style={styles.homeCard}>
+        <View style={[styles.homeCard, {}]}>
           {/* Dim overlay: covers the ENTIRE home screen (top bar, content AND
               bottom bar) while the sidebar is open. Tapping anywhere on it
               closes the sidebar. zIndex 200 keeps it above the top/bottom bars,
               which sit at zIndex 100 — otherwise those areas wouldn't dim or
               catch the close-tap. */}
           <Animated.View
-            style={[styles.overlay, { opacity: overlayOpacity }, {backgroundColor:  isDark ? Colors.overlayLight : "rgba(205 205 205 / 0.46)"}]}
+            style={[styles.overlay, { opacity: overlayOpacity }, {backgroundColor:  isDark ? Colors.overlayLight : "rgba(205 205 205 / 0.46)"}, {}]}
             pointerEvents={isSidebarOpen ? "auto" : "none"}
           >
             <Pressable style={StyleSheet.absoluteFill} onPress={closeSidebar} />
@@ -462,6 +460,7 @@ export default function MainLayout() {
             style={[
               styles.homeBorder,
               { opacity: overlayOpacity, borderColor: sideBorderColor },
+              {}
             ]}
           />
 
@@ -477,18 +476,10 @@ export default function MainLayout() {
                 borderTopLeftRadius: 45,
                 overflow: "hidden",
                 transform: [{ translateY: actualHeaderTranslateY }],
-              }, {}]}
+              },
+                // { borderWidth: .5, borderColor: ios.opaqueSeparator, margin: 10, marginBottom: 0, paddingBottom: 10, backgroundColor: ios.secondarySystemFill, borderRadius: 30 }
+              ]}
             >
-              {/* The bar floats over scrolling content, so it takes the same
-                  glass as the tab bar rather than an opaque fill. */}
-              <Glass
-                variant="regular"
-                style={StyleSheet.absoluteFill}
-                pointerEvents="none"
-                fallbackIntensity={20}
-                // fallbackTint={tabBarBg}
-                fallbackTint={isDark ? Colors.overlay : 'transparent'}
-              />
               <View
                 onLayout={(e) => {
                   const h = Math.round(e.nativeEvent.layout.height);
@@ -501,18 +492,20 @@ export default function MainLayout() {
                   {
                     paddingTop: topPadding,
                   },
+                  { borderWidth: .5, borderColor: ios.opaqueSeparator, margin: 10, marginTop: 5, marginBottom: 0, paddingBottom: 10, borderRadius: 30 }
                 ]}
               >
-                <Pressable onPress={openSidebar} style={[styles.menuBtn, {backgroundColor: Colors.overlay, padding: 22, borderRadius: 50, alignItems:'center', justifyContent:'center'}]}>
-                  <Glass
-                    variant="regular"
-                    interactive
-                    radius={30}
-                    style={StyleSheet.absoluteFill}
-                    pointerEvents="none"
-                    fallbackIntensity={40}
-                    fallbackTint={isDark ? Colors.overlayLight : Colors.border}
-                  />
+                {/* The bar floats over scrolling content, so it takes the same glass as the tab bar rather than an opaque fill. */}
+                <Glass
+                  variant="clear"
+                  style={StyleSheet.absoluteFill}
+                  radius={30}
+                  pointerEvents="none"
+                  fallbackIntensity={26}
+                  fallbackTint={ios.scheme === "dark" ? "rgba(120,120,128,0.22)" : "rgba(120,120,128,0.12)"}
+                  // fallbackTint={ios.secondarySystemBackground}
+                />
+                <Pressable onPress={openSidebar} style={[styles.menuBtn, {alignItems:'center', justifyContent:'center'}]}>
                   <HugeiconsIcon
                     icon={Menu03Icon}
                     size={24}
@@ -536,41 +529,12 @@ export default function MainLayout() {
                 </View>
 
 
-                <View style={[styles.menuList, { alignItems:'center', justifyContent:'center'}]}>
-
-                  {/* Bell + overflow menu, from the one shared component.
-                      The bell switches tab here rather than pushing a screen,
-                      because Notifications is a tab in this shell. */}
+                <View style={[{ alignItems:'center', justifyContent:'center'}]}>
                   <HeaderActions
-                    onBellPress={() => handleTabPress("notifications")}
+                    // onBellPress={() => handleTabPress("notifications")}
                     onSearchPress={toggleSearch}
                     tint={textColor}
                     // style={{ marginRight: 8 }}
-                  />
-
-                  {/* Avatar → the account menu: other signed-in accounts, add
-                      an account, appearance, support, sign out. */}
-                  <AccountMenu
-                    anchor={
-                      <View style={{ backgroundColor: Colors.overlay,  padding: 2, borderRadius: 50, alignItems: 'center', justifyContent: 'center' }}>
-                        <Glass
-                          variant="regular"
-                          interactive
-                          radius={30}
-                          style={StyleSheet.absoluteFill}
-                          pointerEvents="none"
-                          fallbackIntensity={40}
-                          fallbackTint={isDark ? Colors.overlayLight : Colors.border}
-                        />
-                        {user?.profile_photo ? (
-                          <Avatar name={user?.full_name || "U"} photoUri={user.profile_photo} size={36} />
-                        ) : (
-                          <View style={{margin: 7}}>
-                            <SymbolView name="person.fill" size={24} tintColor={ios.label} fallback={ios.label} />
-                          </View>
-                        )}
-                      </View>
-                    }
                   />
                 </View>
               </View>
@@ -578,7 +542,7 @@ export default function MainLayout() {
               {/* The same capsule segmented control the Profile screen uses:
                   a glass track with a glass thumb that springs between
                   segments, rather than a text row with an underline. */}
-              <View style={styles.topTabBar}>
+              <View style={[styles.topTabBar]}>
                 <IOSSegmentedTabs
                   segments={TOP_TABS}
                   active={activeTopTab}
@@ -705,21 +669,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    // borderRadius: 50, 
-    // borderWidth: 2, borderColor: 'red',
-    
   },
-  menuList: {
-    borderRadius: 30,
-    padding: 5,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 22,
-    // overflow: "hidden",
-    // position: 'relative',
-    // right: 0, top: 1,
-    paddingLeft: 12, 
-  },
+  
   menuBtn: {
     width: 38,
     height: 38,
@@ -736,14 +687,14 @@ const styles = StyleSheet.create({
     marginVertical: 15,
     justifyContent: "center",
     alignItems: "center",
-    flex: 1, marginRight: -35
+    flex: 1,
   },
   photoImg: { width: 50, height: 50, alignSelf: "center" },
   topTabBar: {
-    paddingTop: 12,
+    // paddingTop: 12,
     paddingBottom: 0,
     paddingHorizontal: 10,
-    marginTop: 5
+    marginTop: 10
   },
   tabBar: {
     position: "relative",

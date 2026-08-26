@@ -33,11 +33,17 @@ import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { HugeiconsIcon } from "@hugeicons/react-native";
 import {
-  Notification03Icon,
   MoreHorizontalCircle01Icon,
+  Notification03Icon,
 } from "@hugeicons/core-free-icons";
 import { Glass, IOSMenu, IOSBadge, useIOSTheme, type IOSMenuItem } from "@/components/ios";
 import { useUnreadNotificationCount } from "@/src/store/useNotificationsStore";
+import Avatar from "@/components/Avatar";
+import { useAuthStore } from "@/src/store/useStore";
+import { AccountMenu } from "./AccountMenu";
+import { SymbolView } from "expo-symbols";
+import { Colors } from "@/constants/colors";
+
 
 const SIZE = 38;
 
@@ -104,8 +110,12 @@ export default function HeaderActions({
   const router = useRouter();
   const unread = useUnreadNotificationCount();
 
+  
   const color = tint ?? t.label;
   const fallbackTint = t.scheme === "dark" ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.05)";
+
+  const user = useAuthStore((s) => s.user);
+
 
   const items: IOSMenuItem[] = React.useMemo(() => {
     if (menu) return menu;
@@ -137,7 +147,8 @@ export default function HeaderActions({
       {/* The badge is a sibling of the circle, not a child: the circle clips to
           its radius so the glass corners stay clean, and a badge inside it
           would be clipped along with them. */}
-      <View>
+
+      {/* <View>
         <Circle
           label={unread > 0 ? `Notifications, ${unread} unread` : "Notifications"}
           fallbackTint={fallbackTint}
@@ -150,9 +161,37 @@ export default function HeaderActions({
           <HugeiconsIcon icon={Notification03Icon} size={21} color={color} strokeWidth={2} />
         </Circle>
         <IOSBadge count={unread} borderColor={t.systemBackground} />
+      </View> */}
+
+
+
+      <View>
+        {/* Avatar → the account menu: other signed-in accounts, add an account, appearance, support, sign out. */}
+        <AccountMenu
+          anchor={
+            <View style={{ backgroundColor: Colors.overlay, borderRadius: 50, alignItems: 'center', justifyContent: 'center' }}>
+              {/* <Glass
+                variant="regular"
+                interactive
+                radius={30}
+                style={StyleSheet.absoluteFill}
+                pointerEvents="none"
+                fallbackIntensity={40}
+                fallbackTint={color}
+              /> */}
+              {user?.profile_photo ? (
+                <Avatar name={user?.full_name || "U"} photoUri={user.profile_photo} size={36} />
+              ) : (
+                <View style={{margin: 7}}>
+                  <SymbolView name="person.fill" size={24} tintColor={color} fallback={color} />
+                </View>
+              )}
+            </View>
+          }
+        />
       </View>
 
-      <IOSMenu
+      {/* <IOSMenu
         items={items}
         anchor={
           <Circle label="More" fallbackTint={fallbackTint}>
@@ -164,7 +203,7 @@ export default function HeaderActions({
             />
           </Circle>
         }
-      />
+      /> */}
     </View>
   );
 }
