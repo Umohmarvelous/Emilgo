@@ -26,7 +26,7 @@
 // preference row did not default would be absurd.
 
 import React from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
@@ -307,6 +307,7 @@ function FadeSwap({
   React.useEffect(() => {
     if (first.current) setShown(children);
   });
+  // }, [setShown, children]);
 
   const anim = useAnimatedStyle(() => ({ opacity: opacity.value }));
   return <Animated.View style={[style, anim]}>{shown}</Animated.View>;

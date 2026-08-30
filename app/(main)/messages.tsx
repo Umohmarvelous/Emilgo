@@ -504,7 +504,7 @@ function ConvItem({
       <Pressable
         style={({ pressed }) => [
           S.convItem,
-          { backgroundColor:  'transparent', borderBottomColor: border },
+          { backgroundColor:  ios.systemBackground, borderBottomColor: border },
           pressed && { opacity: 0.85 },
         ]}
         onPress={onPress}
@@ -513,7 +513,8 @@ function ConvItem({
           <Avatar
             name={item.participant_name || 'Driver'}
             photoUri={item.participant_photo}
-            size={50}
+            size={70}
+            style={{borderWidth: 1, borderColor: ios.secondarySystemFill}}
           />
           {/* Direct-chat badge */}
           {isDirectChat && (
@@ -957,8 +958,8 @@ const S = StyleSheet.create({
 
   root:    { flex: 1 },
 
-  header:      { flexDirection: 'column', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 14 },
-  headerInner: { justifyContent: 'space-between', gap: 10 },
+  header:      { flexDirection: 'column', justifyContent: 'space-between', paddingHorizontal: 13, paddingBottom: 14 },
+  headerInner: { justifyContent: 'space-between', gap: 0, borderWidth: 2, borderColor: 'red' },
   headerTitle: { fontFamily: 'Poppins_700Bold', fontSize: 24 },
   newBtn: { width: 40, height: 40, borderRadius: 50, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
 
@@ -1020,7 +1021,7 @@ const S = StyleSheet.create({
   convDriverId: { fontFamily: 'Poppins_400Regular', fontSize: 11, marginTop: 1 },
 
   // Small badge overlaid on avatar for direct conversations
-  directBadge: { position: 'absolute', bottom: 0, right: 0, width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#fff' },
+  directBadge: { position: 'absolute', bottom: 0, right: 0, width: 20, height: 20, borderRadius: 50, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#fff' },
 
   // Empty state
   emptyState: {

@@ -58,15 +58,14 @@ export default function LocationPromptModal() {
         <Ionicons name="location" size={72} color={Colors.primary} />
         <Text style={styles.title}>Location Required</Text>
         <Text style={styles.description}>
-          Teqil needs your location to track trips, ensure safety, and calculate accurate fares.
+          Emilgo needs your location to track trips, ensure safety, and calculate accurate fares.
           Please enable location services in your device settings to continue.
         </Text>
         <IOSButton
           title="Enable Location"
-          variant="filled"
+          variant="borderless"
           size="large"
           fullWidth
-          symbol="location.fill"
           onPress={requestPermission}
           textStyle={styles.buttonText}
         />
@@ -104,6 +103,6 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontFamily: 'Poppins_600SemiBold',
-    fontSize: 16,
+    fontSize: 16, color:Colors.primary
   },
 });

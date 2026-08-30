@@ -923,8 +923,11 @@ export default function RegisterScreen() {
             busy={busy}
             disabled={busy || (codeSent ? code.length !== CODE_LENGTH : email.trim().length < 5)}
             onPress={codeSent ? doVerifyCode : doSendCode}
+            // onPress={() => setStep("password")}
           />
         )}
+
+
 
         {step === "password" && (
           <PrimaryButton
@@ -932,6 +935,7 @@ export default function RegisterScreen() {
             busy={busy}
             disabled={busy || !pwCheck.acceptable || confirm !== password || !confirm}
             onPress={submit}
+            // onPress={() => router.replace("/(auth)/provisioning")}
           />
         )}
 

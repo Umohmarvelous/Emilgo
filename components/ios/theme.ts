@@ -235,7 +235,7 @@ export const IOSMetrics = {
   /** Corner radius of an inset-grouped card. */
   groupedRadius: 10,
   /** Sheet / large modal corner radius. */
-  sheetRadius: 30,
+  sheetRadius: 50,
   /** Alert corner radius. */
   alertRadius: 30,
   /** Minimum tappable target per the HIG. */
