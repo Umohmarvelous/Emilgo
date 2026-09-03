@@ -103,13 +103,13 @@ const ROLES: {
 }[] = [
   {
     value: "passenger",
-    label: "Passenger",
+    label: "Regular User",
     blurb: "Find trips, pay half the fare, and track the ride.",
     icon: "person",
   },
   {
     value: "driver",
-    label: "Driver",
+    label: "Emilgo For Business",
     blurb: "Carry passengers, earn coins, and get your fuel benefit.",
     icon: "car-sport",
   },
@@ -212,7 +212,7 @@ const fieldStyles = StyleSheet.create({
     borderRadius: 9,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    borderWidth: 0.6,
+    borderWidth: .5,
   },
   icon: { marginRight: 12 },
   input: { flex: 1, fontFamily: "Poppins_400Regular", fontSize: 15 },
@@ -360,6 +360,7 @@ export default function RegisterScreen() {
   const [code, setCode] = useState("");
   const [codeSent, setCodeSent] = useState(false);
   const [emailVerified, setEmailVerified] = useState(false);
+  const [bypassEmailVerification, setBypassEmailVerification] = useState(false);
   const [resendIn, setResendIn] = useState(0);
   const [emailError, setEmailError] = useState<string | null>(null);
 
@@ -379,18 +380,10 @@ export default function RegisterScreen() {
 
   /**
    * The confirm field only exists once the password is finished.
-   *
-   * "Finished" is every rule met — not a blur and not a debounce. Revealing it
-   * on blur means it appears while the user is mid-thought and tabbing back;
-   * revealing it on a timer means it appears while they are still typing.
-   * Passing the rules is the only signal that actually means "this is my
-   * password now".
    */
   const showConfirmField = pwCheck.acceptable;
 
   useEffect(() => {
-    // Clearing the confirmation when the password stops being valid prevents the
-    // pair silently disagreeing after an edit.
     if (!showConfirmField && confirm) setConfirm("");
   }, [showConfirmField, confirm]);
 
@@ -430,8 +423,6 @@ export default function RegisterScreen() {
     Haptics.selectionAsync();
     const i = ORDER.indexOf(step);
     if (i === 0) { router.back(); return; }
-    // Stepping back out of a verified email would let the address be changed
-    // after it was proven, so the verification is dropped with it.
     if (step === "password") { setPassword(""); setConfirm(""); }
     setStep(ORDER[i - 1]);
   }, [step, router]);
@@ -446,6 +437,11 @@ export default function RegisterScreen() {
   // ── Email verification ──────────────────────────────────────────────────
   const doSendCode = useCallback(async () => {
     if (busy || resendIn > 0) return;
+    if (bypassEmailVerification) {
+        setEmailVerified(true);
+        setStep("password");
+        return;
+    }
     setBusy(true);
     setEmailError(null);
     try {
@@ -461,7 +457,7 @@ export default function RegisterScreen() {
     } finally {
       setBusy(false);
     }
-  }, [email, busy, resendIn]);
+  }, [email, busy, resendIn, bypassEmailVerification]);
 
   const doVerifyCode = useCallback(async () => {
     if (busy) return;
@@ -474,8 +470,6 @@ export default function RegisterScreen() {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         return;
       }
-      // The address already belongs to a finished account. Quietly setting a new
-      // password on it would be an account takeover with extra steps.
       if (!res.isNew) {
         await abandon();
         setEmailError(null);
@@ -512,8 +506,6 @@ export default function RegisterScreen() {
     try {
       const handle = username.trim().toLowerCase();
 
-      // Re-checked at the last moment: the debounced check ran minutes ago, and
-      // the window between "free" and submit is exactly when a race happens.
       if (!(await isUsernameAvailable(handle))) {
         setUsernameState("taken");
         setStep("you");
@@ -541,29 +533,103 @@ export default function RegisterScreen() {
           : {}),
       };
 
-      const res = await finishSignUp(password, metadata);
-      if (!res.ok) {
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        iosAlert(t("common.error"), res.message);
-        return;
+      let userId = "";
+
+      if (bypassEmailVerification) {
+        // ── Bypass path: signUp then signIn to get a real session ──────
+        const trimmedEmail = email.trim().toLowerCase();
+
+        // 1. Try creating the user
+        const { error: signUpErr } = await supabase.auth.signUp({
+          email: trimmedEmail,
+          password,
+          options: { data: metadata },
+        });
+
+        // "already registered" is fine — the email was used in a previous
+        // OTP attempt that created an auth row. We just sign in instead.
+        if (signUpErr) {
+          const msg = signUpErr.message.toLowerCase();
+          const isAlreadyRegistered =
+            msg.includes("already registered") ||
+            msg.includes("already been registered") ||
+            msg.includes("user already registered");
+          if (!isAlreadyRegistered) {
+            console.error("[register] signUp error:", signUpErr.message);
+            await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+            iosAlert("Signup error", signUpErr.message);
+            return;
+          }
+        }
+
+        // 2. Establish a real session via password sign-in.
+        //    signUp with email confirmation ON returns session: null, so we
+        //    must sign in to get a working session for RLS / DB writes.
+        const { data: signInData, error: signInErr } =
+          await supabase.auth.signInWithPassword({
+            email: trimmedEmail,
+            password,
+          });
+
+        if (signInErr) {
+          const errMsg = signInErr.message.toLowerCase();
+
+          // Supabase blocks login when "Confirm email" is set to REQUIRED
+          // rather than RECOMMENDED. Guide the developer to the fix.
+          if (errMsg.includes("email not confirmed") || errMsg.includes("not confirmed")) {
+            console.error(
+              "[register] Email not confirmed. Go to Supabase Dashboard → " +
+              "Authentication → Providers → Email → set 'Confirm email' " +
+              "to OFF or RECOMMENDED (not REQUIRED) for bypass to work.",
+            );
+            await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+            iosAlert(
+              "Email confirmation required",
+              "Your Supabase project requires email confirmation before sign-in. " +
+              "To use the bypass:\n\n" +
+              "1. Go to Supabase Dashboard → Authentication → Providers → Email\n" +
+              "2. Set 'Confirm email' to OFF or change it from REQUIRED\n\n" +
+              "Or disable the bypass toggle and use the normal OTP flow.",
+            );
+            return;
+          }
+
+          console.error("[register] signIn error:", signInErr.message);
+          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          iosAlert("Sign-in error", signInErr.message);
+          return;
+        }
+        if (!signInData.user) {
+          iosAlert("Error", "Could not establish session after signup.");
+          return;
+        }
+
+        userId = signInData.user.id;
+
+        // 3. Ensure metadata is written (signUp may not have persisted it
+        //    if the row already existed from a prior OTP attempt).
+        await supabase.auth.updateUser({ data: metadata }).catch((e: any) =>
+          console.warn("[register] metadata update:", e?.message),
+        );
+      } else {
+        const res = await finishSignUp(password, metadata);
+        if (!res.ok) {
+          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          iosAlert(t("common.error"), res.message);
+          return;
+        }
+        userId = res.userId;
       }
 
-      // Read the profile the trigger just wrote, rather than assembling a local
-      // guess. What the app renders should be what the database holds.
       const { data: profile } = await supabase
-        .from("users").select("*").eq("id", res.userId).maybeSingle();
+        .from("users").select("*").eq("id", userId).maybeSingle();
 
-      const user = (profile ?? { id: res.userId, email: email.trim(), ...metadata }) as any;
+      const user = (profile ?? { id: userId, email: email.trim(), ...metadata }) as any;
       setUser(user);
       setSelectedRole(role);
       await saveBiometricCredentials(email.trim(), password);
-      // Keeps BOTH logins in the picker, which is what makes one phone able to
-      // hold a passenger account and a driver account.
       await rememberAccount(user).catch(() => {});
 
-      // A code captured from a `teqil://r/…` link before this account existed.
-      // Never blocks signup: an invite that could not be applied is a missed
-      // reward, not a failed registration.
       applyPendingReferral().catch(() => {});
 
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -576,7 +642,7 @@ export default function RegisterScreen() {
     }
   }, [
     busy, role, pwCheck.acceptable, password, confirm, username, firstName, lastName,
-    age, phone, country, email, setUser, setSelectedRole, router, t,
+    age, phone, country, email, setUser, setSelectedRole, router, t, bypassEmailVerification,
   ]);
 
   const STEP_TITLES: Record<Step, { title: string; sub: string }> = {
@@ -633,7 +699,7 @@ export default function RegisterScreen() {
                   style={[
                     styles.roleCard,
                     { backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "#F5F7FA", borderColor },
-                    active && { borderColor: Colors.primary, backgroundColor: Colors.primary + "12" },
+                    active && { borderColor: Colors.primary, backgroundColor: Colors.primary },
                   ]}
                 >
                   <View
@@ -646,12 +712,12 @@ export default function RegisterScreen() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.roleLabel, { color: textColor }]}>{r.label}</Text>
-                    <Text style={[styles.roleBlurb, { color: subTextColor }]}>{r.blurb}</Text>
+                    <Text style={[styles.roleBlurb, { color: active ? textColor : subTextColor }]}>{r.blurb}</Text>
                   </View>
                   <Ionicons
                     name={active ? "checkmark-circle" : "ellipse-outline"}
-                    size={22}
-                    color={active ? Colors.primary : subTextColor}
+                    size={25}
+                    color={active ? Colors.textWhite : subTextColor}
                   />
                 </Pressable>
               );
@@ -805,7 +871,23 @@ export default function RegisterScreen() {
               }
             />
 
-            {codeSent && (
+            {__DEV__ && (
+              <Pressable
+                onPress={() => setBypassEmailVerification(!bypassEmailVerification)}
+                style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 12, paddingHorizontal: 4 }}
+              >
+                <Ionicons
+                  name={bypassEmailVerification ? "checkbox-outline" : "square-outline"}
+                  size={20}
+                  color={bypassEmailVerification ? Colors.primary : subTextColor}
+                />
+                <Text style={{ fontFamily: "Poppins_400Regular", fontSize: 13, color: subTextColor }}>
+                  [DEV] Bypass Email Verification
+                </Text>
+              </Pressable>
+            )}
+
+            {codeSent && !bypassEmailVerification && (
               <Animated.View entering={FadeInDown.duration(240)}>
                 <FormField
                   label={`${CODE_LENGTH}-digit code`}
@@ -876,8 +958,8 @@ export default function RegisterScreen() {
                   maxLength={72}
                   returnKeyType="done"
                   onSubmitEditing={submit}
-                  error={confirm && confirm !== password ? "These don't match." : null}
-                  hint={confirm && confirm === password ? "Matches." : null}
+                  error={confirm && confirm !== password ? "Passwords don't match." : null}
+                  hint={confirm && confirm === password ? null : null}
                   rightElement={
                     <Pressable onPress={() => setShowConfirm((s) => !s)} hitSlop={10}>
                       <Ionicons
@@ -892,8 +974,7 @@ export default function RegisterScreen() {
             )}
 
             <Text style={[styles.footnote, { color: subTextColor }]}>
-              Password suggestions and autofill are switched off on this screen —
-              your password has to be one you chose and can remember.
+              Your password has to be one you chose and can remember.
             </Text>
           </Animated.View>
         )}
@@ -919,11 +1000,23 @@ export default function RegisterScreen() {
 
         {step === "email" && (
           <PrimaryButton
-            label={busy ? "Please wait…" : codeSent ? "Verify code" : "Send code"}
+            label={
+              bypassEmailVerification
+                ? "Continue (skip verification)"
+                : busy ? "Please wait…" : codeSent ? "Verify code" : "Send code"
+            }
             busy={busy}
-            disabled={busy || (codeSent ? code.length !== CODE_LENGTH : email.trim().length < 5)}
-            onPress={codeSent ? doVerifyCode : doSendCode}
-            // onPress={() => setStep("password")}
+            disabled={
+              busy ||
+              (bypassEmailVerification
+                ? email.trim().length < 5 || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())
+                : codeSent ? code.length !== CODE_LENGTH : email.trim().length < 5)
+            }
+            onPress={
+              bypassEmailVerification
+                ? doSendCode   // doSendCode already short-circuits with bypass
+                : codeSent ? doVerifyCode : doSendCode
+            }
           />
         )}
 
@@ -981,11 +1074,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary, transformOrigin: "left",
   },
 
-  body: { paddingHorizontal: 20, paddingTop: 8 },
+  body: { paddingHorizontal: 20, paddingTop: 58 },
 
   roleCard: {
     flexDirection: "row", alignItems: "center", gap: 14,
-    borderRadius: 16, padding: 16, borderWidth: 1.2,
+    borderRadius: 36, padding: 16, borderWidth: .5,
   },
   roleIcon: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   roleLabel: { fontFamily: "Poppins_600SemiBold", fontSize: 16 },

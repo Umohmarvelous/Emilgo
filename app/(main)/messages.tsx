@@ -808,15 +808,17 @@ export default function MessagesTab() {
                   hold a bell glyph and an SF Symbol with no press handler at
                   all, on `Colors.overlay` — a 30%-black wash that reads as a
                   dark red smear over the app's green. */}
-              <View style={S.menuListContent}>
+              <View style={[S.menuListContent, {borderWidth: 1, borderColor: ios.opaqueSeparator}]}>
                 <Glass
                   variant="regular"
                   interactive
                   radius={30}
                   style={StyleSheet.absoluteFill}
                   pointerEvents="none"
+                  // fallbackIntensity={40}
+                  // fallbackTint={isDark ? Colors.overlayLight : Colors.border}
                   fallbackIntensity={40}
-                  fallbackTint={isDark ? Colors.overlayLight : Colors.border}
+                  fallbackTint={ios.tertiarySystemFill}
                 />
 
                 <Pressable
@@ -824,7 +826,7 @@ export default function MessagesTab() {
                   hitSlop={8}
                   accessibilityLabel="Starred messages"
                 >
-                  <HugeiconsIcon icon={StarIcon} size={22} color={textColor} />
+                  <HugeiconsIcon icon={StarIcon} size={23} color={textColor} />
                 </Pressable>
 
                 <Pressable
@@ -832,7 +834,7 @@ export default function MessagesTab() {
                   hitSlop={8}
                   accessibilityLabel="Chat wallpaper"
                 >
-                  <HugeiconsIcon icon={PaintBoardIcon} size={22} color={textColor} />
+                  <HugeiconsIcon icon={PaintBoardIcon} size={23} color={textColor} />
                 </Pressable>
               </View>
             </View>
@@ -959,7 +961,7 @@ const S = StyleSheet.create({
   root:    { flex: 1 },
 
   header:      { flexDirection: 'column', justifyContent: 'space-between', paddingHorizontal: 13, paddingBottom: 14 },
-  headerInner: { justifyContent: 'space-between', gap: 0, borderWidth: 2, borderColor: 'red' },
+  headerInner: { justifyContent: 'space-between', gap: 0},
   headerTitle: { fontFamily: 'Poppins_700Bold', fontSize: 24 },
   newBtn: { width: 40, height: 40, borderRadius: 50, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
 
@@ -977,7 +979,7 @@ const S = StyleSheet.create({
   // what makes glass look like a stain.
   menuListContent: {
     borderRadius: 30,
-    paddingVertical: 8,
+    paddingVertical: 9,
     paddingHorizontal: 14,
     flexDirection: "row",
     alignItems: "center",
@@ -990,7 +992,7 @@ const S = StyleSheet.create({
   filterChip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 16 },
   filterText: { fontFamily: "Poppins_500Medium", fontSize: 12.5 },
 
-  headerSearch: { marginTop: 16, marginHorizontal: -16 },
+  headerSearch: { marginTop: 16 },
 
   convItem:     { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 13, borderBottomWidth: StyleSheet.hairlineWidth },
   convText:     { flex: 1, gap: 2 },

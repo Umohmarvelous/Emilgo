@@ -36,7 +36,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SymbolView, type SymbolViewProps } from "expo-symbols";
 
 import { haptics } from "@/src/utils/haptics";
-import { useIOSTheme, IOSAppFont, IOSFont } from "./theme";
+import { useIOSTheme, IOSAppFont, IOSFont, IOSMetrics } from "./theme";
 import { Glass } from "./Glass";
 import { IOSSearchBar } from "./IOSSearchBar";
 import { IOSFilterChips, type IOSFilterChip } from "./IOSFilterChips";
@@ -141,7 +141,8 @@ export function IOSSearchOverlay<F extends string = string>({
           androidTint={theme.scheme === "dark" ? "rgba(7,7,7,0.98)" : "rgba(255,255,255,0.98)"}
         />
 
-        <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+        <View style={[styles.header, { paddingTop: insets.top + 8,  paddingHorizontal: IOSMetrics.groupedInset, 
+ }]}>
           <IOSSearchBar
             value={query}
             onChangeText={onChangeQuery}

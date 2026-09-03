@@ -283,7 +283,7 @@ export default function DriverProfileScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       iosAlert(
         "You're set up",
-        `Your driver badge is ${res.driver_id}. Passengers use it to verify you — it's on your profile and your QR code.`,
+        `Your driver badge is ${res.driver_id}. Passengers will use it to find you.`,
         [{ text: "Start driving", onPress: () => router.replace("/(main)") }],
       );
     } catch (err) {
@@ -303,13 +303,13 @@ export default function DriverProfileScreen() {
       style={{ flex: 1, backgroundColor: bg }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 32 }]}>
         <Pressable onPress={goBack} hitSlop={10} style={styles.back} accessibilityLabel="Back">
           <Ionicons name="chevron-back" size={22} color={textColor} />
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={[styles.title, { color: textColor }]}>{TITLES[step].title}</Text>
-          <Text style={[styles.sub, { color: subTextColor }]}>{TITLES[step].sub}</Text>
+          {/* <Text style={[styles.sub, { color: subTextColor }]}>{TITLES[step].sub}</Text> */}
         </View>
         <Text style={[styles.count, { color: subTextColor }]}>
           {ORDER.indexOf(step) + 1}/{ORDER.length}
@@ -318,6 +318,10 @@ export default function DriverProfileScreen() {
 
       <View style={[styles.track, { backgroundColor: borderColor }]}>
         <Animated.View style={[styles.trackFill, barStyle]} />
+      </View>
+
+      <View style={{paddingHorizontal: 20}}>
+        <Text style={[styles.sub, { color: subTextColor }]}>{TITLES[step].sub}</Text>
       </View>
 
       {/* The badge, read from the account. Shown once it exists — an account
@@ -331,6 +335,7 @@ export default function DriverProfileScreen() {
           </Text>
         </View>
       ) : null}
+
 
       <ScrollView
         contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 30 }]}
@@ -346,7 +351,7 @@ export default function DriverProfileScreen() {
                   <Image source={{ uri: photo }} style={styles.photoImg} contentFit="cover" transition={160} />
                 ) : (
                   <View style={[styles.photoEmpty, { backgroundColor: fieldBg }]}>
-                    <Ionicons name="person-outline" size={54} color={subTextColor} />
+                    {/* <Ionicons name="person-outline" size={54} color={subTextColor} /> */}
                   </View>
                 )}
                 <View style={[styles.cameraDot, { backgroundColor: Colors.primary, borderColor: bg }]}>
@@ -568,7 +573,7 @@ const styles = StyleSheet.create({
   },
 
   badge: {
-    flexDirection: "row", alignItems: "center", gap: 7, alignSelf: "flex-start",
+    flexDirection: "row", alignItems: "center", gap: 7, alignSelf: "center",
     marginHorizontal: 20, marginTop: 14, paddingHorizontal: 12, paddingVertical: 7,
     borderRadius: 20,
   },
@@ -586,7 +591,7 @@ const styles = StyleSheet.create({
     width: 40, height: 40, borderRadius: 20, borderWidth: 3,
     alignItems: "center", justifyContent: "center",
   },
-  photoAction: { fontFamily: "Poppins_600SemiBold", fontSize: 14.5 },
+  photoAction: { fontFamily: "Poppins_600SemiBold", fontSize: 14.5, marginVertical: 20 },
   tipBox: { alignSelf: "stretch", borderRadius: 14, padding: 16, gap: 10, marginTop: 6 },
   tipRow: { flexDirection: "row", alignItems: "center", gap: 9 },
   tipText: { fontFamily: "Poppins_400Regular", fontSize: 13 },
@@ -596,7 +601,7 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center",
     borderRadius: 9, paddingHorizontal: 16, paddingVertical: 14, borderWidth: 1,
   },
-  fieldInput: { flex: 1, fontFamily: "Poppins_400Regular", fontSize: 15 },
+  fieldInput: { flex: 1, fontFamily: "Poppins_400Regular", fontSize: 15, paddingTop: 0  },
   error: { fontFamily: "Poppins_400Regular", fontSize: 12, marginTop: 4, paddingLeft: 5 },
   hint: { fontFamily: "Poppins_400Regular", fontSize: 12, marginTop: 4, paddingLeft: 5, lineHeight: 17 },
 

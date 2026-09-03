@@ -109,7 +109,7 @@ export default function SearchScreen() {
   const topInset = insets.top + 58;
 
   return (
-    <View style={[styles.root, { backgroundColor: t.systemBackground }]}>
+    <View style={[styles.root, { backgroundColor: t.systemBackground, }]}>
       <Stack.Screen options={{ headerShown: false }} />
 
       {query ? (
@@ -122,7 +122,7 @@ export default function SearchScreen() {
           emptyBody="Try a different word, a hashtag, or a person's name."
           header={
             people.length ? (
-              <View style={[styles.section, { borderBottomColor: t.separator }]}>
+              <View style={[styles.section, { borderBottomColor: t.separator, }]}>
                 <Text style={[styles.sectionTitle, { color: t.tertiaryLabel }]}>PEOPLE</Text>
                 {people.map((p) => (
                   <Pressable
@@ -161,7 +161,7 @@ export default function SearchScreen() {
           contentContainerStyle={{ paddingTop: topInset + 8, paddingBottom: insets.bottom + 24 }}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={[styles.section, { borderWidth: 1, borderColor: "red" }]}>
+          <View style={[styles.section]}>
             <View style={styles.sectionHead}>
               <HugeiconsIcon icon={FireIcon} size={15} color={t.systemOrange} strokeWidth={2} />
               <Text style={[styles.sectionTitle, { color: t.tertiaryLabel }]}>TRENDING</Text>

@@ -14,7 +14,8 @@
     "expo:remote": "node scripts/start-remote.js",
     "lint": "npx expo lint",
     "lint:fix": "npx expo lint --fix",
-    "ls": "tree -I 'node_modules|.git|.env|.expo|dist|build|.config|.agents|.cursor|.vscode'"
+    "ls": "tree -I 'node_modules|.git|.env|.expo|dist|build|.config|.agents|.cursor|.vscode'",
+    "ios:16": "npx expo start --ios --device 'iPhone 16 Pro'"
   },
   "dependencies": {
     "@expo-google-fonts/poppins": "^0.4.1",

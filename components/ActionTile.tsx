@@ -163,7 +163,7 @@ import { View, Text, StyleSheet, Pressable, Animated } from "react-native";
 import { HugeiconsIcon } from "@hugeicons/react-native";
 import { Colors } from "@/constants/colors";
 import { useSettingsStore } from "@/src/store/useSettingsStore";
-import { Glass } from "./ios";
+import { Glass, useIOSTheme } from "./ios";
 
 // We'll pass the icon component directly instead of name string
 interface ActionTileProps {
@@ -176,11 +176,13 @@ interface ActionTileProps {
 export default function ActionTile({ icon: IconComponent, label, color, onPress }: ActionTileProps) {
   const { theme } = useSettingsStore();
 
+  const iosTheme = useIOSTheme();
+
   const isDark = theme === "dark";
   // const ActionTileIcon = isDark ? "rgba(120,120,128,0.22)" : "rgba(120,120,128,0.12)";
   const ActionTileIcon = isDark ? Colors.overlay : Colors.background;
   const textColor = isDark ? Colors.textWhite : Colors.text;
-  const borderColor = isDark ? "rgba(255,255,255,0.08)" : "#E8ECF0";
+  const borderColor = iosTheme.opaqueSeparator;
 
   const scale = useRef(new Animated.Value(1)).current;
 
@@ -211,15 +213,18 @@ export default function ActionTile({ icon: IconComponent, label, color, onPress 
         style={styles.actionTileInner}
       >
         <View style={[styles.actionIconWrap]}>
-          <View style={{  backgroundColor: ActionTileIcon, borderWidth: 4, borderColor: borderColor, padding: 9, borderRadius: 50, opacity: isDark ? 9 : 9 }} >
+          <View style={{
+            // backgroundColor: ActionTileIcon,
+            borderWidth: .5, borderColor: borderColor, padding: 13, borderRadius: 20, opacity: isDark ? 9 : 9
+          }} >
             <Glass
               variant="regular"
               interactive
-              radius={50}
+              radius={19}
               style={StyleSheet.absoluteFill}
               pointerEvents="none"
               fallbackIntensity={40}
-              fallbackTint={isDark ? Colors.overlayLight : Colors.border}
+              fallbackTint={iosTheme.tertiarySystemFill}
             />
             <HugeiconsIcon icon={IconComponent as any}  size={26} color={color}/>
           </View>

@@ -42,7 +42,7 @@
  *   Testing:    set to `true`  → drivers can add any 10-digit NUBAN.
  *   Production: set to `false` → Paystack verification required again.
  */
-export const ALLOW_UNVERIFIED_PAYOUT_ACCOUNT = false;
+export const ALLOW_UNVERIFIED_PAYOUT_ACCOUNT = true;
 
 /**
  * Every flag above, by name, for the startup assertion and for the debug screen

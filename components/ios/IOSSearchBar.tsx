@@ -27,6 +27,7 @@ import {
   type StyleProp,
   type ViewStyle,
   type TextStyle,
+  Dimensions,
 } from "react-native";
 import { SymbolView } from "expo-symbols";
 import Animated, {
@@ -46,12 +47,14 @@ import { Search02Icon, X } from "@hugeicons/core-free-icons";
 
 
 
-const CANCEL_WIDTH = 66;
+const CANCEL_WIDTH = 16;
 const FIELD_HEIGHT = 48;
 /** UISearchBar's field radius. */
 const FIELD_RADIUS = 50;
 /** iOS uses a quick, flat ease for this — not a spring. */
 const TIMING = { duration: 250, easing: Easing.bezier(0.25, 0.1, 0.25, 1) };
+
+const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
 
 export interface IOSSearchBarProps extends Omit<TextInputProps, "style" | "value" | "onChangeText"> {
   value: string;
@@ -182,7 +185,7 @@ export function IOSSearchBar({
               fallbackIntensity={40}
               fallbackTint={theme.tertiarySystemFill}
             />
-            <View style={styles.fieldInner}>
+            <View style={[styles.fieldInner, {}]}>
               <HugeiconsIcon
                 icon={Search02Icon}
                 size={18}
@@ -200,17 +203,17 @@ export function IOSSearchBar({
               </Text>
               {value.length > 0 && (
                 <Pressable
-                  onPress={() => onChangeText("")}
-                  hitSlop={8}
+                onPress={() => onChangeText("")}
+                hitSlop={8}
                   accessibilityRole="button"
                   accessibilityLabel="Clear search"
-                >
+                  >
                   <SymbolView
                     name="xmark.circle.fill"
                     size={24}
                     tintColor={theme.tertiaryLabel}
                     fallback={<Text style={{ color: theme.tertiaryLabel }}>✕</Text>}
-                  />
+                    />
                 </Pressable>
               )}
             </View>
@@ -221,7 +224,7 @@ export function IOSSearchBar({
   }
 
   return (
-    <View style={[styles.row, style]}>
+    <View style={[styles.row, style, { alignSelf:'flex-start'}]}>
       <Animated.View style={[styles.fieldWrap, fieldStyle]}>
         <View style={[styles.field, {borderWidth: 1, borderColor: theme.opaqueSeparator}]}>
           {/* Search fields sit on the control layer, so they take glass. */}
@@ -234,7 +237,7 @@ export function IOSSearchBar({
             fallbackTint={theme.tertiarySystemFill}
           />
 
-          <Animated.View style={[styles.fieldInner, contentStyle]}>
+          <Animated.View style={[styles.fieldInner, contentStyle, {}]}>
             <HugeiconsIcon
               icon={Search02Icon}
               size={18}
@@ -290,7 +293,15 @@ export function IOSSearchBar({
         </View>
       </Animated.View>
 
-      <Animated.View style={[styles.cancelWrap, cancelStyle, {backgroundColor: theme.opaqueSeparator, borderWidth: 1, borderColor: theme.separator}]} pointerEvents={isActive ? "auto" : "none"}>
+      <Animated.View style={[styles.cancelWrap, cancelStyle, {  borderWidth: 1, borderColor: theme.separator }]} pointerEvents={isActive ? "auto" : "none"}>
+        <Glass
+          variant="regular"
+          radius={FIELD_RADIUS}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+          fallbackIntensity={40}
+          fallbackTint={theme.tertiarySystemFill}
+        />
         <Pressable onPress={cancel} hitSlop={8} accessibilityRole="button">
           {/* <Text style={[IOSFont.body, { color: theme.tint }]}>Cancel</Text> */}
           <HugeiconsIcon icon={X} size={19} color={theme.label}/>
@@ -305,9 +316,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: 'space-between',
-    paddingHorizontal: IOSMetrics.groupedInset, 
+    // paddingHorizontal: IOSMetrics.groupedInset, 
   },
-  fieldWrap: { flex: 1, borderRadius: FIELD_RADIUS  },
+  fieldWrap: { flex: 1, borderRadius: FIELD_RADIUS,  },
   field: {
     // flex:1,
     height: FIELD_HEIGHT,
@@ -325,7 +336,7 @@ const styles = StyleSheet.create({
   },
   input: { flex: 1, padding: 0, height: "100%", fontWeight: '500'  },
   buttonLabel: { flex: 1 },
-  inputCollapsed: { flexGrow: 0, flexShrink: 1, minWidth: 60 },
+  inputCollapsed: { flexGrow: 0, flexShrink: 1, minWidth: 250 },
   inputExpanded: { flex: 1 },
   cancelWrap: {
     position: "relative",

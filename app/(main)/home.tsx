@@ -17,7 +17,7 @@ import { triggerSyncNow } from "@/src/services/sync";
 import { formatDate } from "@/src/utils/helpers";
 import type { Trip } from "@/src/models/types";
 import { HugeiconsIcon } from "@hugeicons/react-native";
-import { Briefcase, CheckmarkCircle01Icon, ChevronRight, Clock04Icon, Crown02Icon, Crown03Icon, CrownIcon, LocationUser01Icon, Message01Icon, Message02Icon, Navigation01Icon, QrCodeIcon, Trophy, Warning,
+import { Briefcase, CheckmarkCircle01Icon, ChevronRight, Clock04Icon, Crown02Icon, CrownIcon, LocationUser01Icon, Message01Icon, Message02Icon, Navigation01Icon, QrCodeIcon, Trophy, Warning,
  } from "@hugeicons/core-free-icons";
 import { StatusBar } from "expo-status-bar";
 import QuickTransferModal from "@/components/QuickTransferModal";
@@ -30,24 +30,26 @@ import ActiveTripBanner from "@/components/ActiveTripBanner";
 import TripListener from "@/components/TripListener";
 import { useProgramStore } from "@/src/store/useProgramStore";
 import { parseDriverQR, toDriverPayload } from "@/src/utils/qr";
-import { Glass, iosAlert } from "@/components/ios";
+import { Glass, iosAlert, useIOSTheme } from "@/components/ios";
 import { AdFloatingButton } from "@/components/ads/AdFloatingButton";
 
 
 export interface HomeTabProps {
   /**
    * Height of the floating header and tab bar.
-   *
-   * These are CONTENT insets, not frame padding. The scroll view fills the
-   * screen so content travels under the translucent chrome — which is the whole
-   * point of the chrome being translucent. Padding the frame instead leaves the
-   * glass with nothing behind it to sample, and it renders as a flat panel.
-   */
-  insetTop?: number;
-  insetBottom?: number;
+  *
+  * These are CONTENT insets, not frame padding. The scroll view fills the
+  * screen so content travels under the translucent chrome — which is the whole
+  * point of the chrome being translucent. Padding the frame instead leaves the
+  * glass with nothing behind it to sample, and it renders as a flat panel.
+  */
+ insetTop?: number;
+ insetBottom?: number;
 }
 
 export default function HomeTab({ insetTop = 0, insetBottom = 0 }: HomeTabProps) {
+  const ios = useIOSTheme()
+
   const { theme } = useSettingsStore();
   const [recentTrips, setRecentTrips] = useState<Trip[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -279,7 +281,7 @@ export default function HomeTab({ insetTop = 0, insetBottom = 0 }: HomeTabProps)
 
           {/* Loyalty Program entry */}
           <Pressable
-            style={[styles.card, styles.promoGradient, { backgroundColor: cardBg },{ borderWidth: 1, borderColor: borderColor}]}
+            style={[styles.card, styles.promoGradient,{ borderWidth: .5, borderColor: ios.opaqueSeparator}]}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft);
               router.push("/tiers");
@@ -288,11 +290,11 @@ export default function HomeTab({ insetTop = 0, insetBottom = 0 }: HomeTabProps)
               <Glass
                 variant="regular"
                 interactive
-                radius={50}
+                radius={31}
                 style={StyleSheet.absoluteFill}
                 pointerEvents="none"
                 fallbackIntensity={40}
-                fallbackTint={isDark ? Colors.text : Colors.border}
+                fallbackTint={ios.tertiarySystemFill}
               />
             <View style={styles.loyaltyIconChip}>
               <HugeiconsIcon icon={enrolled ? Crown02Icon : Crown02Icon} size={40} fill={textColor} color={textColor} />
@@ -505,7 +507,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 20, 
-    borderRadius: 50,
+    borderRadius: 30,
     marginHorizontal: 10
   },
   loyaltyIconChip: {

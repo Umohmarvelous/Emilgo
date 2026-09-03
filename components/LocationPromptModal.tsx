@@ -76,7 +76,7 @@ export default function LocationPromptModal() {
 
 const styles = StyleSheet.create({
   sheet: {
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.overlayColored,
   },
   container: {
     alignItems: 'center',

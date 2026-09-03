@@ -124,7 +124,7 @@ export function IOSAlert({
       style={({ pressed }) => [
         styles.button,
         variant === "actionSheet" && styles.sheetButton,
-        horizontal && { flex: 1, borderWidth: 2, borderColor: 'red', alignItems: 'center' },
+        horizontal && { flex: 1, alignItems: 'center' },
         // Hairline between buttons; none after the last.
         horizontal
           ? i > 0 && { borderLeftWidth: IOSMetrics.hairline, borderLeftColor: theme.separator }

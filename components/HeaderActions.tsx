@@ -115,7 +115,7 @@ export default function HeaderActions({
   const fallbackTint = t.scheme === "dark" ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.05)";
 
   const user = useAuthStore((s) => s.user);
-
+  const ios = useIOSTheme()
 
   const items: IOSMenuItem[] = React.useMemo(() => {
     if (menu) return menu;
@@ -169,23 +169,28 @@ export default function HeaderActions({
         {/* Avatar → the account menu: other signed-in accounts, add an account, appearance, support, sign out. */}
         <AccountMenu
           anchor={
-            <View style={{ backgroundColor: Colors.overlay, borderRadius: 50, alignItems: 'center', justifyContent: 'center' }}>
-              {/* <Glass
+            <View style={{ borderWidth: 1, borderColor: ios.opaqueSeparator, borderRadius: 50, alignItems: 'center', justifyContent: 'center' }}>
+              <Glass
                 variant="regular"
                 interactive
-                radius={30}
+                radius={50}
                 style={StyleSheet.absoluteFill}
                 pointerEvents="none"
                 fallbackIntensity={40}
-                fallbackTint={color}
-              /> */}
-              {user?.profile_photo ? (
-                <Avatar name={user?.full_name || "U"} photoUri={user.profile_photo} size={36} />
-              ) : (
-                <View style={{margin: 7}}>
-                  <SymbolView name="person.fill" size={24} tintColor={color} fallback={color} />
+                fallbackTint={ios.tertiarySystemFill}
+              />
+              {/* {user?.profile_photo ? ( */}
+                 {/* <Avatar name={user?.full_name || "U"} photoUri={user.profile_photo} size={36} /> */}
+               {/* ) : ( */}
+                <View>
+                    {/* <SymbolView name="person.circle.fill" size={36} tintColor={color} fallback={color} /> */}
+                    <Avatar
+                      name={user?.full_name || "U"}
+                      photoUri={user?.profile_photo}
+                      size={36}
+                    />
                 </View>
-              )}
+               {/* )} */}
             </View>
           }
         />
