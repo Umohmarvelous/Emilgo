@@ -17,7 +17,7 @@ import { triggerSyncNow } from "@/src/services/sync";
 import { formatDate } from "@/src/utils/helpers";
 import type { Trip } from "@/src/models/types";
 import { HugeiconsIcon } from "@hugeicons/react-native";
-import { Briefcase, CheckmarkCircle01Icon, ChevronRight, Clock04Icon, Crown02Icon, CrownIcon, LocationUser01Icon, Message01Icon, Message02Icon, Navigation01Icon, QrCodeIcon, Trophy, Warning,
+import { Briefcase, CheckmarkCircle01Icon, ChevronRight, Clock04Icon, Crown02Icon, CrownIcon, GiftIcon, LocationUser01Icon, Message01Icon, Message02Icon, Navigation01Icon, QrCodeIcon, Trophy, Warning,
  } from "@hugeicons/core-free-icons";
 import { StatusBar } from "expo-status-bar";
 import QuickTransferModal from "@/components/QuickTransferModal";
@@ -277,9 +277,7 @@ export default function HomeTab({ insetTop = 0, insetBottom = 0 }: HomeTabProps)
         </View>
 
 
-        <View style={{flex: 1, alignItems: 'center', justifyContent: 'space-between', flexDirection: 'row', gap: 8, }}>
-
-          {/* Loyalty Program entry */}
+        {/* <View style={{flex: 1, alignItems: 'center', justifyContent: 'space-between', flexDirection: 'row', gap: 8, }}>
           <Pressable
             style={[styles.card, styles.promoGradient,{ borderWidth: .5, borderColor: ios.opaqueSeparator}]}
             onPress={() => {
@@ -302,19 +300,12 @@ export default function HomeTab({ insetTop = 0, insetBottom = 0 }: HomeTabProps)
             <View style={styles.promoText}>
               <Text style={[styles.promoTitle, { color: Colors.warning }]}>Go Premium</Text>
               <Text style={[styles.promoSub, { color: subTextColor }]}>
-                {/* {enrolled ? "You're in the program ✓" : "Join the rewards program"} */}
-                {enrolled ? "You're already a subscribed" : "Subscribe for Pro features"}
+                {enrolled ? "You're already subscribed" : "Subscribe for Pro features"}
               </Text>
             </View>
             <HugeiconsIcon icon={ChevronRight} size={20} color={subTextColor} />
           </Pressable>
-
-
-
-          {/* <View style={{ backgroundColor: Colors.overlayLight, borderWidth: .5, borderColor: borderColor, padding: 8, borderRadius: 50, alignItems: 'center', justifyContent: 'center' }}>
-            <HugeiconsIcon icon={enrolled ? Trophy : GiftIcon} size={40} color={textColor} />
-          </View> */}
-        </View>
+        </View> */}
 
 
         {userUnreadCount > 0 && (
@@ -399,10 +390,10 @@ export default function HomeTab({ insetTop = 0, insetBottom = 0 }: HomeTabProps)
 
         {/* Empty state */}
         {recentTrips.length === 0 && (
-          <View style={[styles.card, { alignItems: "center", paddingVertical: 92, marginHorizontal: 10, marginTop: 10, gap: 0, borderWidth: .5, borderColor: Colors.overlayLight, borderRadius: 40 }]}>
-            <HugeiconsIcon icon={Warning} size={40} color={Colors.overlayLight} />
+          <View style={[styles.card, { alignItems: "center", paddingVertical: 92, marginHorizontal: 10, marginTop: 10, gap: 0, borderWidth: .5, borderColor: ios.opaqueSeparator, borderRadius: 30 }]}>
+            {/* <HugeiconsIcon icon={Warning} size={40} color={Colors.overlayLight} /> */}
             <View style={{alignItems:'center'}}>
-              <Text style={[styles.emptyText, { color: Colors.overlayLight }]}>
+              <Text style={[styles.emptyText, { color: ios.label }]}>
                 No record yet!
               </Text>
               <Text style={[styles.emptySub, { color: subTextColor }]}>

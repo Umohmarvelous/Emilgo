@@ -306,8 +306,8 @@ function FadeSwap({
   // a swap — a count ticking inside the same step, say.
   React.useEffect(() => {
     if (first.current) setShown(children);
-  });
-  // }, [setShown, children]);
+  // });
+  }, [setShown, children]);
 
   const anim = useAnimatedStyle(() => ({ opacity: opacity.value }));
   return <Animated.View style={[style, anim]}>{shown}</Animated.View>;

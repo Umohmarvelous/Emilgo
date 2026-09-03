@@ -477,9 +477,18 @@ export default function MainLayout() {
                 overflow: "hidden",
                 transform: [{ translateY: actualHeaderTranslateY }],
               },
-                // { borderWidth: .5, borderColor: ios.opaqueSeparator, margin: 10, marginBottom: 0, paddingBottom: 10, backgroundColor: ios.secondarySystemFill, borderRadius: 30 }
+                {  margin: 10, marginBottom: 0, paddingBottom: 10, borderRadius: 30 }
               ]}
             >
+              <Glass
+                  variant="clear"
+                  style={StyleSheet.absoluteFill}
+                  radius={30}
+                  pointerEvents="none"
+                  fallbackIntensity={26}
+                  fallbackTint={ios.scheme === "dark" ? "rgba(120,120,128,0.22)" : "rgba(120,120,128,0.12)"}
+                  // fallbackTint={ios.secondarySystemBackground}
+                />
               <View
                 onLayout={(e) => {
                   const h = Math.round(e.nativeEvent.layout.height);
@@ -492,11 +501,11 @@ export default function MainLayout() {
                   {
                     paddingTop: topPadding,
                   },
-                  { borderWidth: .5, borderColor: ios.opaqueSeparator, margin: 10, marginTop: 5, marginBottom: 0, paddingBottom: 10, borderRadius: 30 }
+                  // { borderWidth: .5, borderColor: ios.opaqueSeparator, margin: 10, marginTop: 5, marginBottom: 0, paddingBottom: 10, borderRadius: 30 }
                 ]}
               >
                 {/* The bar floats over scrolling content, so it takes the same glass as the tab bar rather than an opaque fill. */}
-                <Glass
+                {/* <Glass
                   variant="clear"
                   style={StyleSheet.absoluteFill}
                   radius={30}
@@ -504,7 +513,7 @@ export default function MainLayout() {
                   fallbackIntensity={26}
                   fallbackTint={ios.scheme === "dark" ? "rgba(120,120,128,0.22)" : "rgba(120,120,128,0.12)"}
                   // fallbackTint={ios.secondarySystemBackground}
-                />
+                /> */}
                 <Pressable onPress={openSidebar} style={[styles.menuBtn, {alignItems:'center', justifyContent:'center'}]}>
                   <HugeiconsIcon
                     icon={Menu03Icon}

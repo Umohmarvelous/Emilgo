@@ -28,6 +28,7 @@ import {
   type ViewStyle,
   type StyleProp,
   type RefreshControlProps,
+  Text,
 } from "react-native";
 import Animated from "react-native-reanimated";
 import { router } from "expo-router";
@@ -85,14 +86,15 @@ export interface IOSScreenProps {
 function BackChevron({ onPress }: { onPress: () => void }) {
   const theme = useIOSTheme();
   return (
-    <Pressable onPress={onPress} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
+    <Pressable style={{flexDirection: 'row', alignItems:'center', gap:7}} onPress={onPress} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
       <SymbolView
         name="chevron.backward"
-        size={22}
+        size={19}
         tintColor={theme.label}
         resizeMode="scaleAspectFit"
         fallback={<View style={{ width: 22, height: 22 }} />}
       />
+      <Text style={[{fontFamily: "Poppins_600SemiBold", fontSize: 15}, { color: theme.label }]}>Back</Text>
     </Pressable>
   );
 }

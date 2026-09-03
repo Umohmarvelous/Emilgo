@@ -68,6 +68,8 @@ import {
   type FastestFingerOffer,
   type FillingStation,
 } from "@/src/services/proximity";
+import { HugeiconsIcon } from "@hugeicons/react-native";
+import { Plus } from "@hugeicons/core-free-icons";
 
 type Pane = "people" | "instant" | "fuel";
 
@@ -248,7 +250,7 @@ export default function NearbyScreen() {
 
   return (
     <IOSScreen
-      title="Nearby"
+      title="Find Nearby"
       subtitle={`Within ${RADIUS_KM} km`}
       back
       scrollable={false}
@@ -264,17 +266,17 @@ export default function NearbyScreen() {
             accessibilityRole="button"
             accessibilityLabel="Post an instant ride"
           >
-            <SymbolView
-              name="plus.circle.fill"
+            <HugeiconsIcon
+              icon={Plus}
               size={24}
-              tintColor={ios.tint}
-              fallback={<Text style={{ color: ios.tint }}>+</Text>}
+              color={ios.label}
             />
           </Pressable>
         ) : undefined
       }
     >
       <ScrollView
+        style={{paddingHorizontal: 10}}
         showsVerticalScrollIndicator={false}
         {...scroll.scrollProps}
         refreshControl={
@@ -300,16 +302,16 @@ export default function NearbyScreen() {
           <View style={styles.staleRow}>
             <SymbolView name="wifi.slash" size={13} tintColor={ios.systemOrange} fallback={null} />
             <Text style={[IOSAppFont.description, { color: ios.systemOrange }]}>
-              Showing last known results — pull to refresh
+              Showing last known results
             </Text>
           </View>
         )}
 
         {loading ? (
           <View style={styles.empty}>
-            <ActivityIndicator color={Colors.primary} />
+            <ActivityIndicator color={ios.label} size={'large'} />
             <Text style={[IOSAppFont.description, { color: ios.secondaryLabel }]}>
-              Finding what's around you…
+              {`Looking for nearby users…`}
             </Text>
           </View>
         ) : pane === "people" ? (
@@ -531,7 +533,7 @@ function PeoplePane({
       <EmptyPane
         symbol="person.2.slash"
         title={`No ${lookingFor ?? "one"} nearby`}
-        body="Nobody with location sharing on is within range right now. Try again in a moment."
+        body="Nobody with location sharing on is within range right now."
       />
     );
   }
@@ -707,7 +709,7 @@ function FuelPane({
             fallbackIntensity={40}
             fallbackTint={ios.scheme === "dark" ? "rgba(255,255,255,0.06)" : "#FFFFFF"}
           />
-          <View style={styles.fuelTile}>
+          <View style={[styles.fuelTile, { backgroundColor: Colors.goldLight + "12"}]}>
             <SymbolView name="fuelpump.fill" size={20} tintColor={Colors.gold} fallback={null} />
           </View>
 
@@ -716,20 +718,23 @@ function FuelPane({
               {station.name}
             </Text>
             {!!station.brand && station.brand !== station.name && (
-              <Text numberOfLines={1} style={[IOSAppFont.description, { color: ios.secondaryLabel }]}>
-                {station.brand}
-              </Text>
+              <>
+                <Text numberOfLines={1} style={[IOSAppFont.description, { color: ios.secondaryLabel }]}>
+                  {station.brand}
+                </Text>
+                <Distance km={station.distance_km} />
+              </>
             )}
           </View>
+                <Distance km={station.distance_km} />
 
-          <Distance km={station.distance_km} />
         </Pressable>
       ))}
 
       {/* Attribution is a condition of using OSM data, not a courtesy. */}
-      <Text style={[IOSAppFont.description, styles.attribution, { color: ios.tertiaryLabel }]}>
+      {/* <Text style={[IOSAppFont.description, styles.attribution, { color: ios.tertiaryLabel }]}>
         Station data © OpenStreetMap contributors
-      </Text>
+      </Text> */}
     </View>
   );
 }
@@ -750,9 +755,9 @@ function EmptyPane({ symbol, title, body }: { symbol: string; title: string; bod
   const ios = useIOSTheme();
   return (
     <View style={styles.empty}>
-      <SymbolView name={symbol as never} size={48} tintColor={ios.tertiaryLabel} fallback={null} />
+      <SymbolView name={symbol as never} size={50} tintColor={ios.tertiaryLabel} fallback={null} />
       <Text style={[IOSAppFont.label, { color: ios.label }]}>{title}</Text>
-      <Text style={[IOSAppFont.description, styles.centre, { color: ios.secondaryLabel }]}>
+      <Text style={[IOSAppFont.description, styles.centre, { color: ios.tertiaryLabel }]}>
         {body}
       </Text>
     </View>
@@ -768,12 +773,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     paddingBottom: 12,
+    alignSelf: 'center'
   },
-  list: { gap: 10, paddingBottom: 24 },
+  list: { gap: 13, paddingBottom: 24 },
   card: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 13,
     padding: 14,
     borderRadius: CARD_RADIUS,
     overflow: "hidden",
@@ -809,9 +815,8 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: Colors.goldLight,
   },
-  empty: { alignItems: "center", paddingTop: 60, paddingHorizontal: 30, gap: 12 },
+  empty: { alignItems: "center", paddingTop: 160, paddingHorizontal: 30, gap: 12,  },
   centre: { textAlign: "center" },
   attribution: { textAlign: "center", paddingTop: 8 },
 });

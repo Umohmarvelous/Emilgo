@@ -13,7 +13,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, Pressable, RefreshControl } from "react-native";
 import { router } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+// import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Colors } from "@/constants/colors";
@@ -22,7 +22,7 @@ import { useSettingsStore } from "@/src/store/useSettingsStore";
 import { useIsPremium, useIsElite } from "@/src/store/useTierStore";
 import { useFreeRidesStore, type FreeRideOffer } from "@/src/store/useFreeRidesStore";
 import { ensureGpsOn } from "@/src/services/locationTracking";
-import { iosAlert, IOSScreen, useCollapsibleScroll  } from "@/components/ios";
+import { iosAlert, IOSScreen, useCollapsibleScroll, useIOSTheme  } from "@/components/ios";
 
 export default function FreeRidesScreen() {
   const scroll = useCollapsibleScroll();
@@ -38,10 +38,10 @@ export default function FreeRidesScreen() {
   const isPremium = useIsPremium();
   const isElite = useIsElite();
 
+  const theme = useIOSTheme()
+
   const textColor = isDark ? Colors.textWhite : Colors.text;
   const subColor = isDark ? Colors.textSecondary : Colors.textTertiary;
-  const bg = isDark ? Colors.background : "#F6F7FB";
-  const cardBg = isDark ? Colors.overlayLight : "#FFFFFF";
   const borderColor = isDark ? "rgba(255,255,255,0.10)" : "#ECEEF3";
 
   const offers = useMemo(() => openOffers.filter((o) => o.driver_id !== user?.id), [openOffers, user?.id]);
@@ -152,15 +152,15 @@ export default function FreeRidesScreen() {
       }
     >
         {isDriver && (
-          <Pressable style={[styles.offerCta, { backgroundColor: 'transparent'}]} onPress={() => router.push("/(driver)/free-ride" as any)}>
+          <Pressable style={[styles.offerCta, { backgroundColor: theme.systemGreen}]} onPress={() => router.push("/(driver)/free-ride" as any)}>
             <View style={styles.offerCtaIcon}>
-            <Ionicons name="add" size={22} color={textColor}  />
+            <Ionicons name="add" size={22} color={theme.systemBackground}  />
             </View>
             <View style={{ flex: 1 }}>
-            <Text style={[styles.offerCtaTitle, {color: textColor}]}>Offer a free ride</Text>
-              <Text style={[styles.offerCtaSub, {color: subColor}]}>Earn free fuel — or barter for what you need</Text>
+            <Text style={[styles.offerCtaTitle, {color: theme.systemBackground}]}>Offer a free ride</Text>
+            <Text style={[styles.offerCtaSub, { color: theme.systemGray3}]}>Earn free fuel — or barter for what you need</Text>
             </View>
-          <Ionicons name="chevron-forward" size={20} color={ subColor } />
+          <Ionicons name="chevron-forward" size={20} color={ theme.systemBackground } />
           </Pressable>
         )}
 

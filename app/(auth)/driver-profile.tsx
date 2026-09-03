@@ -350,8 +350,8 @@ export default function DriverProfileScreen() {
                 {photo ? (
                   <Image source={{ uri: photo }} style={styles.photoImg} contentFit="cover" transition={160} />
                 ) : (
-                  <View style={[styles.photoEmpty, { backgroundColor: fieldBg }]}>
-                    {/* <Ionicons name="person-outline" size={54} color={subTextColor} /> */}
+                    <View style={[styles.photoEmpty, { backgroundColor: fieldBg }]}>
+                    <Ionicons name="person" size={54} color={subTextColor} />
                   </View>
                 )}
                 <View style={[styles.cameraDot, { backgroundColor: Colors.primary, borderColor: bg }]}>
@@ -365,10 +365,10 @@ export default function DriverProfileScreen() {
             </Text>
 
             <View style={[styles.tipBox, { backgroundColor: fieldBg }]}>
+              <Text style={[{ fontFamily: "Poppins_400Regular", fontSize: 13 }, { color: subTextColor }]}>Make sure that you :</Text>
               {[
-                "Face the camera, in daylight if you can",
-                "No sunglasses or cap covering your face",
-                "Just you — not the vehicle",
+                "Face the camera, with good lighting",
+                "No sunglasses or cap is covering your face",
               ].map((tip) => (
                 <View key={tip} style={styles.tipRow}>
                   <Ionicons name="checkmark-circle" size={15} color={Colors.primary} />
@@ -563,7 +563,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "flex-start", gap: 10, paddingHorizontal: 20, paddingBottom: 14 },
   back: { width: 34, height: 34, alignItems: "center", justifyContent: "center", marginTop: 2 },
   title: { fontFamily: "Poppins_700Bold", fontSize: 22 },
-  sub: { fontFamily: "Poppins_400Regular", fontSize: 13.5, lineHeight: 19, marginTop: 2 },
+  sub: { fontFamily: "Poppins_400Regular", fontSize: 12.5, lineHeight: 19, marginTop: 2, textAlign: 'justify' },
   count: { fontFamily: "Poppins_500Medium", fontSize: 13, marginTop: 6 },
 
   track: { height: 3, marginHorizontal: 20, borderRadius: 2, overflow: "hidden" },
@@ -575,7 +575,7 @@ const styles = StyleSheet.create({
   badge: {
     flexDirection: "row", alignItems: "center", gap: 7, alignSelf: "center",
     marginHorizontal: 20, marginTop: 14, paddingHorizontal: 12, paddingVertical: 7,
-    borderRadius: 20,
+    borderRadius: 7,
   },
   badgeText: { fontFamily: "Poppins_600SemiBold", fontSize: 12.5 },
 

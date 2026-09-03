@@ -377,7 +377,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 10,
-    overflow: "hidden",
+    overflow: "hidden", marginHorizontal: 10
   },
   hairline: { position: "absolute", left: 0, right: 0, height: IOSMetrics.hairline },
   bar: {

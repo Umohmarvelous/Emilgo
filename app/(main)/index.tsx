@@ -3,17 +3,12 @@ import {
   Dimensions,
   View,
 } from "react-native";
-import { Colors } from '@/constants/colors';
-import { useSettingsStore } from '@/src/store/useSettingsStore';
 
 
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 export default function MainTab({ insetTop, insetBottom }: HomeTabProps) {
-  const { theme } = useSettingsStore();
-  const isDark = theme === "dark";
-  const topTabBg = isDark ? Colors.primaryDarker : Colors.textWhite;
 
   return (
     <>

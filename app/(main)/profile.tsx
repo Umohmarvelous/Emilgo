@@ -77,6 +77,7 @@ import {
   Hospital,
   Search02Icon,
   Logout02Icon,
+  Copy02Icon,
 } from "@hugeicons/core-free-icons";
 
 import { useAuthStore } from "@/src/store/useStore";
@@ -1046,26 +1047,32 @@ export default function ProfileTab() {
                       things and now render as separate chips. */}
                   <View style={styles.handleRow}>
                     {user?.username ? (
-                      <Pressable
-                        style={styles.handleChip}
-                        onPress={handleCopy}
-                        hitSlop={8}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Copy username @${user.username}`}
-                      >
-                        <Glass
-                          variant="clear"
-                          interactive
-                          radius={30}
-                          style={StyleSheet.absoluteFill}
-                          pointerEvents="none"
-                          fallbackIntensity={26}
-                          fallbackTint={ios.tertiarySystemFill}
-                        />
-                        <Text numberOfLines={1} style={styles.handleText}>
-                          @{user.username}
-                        </Text>
-                      </Pressable>
+                      <>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center'}}>
+
+                          {/* <Text style={[{fontFamily: "Poppins_500SemiBold", fontSize: 13}, { color: ios.systemGray2 }]}> Username • </Text> */}
+                          <Pressable
+                            style={styles.handleChip}
+                            onPress={handleCopy}
+                            hitSlop={8}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Copy username @${user.username}`}
+                          >
+                            {/* <Glass
+                              variant="clear"
+                              interactive
+                              radius={30}
+                              style={StyleSheet.absoluteFill}
+                              pointerEvents="none"
+                              fallbackIntensity={26}
+                              fallbackTint={ios.tertiarySystemFill}
+                            /> */}
+                            <Text numberOfLines={1} style={[styles.handleText, {color: Colors.primary}]}>
+                              @{user.username}
+                            </Text>
+                          </Pressable>
+                        </View>
+                      </>
                     ) : (
                       // People message each other by handle, so an unset one is
                       // worth prompting for rather than leaving blank.
@@ -1076,7 +1083,7 @@ export default function ProfileTab() {
                         accessibilityRole="button"
                         accessibilityLabel="Set a username"
                       >
-                        <Glass
+                        {/* <Glass
                           variant="clear"
                           interactive
                           radius={30}
@@ -1084,47 +1091,32 @@ export default function ProfileTab() {
                           pointerEvents="none"
                           fallbackIntensity={26}
                           fallbackTint={ios.tertiarySystemFill}
-                        />
-                        <Text numberOfLines={1} style={[styles.handleText, { color: ios.secondaryLabel }]}>
+                        /> */}
+                        <Text numberOfLines={1} style={[styles.handleText, { color: Colors.primary }]}>
                           Set a username
                         </Text>
                       </Pressable>
                     )}
 
-                    {!!user?.driver_id && (
+                    {/* {!!user?.driver_id && (
                       <View style={styles.handleChip}>
-                        <Glass
-                          variant="clear"
-                          radius={30}
-                          style={StyleSheet.absoluteFill}
-                          pointerEvents="none"
-                          fallbackIntensity={26}
-                          fallbackTint={ios.tertiarySystemFill}
-                        />
+                      
                         <Text numberOfLines={1} style={[styles.handleText, { color: Colors.primary }]}>
+                        <Text style={[{fontFamily: "Poppins_500SemiBold", fontSize: 13}, { color: ios.systemGray2 }]}> ID • </Text>
                           {user.driver_id}
                         </Text>
                       </View>
-                    )}
+                    )} */}
 
-                    {/* <Pressable
+                    <Pressable
                       onPress={handleCopy}
                       hitSlop={12}
                       style={styles.copyBtn}
                       accessibilityRole="button"
                       accessibilityLabel="Copy username"
                     >
-                      <Glass
-                        variant="clear"
-                        interactive
-                        radius={30}
-                        style={StyleSheet.absoluteFill}
-                        pointerEvents="none"
-                        fallbackIntensity={26}
-                        fallbackTint={ios.tertiarySystemFill}
-                      />
-                      <HugeiconsIcon icon={Copy01Icon as any} size={14} color={Colors.warning} />
-                    </Pressable> */}
+                      <HugeiconsIcon icon={Copy02Icon as any} size={14} fill={Colors.primary} color={Colors.primary} />
+                    </Pressable>
                   </View>
 
                   <View style={styles.roleRow}>
@@ -1712,10 +1704,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   heroName: { fontFamily: "Poppins_700Bold", fontSize: 21 },
-  handleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  handleRow: { flexDirection: "row", alignItems: "center", gap: 0 },
   handleChip: {
     flexShrink: 1,
-    paddingHorizontal: 11,
+    // paddingHorizontal: 11,
     paddingVertical: 5,
     borderRadius: 30,
     overflow: "hidden",
