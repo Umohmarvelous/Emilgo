@@ -41,16 +41,61 @@ import Animated, {
   cancelAnimation,
 } from "react-native-reanimated";
 import { HugeiconsIcon } from "@hugeicons/react-native";
-import { FuelStationIcon } from "@hugeicons/core-free-icons";
+import { Fire02Icon } from "@hugeicons/core-free-icons";
 
 import { Glass, useIOSTheme, IOSAppFont } from "@/components/ios";
 import { useAdsStore } from "@/src/store/useAdsStore";
 
 /** How far the idle float travels, in points. Deliberately small. */
-const FLOAT_TRAVEL = 7;
-const FLOAT_MS = 1800;
+const FLOAT_TRAVEL = 0
+const FLOAT_MS = 3000;
 /** Gap between attention beats. Long enough not to nag. */
-const BEAT_INTERVAL_MS = 6000;
+const BEAT_INTERVAL_MS = 2000;
+
+
+
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * The flame flickers only while a streak is alive. A permanently animating
+ * icon is noise; one that stops when the streak breaks carries information.
+ */
+function FlameIcon({ active, colour }: { active: boolean; colour: string }) {
+  const v = useSharedValue(0);
+
+  React.useEffect(() => {
+    if (!active) {
+      cancelAnimation(v);
+      v.value = 0;
+      return;
+    }
+    v.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 620, easing: Easing.inOut(Easing.quad) }),
+        withTiming(0, { duration: 620, easing: Easing.inOut(Easing.quad) }),
+      ),
+      -1,
+      false,
+    );
+    return () => cancelAnimation(v);
+  }, [active, v]);
+
+  const style = useAnimatedStyle(() => ({
+    transform: [
+      { scale: interpolate(v.value, [0, 1], [1, 1.14]) },
+      { rotate: `${interpolate(v.value, [0, 1], [-4, 4])}deg` },
+    ],
+  }));
+
+  return (
+    <Animated.View style={[style]}>
+      <HugeiconsIcon icon={Fire02Icon} size={36} fill={colour}  color={colour} strokeWidth={0} />
+    </Animated.View>
+  );
+}
+
+
+
 
 export interface AdFloatingButtonProps {
   /** Distance from the bottom, so callers can clear a tab bar. */
@@ -128,7 +173,7 @@ export function AdFloatingButton({ bottom = 96, right = 16 }: AdFloatingButtonPr
   const halo = useAnimatedStyle(() => ({
     transform: [
       { translateY: interpolate(float.value, [0, 1], [0, -FLOAT_TRAVEL]) },
-      { scale: interpolate(beat.value, [0, 1], [1, 1.45]) },
+      { scale: interpolate(beat.value, [0, 1], [1, 1.09]) },
     ],
   }));
 
@@ -137,54 +182,67 @@ export function AdFloatingButton({ bottom = 96, right = 16 }: AdFloatingButtonPr
 
   return (
     <Animated.View style={[styles.wrap, { bottom, right }]} pointerEvents="box-none">
-      {!idle ? (
+      {/* {!idle ? (
         <Animated.View
-          style={[styles.halo, { backgroundColor: t.tint + "26" }, halo]}
+          style={[styles.halo,
+            { backgroundColor: t.label + "26" },
+            // { backgroundColor: t.scheme === "dark" ? "rgba(120,120,128,0.1)" : "#000" },
+          halo]}
           pointerEvents="none"
         />
-      ) : null}
+      ) : null} */}
+
 
       <Animated.View style={shell}>
-        <Pressable
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            router.push("/rewards" as never);
-          }}
-          onPressIn={() => {
-            press.value = withSpring(1, { damping: 18, stiffness: 320 });
-          }}
-          onPressOut={() => {
-            press.value = withSpring(0, { damping: 18, stiffness: 320 });
-          }}
-          accessibilityRole="button"
-          accessibilityLabel={
-            idle
-              ? "Rewards. Daily limit reached."
-              : `Earn rewards. ${toGo} ads to your next reward.`
-          }
-        >
-          <Glass
-            variant="regular"
-            interactive
-            radius={30}
-            style={styles.button}
-            fallbackIntensity={55}
-            fallbackTint={t.tint}
+
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              router.push("/rewards" as never);
+            }}
+            onPressIn={() => {
+              press.value = withSpring(1, { damping: 18, stiffness: 320 });
+            }}
+            onPressOut={() => {
+              press.value = withSpring(0, { damping: 18, stiffness: 320 });
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={
+              idle
+                ? "Rewards. Daily limit reached."
+                : `Earn rewards. ${toGo} ads to your next reward.`
+            }
           >
-            <HugeiconsIcon
-              icon={FuelStationIcon}
-              size={23}
-              color={idle ? t.tertiaryLabel : t.tint}
-              strokeWidth={2.2}
-            />
-          </Glass>
-        </Pressable>
+            
+          {!idle ? (
+              <>
+                <Animated.View
+                  style={[styles.halo,
+                    // { backgroundColor: t.label + "26" },
+                    { backgroundColor: t.scheme === "dark" ? "rgba(120,120,128,0)" : "#000" },
+                  halo]}
+                pointerEvents="none">
+                    <Glass
+                      variant="regular"
+                      interactive
+                      radius={30}
+                      style={[styles.button]}
+                      fallbackIntensity={55}
+                      fallbackTint={t.scheme === "dark" ? "rgba(120,120,128,0)" : "#000"}
+                    >    
+                      <FlameIcon active={d.current_streak === 0} colour={t.systemOrange + "92"} />
+                </Glass>
+                </Animated.View>
+                <Text style={[styles.BottombadgeText, {color: t.label}]}>Daily Streak</Text>
+              </>
+            ) : null}
+          </Pressable>
 
         {/* The count of watches still available. Sits above the glass, so its
             colour may change freely — it is not the glass itself. */}
         {!idle && toGo > 0 ? (
-          <View style={[styles.badge, { backgroundColor: t.systemOrange }]}>
-            <Text style={styles.badgeText}>{toGo}</Text>
+          <View style={[styles.badge, { backgroundColor: t.systemOrange  }]}>
+            <Text style={[styles.badgeText, {color: t.label}]}>{toGo}</Text>
           </View>
         ) : null}
       </Animated.View>
@@ -194,7 +252,7 @@ export function AdFloatingButton({ bottom = 96, right = 16 }: AdFloatingButtonPr
 
 const styles = StyleSheet.create({
   wrap: { position: "absolute", alignItems: "center", justifyContent: "center", zIndex: 40 },
-  halo: { position: "absolute", width: 60, height: 60, borderRadius: 30 },
+  halo: {  width: 60, height: 60, borderRadius: 30, flex: 1, alignItems: 'center', justifyContent: 'center' },
   button: {
     width: 60,
     height: 60,
@@ -223,8 +281,15 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     ...IOSAppFont.caption2,
-    color: "#fff",
     fontFamily: "Poppins_700Bold",
     fontSize: 11,
+  },
+  BottombadgeText: {
+    // ...IOSAppFont.caption2,
+    fontFamily: "Poppins_500Bold",
+    fontSize: 11,
+    alignSelf: 'center',
+    justifyContent: 'center',
+    marginTop: 3
   },
 });

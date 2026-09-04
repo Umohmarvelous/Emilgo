@@ -115,7 +115,7 @@ export default function SidedBar() {
     //   },
     // },
     { id: "program", icon: IdentityCardFreeIcons as any, label: "Loyalty Program", onPress: () => router.push("/program") },
-    { id: "free-rides", icon: Navigation01Icon as any, label: "Free Rides", onPress: () => router.push("/free-rides" as any) },
+    // { id: "free-rides", icon: Navigation01Icon as any, label: "Free Rides", onPress: () => router.push("/free-rides" as any) },
     { id: "route-history", icon: Route01Icon as any, label: "Route History", onPress: () => router.push("/route-history" as any) },
     { id: "tiers", icon: CrownIcon as any, label: "Go Premium", onPress: () => router.push("/tiers") },
     { id: "settings", icon: Settings01Icon as any, label: "Settings", onPress: () => router.push("/(main)/settings") },
@@ -123,16 +123,16 @@ export default function SidedBar() {
     { id: "help", icon: HelpCircleIcon as any, label: "Help Centre", onPress: () => iosAlert("Help", "Support coming soon.") },
     // Dev-only: live reference for the iOS component kit (src/ui/). Stripped
     // from release bundles along with the __DEV__ branch.
-    ...(__DEV__
-      ? [
-          {
-            id: "ios-kit",
-            icon: SearchIcon as any,
-            label: "iOS UI Kit (dev)",
-            onPress: () => router.push("/ios-kit-demo" as any),
-          } as SidebarItem,
-        ]
-      : []),
+    // ...(__DEV__
+    //   ? [
+    //       {
+    //         id: "ios-kit",
+    //         icon: SearchIcon as any,
+    //         label: "iOS UI Kit (dev)",
+    //         onPress: () => router.push("/ios-kit-demo" as any),
+    //       } as SidebarItem,
+    //     ]
+    //   : []),
     { id: "logout", icon: Logout01Icon as any, label: "Sign Out", danger: true, onPress: handleLogout },
   ];
 

@@ -17,7 +17,7 @@ import { triggerSyncNow } from "@/src/services/sync";
 import { formatDate } from "@/src/utils/helpers";
 import type { Trip } from "@/src/models/types";
 import { HugeiconsIcon } from "@hugeicons/react-native";
-import { Briefcase, CheckmarkCircle01Icon, ChevronRight, Clock04Icon, Crown02Icon, CrownIcon, GiftIcon, LocationUser01Icon, Message01Icon, Message02Icon, Navigation01Icon, QrCodeIcon, Trophy, Warning,
+import { Briefcase, CheckmarkCircle01Icon, ChevronRight, Clock04Icon, CrownIcon, LocationUser01Icon, Message01Icon, Message02Icon, Navigation01Icon, QrCodeIcon, Trophy, Warning,
  } from "@hugeicons/core-free-icons";
 import { StatusBar } from "expo-status-bar";
 import QuickTransferModal from "@/components/QuickTransferModal";
@@ -30,7 +30,7 @@ import ActiveTripBanner from "@/components/ActiveTripBanner";
 import TripListener from "@/components/TripListener";
 import { useProgramStore } from "@/src/store/useProgramStore";
 import { parseDriverQR, toDriverPayload } from "@/src/utils/qr";
-import { Glass, iosAlert, useIOSTheme } from "@/components/ios";
+import { iosAlert, useIOSTheme } from "@/components/ios";
 import { AdFloatingButton } from "@/components/ads/AdFloatingButton";
 
 

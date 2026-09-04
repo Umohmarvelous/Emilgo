@@ -209,7 +209,7 @@ export default function ProvisioningScreen() {
     <View style={[styles.root, { backgroundColor: t.systemBackground }]}>
       {/* A single wash behind everything. It is the one piece of colour on the
           screen, and it keeps a mostly-empty layout from reading as unfinished. */}
-      <View style={[styles.wash, { backgroundColor: t.tint + "0F" }]} pointerEvents="none" />
+      <View style={[styles.wash, { backgroundColor: t.systemBlue }]} pointerEvents="none" />
 
       {/* Everything is vertically centred rather than pinned to the top. There
           is no navigation and no other content, so a top-aligned column leaves

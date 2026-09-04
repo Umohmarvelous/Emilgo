@@ -54,7 +54,7 @@ import { supabase } from "@/src/services/supabase";
 import { getDeviceFingerprint } from "@/src/utils/device";
 import { useSettingsStore } from "@/src/store/useSettingsStore";
 import type { User } from "@/src/models/types";
-import { iosAlert } from "@/components/ios";
+import { iosAlert, IOSAppFont, useIOSTheme } from "@/components/ios";
 
 // ─── Role → route helper ──────────────────────────────────────────────────────
 
@@ -68,6 +68,8 @@ function routeByRole(role: string, profileComplete: boolean | undefined) {
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function LoginScreen() {
+  const iosTheme = useIOSTheme()
+
   const params = useLocalSearchParams<{ add?: string }>();
   const { theme } = useSettingsStore();
   const isDark = theme === "dark";
@@ -88,6 +90,7 @@ export default function LoginScreen() {
 
   const [username, setUsername] = useState(""); // only when device is unknown
   const [password, setPassword] = useState("");
+  const [showEmail, setShowEmail] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [bioLoading, setBioLoading] = useState(false);
@@ -276,8 +279,16 @@ export default function LoginScreen() {
       </View>
 
       <Animated.View style={[styles.body, formAnimStyle]}>
+        {!(knownEmail && showEmail) && (
+          <Text style={[styles.account, { color: subTextColor }]} numberOfLines={1}>
+            {knownEmail}
+          </Text>
+        )}
+
+
         {/* Username — only needed when this device has no stored account */}
-        {!knownEmail && (
+        {/* {!knownEmail && ( */}
+        {showEmail && (
           <>
             <Text style={[styles.label, { color: textColor }]}>Username</Text>
             <View style={[styles.inputRow, { backgroundColor: fieldBg }]}>
@@ -299,11 +310,6 @@ export default function LoginScreen() {
           </>
         )}
 
-        {knownEmail && (
-          <Text style={[styles.account, { color: subTextColor }]} numberOfLines={1}>
-            {knownEmail}
-          </Text>
-        )}
 
         {/* Password + biometric button */}
         <Text style={[styles.label, { color: textColor }]}>Password</Text>
@@ -370,20 +376,34 @@ export default function LoginScreen() {
           )}
         </Pressable>
 
-        <Pressable
-          style={styles.switchBtn}
-          onPress={() =>
-            router.replace(addingAccount ? "/(auth)/register?add=1" : "/(auth)/register")
-          }
-        >
-          <Text style={[styles.switchText, { color: subTextColor }]}>
-            {addingAccount ? "Need a new one? " : "Don't have an account? "}
-            <Text style={[styles.switchLink, { color: textColor }]}>
-              {addingAccount ? "Create an account" : "Sign Up"}
+        <View style={{marginTop: 30, alignSelf: 'center', justifyContent: 'flex-start', height: 'auto', gap: 20}}>
+          <View  style={styles.switchBtn}>
+            <Text style={[styles.switchText, { color: subTextColor }]}>
+              {addingAccount ? "Need a new one? " : "Don't have an account? "}
             </Text>
-          </Text>
-        </Pressable>
+            <Pressable
+              onPress={() =>
+                router.replace(addingAccount ? "/(auth)/register?add=1" : "/(auth)/register")
+              }
+            >
+              <Text style={[styles.switchLink, { color: textColor }]}>
+                {addingAccount ? "Create an account" : "Sign Up"}
+              </Text>
+            </Pressable>
+          </View>
+
+  
+          <Pressable
+          style={[{ width: 'auto', alignItems:'center', justifyContent: 'center' }]}
+            onPress={() => setShowEmail((s) => !s)} hitSlop={8}
+          >
+            <Text style={{...IOSAppFont.callout, fontFamily: "Poppins_700Bold", padding: 0, margin:0, color: iosTheme.systemGreen}}>Use a different account</Text>
+          </Pressable>
+        </View>
+
+        
       </Animated.View>
+
 
       {/* Forgot password modal */}
       <Modal
@@ -463,7 +483,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  body: { paddingHorizontal: 24, paddingTop: 120, flex: 1, },
+  body: { paddingHorizontal: 24, paddingTop: 80, flex:1 },
   label: {
     fontFamily: "Poppins_500Medium",
     fontSize: 13,
@@ -506,9 +526,9 @@ const styles = StyleSheet.create({
     marginTop: 100,
   },
   submitBtnText: { fontFamily: "Poppins_600SemiBold", fontSize: 16, color: "#fff" },
-  switchBtn: { alignItems: "center", marginTop: 28, paddingVertical: 8 },
+  switchBtn: { alignItems: "center",   paddingVertical: 8, flexDirection: 'row', gap: 2 },
   switchText: { fontFamily: "Poppins_400Regular", fontSize: 14 },
-  switchLink: { fontFamily: "Poppins_600SemiBold" },
+  switchLink: { fontFamily: "Poppins_700Bold", fontSize: 13 },
 
   // Modal
   backdrop: {

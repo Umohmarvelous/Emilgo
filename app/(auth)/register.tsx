@@ -80,7 +80,7 @@ import {
 } from "@/src/services/emailVerification";
 import { currencyForCountry, COUNTRIES } from "@/src/services/currency";
 import type { UserRole } from "@/src/models/types";
-import { iosAlert } from "@/components/ios";
+import { iosAlert, useIOSTheme } from "@/components/ios";
 
 // ─── The steps ───────────────────────────────────────────────────────────────
 
@@ -142,7 +142,7 @@ function FormField({
   textContentType?: any;
   /** Switch off every password manager and suggestion path. */
   noAutofill?: boolean;
-}) {
+  }) {
   const { theme } = useSettingsStore();
   const isDark = theme === "dark";
   const textColor = isDark ? Colors.textWhite : Colors.text;
@@ -320,6 +320,7 @@ export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
   const { theme } = useSettingsStore();
   const params = useLocalSearchParams<{ add?: string; role?: string }>();
+  const iosTheme = useIOSTheme();
 
   const isDark = theme === "dark";
   const bg = isDark ? Colors.background : Colors.textWhite;
@@ -711,8 +712,8 @@ export default function RegisterScreen() {
                     <Ionicons name={r.icon} size={22} color={active ? "#fff" : subTextColor} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.roleLabel, { color: textColor }]}>{r.label}</Text>
-                    <Text style={[styles.roleBlurb, { color: active ? textColor : subTextColor }]}>{r.blurb}</Text>
+                    <Text style={[styles.roleLabel, { color: active ? iosTheme.secondarySystemBackground : iosTheme.systemGray }]}>{r.label}</Text>
+                    <Text style={[styles.roleBlurb, { color: active ? iosTheme.systemGray3 : iosTheme.systemGray2 }]}>{r.blurb}</Text>
                   </View>
                   <Ionicons
                     name={active ? "checkmark-circle" : "ellipse-outline"}
@@ -725,10 +726,10 @@ export default function RegisterScreen() {
 
             {/* Park Owner is not offered. Saying so beats leaving an operator
                 wondering whether the app supports them at all. */}
-            <Text style={[styles.footnote, { color: subTextColor }]}>
+            {/* <Text style={[styles.footnote, { color: subTextColor }]}>
               Running a park? Park accounts are set up with us directly — sign up
               as a driver or passenger for now and contact support.
-            </Text>
+            </Text> */}
           </Animated.View>
         )}
 
@@ -1033,11 +1034,12 @@ export default function RegisterScreen() {
         )}
 
         {step === "role" && !addingAccount ? (
-          <Pressable onPress={() => router.replace("/(auth)/login")} style={styles.signInRow}>
-            <Text style={[styles.signInText, { color: subTextColor }]}>
-              Already have an account? <Text style={{ color: Colors.primary }}>Sign in</Text>
-            </Text>
-          </Pressable>
+          <View style={[styles.signInRow, { margin: 'auto'}]}>
+            <Text style={[styles.signInText, { color: subTextColor }]}>Already have an account? </Text>
+            <Pressable onPress={() => router.replace("/(auth)/login")} >
+                <Text style={{ color: Colors.primary, fontFamily: "Poppins_700Bold" }}>Sign in</Text>
+            </Pressable>
+          </View>
         ) : null}
       </View>
     </KeyboardAvoidingView>
@@ -1082,7 +1084,7 @@ const styles = StyleSheet.create({
   },
   roleIcon: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   roleLabel: { fontFamily: "Poppins_600SemiBold", fontSize: 16 },
-  roleBlurb: { fontFamily: "Poppins_400Regular", fontSize: 12.5, lineHeight: 18, marginTop: 2 },
+  roleBlurb: { fontFamily: "Poppins_400Regular", fontSize: 11, lineHeight: 18, marginTop: 2 },
 
   nameRow: { flexDirection: "row", gap: 12 },
 
@@ -1103,6 +1105,6 @@ const styles = StyleSheet.create({
   primaryDisabled: { opacity: 0.4 },
   primaryText: { fontFamily: "Poppins_600SemiBold", fontSize: 16, color: "#fff" },
 
-  signInRow: { alignItems: "center", paddingVertical: 8 },
+  signInRow: { alignItems: "center", paddingVertical: 8, flexDirection: 'row', justifyContent: 'center' },
   signInText: { fontFamily: "Poppins_400Regular", fontSize: 13.5 },
 });

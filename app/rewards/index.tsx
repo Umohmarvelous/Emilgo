@@ -147,7 +147,7 @@ export default function RewardsScreen() {
         {/* ── Today's ladder ───────────────────────────────────────────────── */}
         <View style={[styles.card, { backgroundColor: t.secondarySystemBackground }]}>
           <View style={styles.cardHead}>
-            <Text style={[styles.cardTitle, { color: t.label }]}>Today's rewards</Text>
+            <Text style={[styles.cardTitle, { color: t.label }]}>{`Today's rewards`}</Text>
             <Pressable onPress={() => setTracker(true)} hitSlop={10} style={styles.info}>
               <HugeiconsIcon
                 icon={InformationCircleIcon}
@@ -419,7 +419,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   streakNum: { ...IOSAppFont.subheadline, fontFamily: "Poppins_700Bold" },
-  streakWord: { ...IOSAppFont.caption1 },
+  streakWord: { ...IOSAppFont.caption2 },
   heroValue: { fontFamily: "Poppins_700Bold", fontSize: 38, lineHeight: 46, marginTop: 6 },
   heroLabel: { ...IOSAppFont.footnote, textAlign: "center" },
 

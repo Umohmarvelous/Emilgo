@@ -43,6 +43,8 @@ import {
 } from "./CollapsibleHeader";
 import { useTabBarInset } from "./IOSTabBar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { HugeiconsIcon } from "@hugeicons/react-native";
+import { ArrowLeft01Icon } from "@hugeicons/core-free-icons";
 
 
 export interface IOSScreenProps {
@@ -87,13 +89,14 @@ function BackChevron({ onPress }: { onPress: () => void }) {
   const theme = useIOSTheme();
   return (
     <Pressable style={{flexDirection: 'row', alignItems:'center', gap:7}} onPress={onPress} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
-      <SymbolView
+      {/* <SymbolView
         name="chevron.backward"
         size={19}
         tintColor={theme.label}
         resizeMode="scaleAspectFit"
         fallback={<View style={{ width: 22, height: 22 }} />}
-      />
+      /> */}
+      <HugeiconsIcon icon={ArrowLeft01Icon} size={24} color={theme.label} strokeWidth={2} />
       <Text style={[{fontFamily: "Poppins_600SemiBold", fontSize: 15}, { color: theme.label }]}>Back</Text>
     </Pressable>
   );

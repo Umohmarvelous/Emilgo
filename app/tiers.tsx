@@ -18,7 +18,6 @@ import {
   Text,
   StyleSheet,
   Pressable,
-  ScrollView,
   ActivityIndicator,
 } from "react-native";
 import { router } from "expo-router";
@@ -26,7 +25,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Colors } from "@/constants/colors";
-import { IOSScreen, useCollapsibleScroll } from "@/components/ios";
+import { IOSScreen, useCollapsibleScroll, iosAlert } from "@/components/ios";
 import { useAuthStore } from "@/src/store/useStore";
 import { useSettingsStore } from "@/src/store/useSettingsStore";
 import { useTierStore } from "@/src/store/useTierStore";
@@ -34,7 +33,6 @@ import { PaystackService, computePremiumSplit } from "@/src/services/paystack";
 import { useTransactionsStore } from "@/src/store/useTransactionsStore";
 import { formatNaira } from "@/src/utils/helpers";
 import type { PremiumTier } from "@/src/models/types";
-import { iosAlert } from "@/components/ios";
 
 const txnId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 const MOCK_STATION_SUBACCOUNT = "ACCT_mock_station";
@@ -168,7 +166,7 @@ export default function TiersScreen() {
     >
         <View style={styles.hero}>
           <View style={styles.diamond}>
-            <Ionicons name="diamond" size={26} color={Colors.gold} />
+            <Ionicons name="diamond" size={60} color={Colors.gold} />
           </View>
           <Text style={[styles.title, { color: textColor }]}>Get Premium!</Text>
           <Text style={[styles.subtitle, { color: subColor }]}>
@@ -193,7 +191,7 @@ export default function TiersScreen() {
                   styles.plan,
                   { backgroundColor: cardBg, borderColor },
                   popular && styles.planPopular,
-                  isSel && { borderColor: Colors.primary, borderWidth: 2 },
+                  isSel && { borderColor: Colors.primary, borderWidth: 1.5, backgroundColor: Colors.primary + "22" },
                 ]}
               >
                 {popular && (
@@ -246,9 +244,10 @@ export default function TiersScreen() {
               {([b.free, b.pro, b.elite] as boolean[]).map((on, i) => (
                 <View key={i} style={styles.cell}>
                   {on ? (
-                    <Ionicons name="checkmark-circle" size={18} color={Colors.primary} />
+                    // <Ionicons name="checkmark-circle" size={18} color={PLAN_ORDER === selected ? Colors.primary : subColor } />
+                    <Ionicons name="checkmark-circle" size={18} color={ Colors.primary } />
                   ) : (
-                    <Text style={[styles.dash, { color: subColor }]}>—</Text>
+                    <Text style={[styles.dash, { color: subColor }]}>-</Text>
                   )}
                 </View>
               ))}
@@ -295,10 +294,10 @@ const styles = StyleSheet.create({
 
   hero: { alignItems: "center", gap: 4, marginBottom: 20 },
   diamond: {
-    width: 52,
-    height: 52,
+    width: 72,
+    height: 72,
     borderRadius: 26,
-    backgroundColor: Colors.goldLight,
+    // backgroundColor: Colors.goldLight,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 6,
@@ -310,13 +309,16 @@ const styles = StyleSheet.create({
   plan: {
     flex: 1,
     borderRadius: 20,
-    borderWidth: 1.5,
+    borderWidth: .5,
     paddingVertical: 18,
     paddingHorizontal: 8,
     alignItems: "center",
     gap: 2,
   },
-  planPopular: { backgroundColor: "#FFFBEB", borderColor: Colors.gold },
+  planPopular: {
+    // backgroundColor: "#FFFBEB",
+    // borderColor: Colors.gold
+  },
   ribbon: {
     position: "absolute",
     top: -10,
@@ -334,11 +336,11 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,154,67,0.12)",
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 10,
+    borderRadius: 5,
   },
   currentTagText: { fontFamily: "Poppins_600SemiBold", fontSize: 9, color: Colors.primary },
 
-  table: { borderRadius: 20, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 4 },
+  table: { borderRadius: 20, borderWidth: .5, paddingHorizontal: 14, paddingVertical: 4 },
   tableHeader: {
     flexDirection: "row",
     alignItems: "center",

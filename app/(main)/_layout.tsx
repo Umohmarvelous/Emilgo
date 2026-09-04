@@ -485,9 +485,8 @@ export default function MainLayout() {
                   style={StyleSheet.absoluteFill}
                   radius={30}
                   pointerEvents="none"
-                  fallbackIntensity={26}
+                  fallbackIntensity={12}
                   fallbackTint={ios.scheme === "dark" ? "rgba(120,120,128,0.22)" : "rgba(120,120,128,0.12)"}
-                  // fallbackTint={ios.secondarySystemBackground}
                 />
               <View
                 onLayout={(e) => {
@@ -499,7 +498,8 @@ export default function MainLayout() {
                 style={[
                   styles.header,
                   {
-                    paddingTop: topPadding,
+                    paddingTop: topPadding - 8,
+                    paddingBottom: 20
                   },
                   // { borderWidth: .5, borderColor: ios.opaqueSeparator, margin: 10, marginTop: 5, marginBottom: 0, paddingBottom: 10, borderRadius: 30 }
                 ]}

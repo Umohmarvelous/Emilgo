@@ -34,7 +34,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSharedValue, useAnimatedReaction, runOnJS } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { HugeiconsIcon } from "@hugeicons/react-native";
-import { PenTool01Icon, FireIcon, UserAdd01Icon, Plus } from "@hugeicons/core-free-icons";
+import { FireIcon, UserAdd01Icon, Plus } from "@hugeicons/core-free-icons";
 import { Glass, IOSTitleDropdown, useIOSTheme, type IOSTitleDropdownOption } from "@/components/ios";
 import { IOSAppFont } from "@/components/ios/theme";
 import { FeedList } from "@/components/feed";
@@ -333,7 +333,11 @@ export default function DiscoverTab({ scrollY }: DiscoverTabProps) {
 const styles = StyleSheet.create({
   root: { flex: 1 },
 
-  laneWrap: { paddingHorizontal: 16, paddingTop: 6, paddingBottom: 12, borderBottomWidth: StyleSheet.hairlineWidth },
+  laneWrap: {
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    // borderBottomWidth: StyleSheet.hairlineWidth
+  },
 
   composerRow: {
     flexDirection: "row",

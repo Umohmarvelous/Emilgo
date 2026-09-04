@@ -36,7 +36,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { Colors } from "@/constants/colors";
-import { Glass, IOSButton, IOSSegmentedTabs } from "@/components/ios";
+import { Glass, IOSButton, IOSSegmentedTabs, useIOSTheme } from "@/components/ios";
 import { useAuthStore } from "@/src/store/useStore";
 import { useCreditsStore } from "@/src/store/useCreditsStore";
 import { useProgramStore, ProgramForm } from "@/src/store/useProgramStore";
@@ -44,7 +44,8 @@ import { useSettingsStore } from "@/src/store/useSettingsStore";
 import { EARN_RULES, MIN_CREDITS_TO_APPLY } from "@/constants/credits";
 import { DEV_OTP_CODE } from "@/src/services/kyc";
 import { HugeiconsIcon } from "@hugeicons/react-native";
-import { Tick04Icon } from "@hugeicons/core-free-icons";
+import { ArrowLeft01Icon, Tick04Icon } from "@hugeicons/core-free-icons";
+
 
 // A small set of Nigerian banks for the payout picker (code = Paystack bank code).
 const BANKS = [
@@ -537,6 +538,7 @@ function Header({
   onBack: () => void;
   insetTop: number;
   }) {
+  const iosTheme = useIOSTheme()
 
   return (
     <View style={[styles.header, { paddingTop: insetTop + 12 }]}>
@@ -555,7 +557,7 @@ function Header({
           fallbackIntensity={25}
           fallbackTint="transparent"
         />
-        <Ionicons name="chevron-back" size={22} color={textColor} />
+        <HugeiconsIcon icon={ArrowLeft01Icon} size={24} color={iosTheme.label} strokeWidth={2} />
       </Pressable>
       <Text style={[styles.headerTitle, { color: textColor }]}>{title}</Text>
       <View style={{ width: 40 }} />
