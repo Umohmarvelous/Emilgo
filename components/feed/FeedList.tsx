@@ -85,7 +85,7 @@ export function FeedList({
   topInset = 0,
   bottomInset = 0,
   detailFirstRow,
-  emptyTitle = "Nothing here yet",
+  emptyTitle = "No post yet",
   emptyBody = "Posts will show up here as people share them.",
   scrollY,
   external = [],
@@ -260,11 +260,11 @@ export function FeedList({
       ListEmptyComponent={
         loading ? (
           <View style={[styles.empty, { paddingTop: topInset + 60 }]}>
-            <ActivityIndicator color={t.tint} size="large" />
+            <ActivityIndicator color={t.tint} />
           </View>
         ) : error ? (
           <View style={[styles.empty, { paddingTop: topInset + 60 }]}>
-            <Text style={[styles.emptyTitle, { color: t.label }]}>Could not load</Text>
+            {/* <Text style={[styles.emptyTitle, { color: t.label }]}>Could not load</Text> */}
             <Text style={[styles.emptyBody, { color: t.secondaryLabel }]}>{error}</Text>
             <Pressable
               onPress={() => load(timelineKey, "refresh")}
@@ -274,7 +274,7 @@ export function FeedList({
             </Pressable>
           </View>
         ) : (
-          <View style={[styles.empty, { paddingTop: topInset + 60 }]}>
+          <View style={[styles.empty, { paddingTop: topInset + 30 }]}>
             <Text style={[styles.emptyTitle, { color: t.label }]}>{emptyTitle}</Text>
             <Text style={[styles.emptyBody, { color: t.secondaryLabel }]}>{emptyBody}</Text>
           </View>
@@ -291,8 +291,8 @@ const styles = StyleSheet.create({
   emptyBody: { ...IOSAppFont.footnote, textAlign: "center", lineHeight: 19 },
   retry: {
     marginTop: 12,
-    borderWidth: 1,
-    borderRadius: 999,
+    // borderWidth: 1,
+    // borderRadius: 999,
     paddingHorizontal: 18,
     paddingVertical: 8,
   },

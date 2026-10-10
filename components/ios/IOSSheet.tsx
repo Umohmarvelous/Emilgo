@@ -23,6 +23,7 @@ import {
   StyleSheet,
   useWindowDimensions,
   type ViewStyle,
+  StatusBar,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GestureHandlerRootView, Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -246,6 +247,8 @@ export function IOSSheet({
       [1, 0],
       Extrapolation.CLAMP,
     ),
+  backgroundColor: 'rgba(0,0,0,0.5)',
+
   }));
 
   return (
@@ -256,6 +259,10 @@ export function IOSSheet({
       statusBarTranslucent
       onRequestClose={dismissible ? animateClosed : undefined}
     >
+      {/*     borderWidth:2, borderColor:'red'
+ */}
+         {/* <StatusBar hidden /> */}
+
       <GestureHandlerRootView style={StyleSheet.absoluteFill}>
         {/* Backdrop */}
         <Animated.View style={[StyleSheet.absoluteFill, backdropStyle]}>
@@ -265,14 +272,14 @@ export function IOSSheet({
             accessibilityRole="button"
             accessibilityLabel="Close"
           >
-            <GlassScrim intensity={18} />
+            <GlassScrim intensity={7} />
           </Pressable>
         </Animated.View>
 
         {/* Sheet — always laid out at the tallest detent; smaller detents translate down. */}
         <GestureDetector gesture={pan}>
           <Animated.View
-            style={[styles.sheet, { height: maxH, backgroundColor: "transparent" }, sheetStyle]}
+            style={[styles.sheet, { height: maxH, backgroundColor: "transparent", }, sheetStyle]}
             accessibilityViewIsModal
           >
             {/* Liquid Glass surface. Apple's guidance is that sheets adopt the
@@ -328,16 +335,16 @@ const styles = StyleSheet.create({
     // borderTopLeftRadius: IOSMetrics.sheetRadius,
     borderRadius: IOSMetrics.sheetRadius,
     overflow: "hidden",
-    margin: 4,
+    margin: 6,
   },
   grabberWrap: { alignItems: "center", paddingTop: 5, paddingBottom: 2 },
-  grabber: { width: 36, height: 5, borderRadius: 2.5, opacity: 0.5 },
+  grabber: { width: 56, height: 5, borderRadius: 2.5, opacity: 0.5 },
   header: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
-    height: 48,
-    borderBottomWidth: IOSMetrics.hairline,
+    height: 88,
+    // borderBottomWidth: IOSMetrics.hairline,
   },
   headerSide: { width: 64, justifyContent: "center" },
   content: { flex: 1, paddingHorizontal: IOSMetrics.groupedInset, paddingTop: 12 },

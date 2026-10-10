@@ -420,8 +420,8 @@ const styles = StyleSheet.create({
   },
   streakNum: { ...IOSAppFont.subheadline, fontFamily: "Poppins_700Bold" },
   streakWord: { ...IOSAppFont.caption2 },
-  heroValue: { fontFamily: "Poppins_700Bold", fontSize: 38, lineHeight: 46, marginTop: 6 },
-  heroLabel: { ...IOSAppFont.footnote, textAlign: "center" },
+  heroValue: { ...IOSAppFont.title1, fontFamily: "Poppins_700Bold", lineHeight: 46, marginTop: 16 },
+  heroLabel: { ...IOSAppFont.caption1, textAlign: "center" },
 
   card: { marginHorizontal: 16, marginBottom: 14, borderRadius: 18, padding: 16, gap: 10 },
   cardHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },

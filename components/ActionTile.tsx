@@ -220,15 +220,17 @@ export default function ActionTile({ icon: IconComponent, label, color, onPress 
             <Glass
               variant="regular"
               interactive
-              radius={19}
+              radius={20}
               style={StyleSheet.absoluteFill}
               pointerEvents="none"
               fallbackIntensity={40}
               fallbackTint={iosTheme.tertiarySystemFill}
             />
-            <HugeiconsIcon icon={IconComponent as any}  size={26} color={color}/>
+            <View>
+              <HugeiconsIcon icon={IconComponent as any} size={26} color={color} fill={iosTheme.systemGray2} />
+            </View>
           </View>
-          <Text style={[styles.actionLabel, { color: textColor }]}>{label}</Text>
+          <Text style={[styles.actionLabel, { color: iosTheme.systemGray }]}>{label}</Text>
         </View>
       </Pressable>
     </Animated.View>

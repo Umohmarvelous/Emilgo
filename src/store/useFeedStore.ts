@@ -74,7 +74,7 @@ export type TimelineKey =
   | `search:${string}`
   | `bookmarks:${string}`;
 
-export const PAGE_SIZE = 20;
+export const PAGE_SIZE = 6;
 
 /**
  * How many posts sit between two ads. Twitter's spacing, roughly — close enough

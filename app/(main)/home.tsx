@@ -19,7 +19,6 @@ import type { Trip } from "@/src/models/types";
 import { HugeiconsIcon } from "@hugeicons/react-native";
 import { Briefcase, CheckmarkCircle01Icon, ChevronRight, Clock04Icon, CrownIcon, LocationUser01Icon, Message01Icon, Message02Icon, Navigation01Icon, QrCodeIcon, Trophy, Warning,
  } from "@hugeicons/core-free-icons";
-import { StatusBar } from "expo-status-bar";
 import QuickTransferModal from "@/components/QuickTransferModal";
 import ActionTile from "@/components/ActionTile";
 import QRScannerModal from "@/components/QRScannerModal";
@@ -108,24 +107,24 @@ export default function HomeTab({ insetTop = 0, insetBottom = 0 }: HomeTabProps)
 
   // Define actions
   const PASSENGERSACTIONSBUTTON = [
-    { id: "qr", icon: QrCodeIcon, label: "Scan code", color: textColor },
-    { id: "nearby", icon: Navigation01Icon, label: "Nearby", color: textColor },
-    { id: "deal", icon: Briefcase, label: "Ride deals", color: textColor },
-    { id: "program", icon: Trophy, label: "Join the Program", color: textColor },
-    { id: "tiers", icon: CrownIcon, label: "Go Premium", color: textColor },
-    { id: "history", icon: Clock04Icon, label: "History", color: textColor },
-    { id: "share", icon: LocationUser01Icon, label: "Share Location", color: textColor },
-    { id: "sos", icon: Warning, label: "Emergency Contact", color: textColor },
+    { id: "qr", icon: QrCodeIcon, label: "Scan code", color: ios.label },
+    { id: "nearby", icon: Navigation01Icon, label: "Nearby", color: ios.label },
+    { id: "deal", icon: Briefcase, label: "Ride deals", color: ios.label },
+    { id: "program", icon: Trophy, label: "Join the Program", color: ios.label },
+    { id: "tiers", icon: CrownIcon, label: "Go Premium", color: ios.label },
+    { id: "history", icon: Clock04Icon, label: "History", color: ios.label },
+    { id: "share", icon: LocationUser01Icon, label: "Share Location", color: ios.label },
+    { id: "sos", icon: Warning, label: "Emergency Contact", color: ios.label },
   ] ;
   const DRIVERSACTIONSBUTTON = [
-    // { id: "add", icon: Plus, label: "New Trip", color: textColor},
-    { id: "scan", icon: QrCodeIcon, label: "Get Code", color: textColor},
-    { id: "nearby", icon: Navigation01Icon, label: "Nearby", color: textColor},
-    { id: "deal", icon: Briefcase, label: "Ride deals", color: textColor },
-    { id: "program", icon: Trophy, label: "Join the Program", color: textColor },
-    { id: "tiers", icon: CrownIcon, label: "Go Premium", color: textColor },
-    { id: "megaphone", icon: Message01Icon, label: "Chat", color: textColor},
-    { id: "time", icon: Clock04Icon, label: "History", color: textColor},
+    // { id: "add", icon: Plus, label: "New Trip", color: ios.label},
+    { id: "scan", icon: QrCodeIcon, label: "Get Code", color: ios.label},
+    { id: "nearby", icon: Navigation01Icon, label: "Nearby", color: ios.label},
+    { id: "deal", icon: Briefcase, label: "Ride deals", color: ios.label },
+    { id: "program", icon: Trophy, label: "Join the Program", color: ios.label },
+    { id: "tiers", icon: CrownIcon, label: "Go Premium", color: ios.label },
+    { id: "megaphone", icon: Message01Icon, label: "Chat", color: ios.label},
+    { id: "time", icon: Clock04Icon, label: "History", color: ios.label},
   ] ;
 
 
@@ -209,9 +208,7 @@ export default function HomeTab({ insetTop = 0, insetBottom = 0 }: HomeTabProps)
   }, [loadTrips]);
 
   return (
-    <View style={[styles.root, { backgroundColor: bg } ]}>
-      <StatusBar style={isDark ? 'light' : 'dark'}  animated/>
-
+    <View style={[styles.root, { backgroundColor: bg,} ]}>
 
       {/* Header */}
       <ScrollView
@@ -220,7 +217,7 @@ export default function HomeTab({ insetTop = 0, insetBottom = 0 }: HomeTabProps)
           // insetTop is now the header's MEASURED height, so this only needs a
           // small breathing gap on top of it — the old +25 sat on top of a
           // header constant that already over-reserved by ~64pt.
-          { paddingTop: insetTop + 8, paddingBottom: insetBottom + 12 },
+          { paddingTop: insetTop + 15, paddingBottom: insetBottom + 12 },
         ]}
         showsVerticalScrollIndicator={false}
         scrollIndicatorInsets={{ top: insetTop, bottom: insetBottom }}
@@ -240,7 +237,7 @@ export default function HomeTab({ insetTop = 0, insetBottom = 0 }: HomeTabProps)
 
         {/* Role-specific shortcuts */}
         <View style={[styles.shortcutRow, isDark ? { backgroundColor: 'transparent', borderColor} : {
-          backgroundColor: 'transparent' } ]}>
+          backgroundColor: 'transparent',  } ]}>
           <Text style={[styles.sectionTitle, { color: textColor }]}>{!user ? 'Quick Transfer' : 'Quick Actions'}</Text>
 
           {(!user || user?.role === "passenger") && (

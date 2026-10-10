@@ -84,6 +84,7 @@ const LIGHT: IOSPalette = {
   systemFill: "rgba(120,120,128,0.20)",
   secondarySystemFill: "rgba(120,120,128,0.16)",
   tertiarySystemFill: "rgba(118,118,128,0.12)",
+  // tertiarySystemFill: "#f5f5f5",
 
   systemBlue: "#007AFF",
   systemRed: "#FF3B30",
@@ -202,7 +203,7 @@ export const IOSAppFont = {
   /** Screen title in a header bar. */
   screenTitle: { fontFamily: "Poppins_700Bold", fontSize: 24 },
   /** Button labels. */
-  button: { fontFamily: "Poppins_500Medium", fontSize: 15 },
+  button: { fontFamily: "Poppins_300Medium", fontSize: 10 },
 
   // ── The full ramp, mirroring IOSFont ──────────────────────────────────────
   //
@@ -235,7 +236,7 @@ export const IOSMetrics = {
   /** Corner radius of an inset-grouped card. */
   groupedRadius: 10,
   /** Sheet / large modal corner radius. */
-  sheetRadius: 50,
+  sheetRadius: 40,
   /** Alert corner radius. */
   alertRadius: 30,
   /** Minimum tappable target per the HIG. */

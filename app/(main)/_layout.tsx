@@ -398,6 +398,7 @@ export default function MainLayout() {
         }}
         keyboardShouldPersistTaps="handled"
       >
+
         <View style={[{ width: SCREEN_WIDTH, flex: 1 }, { backgroundColor: 'transparent' }]}>
           <MainTab insetTop={HEADER_HEIGHT} insetBottom={BOTTOM_HEIGHT} />
         </View>
@@ -410,6 +411,8 @@ export default function MainLayout() {
 
   return (
     <View style={[styles.root, { backgroundColor: bg }]}>
+      {/* <StatusBar style={isDark ? 'light' : 'dark'}  animated/> */}
+
       {/* Static sidebar behind the main screen; zooms in as it's revealed */}
       <Animated.View
         style={[
@@ -486,7 +489,8 @@ export default function MainLayout() {
                   radius={30}
                   pointerEvents="none"
                   fallbackIntensity={12}
-                  fallbackTint={ios.scheme === "dark" ? "rgba(120,120,128,0.22)" : "rgba(120,120,128,0.12)"}
+                  // fallbackTint={ios.scheme === "dark" ? "rgba(120,120,128,0.22)" : "rgba(120,120,128,0.12)"}
+                  fallbackTint={ios.tertiarySystemFill}
                 />
               <View
                 onLayout={(e) => {
@@ -498,8 +502,8 @@ export default function MainLayout() {
                 style={[
                   styles.header,
                   {
-                    paddingTop: topPadding - 8,
-                    paddingBottom: 20
+                    paddingTop: topPadding - 48,
+                    paddingBottom: 0
                   },
                   // { borderWidth: .5, borderColor: ios.opaqueSeparator, margin: 10, marginTop: 5, marginBottom: 0, paddingBottom: 10, borderRadius: 30 }
                 ]}
@@ -581,6 +585,7 @@ export default function MainLayout() {
               left: 0,
               right: 0,
               zIndex: 100,
+              marginBottom: 30
             }}
             pointerEvents="box-none"
           >
@@ -639,12 +644,7 @@ const styles = StyleSheet.create({
     flex: 1,
     width: SCREEN_WIDTH,
     zIndex: 1,
-    // Subtle left-edge shadow so the sliding screen reads as "above" the sidebar.
-    // shadowColor: "#000",
-    // shadowOffset: { width: -20, height: 0 },
-    // shadowOpacity: 0.15,
-    // shadowRadius: 17,
-    // elevation: 16,
+    // borderWidth: 2, borderColor: 'blue'
   },
   // The card that holds the entire home screen (top bar + content + bottom bar).
   // Rounded + clipped so the animated border below sits flush with its corners.
@@ -671,7 +671,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    height: "100%",
+    height: "100%", 
   },
   header: {
     paddingHorizontal: 20,

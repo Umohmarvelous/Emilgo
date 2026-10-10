@@ -115,8 +115,8 @@ export default function FollowsScreen() {
   return (
     <IOSScreen
       // title={params.name || "Connections"}
-      title={""}
-      subtitle={tab === "followers" ? "People who follow this accountsssssssssssss" : "Accounts this profile follows"}
+      title={"Connections"}
+      subtitle={tab === "followers" ? "People who follow this account" : "Accounts this profile follows"}
       back
       scrollable={false}
       scroll={scroll}

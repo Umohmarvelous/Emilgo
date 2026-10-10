@@ -103,7 +103,7 @@ export interface AdFloatingButtonProps {
   right?: number;
 }
 
-export function AdFloatingButton({ bottom = 96, right = 16 }: AdFloatingButtonProps) {
+export function AdFloatingButton({ bottom = 96, right = 3 }: AdFloatingButtonProps) {
   const t = useIOSTheme();
   const d = useAdsStore((s) => s.dashboard);
   const refresh = useAdsStore((s) => s.refresh);
@@ -194,7 +194,6 @@ export function AdFloatingButton({ bottom = 96, right = 16 }: AdFloatingButtonPr
 
 
       <Animated.View style={shell}>
-
           <Pressable
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -215,7 +214,7 @@ export function AdFloatingButton({ bottom = 96, right = 16 }: AdFloatingButtonPr
           >
             
           {!idle ? (
-              <>
+              <View style={{alignItems:'center'}}>
                 <Animated.View
                   style={[styles.halo,
                     // { backgroundColor: t.label + "26" },
@@ -231,10 +230,12 @@ export function AdFloatingButton({ bottom = 96, right = 16 }: AdFloatingButtonPr
                       fallbackTint={t.scheme === "dark" ? "rgba(120,120,128,0)" : "#000"}
                     >    
                       <FlameIcon active={d.current_streak === 0} colour={t.systemOrange + "92"} />
-                </Glass>
+                  </Glass>
                 </Animated.View>
-                <Text style={[styles.BottombadgeText, {color: t.label}]}>Daily Streak</Text>
-              </>
+                <View style={[{paddingHorizontal: 9, paddingVertical: 4, alignItems:'center', justifyContent:'center', borderRadius:60}, {backgroundColor: t.label}]}>
+                  <Text style={[styles.BottombadgeText, {color: t.systemGray3}]}>Daily Streak</Text>
+                </View>
+              </View>
             ) : null}
           </Pressable>
 
@@ -271,7 +272,7 @@ const styles = StyleSheet.create({
   badge: {
     position: "absolute",
     top: -2,
-    right: -2,
+    right: 5,
     minWidth: 20,
     height: 20,
     borderRadius: 10,

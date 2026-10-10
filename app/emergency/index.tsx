@@ -38,6 +38,7 @@ import * as EC from "@/src/services/emergencyContacts";
 import ContactPickerSheet from "@/components/emergency/ContactPickerSheet";
 import ContactEditorSheet from "@/components/emergency/ContactEditorSheet";
 
+
 // ─── Status pill ─────────────────────────────────────────────────────────────
 
 function StatusPill({ contact }: { contact: EC.EmergencyContact }) {
@@ -61,8 +62,8 @@ function StatusPill({ contact }: { contact: EC.EmergencyContact }) {
 function summarise(c: EC.EmergencyContact): string {
   if (c.status !== "verified") {
     return c.contact_user_id
-      ? "Hasn't accepted yet — only gets an SOS"
-      : "Not on EMILGO — only gets an SOS, from your phone";
+      ? "They hasn't accepted yet and will only get text"
+      : "This contact is Not on EMILGO and will only get a text, from their phone";
   }
   const on: string[] = [];
   if (c.notify_trip_start) on.push("trip start");
@@ -279,15 +280,21 @@ export default function EmergencyContactsScreen() {
 
       {contacts.length === 0 ? (
         <View style={S.empty}>
-          <View style={[S.emptyIcon, { backgroundColor: `${t.systemRed}14` }]}>
-            <Text style={S.emptyGlyph}>🆘</Text>
+          <View style={[S.emptyIcon,
+            // { backgroundColor: `${t.systemRed}14` }
+          ]}>
+            {/* <Text style={S.emptyGlyph}>🆘</Text>
+            <HugeiconsIcon icon={CapcutIcon} size={20} color={t.label} /> */}
           </View>
           <Text style={[S.emptyTitle, { color: t.label }]}>Nobody knows where you are</Text>
-          <Text style={[S.emptyBody, { color: t.secondaryLabel }]}>
-            Add someone you trust. They&rsquo;ll be told when your trip starts and ends,
-            and immediately if you press SOS — with your location.
+          <Text style={[S.emptyBody, { color: t.tertiaryLabel }]}>
+            Add someone you trust. They&rsquo;ll be told when your trip starts and end.
           </Text>
-          <IOSButton title="Add a contact" onPress={() => setPickerOpen(true)} />
+          <IOSButton 
+            title="Add new contact" 
+            onPress={() => setPickerOpen(true)}
+            style={{ alignSelf: 'center' }}
+          />
         </View>
       ) : (
         <IOSListSection
@@ -298,31 +305,36 @@ export default function EmergencyContactsScreen() {
               : "In an emergency they're alerted in this order. Swipe a row to edit or remove."
           }
         >
-          {contacts.map((c) => (
-            <SwipeableRow
-              key={c.id}
-              actions={[
-                { key: "edit", label: "Edit", symbol: "pencil", color: t.tint, onPress: () => setEditing(c) },
-                {
-                  key: "delete", label: "Remove", symbol: "trash.fill",
-                  color: t.systemRed, destructive: true, onPress: () => confirmDelete(c),
-                },
-              ]}
-            >
-              <IOSListRow
-                label={c.name}
-                detail={summarise(c)}
-                icon={<Avatar name={c.name} size={30} />}
-                accessory={{ type: "none" }}
-                onPress={() => rowMenu(c)}
-              />
-              {/* The pill sits over the row rather than inside it: IOSListRow
-                  owns its own layout, and a second right-hand slot would fight
-                  the accessory it already reserves space for. */}
-              <View style={S.pillHost} pointerEvents="none">
-                <StatusPill contact={c} />
-              </View>
-            </SwipeableRow>
+            {contacts.map((c) => (
+            <>
+              <SwipeableRow
+                key={c.id}
+                style={{padding: 0, margin: 0,backgroundColor: t.secondarySystemBackground}}
+                actions={[
+                  { key: "edit", label: "Edit", symbol: "pencil", color: t.tint, onPress: () => setEditing(c) },
+                  {
+                    key: "delete", label: "Remove", symbol: "trash.fill",
+                    color: t.systemRed, destructive: true, onPress: () => confirmDelete(c),
+                  },
+                ]}
+              >
+                <View style={{backgroundColor: t.secondarySystemBackground}}>
+                  <IOSListRow
+                    label={c.name}
+                    detail={summarise(c)}
+                    icon={<Avatar name={c.name} size={40} />}
+                    accessory={{ type: "none" }}
+                    onPress={() => rowMenu(c)}
+                  />
+                </View>
+                {/* The pill sits over the row rather than inside it: IOSListRow
+                    owns its own layout, and a second right-hand slot would fight
+                    the accessory it already reserves space for. */}
+                <View style={S.pillHost} pointerEvents="none">
+                  <StatusPill contact={c} />
+                </View>
+              </SwipeableRow>
+            </>
           ))}
         </IOSListSection>
       )}
@@ -383,12 +395,16 @@ const S = StyleSheet.create({
 
   pill: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
   pillText: { ...IOSAppFont.caption2, fontFamily: "Poppins_600SemiBold" },
-  pillHost: { position: "absolute", right: 16, top: 0, bottom: 0, justifyContent: "center" },
+  pillHost: { position: "absolute", right: 3, top: 0, bottom: 60, justifyContent: "center"},
 
-  empty: { alignItems: "center", paddingHorizontal: 32, paddingTop: 40, gap: 12 },
+  empty: { alignItems: "center", paddingHorizontal: 32, paddingTop: 40, gap: 12, marginVertical: 50, flex: 1 },
   emptyIcon: {
-    width: 72, height: 72, borderRadius: 24,
-    alignItems: "center", justifyContent: "center", marginBottom: 4,
+    width: 72,
+    height: 72, 
+    borderRadius: 24,
+    alignItems: "center", 
+    justifyContent: "center", 
+    margin:'auto', 
   },
   emptyGlyph: { fontSize: 32 },
   emptyTitle: { ...IOSAppFont.headline, textAlign: "center" },

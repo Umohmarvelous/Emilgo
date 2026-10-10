@@ -73,8 +73,8 @@ export interface IOSButtonProps extends Omit<PressableProps, "style" | "children
 
 const SIZES: Record<IOSButtonSize, { height: number; padH: number; font: TextStyle; radius: number; icon: number }> = {
   small:  { height: 34, padH: 14, font: IOSFont.subheadline, radius: 8,  icon: 15 },
-  medium: { height: 44, padH: 18, font: IOSFont.body,        radius: 10, icon: 17 },
-  large:  { height: 50, padH: 22, font: IOSFont.headline,    radius: 30, icon: 19 },
+  medium: { height: 44, padH: 18, font: IOSFont.body,        radius: 50, icon: 17 },
+  large:  { height: 50, padH: 22, font: IOSFont.headline,    radius: 20, icon: 19 },
 };
 
 export function IOSButton({
@@ -107,7 +107,8 @@ export function IOSButton({
   // label goes white; the rest tint the label instead.
   const prominent = variant === "filled" || variant === "prominentGlass";
 
-  const labelColor = prominent ? "#009A43" : accent;
+  // const labelColor = prominent ? "#009A43" : accent;
+  const labelColor = prominent ? theme.label : accent;
 
   const container: ViewStyle = {
     height: metrics.height,
@@ -145,7 +146,11 @@ export function IOSButton({
         pressed && !(isGlass && liveGlass) && { opacity: 0.4 },
         isDisabled && { opacity: 0.35 },
         style,
-      ]}
+        {
+          // backgroundColor: theme.systemGreen,
+          borderWidth: .5, borderColor: theme.separator,
+          // alignSelf: 'center'
+        }]}
       {...rest}
     >
       {isGlass && (
@@ -156,7 +161,7 @@ export function IOSButton({
           radius={metrics.radius}
           style={StyleSheet.absoluteFill}
           pointerEvents="none"
-          fallbackIntensity={50}
+          fallbackIntensity={20}
           // Off the glass path each variant falls back to the exact fill it had
           // before, so nothing about these buttons changes on Android or iOS 25.
           fallbackTint={
@@ -168,6 +173,7 @@ export function IOSButton({
           }
         />
       )}
+      
       {loading ? (
         <ActivityIndicator size="small" color={labelColor} />
       ) : (

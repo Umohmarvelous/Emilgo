@@ -301,7 +301,7 @@ export function CollapsibleHeader({
         />
         <Animated.View
           style={[
-            styles.hairline,
+            // styles.hairline,
             { backgroundColor: theme.separator, top: undefined, bottom: 0 },
             hairlineStyle,
           ]}

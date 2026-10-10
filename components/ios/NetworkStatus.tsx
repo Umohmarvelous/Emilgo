@@ -150,14 +150,15 @@ export function NetworkStatus({ children, style }: NetworkStatusProps) {
       <View style={[styles.row]}>
         {weak ? (
           <View style={{alignItems: 'center', justifyContent: 'center', gap: 15, flexDirection: 'row', }}>
-            <ActivityIndicator color={theme.label} size={5} />
+            <ActivityIndicator color={theme.label} />
+            
             {/* <HugeiconsIcon icon={CellularNetworkOfflineIcon} size={17} color={'red'}/> */}
 
             <Text numberOfLines={1} style={[IOSAppFont.label, styles.label, { color: theme.label, fontFamily: "Poppins_500Bold" }, {}]}>{`No internet...`}</Text>
           </View>
         ) : (
           <View style={{alignItems: 'center', justifyContent: 'center', gap: 12, flexDirection: 'row'}}>
-              <ActivityIndicator color={theme.label} size={5} />
+              <ActivityIndicator color={theme.label}  />
               <Text numberOfLines={1} style={[IOSAppFont.label, styles.label, { color: theme.label, fontFamily: "Poppins_500Bold" }]}>Reconnecting...</Text>
           </View>
         )}

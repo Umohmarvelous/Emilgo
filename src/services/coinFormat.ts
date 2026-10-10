@@ -14,22 +14,25 @@
 // The alternative — two copies of the same two lines — is how "1,240 cs" and
 // "1240cs" end up on adjacent screens.
 
-/** The unit. One string, so a rename is one edit and not a search-and-replace. */
-export const COIN_UNIT = "cs";
+/** The unit string for 1. */
+export const COIN_UNIT_SINGLE = "coin";
+/** The unit string for multiple. */
+export const COIN_UNIT_PLURAL = "coins";
 
 /**
- * `1,240 cs`.
+ * `1,240 coins`.
  *
  * The trailing unit rather than a leading glyph is deliberate: a leading symbol
- * is how currencies are written, and the whole point of `cs` is that it is not
+ * is how currencies are written, and the whole point of this is that it is not
  * one. See COMPLIANCE.md §0.
  */
 export function formatCs(amount: number | null | undefined): string {
   const n = Math.round(Number(amount ?? 0));
-  return `${n.toLocaleString()} ${COIN_UNIT}`;
+  const unit = Math.abs(n) === 1 ? COIN_UNIT_SINGLE : COIN_UNIT_PLURAL;
+  return `${n.toLocaleString()} ${unit}`;
 }
 
-/** `+40 cs` / `-200 cs`, for a ledger row. */
+/** `+40 coins` / `-200 coins`, for a ledger row. */
 export function formatCsSigned(amount: number): string {
   const n = Math.round(amount);
   return `${n > 0 ? "+" : ""}${formatCs(n)}`;

@@ -170,7 +170,7 @@ export default function LoginScreen() {
       // the email is already cached locally and there is nothing to resolve.
       // Otherwise the username goes to the edge function, which resolves it
       // server-side — the email never travels to the device.
-      const { user, offlineMode } = knownEmail
+      const { user, offlineMode } = knownEmail && !showEmail
         ? await signInOfflineAware(knownEmail, password)
         : await signInWithUsername(username, password);
 

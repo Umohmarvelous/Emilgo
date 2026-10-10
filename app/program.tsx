@@ -106,8 +106,8 @@ export default function ProgramScreen() {
 
   const textColor = isDark ? Colors.textWhite : Colors.text;
   // const subTextColor = isDark ? Colors.textTertiary : Colors.textSecondary;
-  const cardBg = isDark ? Colors.overlayLight : Colors.textWhite;
-  const bg = isDark ? Colors.background : Colors.border;
+  const cardBg = isDark ? Colors.overlayLight : Colors.border;
+  const bg = isDark ? Colors.background : Colors.textWhite;
 
   const borderColor = isDark ? "rgba(255,255,255,0.08)" : "#E8ECF0";
   
@@ -554,7 +554,7 @@ function Header({
           radius={20}
           style={StyleSheet.absoluteFill}
           pointerEvents="none"
-          fallbackIntensity={25}
+          fallbackIntensity={0}
           fallbackTint="transparent"
         />
         <HugeiconsIcon icon={ArrowLeft01Icon} size={24} color={iosTheme.label} strokeWidth={2} />

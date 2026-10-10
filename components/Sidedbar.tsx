@@ -21,7 +21,6 @@ import {
   MoreHorizontalCircleIcon,
   Alert01Icon,
   UserIcon,
-  Navigation01Icon,
   Settings01Icon,
   CrownIcon,
   GiftIcon,
@@ -33,6 +32,7 @@ import {
   IdentityCardFreeIcons,
   SearchIcon,
   Route01Icon,
+  Trophy,
 } from "@hugeicons/core-free-icons";
 import FindDriverModal from "./FindDriverModal";
 // import { withDangerousMod } from "expo/config-plugins";
@@ -114,11 +114,11 @@ export default function SidedBar() {
     //     else router.push("/(passenger)/history");
     //   },
     // },
-    { id: "program", icon: IdentityCardFreeIcons as any, label: "Loyalty Program", onPress: () => router.push("/program") },
+    { id: "settings", icon: Settings01Icon as any, label: "Settings", onPress: () => router.navigate("/settings/account") },
+    { id: "tiers", icon: CrownIcon as any, label: "Go Premium", onPress: () => router.push("/tiers") },
+    { id: "program", icon: Trophy as any, label: "Join the Program", onPress: () => router.push("/program") },
     // { id: "free-rides", icon: Navigation01Icon as any, label: "Free Rides", onPress: () => router.push("/free-rides" as any) },
     { id: "route-history", icon: Route01Icon as any, label: "Route History", onPress: () => router.push("/route-history" as any) },
-    { id: "tiers", icon: CrownIcon as any, label: "Go Premium", onPress: () => router.push("/tiers") },
-    { id: "settings", icon: Settings01Icon as any, label: "Settings", onPress: () => router.push("/(main)/settings") },
     { id: "referral", icon: GiftIcon as any, label: "Refer a Friend", onPress: () => iosAlert("Refer", "Coming soon!") },
     { id: "help", icon: HelpCircleIcon as any, label: "Help Centre", onPress: () => iosAlert("Help", "Support coming soon.") },
     // Dev-only: live reference for the iOS component kit (src/ui/). Stripped

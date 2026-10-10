@@ -60,44 +60,66 @@ export default function CreditMeter({
   return (
     <View style={[styles.card]}>
       <View style={[styles.iconBadge]}>
-        <HugeiconsIcon icon={Star as any} size={18} color={tier.color} fill={tier.color} />
-        <Text style={[styles.creditsLabel, { color: subColor }]}>Credits Status </Text>
-      </View>
-          
-      <View style={styles.headerRow}>
+        <HugeiconsIcon icon={Star as any} size={18} color={textColor} fill={textColor} />
+        <Text style={[styles.creditsLabel, { color: textColor }]}>Credits Status   
+        </Text>
+        <View style={[styles.tierDot, { backgroundColor: textColor }]} />
+
         <View style={styles.creditWrap}>
           <View style={{flexDirection: 'column', alignItems: 'center', gap: 10}}>
-            <View style={[styles.tierPill, { backgroundColor: tier.color + "22" }]}>
-              <View style={[styles.tierDot, { backgroundColor: tier.color }]} />
+            <View style={[styles.tierPill,
+              { backgroundColor: tier.color + "22" }
+            ]}>
+              {/* <View style={[styles.tierDot, { backgroundColor: tier.color }]} /> */}
               <Text style={[styles.tierName, { color: tier.color }]}>{tier.name}</Text>
             </View>
           </View>
         </View>
-        <Text style={[styles.credits, { color: textColor }]}>
-          {display.toLocaleString("en-NG")}
-        </Text>
       </View>
+          
 
       <View style={styles.track}>
         <Animated.View style={[styles.fill, { backgroundColor: tier.color }, barStyle]} />
       </View>
 
-      <Text style={[styles.hint, { color: subColor }]}>
+
+      <View style={styles.headerRow}>
+        {/* {tier.next == null ? */}
+          <View style={{ flexDirection: 'row', alignItems:'center', justifyContent: 'center', gap: 5}}>
+            <Text style={[styles.credits, { color: textColor }]}>
+              {display.toLocaleString("en-NG")} 
+            </Text>
+            <View style={{ flexDirection: 'row', alignItems:'center', justifyContent: 'center', gap: 5}}>
+              <Text style={{ color: subColor }}>/</Text>
+              
+              <Text style={[styles.hint, { color: subColor }]}>
+              {tier.next == null
+                ? "You've reached Top tier"
+                : `${toNext.toLocaleString("en-NG")} more credits to ${
+                    creditTier(tier.next).name
+                  }`}
+              </Text>
+            </View>
+          </View>
+        {/* : null} */}
+      </View>
+
+      {/* <Text style={[styles.hint, { color: subColor }]}>
         {tier.next == null
           ? "Top tier reached — you're Gold"
           : `${toNext.toLocaleString("en-NG")} more credits to ${
               creditTier(tier.next).name
             }`}
-      </Text>
+      </Text> */}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    padding: 15,
+    padding: 25,
     marginBottom: 10,
-    gap: 14, 
+    gap: 0, 
     shadowColor: "#000",
     shadowOffset: { width: 1, height: 1 },
     shadowOpacity: 0.04,
@@ -117,24 +139,29 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "flex-start",
     flexDirection: 'row',
-    gap: 10
+    alignSelf: 'flex-start',
+    gap: 10,    marginBottom: 15,
+
   },
   credits: { fontFamily: "Poppins_700Bold", fontSize: 14, lineHeight: 26 },
-  creditsLabel: { fontFamily: "Poppins_400Regular", fontSize: 12 },
+  creditsLabel: {
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 12
+   },
   tierPill: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 3,
+    borderRadius: 5,
   },
-  tierDot: { width: 8, height: 8, borderRadius: 4 },
+  tierDot: { width: 5, height: 5, borderRadius: 4, marginHorizontal: 5 },
   tierName: { fontFamily: "Poppins_600SemiBold", fontSize: 13 },
   track: {
     height: 10,
     borderRadius: 6,
-    backgroundColor: Colors.borderLight,
+    backgroundColor: Colors.overlayLight,
     overflow: "hidden",
   },
   fill: { height: "100%", borderRadius: 6 },

@@ -168,7 +168,7 @@ export default function TiersScreen() {
           <View style={styles.diamond}>
             <Ionicons name="diamond" size={60} color={Colors.gold} />
           </View>
-          <Text style={[styles.title, { color: textColor }]}>Get Premium!</Text>
+          <Text style={[styles.title, { color: textColor }]}>Go Premium</Text>
           <Text style={[styles.subtitle, { color: subColor }]}>
             Priority rides, bigger rewards, ad-free.
           </Text>

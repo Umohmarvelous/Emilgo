@@ -418,7 +418,6 @@
  *   2.77–3.05s exponential zoom-through → app
  */
 
-import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
 import { Dimensions, StyleSheet } from 'react-native';
 import Animated, {
@@ -430,6 +429,8 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
+import { useSettingsStore } from "@/src/store/useSettingsStore";
+import { Colors } from "@/constants/colors";
 
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -465,8 +466,13 @@ interface Props {
   onFinish?: () => void;
   backgroundColor?: string; // must match app.json splash.backgroundColor
 }
+// backgroundColor = '#000000'
+export default function EmilgoSplash({ onFinish, backgroundColor  }: Props) {
 
-export default function EmilgoSplash({ onFinish, backgroundColor = '#000000' }: Props) {
+  const { theme } = useSettingsStore();
+  const isDark = theme === "dark";
+  const bg = isDark ? Colors.background : Colors.textWhite;
+
   const [wordW, setWordW] = useState(0);
   const onFinishRef = useRef(onFinish);
   onFinishRef.current = onFinish;
@@ -531,7 +537,7 @@ export default function EmilgoSplash({ onFinish, backgroundColor = '#000000' }: 
   const overlayStyle = useAnimatedStyle(() => ({ opacity: overlayFade.value }));
 
   return (
-    <Animated.View style={[styles.overlay, { backgroundColor }, overlayStyle]}>
+    <Animated.View style={[styles.overlay, { backgroundColor: bg }, overlayStyle]}>
       {/* <StatusBar hidden /> */}
 
       <Animated.View style={[StyleSheet.absoluteFill, styles.dim, dimStyle]} />

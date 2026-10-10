@@ -230,7 +230,7 @@ function CapsuleTabs<T extends string>({
         style={StyleSheet.absoluteFill}
         pointerEvents="none"
         fallbackIntensity={26}
-        fallbackTint={theme.scheme === "dark" ? "rgba(120,120,128,0.22)" : "rgba(120,120,128,0.12)"}
+        fallbackTint={theme.tertiarySystemFill}
       />
 
       {/* Sliding thumb. Transform only — never opacity, which would corrupt the

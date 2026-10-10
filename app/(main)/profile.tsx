@@ -39,11 +39,12 @@ import {
   KeyboardAvoidingView,
   RefreshControl,
   ActivityIndicator,
+  useWindowDimensions,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as ImagePicker from "expo-image-picker";
+// import * as ImagePicker from "expo-image-picker";
 import * as Clipboard from "expo-clipboard";
 import Animated, {
   useSharedValue,
@@ -94,7 +95,7 @@ import QuickReceiveModal from "@/components/quickrecieveModal";
 import StatPill from "@/components/StatPill";
 import { formatNaira } from "@/src/utils/helpers";
 import { pickFromLibrary, uploadAvatar } from "@/src/services/avatar";
-import { formatCs } from "@/src/services/coins";
+// import { formatCs } from "@/src/services/coins";
 import BalanceCard from "@/components/BalanceCard";
 import FindDriverModal from "@/components/FindDriverModal";
 import { getBiometricCredentials } from "@/src/services/auth";
@@ -207,12 +208,7 @@ function GlassCard({
   style?: object;
   padded?: boolean;
   }) {
-  const { theme } = useSettingsStore();
 
-  const ios = useIOSTheme();
-  const dark = ios.scheme === "dark";
-  const isDark = theme === "dark";
-  const borderColor = isDark ? "rgba(255,255,255,0.08)" : "#E8ECF0";
 
   return (
     <View style={[styles.cardShadow, style, ]}>
@@ -225,39 +221,39 @@ function GlassCard({
 }
 
 /** Round glass action button used in the pinned bar. */
-function BarButton({
-  icon,
-  label,
-  onPress,
-  color,
-}: {
-  icon: any;
-  label: string;
-  onPress: () => void;
-  color: string;
-}) {
-  const ios = useIOSTheme();
-  return (
-    <Pressable
-      onPress={onPress}
-      hitSlop={8}
-      style={styles.barBtn}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-    >
-      <Glass
-        variant="regular"
-        interactive
-        radius={22}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-        fallbackIntensity={40}
-        fallbackTint={ios.tertiarySystemFill}
-      />
-      <HugeiconsIcon icon={icon} size={19} color={color} />
-    </Pressable>
-  );
-}
+// function BarButton({
+//   icon,
+//   label,
+//   onPress,
+//   color,
+// }: {
+//   icon: any;
+//   label: string;
+//   onPress: () => void;
+//   color: string;
+// }) {
+//   const ios = useIOSTheme();
+//   return (
+//     <Pressable
+//       onPress={onPress}
+//       hitSlop={8}
+//       style={styles.barBtn}
+//       accessibilityRole="button"
+//       accessibilityLabel={label}
+//     >
+//       <Glass
+//         variant="regular"
+//         interactive
+//         radius={22}
+//         style={StyleSheet.absoluteFill}
+//         pointerEvents="none"
+//         fallbackIntensity={40}
+//         fallbackTint={ios.tertiarySystemFill}
+//       />
+//       <HugeiconsIcon icon={icon} size={19} color={color} />
+//     </Pressable>
+//   );
+// }
 
 /**
  * Fades its children with the header's collapse.
@@ -329,6 +325,7 @@ function TravellingAvatar({
   badgeBg: string;
   badgeColor: string;
 }) {
+  const { width: screenWidth } = useWindowDimensions();
   const heroTop = barHeight + HERO_PAD_TOP;
   const dockedTop = insetTop + (BAR_ROW_HEIGHT - AVATAR_BOX * AVATAR_SCALE) / 2;
   // Guard the divide: a zero travel would make progress NaN on the first frame.
@@ -337,11 +334,25 @@ function TravellingAvatar({
   const avatarStyle = useAnimatedStyle(() => {
     const progress = Math.min(1, Math.max(0, scrollY.value / travel));
     const scale = 1 - (1 - AVATAR_SCALE) * progress;
-    const shift = (AVATAR_BOX / 2) * (1 - scale);
+    // Scale happens from the center of the view. To keep the left edge pinned if it was
+    // on the left, we would shift by `(AVATAR_BOX / 2) * (1 - scale)`.
+    // But it starts in the center of the screen, and we want it to end up at `left: HERO_INSET`.
+    const startX = 0; // because it is alignSelf: 'center'
+    // End X in the local coordinate system of the center:
+    const centerLeftEdge = (screenWidth - AVATAR_BOX) / 2; 
+    // We want the view's left edge to be at HERO_INSET.
+    // That means moving it left by (centerLeftEdge - HERO_INSET).
+    // Plus, the scale shift so the left edge is what hits HERO_INSET.
+    const shiftScale = (AVATAR_BOX / 2) * (1 - scale);
+    const shiftXToLeft = -(centerLeftEdge - HERO_INSET); 
+    
+    // total X translation: start at 0, go to shiftXToLeft - shiftScale
+    const tx = progress * shiftXToLeft - shiftScale;
+
     return {
       transform: [
-        { translateY: heroTop - progress * travel - shift },
-        { translateX: -shift },
+        { translateY: heroTop - progress * travel - (AVATAR_BOX / 2) * (1 - scale) },
+        { translateX: tx },
         { scale },
       ],
     };
@@ -956,43 +967,46 @@ export default function ProfileTab() {
           </View> */}
 
 
-            <View style={[styles.menuListContent, {backgroundColor: ios.secondarySystemBackground,  alignItems:'center', borderWidth: .5, borderColor: ios.opaqueSeparator, justifyContent:'center'}]}>
+          <View >
 
-                {/* Glass, not a coloured pill. */}
-                <Glass
-                  variant="regular"
-                  interactive
-                  radius={30}
-                  style={StyleSheet.absoluteFill}
-                  pointerEvents="none"
-                  fallbackIntensity={26}
-                  // fallbackTint={ios.secondarySystemBackground}
-                />
+              {/* Glass, not a coloured pill. */}
+              <Glass
+                variant="regular"
+                interactive
+                radius={CARD_RADIUS}
+                style={StyleSheet.absoluteFill}
+                pointerEvents="none"
+                fallbackIntensity={40}
+                fallbackTint={ios.tertiarySystemFill}
+              />
+              
+            {/* backgroundcolor: ios.scheme === "dark" ? "rgba(120,120,128,0.22)" : "rgba(120,120,128,0.12)"*/}
+            <View style={[styles.menuListContent, {borderWidth: 0, borderColor: ios.opaqueSeparator, alignItems:'center',justifyContent:'center'}]}>
+              <HugeiconsIcon
+                icon={Search02Icon}
+                size={24}
+                color={textColor}
+                onPress={openSearch}
+              />
 
+
+              {/* <SymbolView name="person.fill" size={22} tintColor={ios.label}  fallback={ios.label} /> */}
+              {/* {user?.role === "driver" && ( */}
                 <HugeiconsIcon
-                  icon={Search02Icon}
+                  icon={Logout02Icon}
                   size={24}
                   color={textColor}
-                  onPress={openSearch}
+                  onPress={confirmSignOut} 
+                  // onPress={() => setReceiveVisible(true)}
                 />
-
-
-                {/* <SymbolView name="person.fill" size={22} tintColor={ios.label}  fallback={ios.label} /> */}
-                {/* {user?.role === "driver" && ( */}
-                  <HugeiconsIcon
-                    icon={Logout02Icon}
-                    size={24}
-                    color={textColor}
-                    onPress={confirmSignOut} 
-                    // onPress={() => setReceiveVisible(true)}
-                  />
-                {/* )} */}
+              {/* )} */}
             </View>
+          </View>
         </View>
       </View>
     ),
     // [insets.top, isDark, displayName, user?.role, textColor, openSearch, confirmSignOut, ios.systemGray3],
-    [],
+    [confirmSignOut, displayName, insets.top, ios.opaqueSeparator, ios.tertiarySystemFill, isDark, openSearch, textColor],
   );
 
   return (
@@ -1025,8 +1039,8 @@ export default function ProfileTab() {
           }
           header={
             <View style={[styles.hero, 
-            {backgroundColor: ios.scheme === "dark" ? "rgba(120,120,128,0.22)" : "rgba(120,120,128,0.12)"
-, borderWidth: .5, borderColor: ios.opaqueSeparator, borderRadius: CARD_RADIUS, marginHorizontal: 10, marginBottom: 6 }
+            {backgroundColor: ios.tertiarySystemFill
+, borderWidth: 0, borderColor: ios.opaqueSeparator, borderRadius: CARD_RADIUS, marginHorizontal: 10, marginBottom: 6 }
 
             ]}>
               <View style={[styles.heroRow, { }]}>
@@ -1188,23 +1202,23 @@ export default function ProfileTab() {
             {tab === "profile" && (
               <>
 
-                {/* ── Step 7: credit meter · partner CTA · achievements ── */}
-                <CreditMeter textColor={textColor} subColor={subTextColor} cardBg={cardBg} />
-
 
                 {user?.role === "driver" ? (
-                  <View style={[styles.coinbalanceSection, { backgroundColor: ios.secondarySystemBackground, borderWidth: .5, borderColor: ios.opaqueSeparator }]}>
+                  <View style={[styles.coinbalanceSection, { backgroundColor: ios.tertiarySystemFill, borderWidth: 0, borderColor: ios.opaqueSeparator }]}>
                     <DriverDashboard />
                   </View>
                 ) : user?.role === "passenger" ? (
-                  <View style={[styles.coinbalanceSection, { backgroundColor: ios.secondarySystemBackground, borderWidth: .5, borderColor: ios.opaqueSeparator }]}>
+                  <View style={[styles.coinbalanceSection, { backgroundColor: ios.tertiarySystemFill, borderWidth: 0, borderColor: ios.opaqueSeparator }]}>
                     <PassengerDashboard />
                   </View>
                 ) : (
-                  <View style={[styles.coinbalanceSection, { backgroundColor: ios.secondarySystemBackground, borderWidth: .5, borderColor: ios.opaqueSeparator }]}>
+                      <View style={[styles.coinbalanceSection,
+                        { backgroundColor: ios.tertiarySystemFill, borderWidth: 0, borderColor: ios.opaqueSeparator }
+                      ]}>
                     <BalanceCard coins={totalEarnedCoins} onQuickTransferPress={() => {}} />
                   </View>
                 )}
+
 
                 {/* ── Earnings summary strip ── */}
                 {user?.role === "driver" && (
@@ -1229,7 +1243,8 @@ export default function ProfileTab() {
                         <StatPill
                           iconName={Wallet}
                           label="Earned"
-                          value={formatCs(totalEarnedCoins)}
+                          // value={formatCs(totalEarnedCoins)}
+                          value={formatNaira(totalEarnedCoins)}
                           color={textColor}
                         />
                         <StatPill
@@ -1243,38 +1258,44 @@ export default function ProfileTab() {
                   </GlassCard>
                 )}
 
-              
-                {/* {programStatus === "none" && (
-                  <Pressable
-                    style={[styles.partnerBtn, { backgroundColor: Colors.primary }]}
-                    onPress={() => router.push("/program")}
-                  >
-                    <HugeiconsIcon icon={CheckmarkBadge01Icon as any} size={20} color="#fff" />
-                    <Text style={styles.partnerBtnText}>Become a partner</Text>
-                    <HugeiconsIcon icon={ChevronRight as any} size={18} color="#fff" />
-                  </Pressable>
-                )} */}
+                {/* ── Step 7: credit meter · partner CTA · achievements ── */}
+                <CreditMeter textColor={textColor} subColor={subTextColor} cardBg={cardBg} />
               </>
             )}
 
             {/* ── Account Settings: every settings section, plus identity ── */}
             {tab === "settings" && (
               <>
-                <IOSListSection>
-                  {SETTINGS_SECTIONS.map((s) => (
-                    <IOSListRow
-                      key={s.id}
-                      symbol={s.symbol as never}
-                      label={s.title}
-                      detail={s.summary}
-                      accessory={{ type: "disclosure" }}
-                      onPress={() => {
-                        haptics.tap();
-                        router.push(s.route as never);
-                      }}
-                    />
-                  ))}
-                </IOSListSection>
+                {user?.role || !user?.role  && (
+                // {showPersonalInfo && (
+                  <GlassCard style={styles.cardSpacing}>
+                    <View style={styles.cardHeadTitle}>
+                      <HugeiconsIcon icon={Hospital} size={20} color={textColor} />
+                      <Text style={[styles.cardTitle, { color: textColor }]}>
+                        General Settings
+                      </Text>
+                    </View>
+
+                    <View style={[styles.generalRowSettings, {backgroundColor:'transparent', padding: 0, margin: 0}]}>
+                      <IOSListSection>
+                        {SETTINGS_SECTIONS.map((s) => (
+                          <IOSListRow
+                            key={s.id}
+                            symbol={s.symbol as never}
+                            label={s.title}
+                            detail={s.summary}
+                            accessory={{ type: "disclosure" }}
+                            onPress={() => {
+                              haptics.tap();
+                              router.push(s.route as never);
+                            }}
+                          />
+                        ))}
+                      </IOSListSection>
+                    </View>
+                  </GlassCard>
+                )}
+
 
                 {/* Personal Information */}
                 <GlassCard style={styles.cardSpacing}>
@@ -1297,7 +1318,17 @@ export default function ProfileTab() {
                   </Pressable>
 
                   {showPersonalInfo && (
-                    <View>
+                    <View style={[styles.generalRowSettings, {backgroundColor:ios.tertiarySystemFill, paddingHorizontal: 10}]}>
+                      <InfoRow
+                        icon={UserIcon}
+                        label="Name"
+                        value={user?.full_name || ""}
+                        editable
+                        onEdit={() => startEdit("full_name", user?.full_name || "")}
+                        textColor={textColor}
+                        subTextColor={subTextColor}
+                        borderColor={borderColor}
+                      />
                       <InfoRow
                         icon={Mail01Icon}
                         label="Email"
@@ -1340,7 +1371,7 @@ export default function ProfileTab() {
                     </Pressable>
 
                     {showDriverDetails && (
-                      <View>
+                      <View style={[styles.generalRowSettings, {backgroundColor:ios.tertiarySystemFill}]}>
                         <InfoRow
                           icon={CarIcon}
                           label="Vehicle"
@@ -1396,7 +1427,7 @@ export default function ProfileTab() {
                     </Pressable>
 
                     {parkExpanded && (
-                      <View>
+                      <View style={[styles.generalRowSettings, {backgroundColor:ios.tertiarySystemFill}]}>
                         <InfoRow
                           icon={BuildingIcon}
                           label="Park Name"
@@ -1423,7 +1454,7 @@ export default function ProfileTab() {
                 )}
 
                 {/* Emergency Contacts */}
-                {!user?.role && (
+                {user?.role && (
                   <GlassCard style={styles.cardSpacing}>
                     <View style={styles.cardHeadTitle}>
                       <HugeiconsIcon icon={Hospital} size={20} color={textColor} />
@@ -1434,7 +1465,7 @@ export default function ProfileTab() {
 
                     {(((user as any)?.emergency_contacts as EmergencyContact[]) || []).map(
                       (c, idx) => (
-                        <View key={idx} style={[styles.contactRow, { borderBottomColor: borderColor }]}>
+                        <View key={idx} style={[styles.contactRow, { borderBottomColor: borderColor }, ]}>
                           <View style={[styles.contactAvatar, { backgroundColor: Colors.primaryLight }]}>
                             <Text style={[styles.contactInitial, { color: Colors.primary }]}>
                               {c.name.charAt(0).toUpperCase()}
@@ -1453,7 +1484,7 @@ export default function ProfileTab() {
                       ),
                     )}
 
-                    <View style={styles.addContactRow}>
+                    <View style={[styles.addContactRow, styles.generalRowSettings]}>
                       <TextInput
                         style={[styles.addInput, { backgroundColor: cardBg, color: textColor }]}
                         placeholder="Name"
@@ -1732,7 +1763,7 @@ const styles = StyleSheet.create({
   headerSearch: { marginTop: 16, marginHorizontal: -16 },
 
   // ── Panes ──────────────────────────────────────────────────────────────────
-  paneContent: { paddingHorizontal: 16, paddingTop: 4 },
+  paneContent: { paddingHorizontal: 0, paddingTop: 4 },
   cardShadow: {
     borderRadius: CARD_RADIUS,
     // shadowColor: "#000",
@@ -1742,8 +1773,8 @@ const styles = StyleSheet.create({
     // elevation: 3,
   },
   cardClip: { overflow: "hidden" },
-  cardInner: { paddingVertical: 22, paddingHorizontal: 10, gap: 14 },
-  cardSpacing: { marginTop: 5 },
+  cardInner: { paddingVertical: 12, paddingHorizontal: 10, gap: 14 },
+  cardSpacing: { marginTop: 0,  },
   cardHead: {
     flexDirection: "row",
     alignItems: "center",
@@ -1766,8 +1797,8 @@ const styles = StyleSheet.create({
   coinbalanceSection: {
     padding: 10,
     borderRadius: CARD_RADIUS,
-    marginBottom: 12,
-
+    marginVertical: 12,
+    marginHorizontal: 10
   },
   statsCard: { marginBottom: 12 },
   statsStrip: {
@@ -1790,6 +1821,7 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 12,
     borderBottomWidth: 1,
+    
   },
   contactAvatar: {
     width: 38,
@@ -1812,6 +1844,9 @@ const styles = StyleSheet.create({
   },
   addBtn: { width: 40, height: 40, borderRadius: 30, alignItems: "center", justifyContent: "center" },
 
+  generalRowSettings: {
+    marginHorizontal: 0, padding: 10, borderRadius: 30
+  },
   // ── Edit sheet ─────────────────────────────────────────────────────────────
   editOverlay: {
     position: "absolute",

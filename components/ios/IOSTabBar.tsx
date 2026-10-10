@@ -49,11 +49,11 @@ import { Glass, useGlassCapability } from "./Glass";
 /** Height of the capsule at rest. */
 export const TAB_BAR_HEIGHT = 65;
 /** Height when minimised by scroll. */
-export const TAB_BAR_MIN_HEIGHT = 0;
+export const TAB_BAR_MIN_HEIGHT = 50;
 /** Gap between the capsule and the safe-area bottom. */
-export const TAB_BAR_BOTTOM_GAP = -15;
+export const TAB_BAR_BOTTOM_GAP = -19;
 /** Inset from the left/right screen edges. */
-const H_MARGIN = 30;
+const H_MARGIN = 10;
 /** Inner padding either side of the tab row. */
 const ROW_PADDING = 5;
 
@@ -258,7 +258,7 @@ export function IOSTabBar({
           radius={TAB_BAR_HEIGHT / 2}
           style={StyleSheet.absoluteFill}
           pointerEvents="none"
-          fallbackIntensity={40}
+          fallbackIntensity={20}
           // fallbackTint={isDark ? "rgba(30,30,32,0.55)" : "rgba(255,255,255,0.55)"}
           // androidTint={isDark ? "rgba(28,28,30,0.86)" : "rgba(201 201 201 / 0.9)"}
           fallbackTint={isDark ? "rgba(30,30,32,0.55)" : "rgba(238 238 238 / 0.55)"}

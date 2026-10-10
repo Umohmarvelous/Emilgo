@@ -249,7 +249,7 @@ export default function GiftCoinsScreen() {
             placeholderTextColor={t.quaternaryLabel}
             maxLength={5}
           />
-          <Text style={[styles.amountUnit, { color: t.secondaryLabel }]}>cs</Text>
+          <Text style={[styles.amountUnit, { color: t.secondaryLabel }]}>{Math.abs(n) === 1 ? "coin" : "coins"}</Text>
         </View>
 
         <View style={styles.chips}>

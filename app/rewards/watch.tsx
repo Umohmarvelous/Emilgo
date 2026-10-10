@@ -58,7 +58,7 @@ import {
   FuelStationIcon,
 } from "@hugeicons/core-free-icons";
 
-import { Glass, iosAlert, iosActionSheet, useIOSTheme, IOSAppFont } from "@/components/ios";
+import { Glass, iosAlert, iosActionSheet, useIOSTheme, IOSAppFont, IOSButton } from "@/components/ios";
 import { AdInstallCard } from "@/components/ads/AdInstallCard";
 import { useAdsStore } from "@/src/store/useAdsStore";
 import {
@@ -683,9 +683,14 @@ function EmptyState({ reason, onClose }: { reason: NoAdReason; onClose: () => vo
       <View style={[styles.center, { paddingHorizontal: 40 }]}>
         <Text style={[styles.rewardTitle, { color: t.label }]}>{c.title}</Text>
         <Text style={[styles.rewardSub, { color: t.secondaryLabel }]}>{c.body}</Text>
-        <Pressable onPress={onClose} style={[styles.primary, { backgroundColor: t.tint, marginTop: 24 }]}>
-          <Text style={styles.primaryText}>Back to rewards</Text>
-        </Pressable>
+
+        <IOSButton
+            title={"Close"}
+            variant="filled"
+            onPress={onClose}
+            disabled={false}
+            style={{ ...IOSAppFont.button, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", alignSelf:'center' }}
+          />
       </View>
     </View>
   );

@@ -1,0 +1,20 @@
+diff --git a/node_modules/react-native-web/.DS_Store b/node_modules/react-native-web/.DS_Store
+new file mode 100644
+index 0000000..1d9785d
+Binary files /dev/null and b/node_modules/react-native-web/.DS_Store differ
+diff --git a/node_modules/react-native-web/dist/exports/AccessibilityInfo/index.js b/node_modules/react-native-web/dist/exports/AccessibilityInfo/index.js
+index 5f6c6d6..ea085f1 100644
+--- a/node_modules/react-native-web/dist/exports/AccessibilityInfo/index.js
++++ b/node_modules/react-native-web/dist/exports/AccessibilityInfo/index.js
+@@ -33,6 +33,11 @@ function removeChangeListener(fn) {
+ }
+ var handlers = {};
+ var AccessibilityInfo = {
++
++  isReduceTransparencyEnabled: function () {
++    return Promise.resolve(false);
++  },
++
+   /**
+    * Query whether a screen reader is currently enabled.
+    *

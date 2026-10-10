@@ -225,7 +225,7 @@ export default function DiscoverTab({ scrollY }: DiscoverTabProps) {
     };
   }, []);
 
-  const topInset = (Platform.OS === "web" ? 67 : insets.top) + 130;
+  const topInset = (Platform.OS === "web" ? 67 : insets.top) + 70;
   const bottomInset = TAB_BAR_HEIGHT + TAB_BAR_BOTTOM_GAP + insets.bottom;
 
   // Refresh a lane you return to after a long gap. FeedList does the first load
@@ -242,7 +242,7 @@ export default function DiscoverTab({ scrollY }: DiscoverTabProps) {
 
   const header = React.useMemo(
     () => (
-      <View>
+      <View style={{}}>
         {/* The lane name IS the title, Instagram-style. It reads as a heading
             at rest and only becomes a control when tapped, which is the right
             weight for something changed a few times a day rather than
@@ -262,11 +262,11 @@ export default function DiscoverTab({ scrollY }: DiscoverTabProps) {
             scroll is the worst bug a feed can have. */}
         <Pressable
           onPress={() => router.push("/compose" as any)}
-          style={[styles.composerRow, { borderBottomColor: t.separator }]}
+          style={[styles.composerRow, { borderBottomColor: t.separator }, {}]}
           accessibilityRole="button"
           accessibilityLabel="Write a post"
         >
-          <Avatar name={user?.full_name || "You"} photoUri={user?.profile_photo} size={38} />
+          <Avatar name={user?.full_name || "You"} photoUri={user?.profile_photo} size={30} />
           <Text style={[styles.composerHint, { color: t.tertiaryLabel }]}>
             What&apos;s happening ?
           </Text>
@@ -296,7 +296,7 @@ export default function DiscoverTab({ scrollY }: DiscoverTabProps) {
         bottomInset={bottomInset}
         scrollY={rScrollY}
         external={lane === "for-you" ? external : []}
-        emptyTitle={lane === "following" ? "You're not following anyone yet" : "Nothing here yet"}
+        emptyTitle={lane === "following" ? "You're not following anyone yet" : "No post yet"}
         emptyBody={
           lane === "following"
             ? "Follow drivers and passengers you ride with and their posts will show up here."
@@ -312,15 +312,15 @@ export default function DiscoverTab({ scrollY }: DiscoverTabProps) {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
           router.push("/compose" as any);
         }}
-        style={[styles.composeShadow, { bottom: bottomInset + 14 }]}
+        style={[styles.composeShadow, { bottom: bottomInset + 44 }]}
         accessibilityRole="button"
         accessibilityLabel="New post"
       >
         <Glass
           variant="regular"
           radius={28}
-          style={[styles.compose, { backgroundColor: t.tint }]}
-          fallbackTint={t.tint}
+          style={[styles.compose, { backgroundColor: t.systemGray3 }]}
+          // fallbackTint={t.tint}
           fallbackIntensity={0}
         >
           <HugeiconsIcon icon={Plus} size={25} color="#fff" strokeWidth={2} />
@@ -343,11 +343,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    // paddingHorizontal: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    marginHorizontal: 15
   },
-  composerHint: { ...IOSAppFont.body, flex: 1 },
+  composerHint: { ...IOSAppFont.callout, flex: 1 },
 
   railWrap: {
     paddingHorizontal: 16,
@@ -381,11 +382,11 @@ const styles = StyleSheet.create({
   composeShadow: {
     position: "absolute",
     right: 18,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.22,
-    shadowRadius: 10,
-    elevation: 6,
+    // shadowColor: "#000",
+    // shadowOffset: { width: 0, height: 4 },
+    // shadowOpacity: 0.22,
+    // shadowRadius: 10,
+    // elevation: 6,
     borderRadius: 28,
   },
   compose: {

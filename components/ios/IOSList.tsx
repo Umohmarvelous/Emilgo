@@ -32,6 +32,7 @@ import { useIOSTheme, IOSMetrics, IOSAppFont } from "./theme";
 import { Glass } from "./Glass";
 import { IOSToggle } from "./IOSToggle";
 import { HugeiconsIcon } from "@hugeicons/react-native";
+import { Colors } from "@/constants/colors";
 
 // ─── Row ─────────────────────────────────────────────────────────────────────
 
@@ -120,7 +121,7 @@ export function IOSListRow({
               (symbol ? (
                 <>
                   <SymbolView name={symbol} size={24} tintColor={glyphColor} fallback={null} />
-                {/* <HugeiconsIcon icon={symbol as any}  size={22}  /> */}                
+                {/* <HugeiconsIcon icon={symbol as any}  size={22}  />                 */}
                 </>
               ) : null)}
           </View>
@@ -178,7 +179,8 @@ export function IOSListRow({
           style={({ pressed }) => [
             styles.row,
             highlighted && { backgroundColor: theme.tint + "26" },
-            pressed && { backgroundColor: theme.systemFill },
+            // pressed && { backgroundColor: theme.systemFill },
+            pressed && { backgroundColor: "transparent" },
           ]}
         >
           {body}
@@ -235,7 +237,7 @@ export function IOSListSection({
   );
 
   return (
-    <View style={[styles.section, style]}>
+    <View style={[styles.section, style, { }]}>
       {header ? (
         <Text style={[IOSAppFont.sectionTitle, styles.header, { color: theme.label }]}>
           {header.toUpperCase()}
@@ -243,20 +245,21 @@ export function IOSListSection({
       ) : null}
 
       {opaque ? (
-        <View style={[styles.group, { backgroundColor: theme.systemBackground}]}>
+        <View style={[styles.group, { backgroundColor: theme.tertiarySystemFill}]}>
           {body}
         </View>
       ) : (
-        <Glass
-          // variant="regular"
-          variant="none"
-          // radius={CARD_RADIUS}
-          style={styles.group}
-          // fallbackIntensity={40}
-          fallbackTint={theme.systemBackground}
-        >
+        // <Glass
+        //   variant="none"
+        //   radius={CARD_RADIUS}
+        //   style={styles.group}
+        //   // fallbackIntensity={0}
+        //   fallbackTint={theme.tertiarySystemFill}
+        //   >
+        // </Glass>
+        <View style={[styles.group, { backgroundColor: theme.tertiarySystemFill, borderRadius: CARD_RADIUS}]}>
           {body}
-        </Glass>
+        </View>
       )}
 
       {footer ? (
@@ -272,15 +275,15 @@ export function IOSListSection({
 const CARD_RADIUS = 30;
 
 const styles = StyleSheet.create({
-  section: { marginVertical: 23 },
+  section: { marginVertical: 5 },
   header: { paddingHorizontal: 4, marginVertical: 12 },
   footer: { marginHorizontal: 4, marginTop: 10 },
-  group: { overflow: "hidden" },
+  group: { overflow: "hidden", paddingHorizontal: 20 },
   row: { minHeight: IOSMetrics.minTouchTarget, justifyContent: "center" },
   rowInner: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 20,
+    paddingHorizontal: 10,
     paddingVertical: 22,
     gap: 15, 
   },

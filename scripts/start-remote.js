@@ -177,7 +177,7 @@ async function main() {
   };
 
   const expo = track(
-    spawn("npx", ["expo", "start", "--localhost", "--port", METRO_PORT], {
+    spawn("npx", ["expo", "start", "--web", "--localhost", "--port", METRO_PORT], {
       stdio: "inherit",
       env: expoEnv,
     }),

@@ -14,9 +14,11 @@ import {
   formatCoins,
   formatNaira,
 } from "@/src/utils/helpers";
+import { useIOSTheme } from "@/components/ios";
 // import { useTranslation } from "react-i18next";
 
 export default function DriverDashboard() {
+  const iosTheme = useIOSTheme();
   const { theme } = useSettingsStore();
   const { user } = useAuthStore();
   
@@ -34,16 +36,18 @@ export default function DriverDashboard() {
   return (
     <>
       <View style={styles.balanceCard}>
-        {/* <Text style={styles.balanceLabel}>Coin Balance</Text> */}
+        <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'}}>
+          <Text style={[styles.balanceLabel, {color: iosTheme.label}]}>Balance Dashboard</Text>
+          {/* Balance card */}
+          <Pressable style={styles.balanceIcon} onPress={() => setBalanceHidden((v) => !v)} hitSlop={8}>
+            <Ionicons
+              name={balanceHidden ? "eye-off" : "eye"}
+              size={22} 
+              color= {textColor}
+            />
+          </Pressable>
+        </View>
 
-        {/* Balance card */}
-        <Pressable style={styles.balanceIcon} onPress={() => setBalanceHidden((v) => !v)} hitSlop={8}>
-          <Ionicons
-            name={balanceHidden ? "eye-off" : "eye"}
-            size={22} 
-            color= {textColor}
-          />
-        </Pressable>
         <View style={styles.balanceRow}>
           <Text style={[styles.balanceValue, {color: textColor}]}>
             {balanceHidden ? "* * * * *" : formatCoins(coins)}
@@ -54,10 +58,9 @@ export default function DriverDashboard() {
             that unit stored value, and stored value needs a CBN licence — see
             COMPLIANCE.md §2.1. Coins are compared to nothing now; what they are
             WORTH is stated as what they buy. */}
-        <Text style={styles.balanceEquiv}>
-          Spend on fuel vouchers and commission waivers
-        </Text>
-
+        {/* <Text style={[{fontSize: 11, alignSelf: 'center'}, {color: iosTheme.systemGray2}]}>
+            ≈ {formatNaira(coins)}
+        </Text> */}
       </View>
     </>
   );
@@ -69,19 +72,22 @@ const styles = StyleSheet.create({
 
   balanceCard: {
     flexDirection: "column",
-    gap: 22,
-    alignItems: "center",
+    gap: 62,
+    // alignItems: "center",
     flex: 1,   
-
+    paddingHorizontal: 10,
+    paddingVertical: 10
   },
   balanceLabel: {
     fontFamily: "Poppins_400Regular",
     fontSize: 12,
-    color: Colors.background,
     textTransform: "uppercase",
     letterSpacing: 0.8,
+    alignSelf:'center'
   },
   balanceRow: { 
+    alignSelf: 'center',
+    gap: 8
   },
   balanceValue: {
     fontFamily: "Poppins_700Bold",

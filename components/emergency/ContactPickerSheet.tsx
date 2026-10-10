@@ -180,9 +180,14 @@ export default function ContactPickerSheet({
             variant="tinted"
             onPress={openPhonebook}
             disabled={loadingBook}
+            style={{ alignSelf: 'center' }}
+            size="small"
           />
-
-          <Text style={[S.or, { color: t.tertiaryLabel }]}>or enter it yourself</Text>
+          <View style={{flexDirection:'row', alignItems:'center', justifyContent:'center', gap:9, marginVertical: 20 }}>
+            <View style={{width: 90, height:1, backgroundColor:t.opaqueSeparator, borderRadius: 50}}/>
+              <Text style={[S.or, { color: t.tertiaryLabel }]}>or type it manually</Text>
+            <View  style={{width: 90, height:1, backgroundColor:t.opaqueSeparator, borderRadius: 50}}/>
+          </View>
 
           <Text style={[S.label, { color: t.secondaryLabel }]}>NAME</Text>
           <TextInput
@@ -205,9 +210,9 @@ export default function ContactPickerSheet({
             keyboardType="phone-pad"
             returnKeyType="done"
           />
-          <Text style={[S.hint, { color: t.tertiaryLabel }]}>
-            Nigerian numbers work in any format — 0803…, +234803… or 803…
-          </Text>
+          {/* <Text style={[S.hint, { color: t.tertiaryLabel }]}>
+              Nigerian numbers work in any format — 0803…, +234803… or 803…
+          </Text> */}
 
           <Text style={[S.label, { color: t.secondaryLabel }]}>RELATIONSHIP (OPTIONAL)</Text>
           <View style={S.chips}>
@@ -233,7 +238,11 @@ export default function ContactPickerSheet({
               title={saving ? "Adding…" : "Add contact"}
               onPress={save}
               disabled={!canSave || saving}
-            />
+              variant="filled"
+              fullWidth={true}
+              size="large"
+              style={{ backgroundColor: t.systemGreen }}
+              />
           </View>
         </View>
       )}
@@ -244,16 +253,16 @@ export default function ContactPickerSheet({
 const S = StyleSheet.create({
   form: { gap: 6, paddingBottom: 20 },
   or: { ...IOSAppFont.footnote, textAlign: "center", marginVertical: 14 },
-  label: { ...IOSAppFont.caption2, letterSpacing: 0.5, marginTop: 12, marginBottom: 6, paddingLeft: 4 },
+  label: { ...IOSAppFont.caption2, letterSpacing: 0.5, marginTop: 4, marginBottom: 6, paddingLeft: 4 },
   input: {
     borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12,
     ...IOSAppFont.body,
   },
   hint: { ...IOSAppFont.caption1, marginTop: 6, paddingLeft: 4 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16 },
+  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12 },
   chipText: { ...IOSAppFont.footnote },
-  actions: { marginTop: 24 },
+  actions: { marginTop: 34 },
 
   bookWrap: { flex: 1, gap: 10 },
   bookRow: {
