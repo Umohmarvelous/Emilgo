@@ -348,8 +348,9 @@ export function CollapsibleHeader({
           // stop a long title truncating at accessibility sizes.
           maxFontSizeMultiplier={1.4}
           style={[
-            IOSFont.largeTitle,
-            { fontFamily: IOSAppFont.screenTitle.fontFamily, fontSize: 22, color: theme.label },
+            // IOSFont.largeTitle,
+            IOSAppFont.screenTitle,
+            { color: theme.label },
           ]}
         >
           {title}

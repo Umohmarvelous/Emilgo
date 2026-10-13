@@ -114,7 +114,8 @@
   },
   "private": true,
   "overrides": {
-    "zod-validation-error": "^4.0.2"
+    "zod-validation-error": "^4.0.2",
+    "@react-navigation/native": "7.3.16"
   },
   "resolutions": {
     "zod-validation-error": "^4.0.2",

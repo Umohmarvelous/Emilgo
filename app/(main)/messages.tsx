@@ -71,6 +71,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import {
   Glass, iosAlert, iosActionSheet, IOSBadge, IOSSearchBar, IOSSheet,
   NetworkStatus, SwipeableRow, useIOSTheme,
+  IOSAppFont,
 } from "@/components/ios";
 import { isMuted, MUTE_OPTIONS, muteUntilISO } from "@/src/services/chat";
 // Voice notes run on expo-audio.
@@ -779,7 +780,7 @@ export default function MessagesTab() {
 
   return (
     <>
-      <GestureHandlerRootView style={[S.root, { backgroundColor: ios.systemBackground, paddingTop: topPad }]}>
+      <GestureHandlerRootView style={[S.root, { backgroundColor: ios.systemBackground,  }]}>
         <StatusBar style={isDark ? 'light' : 'dark'} animated />
 
         <View style={S.header}>
@@ -799,7 +800,9 @@ export default function MessagesTab() {
                   fallbackIntensity={40}
                   fallbackTint={isDark ? Colors.overlayLight : Colors.border}
                 />
-                <HugeiconsIcon icon={PlusSignIcon} size={23} color={textColor} />
+                <View>
+                  <HugeiconsIcon icon={PlusSignIcon} size={23} color={textColor} />
+                </View>
               </Pressable>
 
               <NetworkStatus />
@@ -840,7 +843,7 @@ export default function MessagesTab() {
             </View>
 
             <View style={{ alignSelf:'flex-start' }}>
-              <Text style={[S.headerTitle, { color: textColor }]}>Messages</Text>
+              <Text style={[S.headerTitle, IOSAppFont.screenTitle , { color: textColor }]}>Messages</Text>
             </View>
           </View>
 
@@ -849,28 +852,83 @@ export default function MessagesTab() {
               value={query}
               onChangeText={setQuery}
               onCancel={() => setQuery('')}
-              placeholder="Search chats, names or @username"
+              placeholder="Search chats or names"
             />
           </View>
 
-          <View style={S.filterRow}>
-            {filters.map((f) => {
-              const on = filter === f.key;
-              return (
-                <Pressable
-                  key={f.key}
-                  onPress={() => { Haptics.selectionAsync(); setFilter(f.key); }}
-                  style={[
-                    S.filterChip,
-                    { backgroundColor: on ? ios.tint : ios.tertiarySystemFill },
-                  ]}
-                >
-                  <Text style={[S.filterText, { color: on ? '#fff' : ios.secondaryLabel }]}>
-                    {f.label}{f.badge ? ` ${f.badge}` : ''}
-                  </Text>
-                </Pressable>
-              );
-            })}
+          <View style={{flex:1, flexDirection:'row', justifyContent:'space-between', alignItems:'center'}}>
+              
+            <View style={S.filterRow}>
+              {filters.map((f) => {
+                const on = filter === f.key;
+                return (
+                  <Pressable
+                    key={f.key}
+                    onPress={() => { Haptics.selectionAsync(); setFilter(f.key); }}
+                    style={[
+                      S.filterChip,
+                      { backgroundColor: on ? ios.tint : ios.tertiarySystemFill },
+                    ]}
+                  >
+                    <Text style={[S.filterText, { color: on ? '#fff' : ios.secondaryLabel }]}>
+                      {f.label}{f.badge ? ` ${f.badge}` : ''}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* Two real controls, not decoration. The right-hand pill used to
+                  hold a bell glyph and an SF Symbol with no press handler at
+                  all, on `Colors.overlay` — a 30%-black wash that reads as a
+                  dark red smear over the app's green. */}
+            <View style={[S.menuListContent, {borderWidth: 1, borderColor: ios.opaqueSeparator}]}>
+            <Pressable
+                style={S.newBtn}
+                onPress={() => setNewChatVisible(true)}
+                accessibilityLabel="New message"
+              >
+                <Glass
+                  variant="regular"
+                  interactive
+                  radius={30}
+                  style={StyleSheet.absoluteFill}
+                  pointerEvents="none"
+                  fallbackIntensity={40}
+                  fallbackTint={isDark ? Colors.overlayLight : Colors.border}
+                />
+                <View>
+                  <HugeiconsIcon icon={PlusSignIcon} size={23} color={textColor} />
+                </View>
+            </Pressable>
+              <Glass
+                variant="regular"
+                interactive
+                radius={30}
+                style={StyleSheet.absoluteFill}
+                pointerEvents="none"
+                // fallbackIntensity={40}
+                // fallbackTint={isDark ? Colors.overlayLight : Colors.border}
+                fallbackIntensity={40}
+                fallbackTint={ios.tertiarySystemFill}
+              />
+
+              <Pressable
+                onPress={() => router.push('/chat/starred')}
+                hitSlop={8}
+                accessibilityLabel="Starred messages"
+              >
+                <HugeiconsIcon icon={StarIcon} size={23} color={textColor} />
+              </Pressable>
+
+              <Pressable
+                onPress={() => router.push('/chat/wallpaper')}
+                hitSlop={8}
+                accessibilityLabel="Chat wallpaper"
+              >
+                <HugeiconsIcon icon={PaintBoardIcon} size={23} color={textColor} />
+              </Pressable>
+            </View>
           </View>
         </View>
 
@@ -962,7 +1020,7 @@ const S = StyleSheet.create({
 
   header:      { flexDirection: 'column', justifyContent: 'space-between', paddingHorizontal: 13, paddingBottom: 14 },
   headerInner: { justifyContent: 'space-between', gap: 0},
-  headerTitle: { fontFamily: 'Poppins_700Bold', fontSize: 24 },
+  headerTitle: {  },
   newBtn: { width: 40, height: 40, borderRadius: 50, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
 
   menuList: {

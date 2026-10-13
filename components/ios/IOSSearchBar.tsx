@@ -40,7 +40,7 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { haptics } from "@/src/utils/haptics";
-import { useIOSTheme, IOSFont, IOSMetrics } from "./theme";
+import { useIOSTheme, IOSFont } from "./theme";
 import { Glass } from "./Glass";
 import { HugeiconsIcon } from "@hugeicons/react-native";
 import { Search02Icon, X } from "@hugeicons/core-free-icons";
@@ -166,7 +166,7 @@ export function IOSSearchBar({
   // point is the live field.
   if (asButton) {
     return (
-      <View style={[styles.row, style]}>
+      <View style={[styles.row, style,{}]}>
         <Pressable
           style={[styles.fieldWrap, {borderWidth: 1, borderColor: theme.separator}]}
           onPress={() => {
@@ -224,8 +224,8 @@ export function IOSSearchBar({
   }
 
   return (
-    <View style={[styles.row, style, { alignSelf:'flex-start'}]}>
-      <Animated.View style={[styles.fieldWrap, fieldStyle]}>
+    <View style={[styles.row, style, {}]}>
+      <Animated.View style={[styles.fieldWrap, fieldStyle, {}]}>
         <View style={[styles.field, {borderWidth: 1, borderColor: theme.opaqueSeparator}]}>
           {/* Search fields sit on the control layer, so they take glass. */}
           <Glass
@@ -313,30 +313,34 @@ export function IOSSearchBar({
 
 const styles = StyleSheet.create({
   row: {
+  
     flexDirection: "row",
     alignItems: "center",
     justifyContent: 'space-between',
     // paddingHorizontal: IOSMetrics.groupedInset, 
   },
-  fieldWrap: { flex: 1, borderRadius: FIELD_RADIUS,  },
+  fieldWrap: { flex: 1, borderRadius: FIELD_RADIUS, width: SCREEN_WIDTH,  },
   field: {
     // flex:1,
-    height: FIELD_HEIGHT,
+    // height: FIELD_HEIGHT,
+    
     borderRadius: FIELD_RADIUS,
     overflow: "hidden",
     justifyContent: "center",
     padding: 10,
   },
   fieldInner: {
+    // flex:1,
     flexDirection: "row",
-    alignItems: "center",
+    // alignItems: "center",
+    justifyContent:'space-between',
     gap: 7,
-    paddingHorizontal: 8,
+    // paddingHorizontal: 8,
     height: "100%"
   },
-  input: { flex: 1, padding: 0, height: "100%", fontWeight: '500'  },
+  input: { flex:1, padding: 0, height: "100%", fontWeight: '500'  },
   buttonLabel: { flex: 1 },
-  inputCollapsed: { flexGrow: 0, flexShrink: 1, minWidth: 250 },
+  inputCollapsed: { flexGrow: 0, flexShrink: 1, minWidth: SCREEN_WIDTH },
   inputExpanded: { flex: 1 },
   cancelWrap: {
     position: "relative",

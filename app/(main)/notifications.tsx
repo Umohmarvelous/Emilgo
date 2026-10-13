@@ -480,7 +480,7 @@ const styles = StyleSheet.create({
   // Sits above the list, inside the screen's own padding. It does not scroll
   // away: search is how you find something in a long inbox, and hiding it
   // behind a scroll-to-top means scrolling the thing you cannot navigate.
-  searchBar: { paddingHorizontal: 16, paddingBottom: 12 },
+  searchBar: { paddingHorizontal: 13, paddingBottom: 12 },
   unreadSlot: { width: 22, alignItems: "center" },
   unreadDot: { width: 8, height: 8, borderRadius: 4 },
   iconTile: {

@@ -28,6 +28,7 @@ import {
   Message01Icon,
   Bell,
   Menu03Icon,
+  Console,
 } from "@hugeicons/core-free-icons";
 import {
   Glass,
@@ -50,8 +51,9 @@ import SidedBar from "@/components/Sidedbar";
 import FindDriverModal from "@/components/FindDriverModal";
 import OnboardingOverlay from "@/components/OnboardingOverlay";
 import { useOnboarding } from "@/src/hooks/useOnboarding";
+import GameTab from "./game";
 
-type Tab = "home" | "profile" | "messages" | "notifications";
+type Tab = "home" | "game" | "profile" | "messages" | "notifications";
 type TopTab = "home" | "discover";
 
 /**
@@ -61,6 +63,7 @@ type TopTab = "home" | "discover";
  */
 const TABS: IOSTab[] = [
   { key: "home",     label: "Home",     icon: Home01Icon,     iconActive: HomeIcon },
+  { key: "game", label: "Game", icon: Console, iconActive: Console},
   { key: "profile",  label: "You" },
   { key: "messages", label: "Chat", icon: Message01Icon,  iconActive: MessageIcon },
   { key: "notifications", label: "Notifications", icon: Bell, iconActive: Bell},
@@ -369,6 +372,8 @@ export default function MainLayout() {
   const renderMainContent = () => {
     if (activeTab !== "home") {
       switch (activeTab) {
+        case "game":
+          return <GameTab />;
         case "profile":
           return <ProfileTab />;
         case "messages":
