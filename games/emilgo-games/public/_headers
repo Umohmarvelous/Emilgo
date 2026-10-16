@@ -1,0 +1,16 @@
+# Cloudflare Pages / Netlify response headers for the Lagos Life build (dist/).
+#
+# Lagos Life frames the game, so the page MUST allow these ancestors and MUST
+# NOT send X-Frame-Options: DENY or SAMEORIGIN (Vatar docs, Quick start 02).
+
+/*
+  Content-Security-Policy: frame-ancestors https://lagoslife.app https://www.lagoslife.app https://naijalife.app https://www.naijalife.app https://lagoslife.eliysites.com
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
+
+/index.html
+  Cache-Control: no-cache
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable

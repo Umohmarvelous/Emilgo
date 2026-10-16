@@ -230,6 +230,18 @@ resolves on the machine running the server. On a real phone the call fails and
 the driver never gets the "you were scanned" push. Point it at your deployed
 server before any real-device testing.
 
+### 2.5a `EXPO_PUBLIC_GAMES_SERVER` — online rounds in the Game tab
+
+| Var | Where |
+| --- | --- |
+| `EXPO_PUBLIC_GAMES_SERVER` | `app/games/redlight.tsx` → passed to the game |
+
+Unset, the game's **Online** button says "soon" and practice works offline.
+Must be a **`wss://`** address (the game page runs on an https origin inside the
+WebView; `ws://` is blocked). Needs the EMILGO Games server deployed somewhere
+public with TLS — see `games/emilgo-games/README.md` §4. For device testing on your
+Wi-Fi: `cloudflared tunnel --url http://localhost:8787`.
+
 ### 2.5 `EXPO_PUBLIC_DOMAIN` — remote testers
 
 Set, but note the constraint already in CLAUDE.md: a LAN-only value works only on
@@ -628,6 +640,27 @@ detect it easily and ban the account permanently, usually withholding the
 balance. This is why the code defaults to Google's **test** unit IDs
 (`isUsingTestUnits()`), and why that default is correct rather than unfinished.
 
+### 4.11 🎮 Lagos Life (Vatar) — EMILGO Games in the Lagos Life Games app
+
+The game (`games/emilgo-games/`) is fully built and tested against a fake
+Lagos Life platform. To go live it needs, **all server-side, never in any app
+or game code**:
+
+| Secret | Where it comes from | Server env |
+| --- | --- | --- |
+| Test secret `vtr_test_…` | `lagoslife.app/developers/keys` (shown once) | `VATAR_SECRET` |
+| Results secret | shown with the keys | `VATAR_RESULTS_SECRET` |
+| Webhook signing secret `vtr_whsec_test_…` | shown with the keys | `VATAR_WEBHOOK_SECRET` |
+| Live versions of all three | after Lagos Life approves the game | same names |
+| Ticket secret (32+ random chars) | you make it: `openssl rand -base64 48` | `TICKET_SECRET` |
+| Moderator token (24+ random chars) | you make it | `ADMIN_TOKEN` |
+
+Plus: a public HTTPS host for the game (Cloudflare Pages), a `wss://` host for
+the game server with a persistent disk, the 6 products created in the
+dashboard (ids/prices in `games/emilgo-games/listing/LISTING.md`), and two
+approvals from Lagos Life — matches, then stakes. Step-by-step:
+`games/emilgo-games/README.md` §6.
+
 ### 4.10 "Can users watch ads on their WhatsApp status and earn?"
 
 Asked directly, so answered directly. There are two different ideas hiding in
@@ -694,6 +727,9 @@ Copy into an issue and work down it.
       ₦5–7 per ad on purpose (§4.6)
 - [ ] Apply `supabase/migrations/migration_ad_rewards.sql`
 - [ ] Decide on number masking vs consented disclosure (§4.5)
+- [ ] **EMILGO Games on Lagos Life** (§4.11): host the game + server, test keys,
+      6 dashboard products, sandbox checklist, submit; then live keys and the
+      matches + stakes approvals
 - [ ] Harden the ~20 pre-existing functions with a mutable `search_path`, and the
       `SECURITY DEFINER` view `v_active_park_trips` — run Supabase's advisor and
       work the list (the Phase 6/7 functions are already done, see

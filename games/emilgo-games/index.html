@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#050607" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="description" content="Red Light, Green Light on a Lagos street. Waka when Mama Gele sings, freeze when she turns." />
+    <title>EMILGO Games · Red Light, Green Light</title>
+    <!-- Vatar Games SDK, served by Lagos Life — never a copy (docs, Quick start 01).
+         `async`: a slow network must not hold the game back. The game waits for
+         it only when it is actually framed by a world. Stripped from the EMILGO build. -->
+    <script async src="https://lagoslife.app/sdk/vatar-games-v1.js"></script>
+    <link rel="icon" href="data:," />
+    <style>
+      html, body { margin: 0; height: 100%; background: #050607; }
+      /* Welcome: full-screen hero art, the wordmark, a thin green bar. */
+      #boot {
+        position: fixed; inset: 0; z-index: 10; overflow: hidden; color: #fff;
+        background: #050607 radial-gradient(ellipse at 50% 60%, #1e3a2a 0%, #0a120e 55%, #050607 100%);
+        font: 500 12px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        transition: opacity 0.45s;
+      }
+      #boot.done { opacity: 0; pointer-events: none; }
+      #boot .art { position: absolute; inset: 0; background: center 35% / cover no-repeat; opacity: 0; transition: opacity 0.6s; }
+      #boot .art.in { opacity: 1; }
+      #boot .shade { position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0,0,0,.85) 0%, rgba(0,0,0,0) 40%), linear-gradient(180deg, rgba(0,0,0,.5) 0%, rgba(0,0,0,0) 30%); }
+      #boot .logo { position: absolute; left: 50%; top: 24%; transform: translate(-50%, -50%); text-align: center; line-height: 1; }
+      #boot .logo svg { width: min(420px, 78vw); height: auto; filter: drop-shadow(0 0 18px rgba(0, 168, 101, 0.55)) drop-shadow(0 2px 6px rgba(0,0,0,.8)); }
+      #boot .bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255,255,255,.12); }
+      #boot .bar i { display: block; height: 100%; width: 8%; background: #008751; box-shadow: 0 0 10px #00a865; transition: width 0.3s; }
+      #boot .txt { position: absolute; left: 16px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); letter-spacing: 0.08em; text-transform: uppercase; font-size: 10px; opacity: 0.85; }
+      #boot .ver { position: absolute; right: 16px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); font-size: 10px; opacity: 0.5; }
+      .boot-fail { position: absolute; left: 50%; top: 62%; transform: translateX(-50%); max-width: 300px; text-align: center; }
+      .boot-fail b { font-size: 14px; }
+      .boot-fail p { opacity: 0.85; line-height: 1.4; }
+    </style>
+  </head>
+  <body>
+    <div id="boot" role="status" aria-live="polite">
+      <div class="art" id="boot-art"></div>
+      <div class="shade"></div>
+      <div class="logo" aria-label="EMILGO Games">
+        <svg viewBox="0 0 420 110" aria-hidden="true">
+          <text x="210" y="62" text-anchor="middle" font-family="Montserrat, 'Arial Black', Impact, sans-serif" font-weight="800" font-size="64" letter-spacing="6" fill="#ffffff">EMILGO</text>
+          <rect x="128" y="80" width="164" height="2" fill="#008751"/>
+          <text x="210" y="104" text-anchor="middle" font-family="Montserrat, 'Arial Black', sans-serif" font-weight="700" font-size="16" letter-spacing="14" fill="#ffffff">GAMES</text>
+        </svg>
+      </div>
+      <div class="bar"><i id="boot-fill"></i></div>
+      <div class="txt" id="boot-text">Loading Lagos...</div>
+      <div class="ver">Red Light, Green Light</div>
+    </div>
+    <canvas id="scene"></canvas>
+    <div id="ui"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

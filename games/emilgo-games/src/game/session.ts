@@ -1,0 +1,1945 @@
+// The game: owns the renderer, the lobby, the world, the round and the menus,
+// and wires the referee's events to everything you see, hear and feel.
+//
+//   update(dt)   fixed 60 Hz: read input → (bots think) → round steps → events
+//   render(dt)   every frame: the lobby stage, or the street — animate, move
+//                the camera, refresh the HUD, draw
+//
+// Two kinds of round, one code path:
+//   practice   a local RedLightRound with CPU contestants
+//   online     an OnlineRound fed by the game server (real people only)
+// Both implement RoundView, so everything below the round — the world, the
+// effects, the HUD, results — is identical. What differs is spelled out where
+// it happens: online rounds can't pause or slow down, because the server
+// doesn't wait for anyone.
+//
+// Two views: the LOBBY (lobbyStage: your character on a golden-hour street,
+// the squad room, the winner's circle) and the GAME (the map, the run).
+
+import { ACESFilmicToneMapping, PCFSoftShadowMap, PerspectiveCamera, Scene, Vector2, Vector3, WebGLRenderer } from "three";
+
+import { Sound } from "../audio/sound";
+import { DOLL_Z, FIELD, MOVE, PRACTICE, scoreFor, type Stance } from "../config";
+import { SONG_IDS, SONGS, type SongId } from "../audio/songs";
+import { Loop } from "../core/loop";
+import { QualityGovernor } from "../core/quality";
+import { Rng, randomSeed } from "../core/rng";
+import { tierSpec, type TierSpec } from "../graphics/tiers";
+import { Controls } from "../input/controls";
+import { buildWorld, type World } from "../maps/world";
+import { DEFAULT_MAP, mapOf, type MapCategory, type TimeOfDay, type Weather } from "../maps/registry";
+import { NetClient } from "../net/client";
+import { OnlineRound } from "../net/onlineRound";
+import { ERROR_TEXT, normalizeCode, type RoomInfo, type ServerMsg, type StartInfo, type SyncInfo } from "../net/protocol";
+import { serverUrl } from "../net/serverUrl";
+import type { Host, MatchView } from "../platform/types";
+import { errorCode, errorText } from "../platform/vatarErrors";
+import { DEFAULT_WHEEL, saveSettings, type Settings } from "../settings";
+import { EMOTE_PACK, PRODUCT_BY_ID, fromWire, toWireLook, type WireLook } from "../shop/catalog";
+import { ShopClient } from "../shop/client";
+import { EMOTE_BY_ID, EMOTES, type EmoteId } from "../social/emotes";
+import { Hud, type MapDot } from "../ui/hud";
+import { Screens, naira, payoutOf, type LobbyTab, type OnlineAvailability, type PlayMode, type ResultInfo } from "../ui/screens";
+import { Bubbles, ChatPanel, EmoteWheel } from "../ui/social";
+import { CameraRig } from "../world/camera";
+import { Crowd, accentOf } from "../world/crowd";
+import { Doll } from "../world/doll";
+import { Effects } from "../world/fx";
+import { setMaxAnisotropy, warmLook } from "../world/human";
+import { cleanLook, ownedOnly, randomLook, uniformLook, type ExtraId, type Look } from "../world/human/wardrobe";
+import type { PoseId } from "../world/human/animator";
+import { LobbyStage, type Framing } from "../world/lobbyStage";
+import { setTextureAnisotropy } from "../world/tex";
+import { buildAtlas } from "../world/textures";
+import { BOT_NAMES, BotBrain } from "./bots";
+import { addProgress, ensureDaily, levelOf, xpForRound } from "./progress";
+import { type Contestant, RedLightRound, type RoundEvent, type RoundView } from "./rules";
+
+const ME = "me";
+const MATCH_STILL_ON = "The match is still on. The result comes when the round ends.";
+const MAX_PEOPLE = 20;
+const RETURN_AFTER = 15;
+
+type MyState = "playing" | "out" | "safe";
+type View = "lobby" | "game";
+
+const _chest = new Vector3();
+const _away = new Vector3();
+const _eyeL = new Vector3();
+const _eyeR = new Vector3();
+const _head = new Vector3();
+const _focus = new Vector3();
+const _size = new Vector2();
+
+export class Game {
+  private readonly renderer: WebGLRenderer;
+  private readonly scene = new Scene();
+  private readonly camera = new PerspectiveCamera(65, 1, 0.1, 420);
+  private readonly rig: CameraRig;
+  private readonly doll = new Doll();
+  private readonly crowd = new Crowd(MAX_PEOPLE);
+  private readonly fx = new Effects();
+  private readonly quality: QualityGovernor;
+  private readonly loop: Loop;
+  private readonly sound = new Sound();
+  private readonly controls: Controls;
+  private readonly hud = new Hud();
+  private readonly screens = new Screens();
+  private readonly touch: HTMLDivElement;
+  private readonly chat: ChatPanel;
+  private readonly wheel: EmoteWheel;
+  private readonly bubbles: Bubbles;
+  private readonly spectateBtn: HTMLButtonElement;
+  private readonly stage: LobbyStage;
+  private readonly atlas;
+  private spec: TierSpec;
+  private world: World | null = null;
+  private worldKey = "";
+  private view: View = "lobby";
+  private spectateId: string | null = null;
+  private chatOn = false;
+  private spectateOn = false;
+  private actionsOn = false;
+  private readonly shop: ShopClient | null;
+  private shopBusy: string | null = null;
+  private shopNote: string | null = null;
+
+  // Lobby state
+  private playMode: PlayMode = "practice";
+  private playError: string | null = null;
+  private customizeTab = "outfit";
+  private emoteSel: EmoteId | null = null;
+  private wheelSlot = -1;
+  private settingsTab = "graphics";
+  private friendsTab: "friends" | "invite" = "friends";
+  private mapCat: MapCategory = "ng-urban";
+  private weather: Weather | null = null;
+  private timePick: TimeOfDay | null = null;
+  private worldMs = 0;
+  private tryOn: Look | null = null;
+  private onlineCounts: { online: number | null; inMatch: number | null } = { online: null, inMatch: null };
+  private rank: string | null = null;
+  private returnAt = 0;
+  private podiumNames: { name: string; time: number; me: boolean }[] = [];
+
+  private round: RoundView | null = null;
+  private meId = ME;
+  private mode: "practice" | "online" = "practice";
+  private brains: BotBrain[] = [];
+  /** Everyone as they look on the field: the numbered match suit (SPEC-V2 §1.3). */
+  private looks: Look[] = [];
+  /** Everyone in their own clothes (the winner's circle). */
+  private ownLooks: Look[] = [];
+  private my: MyState = "playing";
+  private paused = false;
+  private hostPaused = false;
+  private watching = false;
+  private recorded: ResultInfo | null = null;
+  private resultsIn = -1;
+  private slowmo = 0;
+  private stepClock = 0;
+  private settingsFrom: "lobby" | "pause" = "lobby";
+  private songId: SongId = "lullaby";
+  private songBeat = 0;
+  private lastPhase = "";
+  private watchesSurvived = 0;
+  private sprintMetres = 0;
+  private readonly dots: MapDot[] = [];
+
+  // Online
+  private readonly server: string | null;
+  private net: NetClient | null = null;
+  private room: RoomInfo | null = null;
+  private onlineError: string | null = null;
+  private seatId: string | null = null;
+  private connecting = false;
+
+  // Lagos Life matches
+  private vmatch: MatchView | null = null;
+  private vStake = 0;
+  private vSeats = 2;
+  private vBusy = false;
+  private vError: string | null = null;
+  private vPlaying: string | null = null;
+  private vRetries = 0;
+  private vOutcome: string | null = null;
+
+  constructor(
+    private readonly host: Host,
+    private readonly settings: Settings,
+    canvas: HTMLCanvasElement,
+    ui: HTMLElement,
+  ) {
+    this.renderer = new WebGLRenderer({ canvas, antialias: false, alpha: false, stencil: false, powerPreference: "high-performance" });
+    this.renderer.toneMapping = ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.shadowMap.type = PCFSoftShadowMap;
+    this.spec = tierSpec(settings.graphics, this.renderer.getContext());
+    this.renderer.shadowMap.enabled = this.spec.shadows;
+    const aniso = this.renderer.capabilities.getMaxAnisotropy();
+    setMaxAnisotropy(aniso);
+    setTextureAnisotropy(this.spec.tier === 2 ? Math.min(8, aniso) : 4);
+    this.server = serverUrl(host.server);
+    // The shop needs Lagos Life (to pay) and our server (to check and deliver).
+    this.shop = host.shop && this.server ? new ShopClient(host as Host & { shop: NonNullable<Host["shop"]> }, this.server) : null;
+
+    this.atlas = buildAtlas(aniso);
+    this.scene.add(this.doll.root, this.crowd.group, this.fx.group);
+    this.crowd.tier = this.spec.tier;
+    this.crowd.setShadows(this.spec.shadows);
+    this.rig = new CameraRig(this.camera);
+    this.stage = new LobbyStage(this.renderer, this.spec, canvas);
+
+    this.quality = new QualityGovernor((pr) => {
+      this.renderer.setPixelRatio(Math.min(pr, this.spec.maxPixelRatio));
+      this.resize();
+    });
+    this.quality.canApply = () => {
+      const ph = this.round?.phase;
+      return ph !== "turning" && ph !== "watch";
+    };
+
+    // ── UI ──
+    this.touch = document.createElement("div");
+    this.touch.className = "touch";
+    const moveStick = stickEl();
+    const lookStick = stickEl();
+    const bubbleLayer = document.createElement("div");
+    bubbleLayer.className = "bubble-layer";
+    ui.append(this.touch, bubbleLayer, this.hud.root, moveStick, lookStick);
+    this.controls = new Controls(this.touch, moveStick, lookStick);
+    ui.append(this.controls.actions, this.screens.root, this.screens.toastNode);
+    this.bubbles = new Bubbles(bubbleLayer);
+    this.chat = new ChatPanel(ui, this.controls.chatBtn);
+    this.wheel = new EmoteWheel(ui);
+    this.spectateBtn = document.createElement("button");
+    this.spectateBtn.className = "spectate-btn btn secondary";
+    this.spectateBtn.dataset.ui = "1";
+    this.spectateBtn.textContent = "Next runner";
+    this.spectateBtn.addEventListener("click", () => this.nextSpectate());
+    ui.append(this.spectateBtn);
+    this.chat.onSend((text) => this.net?.send({ t: "chat", text }));
+    this.chat.onAction((a) => {
+      if (a.kind === "block") this.net?.send({ t: "block", id: a.seat });
+      else if (a.kind === "report") this.net?.send({ t: "report", id: a.seat, reason: a.reason });
+      else this.chat.add({ from: "", name: "", text: this.chat.isMuted(a.seat) ? `Muted ${a.name}.` : `Unmuted ${a.name}.`, mine: false, system: true });
+    });
+    this.wheel.onEmote((id) => this.sendEmote(id));
+    this.wheel.onLocked(() => this.hud.pushFeed("Owambe emote pack: in the Store", "info"));
+    this.controls.onWheel = (open, x, y) => {
+      if (open) this.wheel.open(x, y);
+      else this.wheel.release();
+    };
+    this.controls.onWheelMove = (x, y) => this.wheel.hover(x, y);
+    this.controls.onChat = () => this.chat.toggle();
+    this.controls.onFirstPerson = () => this.toggleView();
+    this.hud.viewBtn.addEventListener("click", () => this.toggleView());
+    this.shop?.onChange(() => this.onOwnedChanged());
+    this.onOwnedChanged();
+    this.controls.onFirstInput(() => this.sound.unlock());
+    const unlock = () => {
+      this.sound.unlock();
+      window.removeEventListener("pointerdown", unlock, true);
+    };
+    window.addEventListener("pointerdown", unlock, true);
+    this.controls.onPauseKey = () => (this.paused ? this.resume() : this.pause());
+    this.hud.pauseBtn.addEventListener("click", () => this.pause());
+    this.screens.handle((act, node) => this.action(act, node));
+
+    // ── Host lifecycle ──
+    host.onPause(() => this.hostPause());
+    host.onResume(() => this.hostResume());
+    host.onBack(() => this.back());
+    host.onIdentity(() => {
+      if (this.screens.name === "lobby") this.screens.setPlayer(null, host);
+    });
+    host.matches?.onUpdate((m) => this.onMatchUpdate(m));
+    window.addEventListener("online", () => this.screens.name === "lobby" && this.toLobby());
+    window.addEventListener("offline", () => this.screens.name === "lobby" && this.toLobby());
+
+    window.addEventListener("resize", () => this.resize());
+    window.addEventListener("orientationchange", () => setTimeout(() => this.resize(), 150));
+    canvas.addEventListener("webglcontextlost", (e) => {
+      e.preventDefault();
+      this.loop.stop();
+      this.sound.suspend();
+      this.screens.fatal("Graphics paused", "Your phone needed its graphics memory back. Tap to carry on.");
+    });
+
+    this.applySettings();
+    this.loop = new Loop(
+      (dt) => this.update(dt),
+      (dt) => this.render(dt),
+    );
+    this.resize();
+  }
+
+  /** Budgets, for testing (draw calls, triangles, memory, how long the map took to build). */
+  get stats(): { worldMs: number; calls: number; triangles: number; geometries: number; textures: number; map: string } {
+    const r = this.renderer.info;
+    return { worldMs: Math.round(this.worldMs), calls: r.render.calls, triangles: r.render.triangles, geometries: r.memory.geometries, textures: r.memory.textures, map: this.world?.info.id ?? "" };
+  }
+
+  start(): void {
+    if (this.host.blocked) {
+      this.screens.blocked(this.host.blocked);
+      this.renderOnce();
+      return;
+    }
+    this.toLobby();
+    this.loop.start();
+    void this.shop?.boot();
+    const idle = (window as unknown as { requestIdleCallback?: (fn: () => void, o?: object) => void }).requestIdleCallback;
+    const later = (fn: () => void, t: number) => (idle ? idle(fn, { timeout: t }) : setTimeout(fn, t));
+    // Get the (silent) audio engine ready while the lobby is idle, and paint
+    // a few CPU outfits ahead so the first round starts without a stall.
+    later(() => this.sound.prepare(), 2500);
+    later(() => {
+      const rng = new Rng(1234);
+      for (let i = 0; i < 6; i++) warmLook(randomLook(rng), this.spec.tier);
+    }, 4000);
+    this.host.matches
+      ?.current()
+      .then((m) => m && this.onMatchUpdate(m))
+      .catch(() => {});
+    this.refreshRank();
+    this.pollCounts();
+  }
+
+  // ── Lobby ─────────────────────────────────────────────────────────────────
+
+  private toLobby(): void {
+    this.leaveOnline();
+    this.endRound();
+    this.paused = false;
+    this.tryOn = null;
+    this.returnAt = 0;
+    this.view = "lobby";
+    this.loop.setFpsCap(this.spec.tier === 2 ? 60 : 30);
+    this.controls.enabled = false;
+    this.setActions(false);
+    this.touch.classList.remove("live");
+    this.hud.show(false);
+    this.hud.clearVerdict();
+    this.stage.setMode("lobby");
+    this.stage.setLook(this.myLook(), this.settings.lobbyPose);
+    this.stage.setFraming("center");
+    this.stage.interactive = true;
+    this.chat.setAvailable(false);
+    this.showLobby();
+    if (!this.loop.isRunning && !this.hostPaused) this.loop.start();
+  }
+
+  private showLobby(): void {
+    const daily = ensureDaily(this.settings.daily);
+    this.screens.lobby({
+      host: this.host,
+      settings: this.settings,
+      online: this.onlineAvailability(),
+      shop: !!this.shop,
+      level: levelOf(this.settings.xp),
+      rank: this.rank,
+      friends: { ...this.onlineCounts, recent: this.settings.recent.map((r) => r.name) },
+      daily: daily.map((def, i) => ({ def, progress: this.settings.daily.progress[i] ?? 0 })),
+      mode: this.playMode,
+      badge: this.settings.badge && !!this.shop?.owned.has("badge_gold"),
+    });
+    this.stage.setFraming("center");
+  }
+
+  /** Back to the lobby screen without leaving the stage (closing a panel). */
+  private closePanel(): void {
+    this.tryOn = null;
+    this.stage.setLook(this.myLook(), this.settings.lobbyPose);
+    this.showLobby();
+  }
+
+  private frame(f: Framing): void {
+    this.stage.setFraming(f);
+  }
+
+  private refreshRank(): void {
+    if (!this.host.can.leaderboard) return;
+    this.host
+      .leaderboard()
+      .then((b) => {
+        this.rank = b?.me?.label ?? null;
+        if (this.screens.name === "lobby") this.showLobby();
+      })
+      .catch(() => {});
+  }
+
+  /** The friends panel's counts: a light connection to the server while in the lobby. */
+  private pollCounts(): void {
+    if (this.onlineAvailability() !== "ready") return;
+    const net = this.ensureNet();
+    net?.connect().catch(() => {});
+  }
+
+  private showCustomize(): void {
+    this.frame("left-panel");
+    this.screens.customize(this.tryOn ?? this.settings.look, this.customizeTab, this.owned(), !!this.shop);
+  }
+
+  private showEmotes(): void {
+    this.frame("left-panel");
+    this.screens.emotes(this.emoteSel, this.owned(), this.settings.wheel, this.wheelSlot, !!this.shop);
+  }
+
+  private showLoadout(): void {
+    this.frame("left-panel");
+    this.screens.loadout(this.settings);
+  }
+
+  private showStore(): void {
+    this.frame("left-panel");
+    this.screens.store(this.owned(), this.settings.badge, this.shopBusy, this.shopNote, !!this.shop);
+  }
+
+  private showFriends(): void {
+    this.frame("right-panel");
+    if (this.friendsTab === "invite" && this.onlineAvailability() === "ready") this.ensureNet()?.connect().catch(() => {});
+    this.screens.friends({
+      online: this.onlineAvailability(),
+      recent: this.settings.recent,
+      counts: this.onlineCounts,
+      tab: this.friendsTab,
+      code: this.room?.kind === "private" ? this.room.code : null,
+    });
+  }
+
+  private showPlay(): void {
+    this.frame("full");
+    this.screens.play({
+      mode: this.playMode,
+      settings: this.settings,
+      online: this.onlineAvailability(),
+      lagosLife: !!this.host.matches,
+      error: this.playError,
+      connecting: this.connecting,
+      weather: this.weather ?? mapOf(this.settings.map).weather,
+      time: this.timePick ?? mapOf(this.settings.map).time,
+    });
+  }
+
+  private showSettings(): void {
+    this.frame("full");
+    this.screens.settings(this.settings, this.settingsTab, this.settingsFrom, this.tierNote());
+  }
+
+  private tierNote(): string {
+    const s = this.spec;
+    return this.settings.graphics === "auto" ? `Auto chose ${s.name} for this device` : `${s.name}`;
+  }
+
+  /** Put the chosen look on and tell everyone. */
+  private setLook(next: Look, preview = false): void {
+    const clean = cleanLook(next);
+    if (preview) {
+      this.tryOn = clean;
+      this.stage.setLook(clean, this.settings.lobbyPose);
+      return;
+    }
+    this.tryOn = null;
+    this.settings.look = clean;
+    saveSettings(this.host, this.settings);
+    this.stage.setLook(this.myLook(), this.settings.lobbyPose);
+    this.sendLook();
+  }
+
+  private owned(): ReadonlySet<string> {
+    return this.shop?.owned ?? new Set<string>();
+  }
+
+  // ── Flow ──────────────────────────────────────────────────────────────────
+
+  /** Stop whatever round is running and put the world back to idle. */
+  private endRound(): void {
+    if (this.round instanceof OnlineRound) this.round.dispose();
+    this.round = null;
+    this.brains = [];
+    this.watching = false;
+    this.resultsIn = -1;
+    this.slowmo = 0;
+    this.loop.timeScale = 1;
+    this.loop.setStepping(false);
+    this.sound.stopSong();
+    this.fx.clear();
+    this.bubbles.clear();
+    this.wheel.close();
+    this.spectateId = null;
+    this.doll.setSinging(false);
+    this.doll.setWatching(false);
+    this.rig.firstPerson = false;
+    this.crowd.hideMyHead = false;
+    this.hud.setFirstPerson(false);
+  }
+
+  private practice(): void {
+    if (!this.settings.tutorialSeen) {
+      this.settings.tutorialSeen = true;
+      saveSettings(this.host, this.settings);
+      this.frame("full");
+      this.screens.howto(true);
+      return;
+    }
+    this.startPractice();
+  }
+
+  private startPractice(): void {
+    this.leaveOnline();
+    const seed = randomSeed();
+    const rng = new Rng(seed ^ 0xa5a5a5a5);
+    const people: { id: string; name: string; bot: boolean }[] = [{ id: ME, name: "You", bot: false }];
+    // No CPU shares your name: "Ada · CPU caught" must never read as you.
+    const mine = this.host.player.name.trim().toLowerCase();
+    const names = rng.shuffle(BOT_NAMES.filter((n) => n.toLowerCase() !== mine));
+    for (let i = 0; i < PRACTICE.bots; i++) people.push({ id: `cpu${i}`, name: names[i], bot: true });
+
+    const round = new RedLightRound({ seed, contestants: people, featuredId: ME });
+    this.mode = "practice";
+    this.meId = ME;
+    this.beginRound(round, rng, this.settings.map, this.weather, [], this.timePick);
+    this.brains = people.slice(1).map((p, i) => new BotBrain(p.id, i, rng));
+  }
+
+  private startOnline(info: StartInfo | SyncInfo, sync: boolean): void {
+    const net = this.net;
+    if (!net) return;
+    this.endRound(); // dispose the old round before the new one subscribes
+    const me = this.seatId ?? net.id;
+    const round = sync ? OnlineRound.fromSync(info as SyncInfo, me, net) : new OnlineRound(info, me, net);
+    this.mode = "online";
+    this.meId = me;
+    // People you played with show up in Friends (names only).
+    const at = Date.now();
+    for (const r of info.roster) {
+      if (r.id === me) continue;
+      this.settings.recent = [{ name: r.name, at }, ...this.settings.recent.filter((x) => x.name !== r.name)].slice(0, 30);
+    }
+    this.beginRound(round, new Rng(info.seed ^ 0xa5a5a5a5), info.map ?? DEFAULT_MAP, null, info.roster.map((r) => r.look));
+  }
+
+  /** Everything both kinds of round need at their start. */
+  private beginRound(round: RoundView, rng: Rng, mapId: string, weather: Weather | null, wire: (WireLook | undefined)[] = [], time: TimeOfDay | null = null): void {
+    this.endRound();
+    this.round = round;
+    this.view = "game";
+    this.stage.interactive = false;
+    this.ensureWorld(mapId, weather, time);
+    const meIndex = round.get(this.meId)?.index ?? -1;
+
+    const mine = this.myLook();
+    this.ownLooks = round.contestants.map((c, i) => {
+      if (i === meIndex) return mine;
+      // Online: as the server says they look; practice: a believable stranger.
+      if (this.mode === "online" && wire[i]) return fromWire(wire[i]);
+      return randomLook(new Rng((rng.next() * 1e9) ^ (c.id.length * 77)));
+    });
+    // On the field everyone wears the black suit with their seat number.
+    this.looks = this.ownLooks.map((l, i) => uniformLook(l, i + 1));
+    this.crowd.setup(this.looks, meIndex);
+    this.doll.setFacing(false);
+
+    this.my = "playing";
+    this.paused = false;
+    this.recorded = null;
+    this.watchesSurvived = 0;
+    this.sprintMetres = 0;
+    this.songId = this.settings.song === "shuffle" ? SONG_IDS[Math.floor(Math.random() * SONG_IDS.length)] : this.settings.song;
+    this.songBeat = 0;
+    this.lastPhase = "";
+
+    this.hud.reset(this.looks.map((l, i) => ({ accent: accentOf(l), me: i === meIndex })));
+    this.hud.show(true);
+    this.hud.setOnline(this.mode === "online");
+    this.screens.hide();
+    this.controls.reset();
+    this.controls.enabled = true;
+    this.setActions(true);
+    this.touch.classList.add("live");
+    const me = round.get(this.meId);
+    if (me) this.rig.follow(true, me);
+    this.rig.firstPerson = this.settings.firstPerson;
+    this.crowd.hideMyHead = this.settings.firstPerson;
+    this.hud.setFirstPerson(this.settings.firstPerson);
+    this.loop.setStepping(true);
+    this.loop.setFpsCap(this.spec.tier === 0 ? 30 : 60);
+    if (!this.loop.isRunning && !this.hostPaused) this.loop.start();
+    this.warmUp();
+
+    this.settings.played++;
+    saveSettings(this.host, this.settings);
+  }
+
+  /** Build the map's world (kept if the next round is on the same map). */
+  private ensureWorld(mapId: string, weather: Weather | null, time: TimeOfDay | null = null): void {
+    const key = `${mapId}|${weather ?? ""}|${time ?? ""}|${this.spec.tier}`;
+    if (this.world && key === this.worldKey) return;
+    if (this.world) {
+      this.scene.remove(this.world.group);
+      this.world.dispose();
+    }
+    const t0 = performance.now();
+    this.world = buildWorld(mapId, weather, this.spec, this.atlas, time);
+    this.worldMs = performance.now() - t0;
+    this.worldKey = key;
+    this.scene.add(this.world.group);
+    this.scene.fog = this.world.fog;
+    this.renderer.setClearColor(this.world.clear);
+    this.rig.colliders = this.world.colliders;
+    this.sizeParticles();
+  }
+
+  /** Particle sizes follow the drawing buffer and the lens. */
+  private sizeParticles(): void {
+    const h = this.renderer.getDrawingBufferSize(_size).y || window.innerHeight;
+    this.world?.setScale(h, this.camera.fov);
+  }
+
+  private setActions(on: boolean): void {
+    this.actionsOn = on;
+    this.controls.showActions(on);
+  }
+
+  private toggleView(): void {
+    if (!this.round || this.my !== "playing") return;
+    const on = !this.rig.firstPerson;
+    this.rig.firstPerson = on;
+    this.crowd.hideMyHead = on;
+    this.hud.setFirstPerson(on);
+    this.haptic("select");
+  }
+
+  // ── Fixed step ────────────────────────────────────────────────────────────
+
+  private update(dt: number): void {
+    const round = this.round;
+    if (!round) return;
+    // Practice freezes on pause. Online the round goes on without you — you
+    // simply stand still, which is the safest thing to do in this game.
+    if (this.paused && this.mode === "practice") return;
+
+    this.controls.update();
+    if (this.my === "playing" && !this.paused) {
+      const { x, y } = this.controls.move;
+      const yaw = this.rig.yaw;
+      // Stick is camera-relative: up = where the camera looks.
+      const wx = Math.cos(yaw) * x - Math.sin(yaw) * y;
+      const wz = -Math.sin(yaw) * x - Math.cos(yaw) * y;
+      round.setInput(this.meId, wx, wz);
+      round.setButtons(this.meId, this.controls.sprint, this.controls.stance as Stance, this.controls.jumps);
+    } else {
+      round.setInput(this.meId, 0, 0);
+      round.setButtons(this.meId, false, 0, this.controls.jumps);
+    }
+
+    for (const b of this.brains) b.think(round as RedLightRound, round.get(b.id)!);
+    round.step(dt);
+    const me = round.get(this.meId);
+    if (me?.sprinting) this.sprintMetres += Math.hypot(me.vx, me.vz) * dt;
+    if (round.phase === "sing") this.songBeat += (dt * SONGS[this.songId].bpm) / 60;
+    for (const e of round.drain()) this.onEvent(e);
+  }
+
+  private onEvent(e: RoundEvent): void {
+    switch (e.type) {
+      case "phase":
+        this.onPhase(e.phase, e.duration);
+        break;
+      case "eliminated":
+        this.onCaught(e.id, e.cause);
+        break;
+      case "finished":
+        this.onFinished(e.id, e.place);
+        break;
+      case "ended":
+        this.onEnded();
+        break;
+    }
+  }
+
+  private onPhase(phase: string, duration: number): void {
+    const playing = this.my === "playing";
+    const from = this.lastPhase;
+    this.lastPhase = phase;
+    // A stare you stood through.
+    if (from === "watch" && playing) this.watchesSurvived++;
+    switch (phase) {
+      case "countdown":
+        this.doll.setFacing(false);
+        break;
+      case "sing":
+        if (from !== "pause") this.songBeat = 0;
+        this.sound.playSong(this.songId, this.songBeat);
+        this.hud.setSignal("none"); // the countdown's done: nothing on screen but the run
+        this.doll.setSinging(true);
+        this.doll.setWatching(false);
+        break;
+      case "pause":
+        // The feint: the music dies, she stops swaying — and does NOT turn.
+        this.sound.stopSong();
+        this.doll.setSinging(false);
+        break;
+      case "turning":
+        this.sound.stopSong();
+        this.doll.setSinging(false);
+        this.doll.face(true, duration);
+        this.sound.turn();
+        break;
+      case "watch":
+        this.doll.setWatching(true);
+        this.sound.watch();
+        break;
+      case "turningBack":
+        this.doll.setWatching(false);
+        this.doll.face(false, duration);
+        this.sound.release();
+        break;
+    }
+  }
+
+  private onCaught(id: string, cause: "moved" | "time"): void {
+    const round = this.round!;
+    const c = round.get(id);
+    const me = round.get(this.meId);
+    if (!c || !me) return;
+    const isMe = id === this.meId;
+
+    this.crowd.chest(c, _chest);
+    _away.set(c.x, 0, c.z - DOLL_Z).normalize();
+    if (cause === "moved") {
+      this.doll.caught(c.x, c.z);
+      this.doll.eyes(_eyeL, _eyeR);
+      this.fx.beam(_eyeL, _eyeR, _chest);
+    }
+    this.fx.burst(_chest, _away, isMe ? 38 : cause === "time" ? 12 : 22);
+    this.crowd.kill(c.index, c, 0, DOLL_Z);
+
+    const near = isMe || Math.hypot(c.x - me.x, c.z - me.z) < 7;
+    this.sound.catch(near);
+    this.rig.kick(isMe ? 1 : near ? 0.35 : 0.1);
+    if (!isMe) this.hud.pushFeed(`${this.label(c)} · ${cause === "time" ? "time up" : "caught moving"}`, "out");
+
+    if (isMe && this.mode === "practice") this.cpuReact(["laugh", "taunt"], 2, 0.5);
+    if (isMe) {
+      this.my = "out";
+      this.controls.enabled = false;
+      this.controls.reset();
+      this.setActions(false);
+      this.touch.classList.remove("live");
+      this.sound.stopSong();
+      this.hud.showVerdict(cause === "time" ? "time" : "out");
+      this.haptic("heavy");
+      setTimeout(() => this.haptic("error"), 180);
+      // See the fall from outside, even in first person.
+      this.rig.firstPerson = false;
+      this.crowd.hideMyHead = false;
+      this.hud.setFirstPerson(false);
+      if (cause === "moved") {
+        // Slow motion only in practice: an online round can't slow the server.
+        if (this.mode === "practice") {
+          this.loop.timeScale = 0.3;
+          this.slowmo = 1.5;
+        }
+        this.rig.cinematic(_chest, _away);
+      }
+      this.record(cause);
+      this.resultsIn = cause === "moved" ? 2.7 : 2.0;
+    }
+  }
+
+  private onFinished(id: string, place: number): void {
+    const round = this.round!;
+    const c = round.get(id);
+    if (!c) return;
+    this.crowd.finish(c.index);
+    if (id === this.meId) {
+      this.my = "safe";
+      this.controls.enabled = false;
+      this.controls.reset();
+      this.setActions(false);
+      this.touch.classList.remove("live");
+      this.hud.showVerdict("safe");
+      this.sound.win();
+      this.haptic("success");
+      this.record("finished");
+      this.resultsIn = 2.2;
+    } else {
+      this.hud.pushFeed(`${this.label(c)} crossed${place === 1 ? " first" : ""}`, "safe");
+      if (c.bot && Math.random() < 0.4) setTimeout(() => this.playEmote(c.id, Math.random() < 0.5 ? "dance" : "flex"), 600);
+    }
+  }
+
+  private onEnded(): void {
+    if (this.mode === "online" && this.room?.kind === "match" && (!this.vOutcome || this.vOutcome === MATCH_STILL_ON)) {
+      this.setOutcome("Round over. Sending the result to Lagos Life…");
+    }
+    this.sound.stopSong();
+    if (this.watching) {
+      this.watching = false;
+      this.resultsIn = 1.6;
+    }
+  }
+
+  private record(outcome: "finished" | "moved" | "time"): void {
+    if (this.recorded || !this.round) return;
+    const round = this.round;
+    const me = round.get(this.meId)!;
+    const finished = outcome === "finished";
+    const first = finished && me.place === 1;
+    const score = scoreFor({ finished, timeLeft: round.timeLeft, progress: me.progress, first });
+    const newBest = score > this.settings.best;
+    if (newBest) this.settings.best = score;
+    if (finished) this.settings.wins++;
+    const before = levelOf(this.settings.xp).level;
+    const xp = xpForRound({ finished, first, watches: this.watchesSurvived, online: this.mode === "online" });
+    this.settings.xp += xp;
+    const after = levelOf(this.settings.xp).level;
+    const d = this.settings.daily;
+    const completed = [
+      ...addProgress(d, "rounds", 1),
+      ...(finished ? addProgress(d, "cross", 1) : []),
+      ...(first ? addProgress(d, "first", 1) : []),
+      ...addProgress(d, "watches", this.watchesSurvived),
+      ...(this.mode === "online" ? addProgress(d, "online", 1) : []),
+      ...addProgress(d, "sprint", Math.round(this.sprintMetres)),
+    ];
+    saveSettings(this.host, this.settings);
+    if (score > 0) this.host.submitScore(score);
+
+    let boardNote: string | null = null;
+    if (this.host.kind === "lagoslife") boardNote = this.host.can.leaderboard ? "Score sent to the board" : "Sign in to Lagos Life to rank";
+    this.recorded = {
+      outcome,
+      place: me.place,
+      time: me.finishTime,
+      progress: Math.min(1, me.progress / -FIELD.finishZ),
+      score,
+      best: this.settings.best,
+      newBest,
+      survivors: 0,
+      total: round.contestants.length,
+      canWatch: false,
+      boardNote,
+      online: this.mode === "online" ? (this.room?.kind ?? "quick") : null,
+      matchNote: this.vOutcome ?? (round.phase !== "ended" ? MATCH_STILL_ON : null),
+      xp,
+      level: after,
+      levelUp: after > before,
+      completed,
+    };
+  }
+
+  /** The winner's circle: top three (by place, or by distance if nobody crossed). */
+  private showResults(): void {
+    const round = this.round;
+    if (!round || !this.recorded) return;
+    const r = this.recorded;
+    r.survivors = round.contestants.filter((c) => c.status === "finished").length;
+    r.canWatch = round.phase !== "ended" && round.aliveCount > 0;
+    this.hud.clearVerdict();
+    this.hud.show(false);
+    this.setActions(false);
+    const ranked = round.contestants
+      .slice()
+      .sort((a, b) => (a.status === "finished" && b.status === "finished" ? a.place - b.place : a.status === "finished" ? -1 : b.status === "finished" ? 1 : b.progress - a.progress))
+      .slice(0, 3);
+    this.podiumNames = ranked.map((c) => ({ name: this.label(c), time: c.status === "finished" ? c.finishTime : Math.min(1, c.progress / -FIELD.finishZ) * 100, me: c.id === this.meId }));
+    this.view = "lobby";
+    this.stage.setMode("podium");
+    this.stage.setPodium(ranked.map((c) => this.ownLooks[c.index]));
+    this.stage.interactive = false;
+    // Practice and quick matches go back to the lobby on their own; rooms and matches wait for you.
+    this.returnAt = r.online === null || r.online === "quick" ? performance.now() + RETURN_AFTER * 1000 : 0;
+    this.screens.postmatch(r, this.podiumNames, this.returnAt ? RETURN_AFTER : 0);
+    this.loop.setFpsCap(30);
+  }
+
+  // ── Online ────────────────────────────────────────────────────────────────
+
+  private onlineAvailability(): OnlineAvailability {
+    if (!this.server) return "unavailable";
+    if (navigator.onLine === false) return "offline";
+    return "ready";
+  }
+
+  /** The connection, made if needed. */
+  private ensureNet(): NetClient | null {
+    if (!this.server) return null;
+    if (!this.net) {
+      const net = new NetClient(this.server, this.host.player.name);
+      net.on((m) => this.onServer(m));
+      net.onState((s) => this.onNetState(s));
+      this.net = net;
+    }
+    return this.net;
+  }
+
+  /** Connect, then run `then` (or show the error on the play screen). */
+  private online(then: (net: NetClient) => void): void {
+    const net = this.ensureNet();
+    if (!net) return;
+    this.playError = null;
+    this.connecting = net.state !== "open";
+    if (this.screens.name === "play") this.showPlay();
+    net
+      .connect()
+      .then(() => {
+        this.connecting = false;
+        then(net);
+      })
+      .catch(() => {
+        this.connecting = false;
+        this.playError = "Can't reach the game server. Check your connection and try again.";
+        if (this.screens.name === "play") this.showPlay();
+        else this.showPlay();
+      });
+  }
+
+  // ── Lagos Life matches ────────────────────────────────────────────────────
+
+  private showMatchMenu(): void {
+    this.frame("full");
+    this.screens.matchMenu(this.vStake, this.vSeats, this.vError, this.vBusy);
+  }
+
+  /** create / quick / join through the world. Stakes go on the world's own sheet. */
+  private async matchCall(run: () => Promise<MatchView>): Promise<void> {
+    if (this.vBusy) return;
+    this.vBusy = true;
+    this.vError = null;
+    this.showMatchMenu();
+    try {
+      const m = await run();
+      this.vBusy = false;
+      this.onMatchUpdate(m);
+    } catch (e) {
+      this.vBusy = false;
+      const code = errorCode(e);
+      this.vError =
+        code === "cancelled"
+          ? "No wahala. Nothing was staked."
+          : code === "error" || code === "not_available"
+            ? "Lagos Life matches aren't open for this game yet. Try a friendly match for now."
+            : errorText(e);
+      if (this.screens.name === "vmenu") this.showMatchMenu();
+    }
+  }
+
+  private onMatchUpdate(m: MatchView): void {
+    const fresh = !this.vmatch || this.vmatch.id !== m.id;
+    this.vmatch = m;
+    switch (m.status) {
+      case "open":
+        if (fresh || ["vmenu", "vwait", "play", "lobby"].includes(this.screens.name)) this.screens.matchWaiting(m, null);
+        break;
+      case "playing":
+        void this.playMatch(m);
+        break;
+      case "done":
+        this.setOutcome(this.matchOutcomeText(m));
+        break;
+      case "cancelled":
+      case "void":
+        this.vPlaying = null;
+        this.vError = "That match was called off. Every stake went back.";
+        if (this.screens.name === "vwait" || this.screens.name === "room") this.showMatchMenu();
+        else this.setOutcome(this.vError);
+        break;
+    }
+  }
+
+  /** The match is full: ask OUR server to referee it, proving who we are with a session. */
+  private async playMatch(m: MatchView, attempt = 0): Promise<void> {
+    if (this.vPlaying === m.id && attempt === 0) return;
+    this.vPlaying = m.id;
+    const net = this.ensureNet();
+    if (!net || !this.host.matches) {
+      this.screens.fatal("Can't start the match", "This build has no game server. Every stake goes back automatically if the match isn't played.");
+      return;
+    }
+    this.vOutcome = null;
+    if (!this.round) this.showWaiting("Starting the match…");
+    try {
+      await net.connect();
+      const session = await this.host.matches.session();
+      net.send({ t: "vmatch", id: m.id, session });
+    } catch {
+      if (attempt < 3) setTimeout(() => void this.playMatch(m, attempt + 1), 1500);
+      else this.screens.fatal("Can't reach the game server", "Check your connection. If the match isn't played, every stake goes back automatically.");
+    }
+  }
+
+  private setOutcome(text: string): void {
+    this.vOutcome = text;
+    if (this.recorded) this.recorded.matchNote = text;
+    this.screens.matchOutcome(text);
+  }
+
+  private matchOutcomeText(m: MatchView): string {
+    if (m.winner === "draw" || !m.winner) return m.stake ? "Draw. Every stake went back." : "Draw. Nobody crossed first.";
+    const winner = m.players.find((p) => p.id === m.winner)?.name ?? "Someone";
+    if (!m.stake) return m.winner === m.me ? "You won the match." : `${winner} won the match.`;
+    const pay = naira(payoutOf(m.stake, m.players.length));
+    return m.winner === m.me ? `You won ${pay} Lagos Life game money.` : `${winner} took the pot (${pay}).`;
+  }
+
+  private onServer(m: ServerMsg): void {
+    switch (m.t) {
+      case "welcome":
+        this.sendLook();
+        if (typeof m.on === "number") this.setCounts(m.on, m.pl ?? 0);
+        break;
+      case "stats":
+        this.setCounts(m.on, m.pl);
+        break;
+      case "seat":
+        this.seatId = m.id;
+        break;
+      case "chat":
+        if (this.settings.chat) this.chat.add({ from: m.from, name: m.name, text: m.text, mine: m.from === this.seatId, gold: m.b === 1 });
+        break;
+      case "emote":
+        if (m.from !== this.seatId && !this.chat.isMuted(m.from)) {
+          if (this.round?.get(m.from)) this.playEmote(m.from, m.e);
+          else if (this.settings.chat) {
+            const who = this.room?.players.find((p) => p.id === m.from)?.name ?? "Someone";
+            this.chat.add({ from: m.from, name: who, text: EMOTE_BY_ID[m.e].label, mine: false });
+          }
+        }
+        break;
+      case "note":
+        this.chat.add({ from: "", name: "", text: m.text, mine: false, system: true });
+        if (this.round && this.my === "playing") this.hud.pushFeed(m.text, "info");
+        break;
+      case "vresult":
+        if (!m.posted) {
+          this.setOutcome("Couldn't reach Lagos Life with the result. If it doesn't settle within 2 hours, every stake goes back.");
+        } else {
+          if (this.vmatch?.status !== "done") this.setOutcome("Result sent. Lagos Life is settling the match…");
+          setTimeout(() => this.host.matches?.current().then((x) => x && this.onMatchUpdate(x)).catch(() => {}), 800);
+        }
+        break;
+      case "room":
+        this.room = m.room;
+        if (this.screens.name === "room" || this.screens.name === "friends") this.showRoom();
+        break;
+      case "start":
+        this.startOnline(m.start, false);
+        break;
+      case "sync":
+        if (!(this.round instanceof OnlineRound) || this.round.seed !== m.sync.seed) this.startOnline(m.sync, true);
+        break;
+      case "left":
+        this.room = null;
+        break;
+      case "err":
+        if ((m.code === "match_state" || m.code === "verify") && this.vmatch?.status === "playing" && !this.round && this.vRetries++ < 3) {
+          setTimeout(() => this.vmatch && void this.playMatch(this.vmatch, this.vRetries), 1500);
+          break;
+        }
+        this.onlineError = m.msg ?? ERROR_TEXT[m.code];
+        if (this.screens.name === "room") this.showRoom();
+        else {
+          this.playError = this.onlineError;
+          this.showPlay();
+        }
+        break;
+      default:
+        break;
+    }
+  }
+
+  private setCounts(on: number, pl: number): void {
+    this.onlineCounts = { online: on, inMatch: pl };
+    this.screens.setFriendCounts(on, pl);
+  }
+
+  private onNetState(s: NetClient["state"]): void {
+    if (this.mode === "online" && this.round) this.hud.setConnection(s === "open" ? "ok" : s === "closed" ? "lost" : "reconnecting");
+    if (s === "closed" && this.room && !this.round) {
+      this.room = null;
+      if (this.screens.name === "room") {
+        this.playError = "Lost the connection to the game server.";
+        this.toLobby();
+      }
+    }
+  }
+
+  private showWaiting(text: string): void {
+    this.view = "lobby";
+    this.stage.setMode("lobby");
+    this.stage.setLook(this.myLook(), this.settings.lobbyPose);
+    this.stage.setFraming("center");
+    this.screens.waiting(text);
+  }
+
+  /** The squad room: everyone in it standing around you on the street. */
+  private showRoom(): void {
+    const net = this.net;
+    if (!net || !this.room) return;
+    this.view = "lobby";
+    this.stage.setMode("squad");
+    this.stage.setLook(this.myLook(), this.settings.lobbyPose);
+    const me = this.seatId ?? net.id;
+    this.stage.setSquad(this.room.players.filter((p) => p.id !== me).map((p) => ({ id: p.id, name: p.name, look: fromWire(p.look) })));
+    this.stage.setFraming("center");
+    this.stage.interactive = true;
+    this.loop.setFpsCap(30);
+    this.screens.room(this.room, me, net.serverNow(), this.onlineError);
+  }
+
+  /** Leave any room (the lobby keeps a light connection for the counts). */
+  private leaveOnline(): void {
+    if (this.net && this.room) this.net.send({ t: "leave" });
+    if (this.net && this.mode === "online") this.net.resetInput();
+    this.room = null;
+    this.onlineError = null;
+    this.seatId = null;
+    this.chat.clear();
+    this.vPlaying = null;
+    this.vRetries = 0;
+    this.mode = "practice";
+    this.meId = ME;
+    this.hud.setOnline(false);
+  }
+
+  // ── Frame ─────────────────────────────────────────────────────────────────
+
+  private render(frameDt: number): void {
+    const workStart = performance.now();
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    if (this.view === "lobby") {
+      this.stage.update(frameDt);
+      this.stage.render();
+      if (this.screens.name === "room" && this.net) {
+        this.screens.tickRoom(this.net.serverNow());
+        this.screens.placeTags(this.stage.squadTags(w, h, this.seatId ?? this.net.id));
+      }
+      if (this.screens.name === "results") {
+        const left = this.returnAt ? Math.max(0, Math.ceil((this.returnAt - performance.now()) / 1000)) : 0;
+        this.screens.placePlates(this.stage.podiumPlates(w, h), left);
+        if (this.returnAt && left <= 0) {
+          this.returnAt = 0;
+          this.action(this.recorded?.online === "private" ? "room" : "menu", document.body);
+        }
+      }
+      this.updateSocial(null);
+      this.quality.sample(frameDt * 1000, performance.now() - workStart, this.loop.targetMs);
+      return;
+    }
+
+    if (this.slowmo > 0) {
+      this.slowmo -= frameDt;
+      if (this.slowmo <= 0) this.loop.timeScale = 1;
+    }
+    const vdt = frameDt * this.loop.timeScale;
+    const round = this.round;
+    if (!round) return;
+    const list = round.contestants;
+
+    this.crowd.update(vdt, list, this.camera.position);
+    this.doll.update(vdt);
+    this.fx.update(vdt);
+    const me = round.get(this.meId);
+    if (me && this.my === "out" && this.rig.current === "cinematic") this.rig.track(this.crowd.chest(me, _chest));
+
+    if (me) {
+      if (this.my === "playing" && !this.paused) {
+        const md = this.controls.consumeMouse();
+        this.rig.orbit(this.controls.look.x, this.controls.look.y, frameDt, md.x, md.y);
+      }
+      const target = this.watching ? this.leader() ?? me : me;
+      if (this.rig.firstPerson && !this.watching) this.rig.eyeValid = !!this.crowd.eye(me.index, this.rig.eye);
+      this.rig.update(frameDt, target);
+      this.updateHud(round, me, frameDt);
+      _focus.set(target.x, 0, target.z);
+      this.world?.update(frameDt, _focus, this.camera.position);
+    }
+
+    this.updateSocial(round);
+
+    if (this.resultsIn > 0) {
+      this.resultsIn -= frameDt;
+      if (this.resultsIn <= 0) this.showResults();
+    }
+
+    this.renderer.render(this.scene, this.camera);
+    this.quality.sample(frameDt * 1000, performance.now() - workStart, this.loop.targetMs);
+  }
+
+  private updateHud(round: RoundView, me: Contestant, frameDt: number): void {
+    this.hud.setTimer(round.timeLeft, round.timeLeft <= 10 && round.phase !== "ended");
+    let inPlay = 0;
+    const list = round.contestants;
+    this.dots.length = list.length;
+    for (let i = 0; i < list.length; i++) {
+      const c = list[i];
+      if (c.status !== "eliminated") inPlay++;
+      const d = this.dots[i] ?? (this.dots[i] = { x: 0, z: 0, out: false, safe: false, me: false });
+      d.x = c.x;
+      d.z = c.z;
+      d.out = c.status === "eliminated";
+      d.safe = c.status === "finished";
+      d.me = c.id === this.meId;
+    }
+    this.hud.setAlive(inPlay, list.length);
+    this.hud.setDistance(me.progress / -FIELD.finishZ);
+    this.hud.setStamina(me.stamina, me.sprinting);
+    this.hud.setMap(this.dots, me.heading, round.phase === "watch");
+    if (this.mode === "online" && this.net) this.hud.setPing(this.net.rtt);
+
+    if (round.phase === "countdown") {
+      const left = round.phaseDuration - round.phaseTime;
+      const n = Math.ceil(left);
+      if (this.hud.setCountdown(n, left - Math.floor(left))) this.sound.countdown(n <= 0);
+    }
+
+    if (this.my === "playing" && this.controls.moving) {
+      // Footsteps for you only: a quiet rhythm that stops when you stop.
+      const speed = Math.hypot(me.vx, me.vz);
+      if (speed > 0.6 && me.y <= 0) {
+        this.stepClock -= frameDt;
+        if (this.stepClock <= 0) {
+          this.sound.step();
+          this.stepClock = speed > MOVE.run + 0.5 ? 0.2 : speed > 3 ? 0.26 : 0.4;
+        }
+      }
+    }
+  }
+
+  // ── Shop and looks ────────────────────────────────────────────────────────
+
+  /** What you look like, keeping only what you own. */
+  private myLook(): Look {
+    return ownedOnly(this.settings.look, this.owned());
+  }
+
+  /** Tell the game server what I look like (and, with the ticket, what I own). */
+  private sendLook(): void {
+    if (!this.net || this.net.state !== "open") return;
+    const badge = this.settings.badge && this.owned().has("badge_gold");
+    this.net.send({ t: "look", ticket: this.shop?.ticket ?? undefined, look: toWireLook(this.myLook(), badge) });
+  }
+
+  private onOwnedChanged(): void {
+    const owned = this.owned();
+    this.wheel.setOwned(owned.has(EMOTE_PACK) ? EMOTES.filter((e) => e.pack).map((e) => e.id) : []);
+    this.wheel.setSlots(this.settings.wheel);
+    this.sendLook();
+    if (this.screens.name === "store") this.showStore();
+    if (this.screens.name === "lobby") {
+      this.stage.setLook(this.myLook(), this.settings.lobbyPose);
+      this.showLobby();
+    }
+  }
+
+  private async buy(id: string): Promise<void> {
+    if (!this.shop || this.shopBusy) return;
+    this.shopBusy = id;
+    this.shopNote = null;
+    this.showStore();
+    const r = await this.shop.buy(id);
+    this.shopBusy = null;
+    const name = PRODUCT_BY_ID[id]?.name ?? "It";
+    if (r.ok) {
+      this.shopNote = `${name} is yours.`;
+      // Put it on straight away.
+      const p = PRODUCT_BY_ID[id];
+      if (p?.kind === "outfit") this.setLook({ ...this.settings.look, outfit: id });
+      if (p?.kind === "cap") this.setLook({ ...this.settings.look, extras: [...this.settings.look.extras.filter((e) => e !== "gele" && e !== "headset"), "fila"] });
+      if (p?.kind === "badge") this.settings.badge = true;
+      saveSettings(this.host, this.settings);
+      this.sendLook();
+      this.haptic("success");
+    } else {
+      this.shopNote =
+        r.code === "cancelled"
+          ? "No wahala. Nothing was charged."
+          : r.code === "claim"
+            ? "Paid, thank you. We couldn't reach our server just now; it will be delivered the next time you open the game."
+            : r.code === "owned"
+              ? "You already own this. Tap Restore purchases."
+              : errorText({ code: r.code });
+    }
+    if (this.screens.name === "store") this.showStore();
+  }
+
+  // ── Social ────────────────────────────────────────────────────────────────
+
+  private sendEmote(id: EmoteId): void {
+    const round = this.round;
+    if (!round) {
+      // In a room: show it on your character and tell the room.
+      this.stage.emote(id);
+      if (this.room) this.net?.send({ t: "emote", e: id });
+      return;
+    }
+    this.playEmote(this.meId, id);
+    if (this.mode === "online") this.net?.send({ t: "emote", e: id });
+    this.haptic("tap");
+    addProgress(this.settings.daily, "emotes", 1);
+  }
+
+  private playEmote(seat: string, id: EmoteId): void {
+    const c = this.round?.get(seat);
+    if (!c || c.status === "eliminated") return;
+    this.crowd.emote(c.index, id);
+    this.bubbles.show(c.index, EMOTE_BY_ID[id].icon);
+  }
+
+  /** Practice only: a few CPUs react (labelled CPU, as always). */
+  private cpuReact(ids: EmoteId[], count: number, delay: number): void {
+    const round = this.round;
+    if (!round) return;
+    const pool = round.contestants.filter((c) => c.bot && c.status !== "eliminated");
+    for (let i = 0; i < count && pool.length; i++) {
+      const c = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+      const id = ids[Math.floor(Math.random() * ids.length)];
+      setTimeout(() => this.playEmote(c.id, id), (delay + i * 0.35) * 1000);
+    }
+  }
+
+  /** Who may see chat / buttons right now — set only when it changes. */
+  private updateSocial(round: RoundView | null): void {
+    const s = this.screens.name;
+    const online = this.mode === "online" || s === "room";
+    const chatOn = this.settings.chat && !!this.net && (s === "room" || (online && s === "results") || (online && !!round && (this.watching || this.my !== "playing")));
+    if (chatOn !== this.chatOn) {
+      this.chatOn = chatOn;
+      this.chat.setAvailable(chatOn);
+      // In the room and results, the chat button stands alone (no play buttons).
+      if (!this.actionsOn) this.controls.actions.hidden = !chatOn;
+    }
+    const spectate = this.watching && !s;
+    if (spectate !== this.spectateOn) {
+      this.spectateOn = spectate;
+      this.spectateBtn.classList.toggle("visible", spectate);
+    }
+    if (round && this.bubbles.active) {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      this.bubbles.update((i) => {
+        const c = round.contestants[i];
+        if (!c) return null;
+        this.crowd.chest(c, _head);
+        _head.y += 0.95;
+        _head.project(this.camera);
+        if (_head.z > 1 || _head.x < -1.2 || _head.x > 1.2 || _head.y < -1.2 || _head.y > 1.2) return null;
+        return { x: ((_head.x + 1) / 2) * w, y: ((1 - _head.y) / 2) * h };
+      });
+    }
+  }
+
+  private nextSpectate(): void {
+    const alive = (this.round?.contestants ?? []).filter((c) => c.status === "alive");
+    if (!alive.length) return;
+    const i = alive.findIndex((c) => c.id === this.spectateId);
+    this.spectateId = alive[(i + 1) % alive.length].id;
+    this.haptic("select");
+  }
+
+  private leader(): Contestant | null {
+    const picked = this.spectateId ? this.round?.get(this.spectateId) : undefined;
+    if (picked && picked.status === "alive") return picked;
+    let best: Contestant | null = null;
+    for (const c of this.round?.contestants ?? []) {
+      if (c.status !== "alive") continue;
+      if (!best || c.progress > best.progress) best = c;
+    }
+    return best;
+  }
+
+  private label(c: Contestant): string {
+    return c.bot ? `${c.name} · CPU` : c.id === this.meId ? "You" : c.name;
+  }
+
+  private renderOnce(): void {
+    if (this.view === "lobby") {
+      this.stage.update(0.016);
+      this.stage.render();
+      return;
+    }
+    this.rig.update(0.016, null);
+    this.renderer.render(this.scene, this.camera);
+  }
+
+  // ── Pause / host lifecycle ────────────────────────────────────────────────
+
+  private pause(): void {
+    if (!this.round || this.paused || this.screens.name === "results" || this.view !== "game") return;
+    this.paused = true;
+    this.controls.reset();
+    this.wheel.close();
+    if (this.mode === "practice") {
+      this.loop.stop();
+      this.sound.suspend();
+    } else {
+      this.net?.resetInput();
+    }
+    this.screens.pause(this.host, this.mode === "online");
+  }
+
+  private resume(): void {
+    if (!this.paused) return;
+    this.paused = false;
+    this.screens.hide();
+    this.controls.enabled = this.my === "playing";
+    if (!this.hostPaused) {
+      this.sound.resume();
+      this.loop.start();
+    }
+  }
+
+  private hostPause(): void {
+    this.hostPaused = true;
+    this.net?.resetInput();
+    if (this.round && !this.paused && this.my === "playing" && this.screens.name !== "results" && this.view === "game") this.pause();
+    // The lobby's animations stop too: a backgrounded game costs nothing.
+    this.loop.stop();
+    this.sound.suspend();
+  }
+
+  private hostResume(): void {
+    this.hostPaused = false;
+    if (this.paused && this.mode === "practice") return;
+    this.sound.resume();
+    this.loop.start();
+  }
+
+  private back(): void {
+    const s = this.screens.name;
+    if (this.round && !this.paused && !s) this.pause();
+    else if (s === "pause") this.resume();
+    else if (s === "settings") this.action(this.settingsFrom === "pause" ? "pause-menu" : "back", document.body);
+    else if (s === "room") this.action("leave-room", document.body);
+    else if (s === "maps") this.action("mode", document.body);
+    else if (s === "vmenu") this.action("mode", document.body);
+    // vwait: a stake may be on the table — leaving is a deliberate tap on Leave.
+    else if (s === "lobby" && this.host.can.exit) this.host.exit();
+    else if (s === "results" || s === "") this.toLobby();
+    else if (s !== "vwait" && s !== "lobby") this.action("back", document.body);
+  }
+
+  // ── Menu actions ──────────────────────────────────────────────────────────
+
+  private action(act: string, node: HTMLElement): void {
+    if (act !== "toggle" && act !== "range" && act !== "look-range") this.sound.ui();
+    const d = node.dataset;
+    switch (act) {
+      // Lobby
+      case "tab":
+        this.lobbyTab(d.tab as LobbyTab);
+        break;
+      case "customize":
+        this.showCustomize();
+        break;
+      case "ctab":
+        this.customizeTab = d.tab ?? "outfit";
+        this.showCustomize();
+        break;
+      case "look":
+      case "look-range": {
+        const base = this.tryOn ?? this.settings.look;
+        const key = d.key!;
+        const val = act === "look-range" ? (node as HTMLInputElement).value : d.val!;
+        let next: Look = { ...base };
+        if (key === "body") next.body = val === "f" ? "f" : "m";
+        else if (key === "skin") next.skin = Number(val);
+        else if (key === "hair") next.hair = val as Look["hair"];
+        else if (key === "hairColor") next.hairColor = Number(val);
+        else if (key === "outfit") next.outfit = val;
+        else if (key === "height") next.height = Number(val) / 100;
+        else if (key === "extra") {
+          const id = val as ExtraId;
+          next = { ...base, extras: base.extras.includes(id) ? base.extras.filter((e) => e !== id) : [...base.extras.filter((e) => !conflicts(e, id)), id] };
+        }
+        // Locked (paid, not owned): try it on, don't keep it.
+        const locked = d.locked && !this.owned().has(d.locked);
+        if (locked) {
+          this.setLook(next, true);
+          this.screens.toast(this.shop ? "Trying it on. Buy it in the Store to keep it." : "Trying it on. Shop items are bought inside Lagos Life.");
+        } else {
+          this.setLook(next);
+        }
+        if (act === "look") this.showCustomize();
+        break;
+      }
+      case "random-look":
+        this.setLook(randomLook(new Rng(randomSeed())));
+        this.showCustomize();
+        break;
+      case "emotes":
+        this.showEmotes();
+        break;
+      case "emote-pick": {
+        const id = d.id as EmoteId;
+        this.emoteSel = id;
+        this.stage.emote(id);
+        const e = EMOTE_BY_ID[id];
+        const free = !e.pack || this.owned().has(EMOTE_PACK);
+        if (this.wheelSlot >= 0 && free) {
+          this.settings.wheel[this.wheelSlot] = id;
+          this.wheelSlot = -1;
+          saveSettings(this.host, this.settings);
+          this.wheel.setSlots(this.settings.wheel);
+        }
+        this.showEmotes();
+        break;
+      }
+      case "emote-slot":
+        this.wheelSlot = this.wheelSlot === Number(d.i) ? -1 : Number(d.i);
+        this.showEmotes();
+        break;
+      case "loadout":
+        this.showLoadout();
+        break;
+      case "pose":
+        this.settings.lobbyPose = d.id as PoseId;
+        saveSettings(this.host, this.settings);
+        this.stage.setPose(this.settings.lobbyPose);
+        this.showLoadout();
+        break;
+      case "song": {
+        const id = d.song as Settings["song"] | undefined;
+        if (id === "shuffle" || (id && SONG_IDS.includes(id))) {
+          this.settings.song = id;
+          saveSettings(this.host, this.settings);
+          if (this.screens.name === "loadout") this.showLoadout();
+          if (id !== "shuffle" && !this.round) this.previewSong(id);
+        }
+        break;
+      }
+      case "store":
+        this.shopNote = null;
+        this.showStore();
+        break;
+      case "try": {
+        const p = PRODUCT_BY_ID[d.id ?? ""];
+        if (p?.kind === "outfit") this.setLook({ ...this.settings.look, outfit: p.id }, !this.owned().has(p.id));
+        else if (p?.kind === "cap") this.setLook({ ...this.settings.look, extras: [...this.settings.look.extras.filter((e) => !conflicts(e, "fila")), "fila"] }, !this.owned().has(p.id));
+        else if (p?.kind === "emotes") this.stage.emote("zanku");
+        if (p && !this.owned().has(p.id)) this.screens.toast("Trying it on.");
+        break;
+      }
+      case "buy":
+        void this.buy(d.id ?? "");
+        break;
+      case "wear": {
+        const p = PRODUCT_BY_ID[d.id ?? ""];
+        if (p && this.owned().has(p.id)) {
+          if (p.kind === "outfit") this.setLook({ ...this.settings.look, outfit: p.id });
+          if (p.kind === "cap") this.setLook({ ...this.settings.look, extras: [...this.settings.look.extras.filter((e) => !conflicts(e, "fila")), "fila"] });
+          this.showStore();
+        }
+        break;
+      }
+      case "toggle-badge":
+        if (this.owned().has("badge_gold")) {
+          this.settings.badge = !this.settings.badge;
+          saveSettings(this.host, this.settings);
+          this.sendLook();
+          this.showStore();
+        }
+        break;
+      case "restore":
+        this.shopNote = "Checking with Lagos Life…";
+        this.showStore();
+        void this.shop?.boot().then(() => {
+          this.shopNote = "All your purchases are here.";
+          if (this.screens.name === "store") this.showStore();
+        });
+        break;
+      case "friends":
+        this.friendsTab = "friends";
+        this.showFriends();
+        break;
+      case "invite":
+        this.friendsTab = "invite";
+        this.showFriends();
+        break;
+      case "ftab":
+        this.friendsTab = d.tab === "invite" ? "invite" : "friends";
+        this.showFriends();
+        break;
+      case "copy-code": {
+        const code = this.room?.code;
+        if (code) {
+          navigator.clipboard?.writeText(code).then(
+            () => this.screens.toast(`Code ${code} copied`),
+            () => this.screens.toast(`Code: ${code}`),
+          );
+        }
+        break;
+      }
+
+      // Play
+      case "start":
+      case "mode":
+        this.playError = null;
+        this.showPlay();
+        break;
+      case "pick-mode":
+        this.playMode = d.mode as PlayMode;
+        this.playError = null;
+        this.showPlay();
+        break;
+      case "maps":
+        this.mapCat = mapOf(this.settings.map).category;
+        this.frame("full");
+        this.screens.maps(this.settings.map, this.mapCat);
+        break;
+      case "mapcat":
+        this.mapCat = d.cat as MapCategory;
+        this.screens.maps(this.settings.map, this.mapCat);
+        break;
+      case "pick-map":
+        this.settings.map = d.map ?? DEFAULT_MAP;
+        this.weather = null;
+        this.timePick = null;
+        saveSettings(this.host, this.settings);
+        this.showPlay();
+        break;
+      case "weather":
+        this.weather = (d.w as Weather) ?? null;
+        this.showPlay();
+        break;
+      case "time":
+        this.timePick = (d.t as TimeOfDay) ?? null;
+        this.showPlay();
+        break;
+      case "go":
+        this.go();
+        break;
+      case "practice":
+        this.practice();
+        break;
+      case "again":
+      case "restart":
+        this.paused = false;
+        this.sound.resume();
+        this.startPractice();
+        break;
+      case "howto":
+        this.frame("full");
+        this.screens.howto(false);
+        break;
+      case "back":
+        if (this.round && this.paused) this.screens.pause(this.host, this.mode === "online");
+        else if (this.screens.name === "maps") this.showPlay();
+        else if (this.room && !this.round) this.showRoom();
+        else this.closePanel();
+        break;
+      case "settings":
+        this.settingsFrom = "lobby";
+        this.showSettings();
+        break;
+      case "settings-pause":
+        this.settingsFrom = "pause";
+        this.showSettings();
+        break;
+      case "stab":
+        this.settingsTab = d.tab ?? "graphics";
+        this.showSettings();
+        break;
+      case "pause-menu":
+        this.screens.pause(this.host, this.mode === "online");
+        break;
+      case "toggle": {
+        const key = d.key as keyof Settings;
+        const on = (node as HTMLInputElement).checked;
+        if (typeof this.settings[key] === "boolean") {
+          (this.settings as unknown as Record<string, boolean>)[key] = on;
+          this.applySettings();
+          saveSettings(this.host, this.settings);
+          if (key === "sound" && on) this.sound.ui();
+        }
+        break;
+      }
+      case "set": {
+        const key = d.key;
+        if (key === "graphics" && ["auto", "low", "medium", "high"].includes(d.val ?? "")) this.settings.graphics = d.val as Settings["graphics"];
+        if (key === "lookStick" && (d.val === "always" || d.val === "touch")) this.settings.lookStick = d.val;
+        this.applySettings();
+        saveSettings(this.host, this.settings);
+        this.showSettings();
+        break;
+      }
+      case "range": {
+        const key = d.key as "sensH" | "sensV";
+        this.settings[key] = Math.max(0.05, Math.min(1, Number((node as HTMLInputElement).value) / 100));
+        this.applySettings();
+        saveSettings(this.host, this.settings);
+        break;
+      }
+      case "resume":
+        this.resume();
+        break;
+      case "menu":
+        this.toLobby();
+        break;
+      case "exit":
+        this.host.exit();
+        break;
+      case "watch":
+        this.screens.hide();
+        this.view = "game";
+        this.watching = true;
+        this.returnAt = 0;
+        this.loop.setFpsCap(this.spec.tier === 0 ? 30 : 60);
+        this.hud.show(true);
+        this.hud.clearVerdict();
+        this.rig.follow();
+        break;
+      case "reload":
+        location.reload();
+        break;
+
+      // Online
+      case "quick":
+        this.chat.clear();
+        this.onlineError = null;
+        if (this.mode === "online") this.endRound();
+        this.hud.show(false);
+        this.online((net) => {
+          net.send({ t: "quick" });
+          this.room = null;
+          this.showWaiting("Finding players…");
+        });
+        break;
+      case "create": {
+        this.chat.clear();
+        const size = Number(d.size);
+        this.onlineError = null;
+        this.online((net) => {
+          net.send({ t: "create", size });
+          this.showWaiting("Making your room…");
+        });
+        break;
+      }
+      case "join": {
+        const input = this.screens.root.querySelector<HTMLInputElement>("input[name=code]");
+        const code = normalizeCode(input?.value ?? "");
+        if (code.length !== 6) {
+          this.playError = "Room codes are six letters.";
+          this.showPlay();
+          break;
+        }
+        this.onlineError = null;
+        this.online((net) => {
+          net.send({ t: "join", code });
+          this.showWaiting("Joining…");
+        });
+        break;
+      }
+      case "start-now":
+        this.net?.send({ t: "start" });
+        break;
+      case "room":
+        this.endRound();
+        this.hud.show(false);
+        this.setActions(false);
+        this.touch.classList.remove("live");
+        this.returnAt = 0;
+        this.showRoom();
+        break;
+      case "leave-room":
+        this.net?.send({ t: "leave" });
+        this.room = null;
+        this.endRound();
+        this.toLobby();
+        break;
+
+      // Lagos Life matches
+      case "vmenu":
+        this.vError = null;
+        this.endRound();
+        this.hud.show(false);
+        this.setActions(false);
+        this.touch.classList.remove("live");
+        this.view = "lobby";
+        this.stage.setMode("lobby");
+        this.showMatchMenu();
+        break;
+      case "vstake":
+        this.vStake = Number(d.stake) || 0;
+        this.showMatchMenu();
+        break;
+      case "vseats":
+        this.vSeats = Number(d.seats) || 2;
+        this.showMatchMenu();
+        break;
+      case "vcreate":
+        void this.matchCall(() => this.host.matches!.create(this.vStake, this.vSeats));
+        break;
+      case "vquick":
+        void this.matchCall(() => this.host.matches!.quick(this.vStake));
+        break;
+      case "vjoin": {
+        const code = normalizeCode(this.screens.root.querySelector<HTMLInputElement>("input[name=vcode]")?.value ?? "");
+        if (code.length !== 6) {
+          this.vError = "Match codes are six letters.";
+          this.showMatchMenu();
+          break;
+        }
+        void this.matchCall(() => this.host.matches!.join(code));
+        break;
+      }
+      case "vleave":
+        this.host.matches
+          ?.leave()
+          .catch(() => null)
+          .then(() => {
+            this.vmatch = null;
+            this.vError = "You left the match. Your stake went back.";
+            this.showMatchMenu();
+          });
+        break;
+    }
+  }
+
+  /** START on the play screen. */
+  private go(): void {
+    switch (this.playMode) {
+      case "practice":
+        this.practice();
+        break;
+      case "quick":
+        this.action("quick", document.body);
+        break;
+      case "private":
+        this.friendsTab = "invite";
+        this.showFriends();
+        break;
+      case "join":
+        this.action("join", document.body);
+        break;
+      case "lagos":
+        this.vError = null;
+        this.showMatchMenu();
+        break;
+    }
+  }
+
+  private lobbyTab(tab: LobbyTab): void {
+    switch (tab) {
+      case "lobby":
+        this.closePanel();
+        break;
+      case "loadout":
+        this.showLoadout();
+        break;
+      case "store":
+        this.showStore();
+        break;
+      case "friends":
+        this.friendsTab = "friends";
+        this.showFriends();
+        break;
+      case "clan":
+        this.frame("right-panel");
+        this.screens.clan();
+        break;
+      case "board":
+        this.frame("right-panel");
+        this.screens.boardLoading();
+        this.host
+          .leaderboard()
+          .then((b) => this.screens.name === "board" && this.screens.board(b, null))
+          .catch((e) => this.screens.name === "board" && this.screens.board(null, e));
+        break;
+    }
+  }
+
+  private previewTimer = 0;
+
+  /** Four seconds of a song from the top, so the choice isn't blind. */
+  private previewSong(id: SongId): void {
+    clearTimeout(this.previewTimer);
+    this.sound.playSong(id, 0);
+    this.previewTimer = window.setTimeout(() => this.sound.stopSong(), 4000);
+  }
+
+  private applySettings(): void {
+    const s = this.settings;
+    this.sound.setEnabled(s.sound);
+    this.sound.setMusic(s.music);
+    this.fx.setBlood(s.blood);
+    this.rig.shakeEnabled = s.shake;
+    this.rig.autoCenter = s.autoCam;
+    this.rig.invertY = s.invertY;
+    this.rig.sensH = s.sensH;
+    this.rig.sensV = s.sensV;
+    this.controls.setLayout(s.leftHanded, s.lookStick === "always");
+    this.wheel.setSlots(s.wheel.length === 8 ? s.wheel : DEFAULT_WHEEL);
+    const spec = tierSpec(s.graphics, this.renderer.getContext());
+    if (spec.tier !== this.spec?.tier || spec.name !== this.spec?.name) {
+      const changed = !!this.spec && spec.tier !== this.spec.tier;
+      this.spec = spec;
+      this.renderer.shadowMap.enabled = spec.shadows;
+      this.crowd.tier = spec.tier;
+      this.crowd.setShadows(spec.shadows);
+      this.stage?.setSpec(spec);
+      if (changed && this.stage) this.stage.setLook(this.myLook(), this.settings.lobbyPose);
+      this.worldKey = "";
+    }
+    this.quality.setMode(s.graphics === "low" ? "saver" : s.graphics === "high" ? "sharp" : "auto");
+    if (this.round && !this.paused) this.loop.setFpsCap(this.spec.tier === 0 ? 30 : 60);
+  }
+
+  private haptic(kind: Parameters<Host["haptic"]>[0]): void {
+    if (this.settings.haptics) this.host.haptic(kind);
+  }
+
+  private resize(): void {
+    const w = window.innerWidth || 375;
+    const h = window.innerHeight || 812;
+    this.renderer.setSize(w, h, false);
+    this.camera.aspect = w / h;
+    // The brief's 65° is a landscape lens; a portrait phone needs a wider one
+    // to see the street (horizontal view kept near the landscape one).
+    this.rig.baseFov = w / h < 0.7 ? 82 : w / h < 1 ? 74 : 65;
+    this.camera.updateProjectionMatrix();
+    if (this.stage) this.stage.aspect = w / h;
+    if (this.world) this.sizeParticles();
+    if (!this.loop?.isRunning) this.renderOnce();
+  }
+
+  /**
+   * Compile every shader now, behind the countdown. Without this, things that
+   * first appear mid-round (the eye beams, the blood) make the GPU compile on
+   * the spot — a stall on a weak phone, and online the server doesn't wait.
+   */
+  private warmUp(): void {
+    const hidden: { visible: boolean }[] = [];
+    this.scene.traverse((o) => {
+      if (!o.visible) {
+        hidden.push(o);
+        o.visible = true;
+      }
+    });
+    try {
+      this.renderer.compile(this.scene, this.camera);
+    } finally {
+      for (const o of hidden) o.visible = false;
+    }
+  }
+}
+
+/** Two extras that can't be worn together (one head item, one face item). */
+function conflicts(a: ExtraId, b: ExtraId): boolean {
+  const head: ExtraId[] = ["fila", "gele", "headset"];
+  const face: ExtraId[] = ["shades", "glasses"];
+  return (head.includes(a) && head.includes(b)) || (face.includes(a) && face.includes(b));
+}
+
+function stickEl(): HTMLDivElement {
+  const s = document.createElement("div");
+  s.className = "stick";
+  s.setAttribute("aria-hidden", "true");
+  s.innerHTML = `<i class="ring"></i><i class="knob"></i>`;
+  return s;
+}
+

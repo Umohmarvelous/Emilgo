@@ -1,0 +1,10 @@
+node_modules
+dist
+dist-emilgo
+server/dist
+.env
+*.env
+.env.*
+data
+listing
+.DS_Store

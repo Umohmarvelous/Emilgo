@@ -1,0 +1,35 @@
+<!doctype html>
+<!-- The Lagos Life listing icon: 512 × 512, rendered to PNG by scripts in the README.
+     Our own mark only — no Lagos Life or Vatar logos (Developer Agreement §11). -->
+<meta charset="utf-8" />
+<title>EMILGO Games icon</title>
+<style>
+  html, body { margin: 0; width: 512px; height: 512px; overflow: hidden; }
+  .icon {
+    width: 512px; height: 512px; position: relative;
+    background: radial-gradient(circle at 50% 30%, #2c3c66 0%, #16203c 62%, #0e1528 100%);
+    font-family: ui-rounded, "SF Pro Rounded", "Arial Rounded MT Bold", system-ui, sans-serif;
+  }
+  .road { position: absolute; left: 0; right: 0; bottom: 0; height: 130px; background: #2f343b; }
+  .road::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 12px;
+    background: repeating-linear-gradient(90deg, #ffd000 0 34px, #111 34px 68px); }
+  .light {
+    position: absolute; left: 50%; top: 46px; width: 132px; margin-left: -66px; height: 286px;
+    background: #1d2124; border-radius: 30px; border: 10px solid #ffd000;
+    display: flex; flex-direction: column; justify-content: space-evenly; align-items: center;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
+  }
+  .lamp { width: 74px; height: 74px; border-radius: 50%; }
+  .red { background: radial-gradient(circle at 40% 35%, #ff8a8a, #ff2626 45%, #a30000); box-shadow: 0 0 34px 10px rgba(255, 38, 38, 0.75); }
+  .amber { background: #4a3a10; }
+  .green { background: #0d3b26; }
+  .word { position: absolute; left: 0; right: 0; bottom: 34px; text-align: center; }
+  .word b { display: block; font-size: 84px; font-weight: 900; letter-spacing: 3px; color: #ffd700; line-height: 1;
+    text-shadow: 0 5px 0 #8a6d00, 0 10px 24px rgba(0, 0, 0, 0.5); }
+  .word span { display: block; margin-top: 6px; font-size: 26px; font-weight: 900; letter-spacing: 16px; color: #fff; padding-left: 16px; }
+</style>
+<div class="icon">
+  <div class="road"></div>
+  <div class="light"><i class="lamp red"></i><i class="lamp amber"></i><i class="lamp green"></i></div>
+  <div class="word"><b>EMILGO</b><span>GAMES</span></div>
+</div>

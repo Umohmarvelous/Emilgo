@@ -1,0 +1,32 @@
+{
+  "name": "emilgo-games",
+  "private": true,
+  "version": "0.1.0",
+  "description": "EMILGO Games: Nigerian street games for Lagos Life (Vatar Games SDK) and the EMILGO app.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "npm run typecheck && vite build",
+    "build:emilgo": "npm run typecheck && vite build --mode emilgo && node scripts/embed.mjs",
+    "preview": "vite preview --host",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p server",
+    "server:dev": "node server/build.mjs --watch",
+    "server:build": "tsc --noEmit -p server && node server/build.mjs",
+    "server:start": "node --enable-source-maps server/dist/index.mjs",
+    "loadtest": "node server/build-tools.mjs && node server/dist/loadtest.mjs",
+    "test:fairness": "node server/build-tools.mjs && node server/dist/fairness.mjs"
+  },
+  "dependencies": {
+    "@fontsource/inter": "5.3.0",
+    "@fontsource/jetbrains-mono": "5.3.0",
+    "@fontsource/montserrat": "5.3.0",
+    "three": "0.180.0",
+    "ws": "8.22.0"
+  },
+  "devDependencies": {
+    "@types/three": "0.180.0",
+    "@types/ws": "8.18.1",
+    "typescript": "5.9.3",
+    "vite": "7.3.7"
+  }
+}

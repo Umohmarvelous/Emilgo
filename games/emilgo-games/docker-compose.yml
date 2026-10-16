@@ -1,0 +1,71 @@
+# EMILGO Games server, run from games/emilgo-games:
+#
+#   docker compose up -d --build        start (or rebuild after a code change)
+#   docker compose logs -f server       watch it
+#   docker compose ps                   health
+#
+# Secrets live in server/.env (git-ignored; copy server/.env.example). The
+# purchases database lives in the named volume emilgo-data — it survives
+# rebuilds and restarts; `docker compose down -v` would DELETE it.
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    image: emilgo-games-server
+    env_file: server/.env
+    volumes:
+      - emilgo-data:/data
+    ports:
+      # This Mac and phones on the same Wi-Fi. The public way in (Part B) is
+      # the tunnel below, which reaches the server on Docker's own network.
+      - "8787:8787"
+    restart: unless-stopped
+
+  # The public address games.emilgo.app, once the domain exists: create the
+  # tunnel in the Cloudflare dashboard, put TUNNEL_TOKEN=… in server/tunnel.env
+  # (git-ignored), then `docker compose --profile tunnel up -d`.
+  tunnel:
+    image: cloudflare/cloudflared:2025.11.1
+    command: tunnel --no-autoupdate run
+    env_file: server/tunnel.env
+    depends_on:
+      - server
+    restart: unless-stopped
+    profiles: ["tunnel"]
+
+  # A throwaway public address (https://<random>.trycloudflare.com) for one
+  # test session, before the domain exists. It changes every time this starts,
+  # so the game must be rebuilt for it — never use it for real players:
+  #   docker compose --profile quick up -d quicktunnel
+  #   docker compose logs quicktunnel | grep trycloudflare
+  quicktunnel:
+    image: cloudflare/cloudflared:2025.11.1
+    command: tunnel --no-autoupdate --url http://server:8787
+    depends_on:
+      - server
+    profiles: ["quick"]
+
+  # The same image against the FAKE Lagos Life (server/scripts/mockvatar.ts on
+  # the host, port 8790), for the test scripts — never the real keys:
+  #   docker compose --profile mock up -d server-mock
+  #   GAME=ws://localhost:8797 node server/dist/matchtest.mjs
+  server-mock:
+    image: emilgo-games-server
+    environment:
+      VATAR_API: http://host.docker.internal:8790/api/games/v1
+      VATAR_SECRET: vtr_test_mock
+      VATAR_RESULTS_SECRET: vtr_results_mock
+      VATAR_WEBHOOK_SECRET: vtr_whsec_test_mock
+      # The load test connects hundreds of clients from one address.
+      MAX_PER_IP: "5000"
+    volumes:
+      - emilgo-mock-data:/data
+    ports:
+      - "127.0.0.1:8797:8787"
+    profiles: ["mock"]
+
+volumes:
+  emilgo-data:
+  emilgo-mock-data:

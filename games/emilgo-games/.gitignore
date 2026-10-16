@@ -1,0 +1,9 @@
+node_modules/
+dist/
+dist-emilgo/
+server/dist/
+# The purchases database (player ids): never commit it.
+data/
+
+# Server secrets (Lagos Life keys, ticket secret): never commit.
+*.env

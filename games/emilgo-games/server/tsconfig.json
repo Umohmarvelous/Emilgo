@@ -1,0 +1,19 @@
+{
+  // The server shares the referee, protocol and config with the game, so those
+  // files are compiled here too — without the DOM, which proves they don't need it.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022"],
+    "types": ["node"],
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": ["src", "scripts", "../src/game/rules.ts", "../src/net/protocol.ts", "../src/config.ts", "../src/core/rng.ts"]
+}
