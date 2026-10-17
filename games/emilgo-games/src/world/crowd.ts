@@ -215,7 +215,7 @@ export class Crowd {
       const speed = Math.hypot(c.vx, c.vz);
       h.mesh.position.set(c.x, c.y ?? 0, c.z);
       h.mesh.quaternion.setFromAxisAngle(UP, c.heading);
-      h.update(dt, speed, c.stance ?? 0, (c.y ?? 0) > 0.03 ? 1 : 0);
+      h.update(dt, speed, c.stance ?? 0, (c.y ?? 0) > 0.03 ? 1 : 0, c.slide > 0 ? 1 : 0);
 
       // First person: no head in front of the lens.
       if (i === this.featured) h.bone("head").scale.setScalar(this.hideMyHead ? 0.001 : 1);

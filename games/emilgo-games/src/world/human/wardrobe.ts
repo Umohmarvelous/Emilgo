@@ -17,7 +17,7 @@ export type Body = "m" | "f";
 export const SKIN_TONES = ["#3b2214", "#4a2912", "#5a3214", "#6b3e1f", "#7a4a26", "#8d5524", "#a0662f", "#c68642"] as const;
 export const HAIR_COLORS = ["#141110", "#2b1d16", "#4a2f22", "#6b4430", "#b07a4f", "#d8b26e", "#8a1f2b", "#e9e4dc"] as const;
 
-export type HairId = "afro" | "bun" | "lowcut" | "ponytail" | "braids" | "locs" | "fade" | "bald";
+export type HairId = "afro" | "bun" | "lowcut" | "ponytail" | "braids" | "locs" | "fade" | "bald" | "pigtails";
 
 export interface HairDef {
   id: HairId;
@@ -122,6 +122,10 @@ export interface Outfit {
   fits?: Body;
   /** The match uniform: zip, piping, the player's number. Never chosen in Customise. */
   uniform?: boolean;
+  /** The doll's pinafore: a bib and straps over the top (painted on the torso). */
+  pinafore?: string;
+  /** Knee socks, in this colour. */
+  socks?: string;
 }
 
 const ANKARA_A = ["#f2a71b", "#0e5a8a", "#d7263d", "#f6f1e1", "#1b998b"];
@@ -281,7 +285,24 @@ export const UNIFORM: Outfit = {
   uniform: true,
 };
 
-export const OUTFIT_BY_ID: Record<string, Outfit> = Object.fromEntries([...OUTFITS, UNIFORM].map((o) => [o.id, o]));
+/**
+ * The doll's clothes (SPEC-V2, the owner's choice: a giant schoolgirl doll in
+ * our own green and white — not the show's doll): a white collared shirt
+ * under a green pinafore, white knee socks, black shoes.
+ */
+export const DOLL_DRESS: Outfit = {
+  id: "doll_dress",
+  name: "Doll's pinafore",
+  blurb: "",
+  top: { pattern: { kind: "plain", color: "#f4f1ea" }, sleeve: "short", neck: "collar", hem: "waist", trim: "#e8e2d6" },
+  bottom: { kind: "dress", pattern: { kind: "plain", color: "#0a8a4a" }, length: "knee", flare: 0.55 },
+  shoes: { kind: "sneakers", color: "#151515", sole: "#0b0b0b" },
+  accent: "#0a8a4a",
+  pinafore: "#0a8a4a",
+  socks: "#f4f4f2",
+};
+
+export const OUTFIT_BY_ID: Record<string, Outfit> = Object.fromEntries([...OUTFITS, UNIFORM, DOLL_DRESS].map((o) => [o.id, o]));
 export const FREE_OUTFITS = OUTFITS.filter((o) => !o.product);
 
 // ── A whole look ──────────────────────────────────────────────────────────────
@@ -297,7 +318,12 @@ export interface Look {
   height: number;
   /** The number on the match uniform (1–99); set by the game, never by a player. */
   num?: number;
+  /** The doll's face: big round eyes, rosy cheeks, a small mouth. Never a player's. */
+  doll?: boolean;
 }
+
+/** The doll: brown skin, a black bob with bangs and two pigtails, the pinafore. */
+export const DOLL_LOOK: Look = { body: "f", skin: 5, hair: "pigtails", hairColor: 0, outfit: "doll_dress", extras: [], height: 1, doll: true };
 
 export const DEFAULT_LOOK: Look = { body: "m", skin: 4, hair: "lowcut", hairColor: 0, outfit: "street", extras: [], height: 1 };
 
@@ -381,5 +407,5 @@ export function shapeKey(l: Look): string {
 
 /** A stable key for caching textures: everything that changes the PAINT. */
 export function paintKey(l: Look): string {
-  return [l.body, l.skin, l.hair, l.hairColor, l.outfit, l.extras.slice().sort().join("+"), l.num ?? ""].join("|");
+  return [l.body, l.skin, l.hair, l.hairColor, l.outfit, l.extras.slice().sort().join("+"), l.num ?? "", l.doll ? "doll" : ""].join("|");
 }

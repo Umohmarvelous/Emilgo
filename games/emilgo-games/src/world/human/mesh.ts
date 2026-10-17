@@ -1008,6 +1008,26 @@ function hair(m: Builder, p: Proportions, id: HairId, T: TierSpec): void {
       }
       return;
     }
+    case "pigtails": {
+      // The doll's bob: full, down to the jaw, straight bangs to the brows…
+      cap(m, p, 0.012, rows + 2, seg, hairline(1.3, 1.95, 2.35), { grow: [0.016, 0.01, 0.016], offset: new Vector3(0, 0.004, -0.003) });
+      // …and two pigtails high on the sides, each with a white band.
+      for (const s of [1, -1]) {
+        const a = new Vector3(s * (hx + 0.012), p.headY + hy * 0.42, -hz * 0.3);
+        blob(m, a, [0.016, 0.02, 0.02], 4, 8, () => W1("head"), { uvAt: () => cellUv(CELL.white) });
+        rod(
+          m,
+          [a, a.clone().add(new Vector3(s * 0.035, -0.025, -0.01)), a.clone().add(new Vector3(s * 0.06, -0.09, -0.02)), a.clone().add(new Vector3(s * 0.062, -0.15, -0.015))],
+          [0.024, 0.03, 0.026, 0.016, 0.005],
+          Math.max(6, T.seg - 2),
+          Math.round(lerp(4, 8, T.ringK / 1.9)),
+          () => W1("head"),
+          { uvAt: () => strand },
+          { capEnd: 0.004 },
+        );
+      }
+      return;
+    }
     case "locs": {
       cap(m, p, 0.008, rows, seg, hairline(0.98, 1.55, 2.05));
       const n = T.detail ? 22 : T.fingers ? 13 : 7;

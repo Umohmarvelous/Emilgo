@@ -86,6 +86,8 @@ export interface Contestant {
   cool: number;
   /** What the current action is (animation). */
   actKind: ActKind;
+  /** Seconds left of a slide (sprint, then crouch). */
+  slide: number;
   /** Furthest distance past the start line, metres. */
   progress: number;
   /**
@@ -131,12 +133,12 @@ export const PHASES: readonly Phase[] = ["countdown", "sing", "hum", "turning", 
 export const HIDDEN_LENGTH: readonly Phase[] = ["sing", "watch"];
 
 /** A fresh contestant's movement state (shared by the referee and the online client). */
-type Motion = "y" | "vy" | "stance" | "inStance" | "stanceT" | "inSprint" | "sprinting" | "stamina" | "rested" | "inJump" | "jumpSeen" | "inAttack" | "attackSeen" | "inGrab" | "grabSeen" | "ball" | "stun" | "forgive" | "act" | "cool" | "actKind";
+type Motion = "y" | "vy" | "stance" | "inStance" | "stanceT" | "inSprint" | "sprinting" | "stamina" | "rested" | "inJump" | "jumpSeen" | "inAttack" | "attackSeen" | "inGrab" | "grabSeen" | "ball" | "stun" | "forgive" | "act" | "cool" | "actKind" | "slide";
 
 export function freshMotion(): Pick<Contestant, Motion> {
   return {
     y: 0, vy: 0, stance: 0, inStance: 0, stanceT: 0, inSprint: false, sprinting: false, stamina: 1, rested: 9, inJump: 0, jumpSeen: 0,
-    inAttack: 0, attackSeen: 0, inGrab: 0, grabSeen: 0, ball: -1, stun: 0, forgive: 0, act: 0, cool: 0, actKind: "",
+    inAttack: 0, attackSeen: 0, inGrab: 0, grabSeen: 0, ball: -1, stun: 0, forgive: 0, act: 0, cool: 0, actKind: "", slide: 0,
   };
 }
 
@@ -182,6 +184,31 @@ export function moveContestant(c: Contestant, dt: number, course: Course = DEFAU
     c.jumpSeen = c.inJump;
   }
   const grounded = c.y <= 0 && c.vy <= 0;
+
+  // ── Slide: crouching out of a sprint carries you on, low, for a moment ──
+  if (c.slide > 0) {
+    c.slide = Math.max(0, c.slide - dt);
+    const sp = Math.hypot(c.vx, c.vz);
+    // Slowing evenly from where it started to a crouch's pace; no steering.
+    const want = MOVE.crouch + (MOVE.sprint - MOVE.crouch) * (c.slide / MOVE.slideTime);
+    if (sp > 1e-3) {
+      c.vx *= want / sp;
+      c.vz *= want / sp;
+    }
+    c.x += c.vx * dt;
+    c.z += c.vz * dt;
+    clampToField(c, course);
+    c.progress = Math.max(c.progress, FIELD.startZ - c.z);
+    if (c.stanceT > 0) c.stanceT = Math.max(0, c.stanceT - dt);
+    return;
+  }
+  if (c.status === "alive" && c.sprinting && grounded && c.stance === 0 && wantStance > 0 && c.stanceT === 0 && Math.hypot(c.vx, c.vz) > MOVE.run) {
+    c.slide = MOVE.slideTime;
+    c.sprinting = false;
+    c.stance = 1;
+    c.stanceT = MOVE.stanceTime;
+    return;
+  }
 
   // ── Stance: one step at a time (prone ↔ crouch ↔ stand), never in the air ──
   if (c.stanceT > 0) c.stanceT = Math.max(0, c.stanceT - dt);

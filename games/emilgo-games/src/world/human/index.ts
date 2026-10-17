@@ -315,10 +315,11 @@ export class Human {
     if (this.anim.done < 0) this.anim.done = 0;
   }
 
-  /** Advance and pose. `speed` m/s on the ground; `stance` 0..2; `air` 0..1 (1: jumping). */
-  update(dt: number, speed: number, stance = 0, air = 0): void {
+  /** Advance and pose. `speed` m/s on the ground; `stance` 0..2; `air` 0..1 (1: jumping); `slide` 0/1. */
+  update(dt: number, speed: number, stance = 0, air = 0, slide = 0): void {
     const a = this.anim;
     this.airborne = air > 0.5;
+    a.slide += (slide - a.slide) * (1 - Math.exp(-dt * (slide > a.slide ? 18 : 8)));
     a.stance += (stance - a.stance) * (1 - Math.exp(-dt * 10));
     a.air += (air - a.air) * (1 - Math.exp(-dt * 14));
     stepGait(a, speed, dt);

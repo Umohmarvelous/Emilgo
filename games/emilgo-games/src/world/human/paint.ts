@@ -490,6 +490,83 @@ function paintHead(g: Ctx, size: number, look: Look, p: Proportions, skin: strin
   soft(0.55, -0.2, 0.3, f ? "#b85a4a" : "#8a4a32", f ? 0.12 : 0.05);
   soft(-0.55, -0.2, 0.3, f ? "#b85a4a" : "#8a4a32", f ? 0.12 : 0.05);
 
+  // The doll's face: big round eyes, rosy cheeks, a small closed mouth.
+  if (look.doll) {
+    for (const s of [1, -1]) {
+      const ea = s * FACE.eyeAz * 1.05;
+      const ee = FACE.eyeEl + 0.02;
+      soft(ea, ee, 0.24, "#2a1810", 0.16);
+      path(ellipse(ea, ee, 0.165, 0.15, 28));
+      g.fillStyle = "#f6f2ec";
+      g.fill();
+      g.save();
+      path(ellipse(ea, ee, 0.165, 0.15, 28));
+      g.clip();
+      path(ellipse(ea + s * 0.01, ee - 0.01, 0.112, 0.118, 24));
+      g.fillStyle = "#2a170c";
+      g.fill();
+      path(ellipse(ea + s * 0.01, ee - 0.01, 0.06, 0.064, 20));
+      g.fillStyle = "#050302";
+      g.fill();
+      // Two catchlights: the glassy look of a doll's eyes.
+      path(ellipse(ea + s * 0.01 - 0.04, ee + 0.035, 0.026, 0.028, 12));
+      g.fillStyle = "rgba(255,255,255,0.95)";
+      g.fill();
+      path(ellipse(ea + s * 0.01 + 0.035, ee - 0.045, 0.012, 0.013, 10));
+      g.fillStyle = "rgba(255,255,255,0.7)";
+      g.fill();
+      g.restore();
+      // A heavy upper lash line and three painted lashes at the outer corner.
+      const lid: [number, number][] = [];
+      for (let i = 0; i <= 20; i++) {
+        const t = (i / 20) * Math.PI;
+        lid.push([ea - Math.cos(t) * 0.17, ee + Math.sin(t) * 0.155]);
+      }
+      path(lid);
+      g.strokeStyle = "#0e0806";
+      g.lineWidth = Math.max(1.5, w * 0.009);
+      g.lineCap = "round";
+      g.stroke();
+      for (let k = 0; k < 3; k++) {
+        const t = 0.15 + k * 0.12;
+        const a0: [number, number] = [ea + s * Math.cos(t * Math.PI) * 0.17 * -1, ee + Math.sin(t * Math.PI) * 0.155];
+        path([a0, [a0[0] + s * 0.05, a0[1] + 0.05 - k * 0.012]]);
+        g.lineWidth = Math.max(1, w * 0.005);
+        g.stroke();
+      }
+      // Thin high brows.
+      const brow: [number, number][] = [];
+      for (let i = 0; i <= 12; i++) {
+        const t = i / 12;
+        brow.push([ea - s * 0.14 + s * 0.28 * t, FACE.browEl + 0.07 + Math.sin(t * Math.PI) * 0.03]);
+      }
+      path(brow);
+      g.strokeStyle = shade(hairC, 0.9);
+      g.lineWidth = Math.max(1, w * 0.0045);
+      g.stroke();
+      // Rosy cheeks.
+      soft(s * 0.5, -0.3, 0.17, "#e05a6a", 0.42);
+    }
+    // A button nose: two tiny nostrils.
+    for (const s of [1, -1]) {
+      path(ellipse(s * 0.045, FACE.noseEl - 0.06, 0.016, 0.01, 10));
+      g.fillStyle = rgb(...hexRgb(deep), 0.7);
+      g.fill();
+    }
+    // A small closed mouth, a little pout.
+    const mE = FACE.mouthEl + 0.04;
+    path(ellipse(0, mE + 0.012, 0.085, 0.026, 20));
+    g.fillStyle = "#b8384a";
+    g.fill();
+    path(ellipse(0, mE - 0.016, 0.075, 0.03, 20));
+    g.fillStyle = "#c84a5a";
+    g.fill();
+    soft(0, mE - 0.02, 0.05, "#ffffff", 0.18);
+    void dark;
+    void p;
+    return;
+  }
+
   for (const s of [1, -1]) {
     const ea = s * FACE.eyeAz;
     const ee = FACE.eyeEl;
@@ -783,6 +860,25 @@ function paintTorso(g: Ctx, size: number, look: Look, p: Proportions, o: Outfit,
       }
     }
 
+    // The doll's pinafore: a bib to the chest, a band at the waist, straps over the shoulders.
+    if (o.pinafore) {
+      const c = o.pinafore;
+      g.fillStyle = c;
+      g.fillRect(front - 0.1, Y(fromY), 0.2, Y(p.chestY + 0.035) - Y(fromY));
+      g.fillRect(0, Y(fromY), circ, Y(skTop + 0.08) - Y(fromY));
+      for (const x of [front - 0.09, front + 0.07, 0.025, circ - 0.045]) g.fillRect(x, Y(p.chestY + 0.02), 0.02, Y(neckY + 0.03) - Y(p.chestY + 0.02));
+      // Two buttons where the straps meet the bib.
+      g.fillStyle = "#f2f2f2";
+      for (const x of [front - 0.08, front + 0.08]) {
+        g.beginPath();
+        g.arc(x, Y(p.chestY + 0.02), 0.009, 0, Math.PI * 2);
+        g.fill();
+      }
+      // A seam under the bib's top edge.
+      g.fillStyle = shade(c, 0.8);
+      g.fillRect(front - 0.1, Y(p.chestY + 0.03), 0.2, 0.004);
+    }
+
     // Ankara yoke round the neckline (IMG_7770).
     if (top.yoke) {
       g.save();
@@ -896,6 +992,14 @@ function paintLegs(g: Ctx, size: number, p: Proportions, o: Outfit, skin: string
         gr.addColorStop(1, "rgba(255,255,255,0)");
         g.fillStyle = gr;
         g.fillRect(0, 0, circ, len);
+        // Knee socks, with a ribbed top.
+        if (o.socks) {
+          const top = Y(p.hipY - p.thigh - 0.05);
+          g.fillStyle = o.socks;
+          g.fillRect(0, 0, circ, top);
+          g.fillStyle = shade(o.socks, 0.9);
+          for (let x = 0; x < circ; x += 0.008) g.fillRect(x, top - 0.035, 0.0025, 0.035);
+        }
         return;
       }
       const hem = b.length === "thigh" ? p.hipY - p.thigh * 0.45 : b.length === "knee" ? p.hipY - p.thigh - 0.04 : b.length === "calf" ? p.hipY - p.thigh - 0.18 : bottom;

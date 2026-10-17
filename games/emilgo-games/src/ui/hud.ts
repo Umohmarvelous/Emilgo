@@ -1,156 +1,134 @@
-// In-play HUD, laid out like Call of Duty Mobile's: minimap top left, score top
-// right, the signal at the top centre, buttons bottom right (input/controls).
+// The in-play HUD, laid out as Call of Duty Mobile's (SPEC-V2 §3.1–3.2):
 //
-// The signal never relies on colour alone — red/green is the commonest
-// colour-blindness — so each state has its own icon and word too: WAKA,
-// SHE DEY TURN, FREEZE. The song's words are shown as they are sung, so playing
-// muted costs nothing — and, like the music, they say nothing about when she
-// will stop.
+//   top left     match info, text only: the clock, the mode, who's still in,
+//                how far you've run, the round trip online; under it the
+//                buttons (pause, settings, scoreboard, first person)
+//   top centre   the compass, then the kill feed (text slides in, gone after 5 s)
+//   top right    the minimap (round, faded, terrain; tap for the full map)
+//   centre       the countdown, the verdict, the first-person dot
+//
+// Small text, white with a dark outline so it reads on sand or snow, no
+// backgrounds on anything that isn't a button. No song name, no lyrics, no
+// instructions on the game screen (§3.6).
 
-import { DEFAULT_COURSE, type Course } from "../config";
+import { DEFAULT_COURSE, MODE_NAME, type Course } from "../config";
 import { el, fmtTime } from "./dom";
 import { icon } from "./icons";
+import { Minimap, type MapMark } from "./minimap";
 
-export type Signal = "count" | "go" | "turning" | "stop" | "back" | "safe" | "out" | "none";
+export type { MapMark } from "./minimap";
+export type Signal = "count" | "none";
 
-const SIGNAL: Record<Exclude<Signal, "count" | "none">, [string, string]> = {
-  go: ["play", "Waka"],
-  turning: ["eye", "She dey turn"],
-  stop: ["pause", "Freeze"],
-  back: ["refresh", "Small small"],
-  safe: ["flag", "You don cross"],
-  out: ["close", "Out"],
-};
-
-export interface MapDot {
-  x: number;
-  z: number;
-  out: boolean;
-  safe: boolean;
-  me: boolean;
-}
+const FEED_MS = 5000;
+const FEED_MAX = 5;
 
 export class Hud {
   readonly root = el("div", "hud");
   readonly pauseBtn = el("button", "ibtn glass");
   readonly viewBtn = el("button", "ibtn glass");
-  private readonly score = el("div", "score");
-  private readonly timer = el("b", "num");
-  private readonly timerRow = el("div", "r");
-  private readonly alive = el("b", "num");
-  private readonly dist = el("b", "num");
-  private readonly stam = el("div", "bar stam");
-  private readonly stamFill = el("i");
-  private readonly ping = el("div", "ping glass");
-  private readonly conn = el("div", "conn glass", "Reconnecting…");
-  private lastPing = -1;
-  private readonly signal = el("div", "none",);
-  private readonly sigIcon = el("span", "sig-ico");
-  private readonly sigText = el("span", "sig-text");
-  private readonly song = el("div", "song");
-  private readonly songTitle = el("span", "song-title");
-  private readonly songWords = el("div", "song-words");
-  private words: string[] | null = null;
-  private chips: HTMLElement[] = [];
-  private readonly mapBox = el("div", "minimap");
-  private readonly mapCanvas = el("canvas");
-  private readonly mapCtx: CanvasRenderingContext2D;
+  readonly settingsBtn = el("button", "ibtn glass");
+  readonly boardBtn = el("button", "ibtn glass");
+  readonly map: Minimap;
+  private readonly info = el("div", "minfo");
+  private readonly clock = el("b", "clock");
+  private readonly modeLine = el("span", "mline");
+  private readonly aliveLine = el("span", "mline");
+  private readonly runLine = el("span", "mline");
+  private readonly pingLine = el("span", "mline ping");
+  private readonly compass = el("div", "compass");
+  private readonly strip = el("div", "strip");
+  private readonly dollPin = el("i", "dollpin");
   private readonly feed = el("div", "feed");
-  private readonly hint = el("div", "hint glass");
+  private readonly conn = el("div", "conn", "Reconnecting…");
+  private readonly count = el("div", "bigcount");
   private readonly verdict = el("div", "verdict");
   private readonly vignette = el("div", "vignette");
   private readonly reticle = el("div", "reticle");
-  private accents: string[] = [];
   private course: Course = DEFAULT_COURSE;
-  private lastTimer = "";
+  private lastClock = "";
   private lastAlive = "";
-  private lastDist = "";
-  private lastSignal: Signal | "" = "";
-  private lastLit = -2;
+  private lastRun = "";
+  private lastPing = -1;
   private lastCount = -1;
-  private mapAt = 0;
+  private feedOn = true;
 
   constructor() {
-    this.pauseBtn.innerHTML = icon("pause", "", 20);
-    this.pauseBtn.setAttribute("aria-label", "Pause");
-    this.pauseBtn.dataset.ui = "1";
-    this.viewBtn.innerHTML = icon("fpv", "", 20);
-    this.viewBtn.setAttribute("aria-label", "Switch view");
-    this.viewBtn.dataset.ui = "1";
-
-    const row = (ico: string, label: string, value: HTMLElement) => {
-      const r = el("div", "r");
-      r.innerHTML = `${icon(ico, "", 12)}<span>${label}</span>`;
-      r.append(value);
-      return r;
+    const btn = (b: HTMLButtonElement, ico: string, label: string) => {
+      b.innerHTML = icon(ico, "", 18);
+      b.setAttribute("aria-label", label);
+      b.dataset.ui = "1";
     };
-    this.timerRow.innerHTML = `${icon("timer", "", 32)}<span>Time</span>`;
-    this.timerRow.append(this.timer);
-    this.stam.append(this.stamFill);
-    this.score.append(this.timerRow, row("people", "Alive", this.alive), row("flag", "Run", this.dist), this.stam);
-    this.stam.title = "Stamina";
+    btn(this.pauseBtn, "pause", "Pause");
+    btn(this.settingsBtn, "gear", "Settings");
+    btn(this.boardBtn, "people", "Scoreboard");
+    btn(this.viewBtn, "fpv", "First person");
 
-    const tl = el("div", "tr");
-    this.mapBox.append(this.mapCanvas);
-    tl.append(this.mapBox);
-    const tr = el("div", "tl");
-    tr.append(this.ping, this.score, this.viewBtn, this.pauseBtn);
-    this.ping.hidden = true;
-    this.ping.innerHTML = `<i class="dot on"></i><span></span>`;
+    const tl = el("div", "tl");
+    this.info.append(this.clock, this.modeLine, this.aliveLine, this.runLine, this.pingLine);
+    const row = el("div", "hbtns");
+    row.append(this.pauseBtn, this.settingsBtn, this.boardBtn, this.viewBtn);
+    tl.append(this.info, row);
+    this.pingLine.hidden = true;
+
+    // Compass: two turns of ticks, so any heading has the strip under it.
+    const marks: string[] = [];
+    for (let turn = 0; turn < 3; turn++) {
+      for (let d = 0; d < 360; d += 15) {
+        const label = d === 0 ? "N" : d === 90 ? "E" : d === 180 ? "S" : d === 270 ? "W" : d % 45 === 0 ? String(d) : "";
+        marks.push(`<i class="${label ? (label.length === 1 ? "cardinal" : "num") : "tick"}" style="left:${(turn * 360 + d) * 2}px">${label}</i>`);
+      }
+    }
+    this.strip.innerHTML = marks.join("");
+    this.compass.append(this.strip, this.dollPin, el("i", "caret"));
+    this.compass.setAttribute("aria-hidden", "true");
+
+    const tc = el("div", "tc");
+    tc.append(this.compass, this.feed, this.conn);
     this.conn.setAttribute("role", "status");
-    this.mapCtx = this.mapCanvas.getContext("2d")!;
 
-    this.signal.append(this.sigIcon, this.sigText);
-    this.signal.setAttribute("role", "status");
-    this.signal.setAttribute("aria-live", "assertive");
-    // this.song.append(this.songTitle, this.songWords);
-    this.song.setAttribute("aria-hidden", "true");
+    const tr = el("div", "tr");
+    this.map = new Minimap(this.root);
+    tr.append(this.map.root);
 
-    this.root.append(this.vignette, tl, tr, this.signal, this.song, this.feed, this.hint, this.conn, this.verdict, this.reticle);
+    this.count.setAttribute("aria-live", "assertive");
+    this.root.append(this.vignette, tl, tc, tr, this.count, this.verdict, this.reticle);
     this.show(false);
   }
 
   show(on: boolean): void {
     this.root.classList.toggle("visible", on);
+    if (!on) this.map.expand(false);
   }
 
-  reset(contestants: { accent: string; me: boolean }[]): void {
-    this.accents = contestants.map((c) => c.accent);
+  reset(_contestants: { accent: string; me: boolean }[]): void {
     this.feed.replaceChildren();
     this.verdict.className = "verdict";
     this.vignette.className = "vignette";
-    this.lastTimer = this.lastAlive = this.lastDist = "";
-    this.lastSignal = "";
-    this.lastLit = -2;
+    this.count.className = "bigcount";
+    this.lastClock = this.lastAlive = this.lastRun = "";
     this.lastCount = -1;
-    this.words = null;
-    this.setLyrics(null, -1);
-    this.sizeMap();
   }
 
-  private sizeMap(): void {
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
-    const r = this.mapBox.getBoundingClientRect();
-    const w = Math.max(60, Math.round((r.width || 92) * dpr));
-    const h = Math.max(80, Math.round((r.height || 132) * dpr));
-    if (this.mapCanvas.width !== w) this.mapCanvas.width = w;
-    if (this.mapCanvas.height !== h) this.mapCanvas.height = h;
-  }
-
-  /** The round's field: the minimap is drawn to it. */
+  /** The round's field: the minimap and the match line follow it. */
   setCourse(c: Course): void {
     this.course = c;
+    this.modeLine.textContent = `${MODE_NAME[c.mode]} · ${c.distance} m`;
+  }
+
+  setFeedOn(on: boolean): void {
+    this.feedOn = on;
+    this.feed.hidden = !on;
   }
 
   setFirstPerson(on: boolean): void {
     this.reticle.classList.toggle("visible", on);
-    this.viewBtn.innerHTML = icon(on ? "tpv" : "fpv", "", 20);
+    this.viewBtn.innerHTML = icon(on ? "tpv" : "fpv", "", 18);
     this.viewBtn.setAttribute("aria-label", on ? "Third person" : "First person");
   }
 
   /** Online rounds show the round trip; practice doesn't. */
   setOnline(on: boolean): void {
-    this.ping.hidden = !on;
+    this.pingLine.hidden = !on;
     this.lastPing = -1;
     if (!on) this.setConnection("ok");
   }
@@ -159,8 +137,7 @@ export class Hud {
     const v = Math.round(ms / 10) * 10;
     if (v === this.lastPing) return;
     this.lastPing = v;
-    (this.ping.lastElementChild as HTMLElement).textContent = ms <= 0 ? "…" : v < 10 ? "<10ms" : `${v}ms`;
-    this.ping.dataset.q = v < 150 ? "good" : v < 300 ? "ok" : "bad";
+    this.pingLine.textContent = ms <= 0 ? "… ms" : v < 10 ? "<10 ms" : `${v} ms`;
   }
 
   setConnection(state: "ok" | "reconnecting" | "lost"): void {
@@ -170,164 +147,87 @@ export class Hud {
 
   setTimer(seconds: number, urgent: boolean): void {
     const t = fmtTime(seconds);
-    if (t !== this.lastTimer) {
-      this.timer.textContent = t;
-      this.lastTimer = t;
+    if (t !== this.lastClock) {
+      this.clock.textContent = t;
+      this.lastClock = t;
     }
-    this.timerRow.classList.toggle("urgent", urgent);
+    this.clock.classList.toggle("urgent", urgent);
   }
 
   setAlive(n: number, total: number): void {
-    const t = `${n}/${total}`;
+    const t = `${n} / ${total} in`;
     if (t !== this.lastAlive) {
-      this.alive.textContent = t;
+      this.aliveLine.textContent = t;
       this.lastAlive = t;
     }
   }
 
   setDistance(progress01: number): void {
-    const t = `${Math.round(Math.max(0, Math.min(1, progress01)) * 100)}%`;
-    if (t !== this.lastDist) {
-      this.dist.textContent = t;
-      this.lastDist = t;
+    const m = Math.round(Math.max(0, Math.min(1, progress01)) * this.course.distance);
+    const t = `${m} / ${this.course.distance} m`;
+    if (t !== this.lastRun) {
+      this.runLine.textContent = t;
+      this.lastRun = t;
     }
-  }
-
-  setStamina(v: number, sprinting: boolean): void {
-    this.stamFill.style.width = `${Math.round(v * 100)}%`;
-    this.stam.classList.toggle("low", v < 0.2);
-    this.stam.classList.toggle("gold", sprinting);
-  }
-
-  /** Returns true when the visible countdown number changed (for the beep). */
-  setCountdown(n: number, frac: number): boolean {
-    const changed = n !== this.lastCount;
-    this.lastCount = n;
-    if (this.lastSignal !== "count") {
-      this.lastSignal = "count";
-      this.signal.className = "signal count visible";
-      this.sigIcon.innerHTML = `<span class="countring"><svg viewBox="0 0 28 28"><circle cx="14" cy="14" r="12" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="2"/><circle data-ring cx="14" cy="14" r="12" fill="none" stroke="#fff" stroke-width="2" stroke-dasharray="75.4" stroke-dashoffset="0"/></svg><b></b></span>`;
-    }
-    const b = this.sigIcon.querySelector("b");
-    const ring = this.sigIcon.querySelector<SVGCircleElement>("[data-ring]");
-    if (b && changed) b.textContent = n > 0 ? String(n) : "";
-    if (ring) ring.setAttribute("stroke-dashoffset", String(75.4 * (1 - frac)));
-    return changed;
-  }
-
-  setSignal(s: Signal): void {
-    if (s === this.lastSignal) return;
-    this.lastSignal = s;
-    if (s === "none" || s === "count") {
-      this.signal.className = "signal";
-      return;
-    }
-    const [ico, text] = SIGNAL[s];
-    this.sigIcon.innerHTML = icon(ico, "ico-pop", 18);
-    this.sigText.textContent = text;
-    this.signal.className = `signal ${s} visible`;
-    this.vignette.classList.toggle("watch", s === "stop");
-  }
-
-  setSongTitle(title: string): void {
-    this.songTitle.innerHTML = `${icon("music", "", 10)}<span></span>`;
-    (this.songTitle.lastElementChild as HTMLElement).textContent = title;
   }
 
   /**
-   * The line being sung, `lit` = index of the current word. `words` must be the
-   * same array for the same line (lyricsAt guarantees it), so chips are rebuilt
-   * only when the line changes. `held` greys it out: she has stopped singing.
+   * The compass: `yaw` is where the camera looks (0 = north, towards Mama).
+   * Mama's pin sits at her bearing from you.
    */
-  setLyrics(words: string[] | null, lit: number, held = false): void {
-    this.song.classList.toggle("visible", !!words);
-    this.song.classList.toggle("held", held);
-    if (!words) return;
-    if (words !== this.words) {
-      this.words = words;
-      this.chips = words.map((w) => el("i", "", w));
-      this.songWords.replaceChildren(...this.chips);
-      this.lastLit = -2;
-    }
-    if (lit === this.lastLit) return;
-    this.lastLit = lit;
-    this.chips.forEach((c, i) => c.classList.toggle("lit", i <= lit));
+  setCompass(yaw: number, me: { x: number; z: number }, doll: { x: number; z: number; watching: boolean }): void {
+    // The camera looks along (−sin yaw, −cos yaw): north (−z) at yaw 0, east (+x) at yaw −π/2.
+    const deg = (d: number) => ((d % 360) + 360) % 360;
+    const heading = deg((-yaw * 180) / Math.PI);
+    const w = this.compass.clientWidth || 260;
+    this.strip.style.transform = `translateX(${w / 2 - (360 + heading) * 2}px)`;
+    const bearing = deg((Math.atan2(doll.x - me.x, -(doll.z - me.z)) * 180) / Math.PI);
+    let rel = bearing - heading;
+    rel = ((rel + 540) % 360) - 180;
+    const x = w / 2 + rel * 2;
+    this.dollPin.style.transform = `translateX(${Math.max(4, Math.min(w - 4, x))}px)`;
+    this.dollPin.classList.toggle("edge", Math.abs(rel * 2) > w / 2);
+    this.dollPin.classList.toggle("watch", doll.watching);
   }
 
-  /** The minimap: the street from above, Mama at the top, everyone as a dot. */
-  setMap(dots: MapDot[], meHeading: number, watching: boolean): void {
-    const now = performance.now();
-    if (now - this.mapAt < 66) return; // 15 Hz is plenty
-    this.mapAt = now;
-    const g = this.mapCtx;
-    const W = this.mapCanvas.width;
-    const H = this.mapCanvas.height;
-    const pad = W * 0.1;
-    const C = this.course;
-    const zTop = C.dollZ - 2;
-    const zBot = C.backLimitZ + 1;
-    const X = (x: number) => W / 2 + (x / (C.halfWidth + 1.5)) * (W / 2 - pad);
-    const Z = (z: number) => pad + ((z - zTop) / (zBot - zTop)) * (H - 2 * pad);
-    g.clearRect(0, 0, W, H);
-    // Street.
-    g.fillStyle = "rgba(255,255,255,0.06)";
-    g.fillRect(X(-C.halfWidth), Z(zTop), X(C.halfWidth) - X(-C.halfWidth), Z(zBot) - Z(zTop));
-    // Start and finish lines.
-    g.fillStyle = "rgba(255,255,255,0.7)";
-    g.fillRect(X(-C.halfWidth), Z(0), X(C.halfWidth) - X(-C.halfWidth), Math.max(1, H * 0.006));
-    g.fillStyle = "#ffd700";
-    g.fillRect(X(-C.halfWidth), Z(C.finishZ), X(C.halfWidth) - X(-C.halfWidth), Math.max(1.5, H * 0.01));
-    // Mama.
-    g.fillStyle = watching ? "#b71c1c" : "#ffffff";
-    g.beginPath();
-    g.arc(X(0), Z(C.dollZ), W * 0.06, 0, Math.PI * 2);
-    g.fill();
-    const r = W * 0.035;
-    for (const d of dots) {
-      if (d.me) continue;
-      g.globalAlpha = d.out ? 0.3 : 1;
-      g.fillStyle = d.safe ? "#00a865" : "#ffffff";
-      g.beginPath();
-      g.arc(X(d.x), Z(d.z), r, 0, Math.PI * 2);
-      g.fill();
-    }
-    g.globalAlpha = 1;
-    const me = dots.find((d) => d.me);
-    if (me) {
-      // You: an arrow pointing where you face.
-      const cx = X(me.x);
-      const cy = Z(me.z);
-      const s = W * 0.07;
-      g.save();
-      g.translate(cx, cy);
-      g.rotate(-meHeading + Math.PI);
-      g.fillStyle = me.out ? "#808080" : "#00a865";
-      g.strokeStyle = "#ffffff";
-      g.lineWidth = Math.max(1, W * 0.012);
-      g.beginPath();
-      g.moveTo(0, -s);
-      g.lineTo(s * 0.7, s * 0.7);
-      g.lineTo(0, s * 0.35);
-      g.lineTo(-s * 0.7, s * 0.7);
-      g.closePath();
-      g.fill();
-      g.stroke();
-      g.restore();
-    }
-    void this.accents;
+  /** The minimap and, when open, the full map. */
+  setMap(me: { x: number; z: number; heading: number; out: boolean }, marks: readonly MapMark[], doll: { x: number; z: number; watching: boolean }, yaw: number): void {
+    this.map.draw(me, marks, doll, yaw);
   }
 
+  /** Countdown: big numbers, nothing else (SPEC-V2 §1.3). Returns true when the number changed. */
+  setCountdown(n: number, _frac: number): boolean {
+    const changed = n !== this.lastCount;
+    this.lastCount = n;
+    if (changed) {
+      this.count.textContent = n > 0 ? String(n) : "";
+      this.count.className = "bigcount";
+      if (n > 0) {
+        void this.count.offsetWidth;
+        this.count.className = "bigcount pulse";
+      }
+    }
+    return changed;
+  }
+
+  setSignal(_s: Signal): void {
+    this.count.className = "bigcount";
+    this.count.textContent = "";
+    this.lastCount = -1;
+  }
+
+  /**
+   * The kill feed and activity feed (top centre): text only, slides in, gone
+   * after 5 s. `kind` only changes the small mark before the text.
+   */
   pushFeed(text: string, kind: "out" | "safe" | "info" = "info"): void {
-    const item = el("div", `feed-item ${kind}`, text);
+    if (!this.feedOn) return;
+    const item = el("div", `feed-item ${kind}`);
+    item.textContent = text;
     this.feed.prepend(item);
-    while (this.feed.children.length > 4) this.feed.lastElementChild?.remove();
-    setTimeout(() => item.classList.add("gone"), 2600);
-    setTimeout(() => item.remove(), 3200);
-  }
-
-  setHint(text: string | null): void {
-    this.hint.textContent = text ?? "";
-    this.hint.classList.toggle("visible", !!text);
+    while (this.feed.children.length > FEED_MAX) this.feed.lastElementChild?.remove();
+    setTimeout(() => item.classList.add("gone"), FEED_MS);
+    setTimeout(() => item.remove(), FEED_MS + 450);
   }
 
   showVerdict(kind: "out" | "safe" | "time" | "noball"): void {

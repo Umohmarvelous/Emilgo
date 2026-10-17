@@ -215,13 +215,14 @@ export const BALL_STRIDE = 3;
 
 /**
  * The snapshot flags word: stance (2 bits) | sprinting << 2 | stamina 0–31 << 3
- * | stunned << 8 | action << 9 (combat.ts ACT_CODES: 1 fist, 2 slap, 3 push, 4 grab).
+ * | stunned << 8 | action << 9 (combat.ts ACT_CODES: 1 fist, 2 slap, 3 push, 4 grab)
+ * | sliding << 12.
  */
-export function packFlags(stance: number, sprinting: boolean, stamina: number, stunned = false, act = 0): number {
-  return (stance & 3) | (sprinting ? 4 : 0) | (Math.round(Math.max(0, Math.min(1, stamina)) * 31) << 3) | (stunned ? 256 : 0) | ((act & 7) << 9);
+export function packFlags(stance: number, sprinting: boolean, stamina: number, stunned = false, act = 0, sliding = false): number {
+  return (stance & 3) | (sprinting ? 4 : 0) | (Math.round(Math.max(0, Math.min(1, stamina)) * 31) << 3) | (stunned ? 256 : 0) | ((act & 7) << 9) | (sliding ? 4096 : 0);
 }
-export function unpackFlags(f: number): { stance: 0 | 1 | 2; sprinting: boolean; stamina: number; stunned: boolean; act: number } {
-  return { stance: Math.min(2, f & 3) as 0 | 1 | 2, sprinting: (f & 4) !== 0, stamina: ((f >> 3) & 31) / 31, stunned: (f & 256) !== 0, act: (f >> 9) & 7 };
+export function unpackFlags(f: number): { stance: 0 | 1 | 2; sprinting: boolean; stamina: number; stunned: boolean; act: number; sliding: boolean } {
+  return { stance: Math.min(2, f & 3) as 0 | 1 | 2, sprinting: (f & 4) !== 0, stamina: ((f >> 3) & 31) / 31, stunned: (f & 256) !== 0, act: (f >> 9) & 7, sliding: (f & 4096) !== 0 };
 }
 export const STATUS_CHAR = { alive: "a", finished: "f", eliminated: "e" } as const;
 export const CAUSES: readonly Cause[] = ["moved", "time", "noball"];

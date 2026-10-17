@@ -1,7 +1,7 @@
 // Touch, mouse and keyboard.
 //
-// Sticks (the brief: 120 px, 1 px solid white, a centre dot, no text, 10% dead
-// zone, 0.4 idle / 0.8 active):
+// Sticks (SPEC-V2 §3.3, §4: 1 px solid white, a centre dot, no text, a 10%
+// dead zone; size and opacity in Settings):
 //   move   left half — appears wherever the thumb lands, gone when it lifts;
 //          a small push walks, a full push runs; LET GO = FREEZE; a quick
 //          double-tap of the stick starts a sprint
@@ -9,14 +9,16 @@
 //          drawn always or only while touched (settings)
 // "Swap sticks" mirrors the halves and the buttons.
 //
-// Buttons (bottom right): jump, crouch (tap; hold for prone), sprint (toggle),
-// emote (hold for the wheel), chat. Bottom centre, only when they apply
-// (SPEC-V2 §2.4, icons only): fist, slap and push with someone within 2 m;
-// grab with a free ball within reach.
+// Buttons, icons only (SPEC-V2 §3.1): sprint above the move stick, with your
+// stamina round it (toggle, hold or auto, in Settings); bottom right jump,
+// crouch (tap; hold for prone; while sprinting: a slide), emote (hold for the
+// wheel), chat and quick chat. Bottom centre, only when they apply (§2.4):
+// fist, slap and push with someone within 2 m; grab with a free ball in reach.
 //
 // Keyboard: WASD/arrows move, Shift sprint, Space jump, C crouch (hold: prone),
-// V first person, Q/E look, T chat, G emotes, 1/2/3 fist/slap/push, F grab,
-// Esc/P pause. Nothing is hover-only (Lagos Life review checklist §03).
+// V first person, Q/E look, T chat, G emotes, Y quick chat, 1/2/3 fist/slap/
+// push, F grab, Tab scoreboard (hold), M map, K kill feed, Esc/P pause.
+// Nothing is hover-only (Lagos Life review checklist §03).
 
 import { ATTACK_KINDS, type AttackKind, type Stance } from "../config";
 import { icon } from "../ui/icons";
@@ -26,7 +28,7 @@ export interface Vec2 {
   y: number;
 }
 
-const RADIUS = 60; // px: the stick's radius (120 px across)
+const SIZES = { small: 100, medium: 120, large: 144 } as const;
 const DEAD = 0.1;
 const DOUBLE_TAP_MS = 320;
 const PRONE_HOLD_MS = 420;
@@ -58,6 +60,8 @@ export class Controls {
   attacks = 0;
   grabs = 0;
   readonly actions: HTMLDivElement;
+  /** Above the move stick: sprint, with your stamina round it (SPEC-V2 §3.2). */
+  readonly moveSide: HTMLDivElement;
   /** The bottom-centre buttons (fist, slap, push, grab), shown only when they apply. */
   readonly vitals: HTMLDivElement;
   private readonly attackBtns: HTMLButtonElement[] = [];
@@ -67,6 +71,12 @@ export class Controls {
   private readonly crouchBtn: HTMLButtonElement;
   private readonly sprintBtn: HTMLButtonElement;
   private readonly emoteBtn: HTMLButtonElement;
+  readonly quickBtn: HTMLButtonElement;
+  private readonly stamRing: SVGCircleElement;
+  /** The stick's radius in px (Settings: small, medium, large). */
+  private radius = 60;
+  private sprintMode: "toggle" | "hold" | "auto" = "toggle";
+  private autoSprint = false;
   private readonly keys = new Set<string>();
   private readonly sticks: { move: StickState; look: StickState };
   private firstInput: (() => void) | null = null;
@@ -78,6 +88,10 @@ export class Controls {
   onPauseKey: (() => void) | null = null;
   onFirstPerson: (() => void) | null = null;
   onChat: (() => void) | null = null;
+  onQuick: (() => void) | null = null;
+  onScoreboard: ((open: boolean) => void) | null = null;
+  onMap: (() => void) | null = null;
+  onFeed: (() => void) | null = null;
   /** Emote wheel: open (with the pointer id) and closed. */
   onWheel: ((open: boolean, x: number, y: number) => void) | null = null;
   onWheelMove: ((x: number, y: number) => void) | null = null;
@@ -93,22 +107,30 @@ export class Controls {
     // Action buttons.
     this.actions = document.createElement("div");
     this.actions.className = "actions";
-    const btn = (cls: string, ico: string, label: string, aria: string) => {
+    const btn = (cls: string, ico: string, aria: string) => {
       const b = document.createElement("button");
       b.className = `abtn ${cls}`;
       b.dataset.ui = "1";
       b.setAttribute("aria-label", aria);
-      b.innerHTML = `${icon(ico, "", cls === "jump" ? 26 : 22)}<small>${label}</small>`;
+      // Icons only: no words on the game screen (SPEC-V2 §3.6).
+      b.innerHTML = icon(ico, "", cls === "jump" ? 26 : 22);
       this.actions.append(b);
       return b;
     };
-    this.sprintBtn = btn("sprint", "sprint", "SPRINT", "Sprint");
-    this.emoteBtn = btn("emote", "emote", "", "Emotes (hold)");
-    this.chatBtn = btn("chat", "chat", "", "Chat");
+    this.sprintBtn = btn("sprint", "sprint", "Sprint");
+    this.emoteBtn = btn("emote", "emote", "Emotes (hold)");
+    this.chatBtn = btn("chat", "chat", "Chat");
+    this.quickBtn = btn("quick", "ping", "Quick chat");
     this.chatBtn.insertAdjacentHTML("beforeend", `<i class="dot-badge"></i>`);
-    this.crouchBtn = btn("crouch", "crouch", "CROUCH", "Crouch (hold to lie down)");
-    this.jumpBtn = btn("jump", "jump", "JUMP", "Jump");
+    this.crouchBtn = btn("crouch", "crouch", "Crouch (hold to lie down)");
+    this.jumpBtn = btn("jump", "jump", "Jump");
     this.chatBtn.hidden = true;
+    // Your stamina, round the sprint button.
+    this.sprintBtn.insertAdjacentHTML("beforeend", `<svg class="stam-ring" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="30" /></svg>`);
+    this.stamRing = this.sprintBtn.querySelector("circle")!;
+    this.moveSide = document.createElement("div");
+    this.moveSide.className = "mside";
+    this.moveSide.append(this.sprintBtn);
 
     this.vitals = document.createElement("div");
     this.vitals.className = "vitals";
@@ -149,7 +171,12 @@ export class Controls {
     press(this.jumpBtn, () => this.jump());
     ATTACK_KINDS.forEach((k, i) => press(this.attackBtns[i], () => this.attack(k)));
     press(this.grabBtn, () => this.grab());
-    press(this.sprintBtn, () => this.setSprint(!this.sprint));
+    press(
+      this.sprintBtn,
+      () => (this.sprintMode === "hold" ? this.setSprint(true) : this.setSprint(!this.sprint)),
+      () => this.sprintMode === "hold" && this.setSprint(false),
+    );
+    this.quickBtn.addEventListener("click", () => this.onQuick?.());
     press(
       this.crouchBtn,
       () => {
@@ -196,12 +223,40 @@ export class Controls {
     this.leftHanded = leftHanded;
     this.lookAlways = lookAlways;
     this.actions.classList.toggle("lefty", leftHanded);
+    this.moveSide.classList.toggle("lefty", leftHanded);
     this.placeLookHome();
+  }
+
+  /** Stick size and opacity (Settings), and how sprint works. */
+  setStyle(size: keyof typeof SIZES, opacity: number, sprintMode: "toggle" | "hold" | "auto"): void {
+    const px = SIZES[size];
+    this.radius = px / 2;
+    for (const s of [this.sticks.move, this.sticks.look]) {
+      s.el.style.setProperty("--stick", `${px}px`);
+      s.el.style.setProperty("--stick-o", String(opacity));
+    }
+    this.sprintMode = sprintMode;
+    this.autoSprint = sprintMode === "auto";
+  }
+
+  /** Stamina 0…1: the ring round the sprint button and the bar above the move stick. */
+  setStamina(v: number, sprinting: boolean): void {
+    const c = 188.5; // 2π × 30
+    this.stamRing.style.strokeDashoffset = String(c * (1 - v));
+    this.sprintBtn.classList.toggle("low", v < 0.2);
+    const bar = this.sticks.move.el.querySelector<HTMLElement>(".bar");
+    if (bar) {
+      bar.style.setProperty("--v", String(v));
+      bar.classList.toggle("show", sprinting || v < 0.999);
+    }
   }
 
   /** Show or hide the in-play buttons (they never show on menus). */
   showActions(on: boolean): void {
     this.actions.hidden = !on;
+    // Off, the chat button may still stand alone (rooms, results): .play marks the full set.
+    this.actions.classList.toggle("play", on);
+    this.moveSide.hidden = !on;
     this.vitals.hidden = !on;
     if (!on) this.setNear(false, false);
     this.placeLookHome();
@@ -231,7 +286,8 @@ export class Controls {
     this.stance = s;
     if (s > 0) this.setSprint(false);
     this.crouchBtn.classList.toggle("on", s > 0);
-    this.crouchBtn.innerHTML = `${icon(s === 2 ? "prone" : "crouch", "", 22)}<small>${s === 2 ? "PRONE" : "CROUCH"}</small>`;
+    this.crouchBtn.innerHTML = icon(s === 2 ? "prone" : "crouch", "", 22);
+    this.crouchBtn.setAttribute("aria-label", s === 2 ? "Lying down (tap to stand)" : "Crouch (hold to lie down)");
   }
 
   jump(): void {
@@ -274,6 +330,11 @@ export class Controls {
     if (!this.enabled) mx = my = 0;
     this.move.x = mx;
     this.move.y = my;
+    // Auto-sprint: a full push sprints while stamina lasts (the button still toggles it).
+    if (this.autoSprint && this.stance === 0) {
+      const full = Math.hypot(mx, my) > 0.95;
+      if (full !== this.sprint && !this.shiftSprint) this.setSprint(full);
+    }
     // A stop ends a sprint: the next run starts as a run.
     if (!mx && !my && this.sprint && !this.shiftSprint) this.setSprint(false);
     m.el.classList.toggle("sprint", this.sprint && m.id !== null);
@@ -372,17 +433,18 @@ export class Controls {
       let dx = e.clientX - s.ox;
       let dy = e.clientY - s.oy;
       const d = Math.hypot(dx, dy);
-      if (d > RADIUS) {
+      const R = this.radius;
+      if (d > R) {
         // Drag the base along: the thumb never runs out of stick.
-        const pull = d - RADIUS;
+        const pull = d - R;
         s.ox += (dx / d) * pull;
         s.oy += (dy / d) * pull;
         dx = e.clientX - s.ox;
         dy = e.clientY - s.oy;
         s.el.style.transform = `translate(${s.ox}px, ${s.oy}px)`;
       }
-      const nx = dx / RADIUS;
-      const ny = -dy / RADIUS; // screen up = forward
+      const nx = dx / R;
+      const ny = -dy / R; // screen up = forward
       const mag = Math.min(1, Math.hypot(nx, ny));
       if (mag < DEAD) {
         s.x = s.y = 0;
@@ -436,6 +498,13 @@ export class Controls {
     else if (k === "g") this.onWheel?.(true, window.innerWidth / 2, window.innerHeight / 2);
     else if (k === "1" || k === "2" || k === "3") this.attack(ATTACK_KINDS[Number(k) - 1]);
     else if (k === "f") this.grab();
+    else if (k === "y") this.onQuick?.();
+    else if (k === "m") this.onMap?.();
+    else if (k === "k") this.onFeed?.();
+    else if (k === "tab") {
+      e.preventDefault();
+      this.onScoreboard?.(true);
+    }
     this.keys.add(k);
   };
 
@@ -443,6 +512,7 @@ export class Controls {
     const k = e.key.toLowerCase();
     this.keys.delete(k);
     if (!this.enabled) return;
+    if (k === "tab") this.onScoreboard?.(false);
     if (k === "shift") {
       this.shiftSprint = false;
       this.setSprint(false);

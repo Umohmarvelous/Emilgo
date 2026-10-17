@@ -466,6 +466,7 @@ export class OnlineRound implements RoundView {
       c.sprinting = fl.sprinting;
       // Stagger and swings come as events; the snapshot keeps the stagger honest.
       c.stun = fl.stunned ? 0.1 : 0;
+      c.slide = fl.sliding ? 0.1 : 0;
     }
   }
 }

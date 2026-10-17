@@ -50,6 +50,13 @@ export interface Settings {
   distance: Distance;
   /** Light / dark mode (SPEC-V2 §6.4): full daylight, full night, or the map's own sky. */
   lightMode: "auto" | "light" | "dark";
+  /** Controls (SPEC-V2 §4, §7.5): stick size and opacity, how sprint works. */
+  stickSize: "small" | "medium" | "large";
+  stickOpacity: number;
+  sprintMode: "toggle" | "hold" | "auto";
+  /** HUD: the minimap's size, and whether the kill feed shows. */
+  mapSize: "small" | "medium" | "large";
+  killFeed: boolean;
   tutorialSeen: boolean;
   best: number;
   played: number;
@@ -76,8 +83,9 @@ export function defaults(host: Host): Settings {
     autoCam: false,
     leftHanded: false,
     lookStick: "touch",
-    sensH: 0.35,
-    sensV: 0.25,
+    // Reduced sensitivity: 0.3 of the maximum (SPEC-V2 §4.2).
+    sensH: 0.3,
+    sensV: 0.3,
     invertY: false,
     firstPerson: false,
     graphics: "auto",
@@ -87,7 +95,7 @@ export function defaults(host: Host): Settings {
     chat: true,
     lobbyPose: "relaxed",
     wheel: [...DEFAULT_WHEEL],
-    map: "lagos-street",
+    map: "desert-field",
     tutorialSeen: false,
     best: 0,
     played: 0,
@@ -98,6 +106,11 @@ export function defaults(host: Host): Settings {
     mode: "classic",
     distance: DEFAULT_DISTANCE,
     lightMode: "auto",
+    stickSize: "medium",
+    stickOpacity: 0.8,
+    sprintMode: "toggle",
+    mapSize: "medium",
+    killFeed: true,
   };
 }
 
@@ -111,12 +124,17 @@ export function loadSettings(host: Host): Settings {
     for (const k of Object.keys(base) as (keyof Settings)[]) {
       if (typeof saved[k] === typeof base[k] && !Array.isArray(base[k])) (out as Record<string, unknown>)[k] = saved[k];
     }
-    if (out.song !== "shuffle" && !SONG_IDS.includes(out.song)) out.song = base.song;
+    // One song now: whatever an older save chose becomes it.
+    out.song = SONG_IDS[0];
     if (!["auto", "low", "medium", "high"].includes(out.graphics)) out.graphics = base.graphics;
     if (out.lookStick !== "always" && out.lookStick !== "touch") out.lookStick = base.lookStick;
     if (!MODES.includes(out.mode)) out.mode = base.mode;
     if (!DISTANCES.includes(out.distance)) out.distance = base.distance;
     if (!["auto", "light", "dark"].includes(out.lightMode)) out.lightMode = base.lightMode;
+    if (!["small", "medium", "large"].includes(out.stickSize)) out.stickSize = base.stickSize;
+    if (!["small", "medium", "large"].includes(out.mapSize)) out.mapSize = base.mapSize;
+    if (!["toggle", "hold", "auto"].includes(out.sprintMode)) out.sprintMode = base.sprintMode;
+    out.stickOpacity = clamp(out.stickOpacity, 0.3, 1);
     out.sensH = clamp(out.sensH, 0.05, 1);
     out.sensV = clamp(out.sensV, 0.05, 1);
     out.look = cleanLook(saved.look);

@@ -385,6 +385,31 @@ console.log("\nbodies (no fight without a tap):");
   check(overlap < 0.05, `nobody runs through anybody (worst overlap ${(overlap * 100).toFixed(1)} cm)`);
 }
 
+console.log("\nthe slide:");
+{
+  const c = runner();
+  c.inZ = -1;
+  c.inSprint = true;
+  steps(c, 1);
+  const z0 = c.z;
+  c.inStance = 1; // crouch while sprinting
+  moveContestant(c, DT);
+  check(c.slide > 0 && c.stance === 1 && !c.sprinting, "crouching out of a sprint starts a slide");
+  c.inX = 1; // try to steer
+  const hx = Math.sign(c.vx);
+  steps(c, MOVE.slideTime * 0.5);
+  check(Math.sign(c.vx) === hx && isMoving(c), "no steering during a slide, and it counts as moving");
+  steps(c, MOVE.slideTime);
+  const slid = z0 - c.z;
+  check(c.slide === 0 && c.stance === 1 && slid > 4, `then you're crouched, ${slid.toFixed(1)} m on`);
+  const w = runner();
+  w.inZ = -1;
+  steps(w, 1);
+  w.inStance = 1; // crouch from a plain run: no slide
+  moveContestant(w, DT);
+  check(w.slide === 0, "crouching from a run is just a crouch");
+}
+
 console.log("\nthe warning hum:");
 {
   // Many rounds' worth of her cycle: every turn is warned; some hums are fake.

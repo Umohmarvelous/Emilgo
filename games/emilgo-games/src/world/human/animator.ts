@@ -126,6 +126,8 @@ export interface AnimState {
   carryW: number;
   hitT: number;
   hitSide: number;
+  /** 0 … 1: sliding (sprint, then crouch). */
+  slide: number;
   pose: PoseId | null;
   /** Where to look, relative to the body (radians). */
   lookYaw: number;
@@ -156,6 +158,7 @@ export function newAnimState(seed: number): AnimState {
     carryW: 0,
     hitT: 0,
     hitSide: 0,
+    slide: 0,
     pose: null,
     lookYaw: 0,
     lookPitch: 0,
@@ -347,6 +350,25 @@ export function computePose(a: AnimState, out: Pose): void {
     _emote.curlR = out.curlR;
     emotePose(a.emote, e, _emote);
     out.blendUpper(_emote, Math.max(0, w));
+  }
+
+  // ── Sliding: low, leaning back, the front leg out, the back one folded ──
+  if (a.slide > 0.01) {
+    const w = a.slide;
+    out.hipsY = lerp(out.hipsY, -0.42, w);
+    out.set("thighL", lerp(out.get("thighL", 0), -1.25, w), 0, out.get("thighL", 2));
+    out.set("shinL", lerp(out.get("shinL", 0), 0.15, w));
+    out.set("footL", lerp(out.get("footL", 0), -0.2, w));
+    out.set("thighR", lerp(out.get("thighR", 0), -0.35, w), 0, out.get("thighR", 2));
+    out.set("shinR", lerp(out.get("shinR", 0), 1.9, w));
+    out.set("footR", lerp(out.get("footR", 0), 0.4, w));
+    out.set("spine", lerp(out.get("spine", 0), -0.35, w));
+    out.set("chest", lerp(out.get("chest", 0), -0.15, w));
+    out.set("head", lerp(out.get("head", 0), 0.3, w));
+    out.set("upperArmL", lerp(out.get("upperArmL", 0), 0.6, w), 0, lerp(out.get("upperArmL", 2), 0.5, w));
+    out.set("upperArmR", lerp(out.get("upperArmR", 0), -0.9, w), 0, lerp(out.get("upperArmR", 2), -0.2, w));
+    out.set("foreArmL", lerp(out.get("foreArmL", 0), -0.3, w));
+    out.set("foreArmR", lerp(out.get("foreArmR", 0), -0.8, w));
   }
 
   // ── Carrying a ball: both hands round it, in front of the chest ──

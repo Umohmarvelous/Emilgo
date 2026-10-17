@@ -7,7 +7,7 @@
 // into innerHTML. Text is white or black; nothing is bigger than 16px; no emoji.
 
 import { DISTANCES, MODES, MODE_NAME, NET, STAKED, TIME_LIMIT, ballCount } from "../config";
-import { SONG_IDS, SONGS } from "../audio/songs";
+import { CONTROLS, RLGL_CONTROLS, unusedReason } from "../input/actions";
 import type { ChallengeDef } from "../game/progress";
 import { CATEGORIES, MAPS, SKY_LABEL, SKY_STATES, mapOf, thumbSvg, type MapCategory, type SkyState } from "../maps/registry";
 import type { RoomInfo } from "../net/protocol";
@@ -378,18 +378,11 @@ export class Screens {
   }
 
   loadout(s: Settings): void {
-    const song = (id: Settings["song"], title: string, blurb: string) =>
-      `<button class="md ${s.song === id ? "on" : ""}" data-act="song" data-song="${id}">${icon("music", "", 18)}<span class="grow"><b>${esc(title)}</b><small>${esc(blurb)}</small></span></button>`;
     this.sheet(
       "loadout",
       "Loadout",
       `<div class="label" style="margin-bottom:8px">Lobby pose</div>
        <div class="grid">${POSES.map((p) => `<button class="tile ${s.lobbyPose === p.id ? "on" : ""}" data-act="pose" data-id="${p.id}">${icon("pose", "", 24)}<span class="t">${esc(p.label)}</span></button>`).join("")}</div>
-       <div style="display: flex; align-items: center; flex-direction: column">
-        <div class="label" style="margin: 50px 0 10px 0; ">Mama's song</div>
-        <p class="note" style="width: 320px; text-align: center;">She can stop any song at any moment. The music never warns you: watch her, not the beat.</p>
-        <div class="list">${SONG_IDS.map((id) => song(id, SONGS[id].title, SONGS[id].blurb)).join("")}${song("shuffle", "Shuffle", "A different song every round.")}</div>
-       </div>
        <button class="md" style="margin: auto" data-act="emotes">${icon("wheel", "", 18)}<span class="grow" ><b>Edit the wheel</b><small>${s.wheel.map((id) => EMOTE_BY_ID[id].label).join(" · ")}</small></span>${icon("next", "", 16)}</button>`,
     );
   }
@@ -561,8 +554,8 @@ export class Screens {
         <span class="switch"><input type="checkbox" data-act="toggle" data-key="${key}" ${s[key] ? "checked" : ""} /><i></i></span></label>`;
     const seg = (key: string, cur: string, opts: [string, string][]) =>
       `<span class="seg">${opts.map(([v, l]) => `<button class="${cur === v ? "on" : ""}" data-act="set" data-key="${key}" data-val="${v}">${l}</button>`).join("")}</span>`;
-    const range = (key: "sensH" | "sensV", label: string, sub: string) =>
-      `<div class="row-set"><span class="lbl"><b>${label}</b><small>${sub}</small></span><input class="slider" type="range" min="5" max="100" step="1" value="${Math.round(s[key] * 100)}" data-act="range" data-key="${key}" aria-label="${label}" /></div>`;
+    const range = (key: "sensH" | "sensV" | "stickOpacity", label: string, sub: string) =>
+      `<div class="row-set"><span class="lbl"><b>${label}</b><small>${sub}</small></span><input class="slider" type="range" min="${key === "stickOpacity" ? 30 : 5}" max="100" step="1" value="${Math.round(s[key] * 100)}" data-act="range" data-key="${key}" aria-label="${label}" /></div>`;
     const tabs = [
       ["graphics", "Graphics", "graphics"],
       ["audio", "Audio", "sound"],
@@ -578,18 +571,28 @@ export class Screens {
         <div class="row-set"><span class="lbl"><b>Light / dark mode</b><small>Light: full daylight, street lights off. Dark: full night, street lights and neon on</small></span>${seg("lightMode", s.lightMode, [["auto", "Map"], ["light", "Light"], ["dark", "Dark"]])}</div>
         <p class="note" style="margin-top:10px">Low: no shadows, 2D clouds, lightest on battery, 30 fps on menus. Medium: shadows, sharper people and textures. High: full shadows, volumetric clouds, real reflections in puddles, glow and colour grading. Auto picks for your phone and adjusts the sharpness as you play.</p>`;
     } else if (tab === "audio") {
-      body = `${sw("sound", "Sound effects")}${sw("music", "Mama's singing", "The words still show on screen when off")}${sw("haptics", "Vibration")}`;
+      body = `${sw("sound", "Sound effects")}${sw("music", "The doll's song", "Her warning hum still plays when off")}${sw("haptics", "Vibration")}`;
     } else if (tab === "controls") {
       body = `${sw("leftHanded", "Swap sticks", "Move on the right, look on the left")}
         <div class="row-set"><span class="lbl"><b>Look stick</b><small>Always drawn, or only while touched</small></span>${seg("lookStick", s.lookStick, [["touch", "On touch"], ["always", "Always"]])}</div>
+        <div class="row-set"><span class="lbl"><b>Stick size</b></span>${seg("stickSize", s.stickSize, [["small", "Small"], ["medium", "Medium"], ["large", "Large"]])}</div>
+        ${range("stickOpacity", "Stick opacity", "How solid the sticks look while you hold them")}
+        <div class="row-set"><span class="lbl"><b>Sprint</b><small>Toggle: tap on, tap off. Hold: sprint while held. Auto: a full push sprints</small></span>${seg("sprintMode", s.sprintMode, [["toggle", "Toggle"], ["hold", "Hold"], ["auto", "Auto"]])}</div>
         ${range("sensH", "Look sensitivity, sideways", "Lower is calmer")}
         ${range("sensV", "Look sensitivity, up and down", "Lower is calmer")}
         ${sw("invertY", "Invert look up and down")}
         ${sw("autoCam", "Camera drifts back behind you", "Off: the camera stays where you leave it")}
         ${sw("firstPerson", "Start in first person", "Switch any time with the eye button")}
-        <p class="note" style="margin-top:10px">Keyboard: WASD to move, Shift to sprint, Space to jump, C to crouch (hold for prone), V for first person, Q/E or the mouse drag to look, T to chat, G for emotes, Esc to pause.</p>`;
+        <div class="label" style="margin:14px 0 6px">All controls</div>
+        <ul class="list ctl-list">${CONTROLS.map((c) => {
+          const used = RLGL_CONTROLS.has(c.id);
+          return `<li class="li${used ? "" : " off"}">${icon(c.icon, "", 18)}<span class="grow"><b>${esc(c.label)}</b><small>${esc(used ? c.touch : unusedReason(c.id))}</small></span>${used && c.key ? `<span class="key">${esc(c.key)}</span>` : ""}</li>`;
+        }).join("")}</ul>
+        <p class="note" style="margin-top:10px">Also: WASD or the arrows to move, Q/E or a mouse drag to look, V for first person, Esc to pause.</p>`;
     } else if (tab === "game") {
-      body = `${sw("blood", "Blood effects", "Off shows dust instead")}${sw("shake", "Screen shake")}${sw("chat", "Online chat", "Waiting rooms and results. Tap a message to mute, block or report")}`;
+      body = `${sw("blood", "Blood effects", "Off shows dust instead")}${sw("shake", "Screen shake")}${sw("killFeed", "Kill feed", "Who was eliminated, top centre")}
+        <div class="row-set"><span class="lbl"><b>Minimap size</b><small>Tap the minimap in a round for the full map</small></span>${seg("mapSize", s.mapSize, [["small", "Small"], ["medium", "Medium"], ["large", "Large"]])}</div>
+        ${sw("chat", "Online chat", "Waiting rooms and results. Tap a message to mute, block or report")}`;
     } else {
       body = `<div class="li"><span class="avatar" style="width:36px;height:36px">${icon("user", "", 18)}</span><span class="grow"><b data-name></b><small>Your name comes from the app you play in</small></span></div>
         <div class="row-set"><span class="lbl"><b>Level</b><small>Earned by playing; kept on this device</small></span><span class="num">${s.xp} XP</span></div>

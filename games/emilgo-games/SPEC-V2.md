@@ -30,13 +30,17 @@ Change any of these by saying so.
 | Desert field (§6.1) vs 24 maps | A new **Desert Field** replaces Desert Dunes (Wild) and is the default. The other 23 maps stay playable with the same doll, lasers, balls, baskets and potholes. | §6.1 and §7.6 together. |
 | Weather | Five states: sunny, rainy, sunset, sunrise, night. Light/dark mode switches any map between its day state and night. | §6.2, §6.4, §10. |
 | Removed (§3.6, §5.3, §10) | Heat shimmer; snow, ash, embers, storm and lightning, fog banks, dust motes, light shafts, wind sway on plants; the giant traffic lights; on-screen words (waka, freeze), song name, lyrics. A faint fade stays at the far edge only, so distant objects don't pop in. | Not approved. |
-| The song | One original Nigerian lullaby. No words or title on screen. The song picker and the other two songs go. | §2.2. |
+| The song | **Changed by the owner (17 Oct 2026):** "the original Red Light, Green Light song". She sings the traditional Korean playground call "Mugunghwa kkochi pieotseumnida" (public domain words, the plain playground chant), synthesised, in her own voice, teasing the pace like a real caller. Never the show's recording, melody or score. No words or title on screen. The song picker and the other songs are gone. | The show's music is Netflix's; Lagos Life requires we own everything (Vatar Agreement §3.3, §4(i)). |
+| The doll's look | **Owner's choice (17 Oct 2026): the giant schoolgirl doll.** Bob with two pigtails, big glassy eyes, rosy cheeks, a green pinafore with bib, straps and buttons over a white shirt, knee socks, black shoes; about 12 m tall. Built on the players' generator, so she's smooth. Our colours, not the show's orange and yellow. | The show's doll design is Netflix's. |
 | "Screen zooms in on the offender" | Your screen gives a 1.2 s zoom on the nearest player caught at that turn (once per turn), then comes back. If it's you: crack, a 2 s kill cam from the doll's eyes, slow-motion fall, hard shake, red vignette, then you spectate. Bodies stay until the end. | You need your view back before the song restarts. |
 | Final two, slow motion | The whole room slows (0.4× for 2.5 s): the server slows the referee clock, so it stays fair for both. | One screen can't slow down alone in multiplayer. |
 | Skip the walkout | Your skip jumps to "behind the players" and waits there. The countdown starts when everyone has skipped or the walkout ends. | Online, everyone's countdown must match. |
 | Tutorial "video" | Played live in the 3D engine: a model plays the whole game, steps highlighted, narrated by the phone's own voice, with captions. | A video file costs megabytes; this costs a few KB. |
 | Rotate phone | Tapping rotates the game 90° on screen, so landscape works even with rotation lock on. | The Lagos Life frame forbids fullscreen and orientation lock. |
 | Blood | Unchanged: on in Lagos Life (18+), off by default in EMILGO (not age-gated), a toggle in Settings. | |
+| Sprint in Settings (§7.5 #9, #10) | One "Sprint" choice: Toggle (tap on, tap off; COD), Hold, or Auto (a full push sprints). Toggle is the default (§3.5, §4.5). | Auto-sprint and toggle-vs-hold are one setting with three answers. |
+| Compass (§7.4 #17) | A strip under the top centre, above the kill feed: N/E/S/W, the bearing, and a diamond for the doll (red while she watches). North is towards the doll. | Where COD Mobile puts it. |
+| Quick chat (§7.4 #20, "ping") | Six fixed calls (Go, Wait, Watch out, Help, Nice one, Sorry), one tap each. Online they go to the room's chat; in Solo they show over your head. | Fixed words need no filter. |
 | Font | Montserrat, Inter, JetBrains Mono, at COD Mobile's sizes (10–14 px). | COD's own font is licensed. |
 | Controls RLGL doesn't use (reload, grenade, ability) | In the controls list, hidden in RLGL. | Future games. |
 | Language | English and Pidgin. | Same as the EMILGO app. |
@@ -115,7 +119,7 @@ games/emilgo-games/
       friends.ts               NEW      friends, invites and requests
       screens.ts               CHANGED  play menu (Invite / New People / Solo), mode and distance, the 20 settings, store tabs
     audio/
-      songs.ts                 CHANGED  one original Nigerian lullaby
+      songs.ts                 CHANGED  one song: the traditional Mugunghwa call
       sound.ts                 CHANGED  crack, drum, bass drop, hits, splash; master, music and effects volumes
     shop/
       catalog.ts               CHANGED  cosmetics (Game Naira) and 10–20 boosts (CP)
@@ -216,7 +220,52 @@ Each phase ends tested and waits for the owner's go-ahead.
   in 25 / 50 / 75 s of the 45 / 80 / 120 s; 0.45 s: 27% / 7% / 1%; walking
   never makes it.
 
-### Phase 3: Desert Field, sky, light and dark (done 17 Oct 2026, waiting for go-ahead)
+### Phase 4: HUD, controls, camera (done 17 Oct 2026)
+
+Also in this phase, at the owner's request: the new song and the new doll
+(see Decisions).
+
+| Check | Result |
+| --- | --- |
+| Layout, landscape 844×390 and portrait 390×844, right- and left-handed | nothing overlaps; screenshots of the HUD, sprint, kill feed, full map, scoreboard, quick chat, settings |
+| The slide, through the real buttons | sprint, then crouch: slides 0.75 s, crouched after |
+| Tests | rules 66/66 (5 new: the slide) · match, balls, shop all passed · fairness 7/7 · load 600 clients: 0 failures, tick p99 7.7 ms, 6.2 KB/s |
+| Builds | Lagos Life `dist/` 270 KB JS gzipped; EMILGO embed 1,184 KB. Protocol 6: the Docker server on :8787 must be rebuilt (Docker wasn't running) |
+
+Built:
+- **HUD, §3.2** (`ui/hud.ts`): top left, text only: the clock, mode and
+  distance, who's still in, how far you've run, the round trip online; under it
+  pause, settings, scoreboard and first person. Top centre: the compass, then
+  the kill feed ("[Name] was eliminated", no background, slides in, gone after
+  5 s). Top right: the minimap. Centre: the countdown numbers, the verdict.
+  On a tall screen the compass and feed sit under the top row.
+- **Minimap** (`ui/minimap.ts`): round, faded edge, slightly see-through, over
+  a top-down picture of the map taken at the start of each round; turns with
+  your view; you, runners, the safe, the out, balls, baskets, the doll (red
+  while she watches). Tap (or M) for the full map, north up. Small, medium or
+  large in Settings → Game.
+- **Controls** (`input/controls.ts`): icons only, no words anywhere. Sprint
+  above the move stick with stamina round it, and a stamina bar above the move
+  stick while you sprint or recover; Toggle, Hold or Auto. Sticks: 1 px white
+  ring, a centre dot, the thumb; size and opacity in Settings. Jump, crouch
+  (hold: prone), emote, quick chat and chat bottom right; fist, slap, push and
+  grab bottom centre only when they apply. All mirrored by "Swap sticks".
+- **The slide** (shared move code, protocol 6): crouch while sprinting and you
+  slide on, low, for 0.75 s, no steering, slowing to a crouch; counts as
+  moving while she watches. Its own animation.
+- **The 20 controls** (`input/actions.ts`): each with its icon, key and touch
+  use; Settings → Controls lists all 20, the four this game doesn't use
+  (reload, grenade, ability; voice chat: no microphone) greyed out. New keys:
+  Tab (hold) scoreboard, M map, K kill feed, Y quick chat.
+- **Scoreboard** (`ui/scoreboard.ts`) and **quick chat** (`ui/quickchat.ts`).
+- **Camera**: already to spec (65° / 75°, pitch ±60°, collision, no
+  auto-correct by default); sensitivity now 0.3 of the maximum on both axes.
+  Screen shake when you're hit or pushed.
+
+Not in this phase: the pause menu, audio volumes and the rest of the 20
+settings (Phase 7).
+
+### Phase 3: Desert Field, sky, light and dark (done 17 Oct 2026)
 
 | Check | Result |
 | --- | --- |

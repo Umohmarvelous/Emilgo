@@ -16,7 +16,7 @@
 // Two views: the LOBBY (lobbyStage: your character on a golden-hour street,
 // the squad room, the winner's circle) and the GAME (the map, the run).
 
-import { ACESFilmicToneMapping, PCFShadowMap, PCFSoftShadowMap, PerspectiveCamera, Scene, Vector2, Vector3, WebGLRenderer } from "three";
+import { ACESFilmicToneMapping, OrthographicCamera, PCFShadowMap, PCFSoftShadowMap, SRGBColorSpace, WebGLRenderTarget, PerspectiveCamera, Scene, Vector2, Vector3, WebGLRenderer } from "three";
 
 import { Sound } from "../audio/sound";
 import { ATTACK, BALLS, DISTANCES, FIELD, MODES, MOVE, PRACTICE, RULES, courseFor, scoreFor, type AttackKind, type Course, type Distance, type Mode, type Stance } from "../config";
@@ -40,7 +40,10 @@ import { DEFAULT_WHEEL, saveSettings, type Settings } from "../settings";
 import { EMOTE_PACK, PRODUCT_BY_ID, fromWire, toWireLook, type WireLook } from "../shop/catalog";
 import { ShopClient } from "../shop/client";
 import { EMOTE_BY_ID, EMOTES, type EmoteId } from "../social/emotes";
-import { Hud, type MapDot } from "../ui/hud";
+import { Hud, type MapMark } from "../ui/hud";
+import { QuickChat } from "../ui/quickchat";
+import { Scoreboard } from "../ui/scoreboard";
+import type { TerrainShot } from "../ui/minimap";
 import { Screens, naira, payoutOf, type LobbyTab, type OnlineAvailability, type PlayMode, type ResultInfo } from "../ui/screens";
 import { Bubbles, ChatPanel, EmoteWheel } from "../ui/social";
 import { CameraRig } from "../world/camera";
@@ -149,12 +152,14 @@ export class Game {
   private slowmo = 0;
   private stepClock = 0;
   private settingsFrom: "lobby" | "pause" = "lobby";
-  private songId: SongId = "lullaby";
+  private songId: SongId = "mugunghwa";
   private songBeat = 0;
   private lastPhase = "";
   private watchesSurvived = 0;
   private sprintMetres = 0;
-  private readonly dots: MapDot[] = [];
+  private readonly marks: MapMark[] = [];
+  private readonly board: Scoreboard;
+  private readonly quick: QuickChat;
 
   // Online
   private readonly server: string | null;
@@ -224,7 +229,10 @@ export class Game {
     bubbleLayer.className = "bubble-layer";
     ui.append(this.touch, bubbleLayer, this.hud.root, moveStick, lookStick);
     this.controls = new Controls(this.touch, moveStick, lookStick);
-    ui.append(this.controls.actions, this.controls.vitals, this.screens.root, this.screens.toastNode);
+    ui.append(this.controls.actions, this.controls.moveSide, this.controls.vitals);
+    this.board = new Scoreboard(ui);
+    this.quick = new QuickChat(ui);
+    ui.append(this.screens.root, this.screens.toastNode);
     this.bubbles = new Bubbles(bubbleLayer);
     this.chat = new ChatPanel(ui, this.controls.chatBtn);
     this.wheel = new EmoteWheel(ui);
@@ -248,6 +256,27 @@ export class Game {
     };
     this.controls.onWheelMove = (x, y) => this.wheel.hover(x, y);
     this.controls.onChat = () => this.chat.toggle();
+    // Quick chat: online it's a chat line to the room; in practice a bubble over you.
+    this.controls.onQuick = () => this.quick.toggle();
+    this.quick.onSend((text) => {
+      if (this.mode === "online" && this.net) this.net.send({ t: "chat", text });
+      const me = this.round?.get(this.meId);
+      if (me) this.bubbles.show(me.index, "ping");
+    });
+    this.controls.onScoreboard = (open) => this.board.show(open);
+    this.controls.onMap = () => this.hud.map.expand(!this.hud.map.expanded);
+    this.controls.onFeed = () => {
+      this.settings.killFeed = !this.settings.killFeed;
+      saveSettings(this.host, this.settings);
+      this.hud.setFeedOn(this.settings.killFeed);
+      this.screens.toast(this.settings.killFeed ? "Kill feed on" : "Kill feed off");
+    };
+    this.hud.boardBtn.addEventListener("click", () => this.board.show(!this.board.open));
+    // Settings, straight from the game (practice pauses; online carries on).
+    this.hud.settingsBtn.addEventListener("click", () => {
+      this.pause();
+      if (this.paused) this.action("settings-pause", document.body);
+    });
     this.controls.onFirstPerson = () => this.toggleView();
     this.hud.viewBtn.addEventListener("click", () => this.toggleView());
     this.shop?.onChange(() => this.onOwnedChanged());
@@ -569,7 +598,7 @@ export class Game {
     this.recorded = null;
     this.watchesSurvived = 0;
     this.sprintMetres = 0;
-    this.songId = this.settings.song === "shuffle" ? SONG_IDS[Math.floor(Math.random() * SONG_IDS.length)] : this.settings.song;
+    this.songId = SONG_IDS[0];
     this.songBeat = 0;
     this.lastPhase = "";
 
@@ -590,6 +619,9 @@ export class Game {
     this.loop.setFpsCap(this.spec.tier === 0 ? 30 : 60);
     if (!this.loop.isRunning && !this.hostPaused) this.loop.start();
     this.warmUp();
+    this.hud.map.setTerrain(this.terrainShot(course));
+    this.board.show(false);
+    this.quick.toggle(false);
 
     this.settings.played++;
     saveSettings(this.host, this.settings);
@@ -794,7 +826,8 @@ export class Game {
     const near = isMe || Math.hypot(c.x - me.x, c.z - me.z) < 7;
     this.sound.catch(near);
     this.rig.kick(isMe ? 1 : near ? 0.35 : 0.1);
-    if (!isMe) this.hud.pushFeed(`${this.label(c)} · ${cause === "time" ? "time up" : cause === "noball" ? "no ball left" : "caught moving"}`, "out");
+    // The kill feed (SPEC-V2 §2.6 step 9): "[Name] was eliminated".
+    this.hud.pushFeed(`${isMe ? "You were" : `${this.label(c)} was`} eliminated`, "out");
 
     if (isMe && this.mode === "practice") this.cpuReact(["laugh", "taunt"], 2, 0.5);
     if (isMe) {
@@ -1274,24 +1307,33 @@ export class Game {
     this.hud.setTimer(round.timeLeft, round.timeLeft <= 10 && round.phase !== "ended");
     let inPlay = 0;
     const list = round.contestants;
-    this.dots.length = list.length;
-    for (let i = 0; i < list.length; i++) {
-      const c = list[i];
+    let n = 0;
+    const mark = (x: number, z: number, kind: MapMark["kind"]) => {
+      const m = this.marks[n] ?? (this.marks[n] = { x: 0, z: 0, kind });
+      m.x = x;
+      m.z = z;
+      m.kind = kind;
+      n++;
+    };
+    for (const k of round.baskets) mark(k.x, k.z, "basket");
+    for (const b of round.balls) if (b.holder < 0 && b.basket < 0) mark(b.x, b.z, "ball");
+    for (const c of list) {
       if (c.status !== "eliminated") inPlay++;
-      const d = this.dots[i] ?? (this.dots[i] = { x: 0, z: 0, out: false, safe: false, me: false });
-      d.x = c.x;
-      d.z = c.z;
-      d.out = c.status === "eliminated";
-      d.safe = c.status === "finished";
-      d.me = c.id === this.meId;
+      if (c.id === this.meId) continue;
+      mark(c.x, c.z, c.status === "eliminated" ? "out" : c.status === "finished" ? "safe" : "other");
     }
+    this.marks.length = n;
     this.hud.setAlive(inPlay, list.length);
     this.hud.setDistance(me.progress / round.course.distance);
     // Fist, slap and push with someone in reach; grab with a free ball in reach.
     if (this.my === "playing" && !this.paused) this.controls.setNear(canAttack(me) && !!attackTarget(me, round.contestants, ATTACK.range), this.canGrab(round, me));
     else this.controls.setNear(false, false);
-    this.hud.setStamina(me.stamina, me.sprinting);
-    this.hud.setMap(this.dots, me.heading, round.phase === "watch");
+    this.controls.setStamina(me.stamina, me.sprinting);
+    const watching = round.phase === "watch" || round.phase === "turning";
+    const doll = { x: 0, z: round.course.dollZ, watching };
+    this.hud.setMap({ x: me.x, z: me.z, heading: me.heading, out: me.status === "eliminated" }, this.marks, doll, this.rig.yaw);
+    this.hud.setCompass(this.rig.yaw, me, doll);
+    this.board.update(round.contestants, this.meId, round.course.distance, (c) => this.label(c));
     if (this.mode === "online" && this.net) this.hud.setPing(this.net.rtt);
 
     if (round.phase === "countdown") {
@@ -1615,16 +1657,6 @@ export class Game {
         this.stage.setPose(this.settings.lobbyPose);
         this.showLoadout();
         break;
-      case "song": {
-        const id = d.song as Settings["song"] | undefined;
-        if (id === "shuffle" || (id && SONG_IDS.includes(id))) {
-          this.settings.song = id;
-          saveSettings(this.host, this.settings);
-          if (this.screens.name === "loadout") this.showLoadout();
-          if (id !== "shuffle" && !this.round) this.previewSong(id);
-        }
-        break;
-      }
       case "store":
         this.shopNote = null;
         this.showStore();
@@ -1786,6 +1818,9 @@ export class Game {
         const key = d.key;
         if (key === "graphics" && ["auto", "low", "medium", "high"].includes(d.val ?? "")) this.settings.graphics = d.val as Settings["graphics"];
         if (key === "lookStick" && (d.val === "always" || d.val === "touch")) this.settings.lookStick = d.val;
+        if (key === "stickSize" && (d.val === "small" || d.val === "medium" || d.val === "large")) this.settings.stickSize = d.val;
+        if (key === "mapSize" && (d.val === "small" || d.val === "medium" || d.val === "large")) this.settings.mapSize = d.val;
+        if (key === "sprintMode" && (d.val === "toggle" || d.val === "hold" || d.val === "auto")) this.settings.sprintMode = d.val;
         if (key === "lightMode" && (d.val === "auto" || d.val === "light" || d.val === "dark")) {
           this.settings.lightMode = d.val;
           // Everything in the world follows at once: sky, light, lamps, neon.
@@ -1798,8 +1833,9 @@ export class Game {
         break;
       }
       case "range": {
-        const key = d.key as "sensH" | "sensV";
-        this.settings[key] = Math.max(0.05, Math.min(1, Number((node as HTMLInputElement).value) / 100));
+        const key = d.key as "sensH" | "sensV" | "stickOpacity";
+        if (key !== "sensH" && key !== "sensV" && key !== "stickOpacity") break;
+        this.settings[key] = Math.max(key === "stickOpacity" ? 0.3 : 0.05, Math.min(1, Number((node as HTMLInputElement).value) / 100));
         this.applySettings();
         saveSettings(this.host, this.settings);
         break;
@@ -1983,15 +2019,6 @@ export class Game {
     }
   }
 
-  private previewTimer = 0;
-
-  /** Four seconds of a song from the top, so the choice isn't blind. */
-  private previewSong(id: SongId): void {
-    clearTimeout(this.previewTimer);
-    this.sound.playSong(id, 0);
-    this.previewTimer = window.setTimeout(() => this.sound.stopSong(), 4000);
-  }
-
   private applySettings(): void {
     const s = this.settings;
     this.sound.setEnabled(s.sound);
@@ -2004,6 +2031,9 @@ export class Game {
     this.rig.sensV = s.sensV;
     this.stage?.setLightMode(s.lightMode);
     this.controls.setLayout(s.leftHanded, s.lookStick === "always");
+    this.controls.setStyle(s.stickSize, s.stickOpacity, s.sprintMode);
+    this.hud.map.setSize(s.mapSize);
+    this.hud.setFeedOn(s.killFeed);
     this.wheel.setSlots(s.wheel.length === 8 ? s.wheel : DEFAULT_WHEEL);
     const spec = tierSpec(s.graphics, this.renderer.getContext());
     if (spec.tier !== this.spec?.tier || spec.name !== this.spec?.name) {
@@ -2041,6 +2071,56 @@ export class Game {
   }
 
   /**
+   * The minimap's terrain: the map from straight above, rendered once at the
+   * start of the round (behind the countdown) and read back into a canvas. The
+   * runners, Mama's effects and the balls aren't in it — they are marks.
+   */
+  private terrainShot(course: Course): TerrainShot | null {
+    if (!this.world) return null;
+    const margin = 30;
+    const x1 = course.halfWidth + margin;
+    const x0 = -x1;
+    const z0 = course.dollZ - 20;
+    const z1 = course.backLimitZ + 20;
+    const w = this.spec.tier === 0 ? 160 : 256;
+    const h = Math.min(2048, Math.round((w * (z1 - z0)) / (x1 - x0)));
+    const cam = new OrthographicCamera((x0 - x1) / 2, (x1 - x0) / 2, (z1 - z0) / 2, (z0 - z1) / 2, 1, 800);
+    cam.position.set(0, 400, (z0 + z1) / 2);
+    cam.up.set(0, 0, -1);
+    cam.lookAt(0, 0, (z0 + z1) / 2);
+    cam.updateMatrixWorld();
+    const rt = new WebGLRenderTarget(w, h);
+    rt.texture.colorSpace = SRGBColorSpace;
+    const hide = [this.crowd.group, this.fx.group, this.props.group];
+    const was = hide.map((o) => o.visible);
+    for (const o of hide) o.visible = false;
+    const fog = this.scene.fog;
+    this.scene.fog = null;
+    try {
+      this.renderer.setRenderTarget(rt);
+      this.renderer.render(this.scene, cam);
+      const px = new Uint8Array(w * h * 4);
+      this.renderer.readRenderTargetPixels(rt, 0, 0, w, h, px);
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const g = canvas.getContext("2d")!;
+      const img = g.createImageData(w, h);
+      // GL rows run bottom-up; the canvas's top-down (the top is Mama's end).
+      for (let y = 0; y < h; y++) img.data.set(px.subarray((h - 1 - y) * w * 4, (h - y) * w * 4), y * w * 4);
+      g.putImageData(img, 0, 0);
+      return { image: canvas, x0, x1, z0, z1 };
+    } catch {
+      return null;
+    } finally {
+      this.renderer.setRenderTarget(null);
+      rt.dispose();
+      this.scene.fog = fog;
+      hide.forEach((o, i) => (o.visible = was[i]));
+    }
+  }
+
+  /**
    * Compile every shader now, behind the countdown. Without this, things that
    * first appear mid-round (the eye beams, the blood) make the GPU compile on
    * the spot — a stall on a weak phone, and online the server doesn't wait.
@@ -2072,7 +2152,8 @@ function stickEl(): HTMLDivElement {
   const s = document.createElement("div");
   s.className = "stick";
   s.setAttribute("aria-hidden", "true");
-  s.innerHTML = `<i class="ring"></i><i class="knob"></i>`;
+  // A centre dot for reference, the thumb, and (move stick) your stamina above it.
+  s.innerHTML = `<i class="dot"></i><i class="knob"></i><i class="bar"><b></b></i>`;
   return s;
 }
 

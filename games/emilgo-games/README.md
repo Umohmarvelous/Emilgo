@@ -1,5 +1,7 @@
 # EMILGO Games
 
+> **Picking this up in a new session? Read [HANDOFF.md](HANDOFF.md) first.**
+
 Nigerian street games, built to run **inside Lagos Life** (through the Vatar
 Games SDK) and **inside the EMILGO app** (embedded, offline). One web codebase,
 two hosts.
@@ -140,10 +142,10 @@ after she faces you.
 - **Nothing gives the bluff away** — not by ear, not on screen, not on the
 wire: the server never sends how long a song or stare will last, nor whether a
 hum is real (a hum is always 3 s; what follows is decided when it ends).
-- **Three original songs**, chosen in Settings (or Shuffle): *Mama's Lullaby*
-(music box + doll's voice), *Mugunghwa* (the traditional Korean playground
-words, new tune), *Mama Say Waka* (Pidgin call and response, talking drum).
-Everyone hears their own choice; the referee's timing doesn't depend on it.
+- **One song** (since SPEC-V2 Phase 4): the doll sings the traditional Korean
+playground call *Mugunghwa kkochi pieotseumnida*, synthesised in her own
+voice — never the show's recording or melody. The referee's timing doesn't
+depend on it.
 - Balance (sim, 400 rounds): a player who reacts in 0.35 s to her turn crosses
 97% of the time; 0.45 s → 25%; 0.60 s → never. Walking all the way → timed out.
 
@@ -165,7 +167,7 @@ games/emilgo-games/
     game/balls.ts        Ball Haunting's balls and baskets · game/combat.ts fist, slap, push, shoves
     game/bots.ts         practice CPUs (reaction-time personalities; fooled by fake hums; fight only for a ball)
     game/session.ts      everything wired together: rounds, online, matches, shop, social
-    audio/songs.ts       the three songs as note data · audio/sound.ts the synthesiser
+    audio/songs.ts       the Mugunghwa chant as note data · audio/sound.ts the synthesiser
     world/human/*        generated people: wardrobe (+ match suit), skeleton, mesh (4 detail levels), painter, normal maps, animator, ground solver
     world/lobbyStage.ts  the lobby set, squad room and winner's circle (with background blur)
     world/*              original street, doll, crowd (one Human each, distance LOD), fx, camera, tex

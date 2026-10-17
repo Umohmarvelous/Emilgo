@@ -147,6 +147,11 @@ export const MOVE = {
   sprintMin: 0.2,
   /** Changing stance takes this long — and counts as moving while she watches. */
   stanceTime: 0.3,
+  /**
+   * The slide (SPEC-V2 §7.4 #8): crouch while sprinting and you slide on,
+   * low, for this long, slowing from sprint to a crouch; you can't steer.
+   */
+  slideTime: 0.75,
 } as const;
 
 /** Stance: 0 standing, 1 crouching, 2 prone. */
@@ -203,11 +208,12 @@ export const PRACTICE = {
 /** Online play. Server and client both read these. */
 export const NET = {
   /**
-   * 5: the warning hum (phase 2 is "hum", 3 s, sometimes fake); no automatic
-   * shoves. (4: modes and distances, balls and baskets, fist / slap / push,
-   * rooms of 20. 3: jump, crouch, prone, sprint, the map, rich looks.)
+   * 6: the slide (a flag in snapshots). 5: the warning hum (phase 2 is "hum",
+   * 3 s, sometimes fake); no automatic shoves. (4: modes and distances, balls
+   * and baskets, fist / slap / push, rooms of 20. 3: jump, crouch, prone,
+   * sprint, the map, rich looks.)
    */
-  protocol: 5,
+  protocol: 6,
   tickHz: 60,
   /** Server → client state broadcasts per second. */
   snapshotHz: 15,

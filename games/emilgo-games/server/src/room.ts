@@ -491,7 +491,7 @@ export class Room {
       p[o + 1] = cm(c.z);
       p[o + 2] = mrad(c.heading);
       p[o + 3] = cm(c.y);
-      p[o + 4] = packFlags(c.stance, c.sprinting, c.stamina, c.stun > 0, actCode(c.actKind));
+      p[o + 4] = packFlags(c.stance, c.sprinting, c.stamina, c.stun > 0, actCode(c.actKind), c.slide > 0);
       st += STATUS_CHAR[c.status];
     }
     let b: number[] | undefined;
