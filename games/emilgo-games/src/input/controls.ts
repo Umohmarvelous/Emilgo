@@ -10,13 +10,15 @@
 // "Swap sticks" mirrors the halves and the buttons.
 //
 // Buttons (bottom right): jump, crouch (tap; hold for prone), sprint (toggle),
-// emote (hold for the wheel), chat.
+// emote (hold for the wheel), chat. Bottom centre, only when they apply
+// (SPEC-V2 §2.4, icons only): fist, slap and push with someone within 2 m;
+// grab with a free ball within reach.
 //
 // Keyboard: WASD/arrows move, Shift sprint, Space jump, C crouch (hold: prone),
-// V first person, Q/E look, T chat, G emotes, Esc/P pause. Nothing is hover-only
-// (Lagos Life review checklist §03).
+// V first person, Q/E look, T chat, G emotes, 1/2/3 fist/slap/push, F grab,
+// Esc/P pause. Nothing is hover-only (Lagos Life review checklist §03).
 
-import type { Stance } from "../config";
+import { ATTACK_KINDS, type AttackKind, type Stance } from "../config";
 import { icon } from "../ui/icons";
 
 export interface Vec2 {
@@ -52,7 +54,14 @@ export class Controls {
   stance: Stance = 0;
   /** Bumped on every jump press. */
   jumps = 0;
+  /** Attack requests: (count << 2) | kind (1 fist, 2 slap, 3 push). Grab requests: a count. */
+  attacks = 0;
+  grabs = 0;
   readonly actions: HTMLDivElement;
+  /** The bottom-centre buttons (fist, slap, push, grab), shown only when they apply. */
+  readonly vitals: HTMLDivElement;
+  private readonly attackBtns: HTMLButtonElement[] = [];
+  private readonly grabBtn: HTMLButtonElement;
   readonly chatBtn: HTMLButtonElement;
   private readonly jumpBtn: HTMLButtonElement;
   private readonly crouchBtn: HTMLButtonElement;
@@ -101,6 +110,21 @@ export class Controls {
     this.jumpBtn = btn("jump", "jump", "JUMP", "Jump");
     this.chatBtn.hidden = true;
 
+    this.vitals = document.createElement("div");
+    this.vitals.className = "vitals";
+    const vbtn = (ico: string, aria: string) => {
+      const b = document.createElement("button");
+      b.className = "abtn vbtn";
+      b.dataset.ui = "1";
+      b.setAttribute("aria-label", aria);
+      b.innerHTML = icon(ico, "", 24);
+      b.hidden = true;
+      this.vitals.append(b);
+      return b;
+    };
+    for (const k of ATTACK_KINDS) this.attackBtns.push(vbtn(k, k[0].toUpperCase() + k.slice(1)));
+    this.grabBtn = vbtn("grab", "Grab the ball");
+
     const press = (b: HTMLElement, down: (e: PointerEvent) => void, up?: (e: PointerEvent) => void) => {
       b.addEventListener("pointerdown", (e) => {
         e.preventDefault();
@@ -123,6 +147,8 @@ export class Controls {
       b.addEventListener("pointercancel", end);
     };
     press(this.jumpBtn, () => this.jump());
+    ATTACK_KINDS.forEach((k, i) => press(this.attackBtns[i], () => this.attack(k)));
+    press(this.grabBtn, () => this.grab());
     press(this.sprintBtn, () => this.setSprint(!this.sprint));
     press(
       this.crouchBtn,
@@ -176,7 +202,24 @@ export class Controls {
   /** Show or hide the in-play buttons (they never show on menus). */
   showActions(on: boolean): void {
     this.actions.hidden = !on;
+    this.vitals.hidden = !on;
+    if (!on) this.setNear(false, false);
     this.placeLookHome();
+  }
+
+  /** Which bottom-centre buttons apply right now: someone in reach to attack, a ball to grab. */
+  setNear(attack: boolean, grab: boolean): void {
+    for (const b of this.attackBtns) if (b.hidden === attack) b.hidden = !attack;
+    if (this.grabBtn.hidden === grab) this.grabBtn.hidden = !grab;
+  }
+
+  attack(kind: AttackKind): void {
+    const n = ((this.attacks >> 2) + 1) & 63;
+    this.attacks = (n << 2) | (ATTACK_KINDS.indexOf(kind) + 1);
+  }
+
+  grab(): void {
+    this.grabs = (this.grabs + 1) & 255;
   }
 
   setSprint(on: boolean): void {
@@ -391,6 +434,8 @@ export class Controls {
     else if (k === "v") this.onFirstPerson?.();
     else if (k === "t") this.onChat?.();
     else if (k === "g") this.onWheel?.(true, window.innerWidth / 2, window.innerHeight / 2);
+    else if (k === "1" || k === "2" || k === "3") this.attack(ATTACK_KINDS[Number(k) - 1]);
+    else if (k === "f") this.grab();
     this.keys.add(k);
   };
 

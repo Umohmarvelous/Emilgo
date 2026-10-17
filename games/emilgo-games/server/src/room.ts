@@ -1,8 +1,8 @@
 // A room: people waiting together, then one round of Red Light, Green Light
 // refereed by the SAME RedLightRound class the game uses offline.
 //
-//   lobby    → filling. Quick rooms start 15 s after the second person arrives
-//              (at once when full); private rooms start when full, or when the
+//   lobby    → filling. Quick rooms (Play with New People) start 60 s after the
+//              second person arrives, at once when all 20 are in; private rooms start when full, or when the
 //              creator taps Start with two or more; Lagos Life match rooms
 //              start when every player in the match is here (or after 30 s).
 //   playing  → the referee runs at 60 Hz. Inputs in, snapshots + events out.
@@ -19,9 +19,12 @@
 
 import { randomInt } from "node:crypto";
 
-import { NET } from "../../src/config";
+import { ATTACK_KINDS, FIELD, NET, courseFor, type Distance, type Mode } from "../../src/config";
+import { ballState } from "../../src/game/balls";
+import { actCode } from "../../src/game/combat";
 import { HIDDEN_LENGTH, RedLightRound, type Contestant, type Phase, type RoundEvent } from "../../src/game/rules";
 import {
+  BALL_STRIDE,
   STATUS_CHAR,
   SNAP_STRIDE,
   packFlags,
@@ -96,6 +99,9 @@ export class Room {
     readonly code: string | null,
     owner: Peer | null,
     readonly match: MatchSpec | null = null,
+    /** What this room plays (SPEC-V2 §2.1). */
+    readonly mode: Mode = "classic",
+    readonly dist: Distance = 200,
   ) {
     this.owner = owner?.id ?? null;
   }
@@ -209,12 +215,13 @@ export class Room {
     return null;
   }
 
-  input(peer: Peer, x: number, z: number, b = 0, j = 0): void {
+  input(peer: Peer, x: number, z: number, b = 0, j = 0, a = 0, g = 0): void {
     if (this.state !== "playing" || !this.round) return;
     const seat = this.seatOf(peer);
     if (!this.inRound.has(seat)) return;
     this.round.setInput(seat, x / 100, z / 100);
     this.round.setButtons(seat, (b & 1) === 1, Math.min(2, (b >> 1) & 3) as 0 | 1 | 2, j);
+    this.round.setActions(seat, a, g);
   }
 
   // ── Tick ───────────────────────────────────────────────────────────────────
@@ -291,14 +298,17 @@ export class Room {
       roster = players.map((p) => ({ id: p.id, name: p.name, look: p.look }));
     }
     const seed = randomInt(0, 2 ** 31);
-    this.round = new RedLightRound({ seed, contestants: roster.map((r) => ({ id: r.id, name: r.name, bot: false })) });
+    // A different place every round: the map comes from the seed.
+    const info = MAPS[seed % MAPS.length];
+    const course = courseFor(this.mode, this.dist, info.halfWidth ?? FIELD.halfWidth);
+    this.round = new RedLightRound({ seed, contestants: roster.map((r) => ({ id: r.id, name: r.name, bot: false })), course });
     this.inRound.clear();
     for (const r of roster) this.inRound.add(r.id);
     const init: number[] = [];
     for (const c of this.round.contestants) init.push(cm(c.x), cm(c.z), mrad(c.heading));
-    // A different street every round: the map comes from the seed.
-    const map = MAPS[seed % MAPS.length].id;
-    this.start = { seed, s: t, roster, init, map };
+    const bp: number[] = [];
+    for (const b of this.round.balls) bp.push(cm(b.x), cm(b.z));
+    this.start = { seed, s: t, roster, init, map: info.id, mode: this.mode, dist: this.dist, hw: cm(course.halfWidth), ...(bp.length ? { bp } : {}) };
     this.state = "playing";
     this.startsAt = null;
     this.ticks = 0;
@@ -404,6 +414,8 @@ export class Room {
       startsAt: this.startsAt,
       state: this.state,
       ...(this.match ? { stake: this.match.stake } : {}),
+      mode: this.mode,
+      dist: this.dist,
     };
   }
 
@@ -438,16 +450,35 @@ export class Room {
         return { t: "ev", k: "ph", ph: phaseIndex(e.phase), d: shownLength(e.phase, e.duration) };
       case "eliminated": {
         const c = round.get(e.id)!;
-        return { t: "ev", k: "out", i: c.index, c: e.cause === "moved" ? 0 : 1, x: cm(c.x), z: cm(c.z) };
+        return { t: "ev", k: "out", i: c.index, c: e.cause === "moved" ? 0 : e.cause === "time" ? 1 : 2, x: cm(c.x), z: cm(c.z) };
       }
       case "finished":
         return { t: "ev", k: "fin", i: round.get(e.id)!.index, time: Math.round(e.time * 1000), place: e.place };
       case "ended":
         return { t: "ev", k: "end" };
+      case "attack": {
+        const tg = e.target ? round.get(e.target)! : null;
+        return { t: "ev", k: "atk", i: round.get(e.id)!.index, kind: ATTACK_KINDS.indexOf(e.kind) + 1, tg: tg ? tg.index : -1, db: e.dropped, ...(tg ? { kx: cm(tg.vx), kz: cm(tg.vz) } : {}) };
+      }
+      case "shoved": {
+        const c = round.get(e.id)!;
+        return { t: "ev", k: "shv", i: c.index, by: round.get(e.by)!.index, kx: cm(c.vx), kz: cm(c.vz) };
+      }
+      case "grab":
+        return { t: "ev", k: "grb", i: round.get(e.id)!.index, b: e.ball };
+      case "drop":
+        return { t: "ev", k: "drp", b: e.ball, x: cm(e.x), z: cm(e.z) };
+      case "bank":
+        return { t: "ev", k: "bnk", i: round.get(e.id)!.index, b: e.ball, bk: e.basket };
     }
   }
 
-  private snapshot(): SnapMsg {
+  /**
+   * The round's state. The fallen don't move, so in the regular snapshots their
+   * entries go out as zeros (phones already have where they fell, from the
+   * "out" event); `full` — for a phone (re)joining mid-round — carries them.
+   */
+  private snapshot(full = false): SnapMsg {
     const round = this.round!;
     const list = round.contestants;
     const p: number[] = new Array(list.length * SNAP_STRIDE);
@@ -455,15 +486,27 @@ export class Room {
     for (let i = 0; i < list.length; i++) {
       const c = list[i];
       const o = i * SNAP_STRIDE;
+      if (!full && c.status === "eliminated") {
+        p.fill(0, o, o + SNAP_STRIDE);
+        st += STATUS_CHAR[c.status];
+        continue;
+      }
       p[o] = cm(c.x);
       p[o + 1] = cm(c.z);
-      p[o + 2] = cm(c.vx);
-      p[o + 3] = cm(c.vz);
-      p[o + 4] = mrad(c.heading);
-      p[o + 5] = cm(c.progress);
-      p[o + 6] = cm(c.y);
-      p[o + 7] = packFlags(c.stance, c.sprinting, c.stamina);
+      p[o + 2] = mrad(c.heading);
+      p[o + 3] = cm(c.y);
+      p[o + 4] = packFlags(c.stance, c.sprinting, c.stamina, c.stun > 0, actCode(c.actKind));
       st += STATUS_CHAR[c.status];
+    }
+    let b: number[] | undefined;
+    if (full && round.balls.length) {
+      b = new Array(round.balls.length * BALL_STRIDE);
+      for (const ball of round.balls) {
+        const o = ball.index * BALL_STRIDE;
+        b[o] = cm(ball.x);
+        b[o + 1] = cm(ball.z);
+        b[o + 2] = ballState(ball);
+      }
     }
     return {
       t: "snap",
@@ -474,6 +517,7 @@ export class Room {
       el: Math.round(round.elapsed * 1000),
       st,
       p,
+      ...(b ? { b } : {}),
     };
   }
 
@@ -481,9 +525,9 @@ export class Room {
     const round = this.round!;
     const outcomes: number[] = [];
     for (const c of round.contestants) {
-      outcomes.push(c.place, Math.round(c.finishTime * 1000), Math.round(c.eliminatedAt * 1000), c.cause === "moved" ? 1 : c.cause === "time" ? 2 : 0);
+      outcomes.push(c.place, Math.round(c.finishTime * 1000), Math.round(c.eliminatedAt * 1000), c.cause === "moved" ? 1 : c.cause === "time" ? 2 : c.cause === "noball" ? 3 : 0, cm(c.progress));
     }
-    return { ...this.start!, snap: this.lastSnap ?? this.snapshot(), outcomes };
+    return { ...this.start!, snap: this.snapshot(true), outcomes };
   }
 }
 

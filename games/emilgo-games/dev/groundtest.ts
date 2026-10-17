@@ -51,7 +51,10 @@ const RUNS: Run[] = [
   { state: "air", frames: 20, dt: 1 / 30, grounded: "none", speed: 0, air: 1 },
   ...EMOTE_IDS.map((e): Run => ({ state: `emote:${e}`, frames: 66, dt: 1 / 30, grounded: "always", speed: 0, setup: (h) => h.emote(e) })),
   ...POSES.map((p): Run => ({ state: `pose:${p.id}`, frames: 60, dt: 1 / 30, grounded: "always", speed: 0, setup: (h) => h.setPose(p.id) })),
-  { state: "fallen", frames: 120, dt: 1 / 30, grounded: "always", speed: 0, setup: (h) => h.kill(0.4) },
+  ...(["fist", "slap", "push", "grab"] as const).map((id): Run => ({ state: `act:${id}`, frames: 18, dt: 1 / 30, grounded: "always", speed: 0, setup: (h) => h.act(id) })),
+  { state: "carry-run", frames: 60, dt: 1 / 30, grounded: "stride", speed: MOVE.run, setup: (h) => h.setCarry(true) },
+  { state: "hit", frames: 18, dt: 1 / 30, grounded: "always", speed: 0, setup: (h) => h.hit(0.7) },
+    { state: "fallen", frames: 120, dt: 1 / 30, grounded: "always", speed: 0, setup: (h) => h.kill(0.4) },
   // The cheer is a deliberate hop: it must come back down onto the ground.
   { state: "cheer", frames: 60, dt: 1 / 30, grounded: "stride", speed: 0, setup: (h) => h.finish() },
 ];
@@ -102,9 +105,11 @@ async function main(): Promise<void> {
           (tris[`level${lvl}`] ??= []).push(h.triangles);
         }
         h.setDetail(nearDetail(tier));
-        run.setup?.(h);
+        const oneOff = run.state.startsWith("act:") || run.state === "hit";
+        if (!oneOff) run.setup?.(h);
         // Settle into the state first (stance and air blend in).
         for (let i = 0; i < 20; i++) h.update(1 / 30, run.speed ?? 0, run.stance ?? 0, run.air ?? 0);
+        if (oneOff) run.setup?.(h);
         let min = Infinity;
         let maxMin = -Infinity;
         for (let f = 0; f < run.frames; f++) {

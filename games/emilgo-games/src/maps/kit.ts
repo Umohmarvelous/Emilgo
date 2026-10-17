@@ -25,7 +25,7 @@ import {
   SphereGeometry,
 } from "three";
 
-import { DOLL_Z, FIELD } from "../config";
+import { FIELD, type Course } from "../config";
 import { Rng } from "../core/rng";
 import type { Collider } from "../world/camera";
 import { matrixOf, merge, moved, paint, part, type V3, type Xform } from "../world/geo";
@@ -503,21 +503,22 @@ export class Kit {
 // ── The course: what every map shares ────────────────────────────────────────
 
 /** The track and stage: start line, chequered finish, the plaza, Mama's plinth. */
-export function courseParts(o: { edge: string; line: string; plaza: string; stage: string; markings: boolean }): BufferGeometry[] {
+export function courseParts(o: { edge: string; line: string; plaza: string; stage: string; markings: boolean }, c: Course): BufferGeometry[] {
   const out: BufferGeometry[] = [];
-  const w = FIELD.halfWidth * 2;
+  const hw = c.halfWidth;
+  const w = hw * 2;
   out.push(part(BOX, o.line, { p: [0, 0.016, FIELD.startZ], s: [w, 0.035, 0.45] }));
   const sq = 0.46;
   const n = Math.ceil(w / sq);
   for (let row = 0; row < 2; row++) {
-    for (let i = 0; i < n; i++) out.push(part(BOX, (i + row) % 2 ? "#111111" : "#fafafa", { p: [-FIELD.halfWidth + (i + 0.5) * sq, 0.017, FIELD.finishZ - row * sq + sq / 2], s: [sq, 0.035, sq] }));
+    for (let i = 0; i < n; i++) out.push(part(BOX, (i + row) % 2 ? "#111111" : "#fafafa", { p: [-hw + (i + 0.5) * sq, 0.017, c.finishZ - row * sq + sq / 2], s: [sq, 0.035, sq] }));
   }
   if (o.markings) {
-    for (const s of [-1, 1]) out.push(part(BOX, o.edge, { p: [s * (FIELD.halfWidth + 0.1), 0.012, (FIELD.backLimitZ + FIELD.finishZ) / 2], s: [0.16, 0.03, FIELD.backLimitZ - FIELD.finishZ] }));
+    for (const s of [-1, 1]) out.push(part(BOX, o.edge, { p: [s * (hw + 0.1), 0.012, (c.backLimitZ + c.finishZ) / 2], s: [0.16, 0.03, c.backLimitZ - c.finishZ] }));
   }
-  out.push(part(BOX, o.plaza, { p: [0, 0.008, FIELD.finishZ - 13], s: [w + 4, 0.02, 24] }));
-  out.push(part(CYL16, o.stage, { p: [0, 0.25, DOLL_Z], s: [3.4, 0.5, 3.4] }));
-  out.push(part(CYL16, o.stage, { p: [0, 0.06, DOLL_Z], s: [3.6, 0.12, 3.6] }, 0.8));
+  out.push(part(BOX, o.plaza, { p: [0, 0.008, c.finishZ - 13], s: [w + 4, 0.02, 24] }));
+  out.push(part(CYL16, o.stage, { p: [0, 0.25, c.dollZ], s: [3.4, 0.5, 3.4] }));
+  out.push(part(CYL16, o.stage, { p: [0, 0.06, c.dollZ], s: [3.6, 0.12, 3.6] }, 0.8));
   return out;
 }
 

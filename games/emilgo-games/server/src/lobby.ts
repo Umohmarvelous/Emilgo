@@ -1,6 +1,6 @@
 // Matchmaking and the room registry for one server process.
 //
-//   quick         join the one open quick room, or open a new one
+//   quick         join the open quick room for that mode and distance, or open one
 //   create(size)  a private room with a six-letter code
 //   join(code)    into a private room that is still filling
 //
@@ -12,7 +12,7 @@
 
 import { randomInt } from "node:crypto";
 
-import { NET } from "../../src/config";
+import { NET, STAKED, type Distance, type Mode } from "../../src/config";
 import { cleanName, type ErrorCode } from "../../src/net/protocol";
 import type { Peer } from "./peer";
 import { Room, type MatchSpec, type Winner } from "./room";
@@ -38,26 +38,26 @@ export class Lobby {
     return peer.roomId ? this.rooms.get(peer.roomId) : undefined;
   }
 
-  quick(peer: Peer): ErrorCode | null {
+  quick(peer: Peer, mode: Mode = "classic", dist: Distance = 200): ErrorCode | null {
     this.leave(peer);
-    // The first open quick room with nobody this player has blocked (or been
-    // blocked by). Usually that is the only open room.
+    // The first open quick room for this mode and distance with nobody this
+    // player has blocked (or been blocked by). Usually that is the only one.
     for (let i = this.openQuick.length - 1; i >= 0; i--) {
       const r = this.openQuick[i];
       if (r.closed || r.state !== "lobby" || r.full) this.openQuick.splice(i, 1);
     }
-    let room = this.openQuick.find((r) => !r.members.some((m) => m.blockedWith(peer)));
+    let room = this.openQuick.find((r) => r.mode === mode && r.dist === dist && !r.members.some((m) => m.blockedWith(peer)));
     if (!room) {
-      room = new Room("quick", NET.crowdMax, null, null);
+      room = new Room("quick", NET.crowdMax, null, null, null, mode, dist);
       this.rooms.set(room.id, room);
       this.openQuick.push(room);
     }
     return room.add(peer);
   }
 
-  create(peer: Peer, size: number): ErrorCode | null {
+  create(peer: Peer, size: number, mode: Mode = "classic", dist: Distance = 200): ErrorCode | null {
     this.leave(peer);
-    const room = new Room("private", size, this.newCode(), peer);
+    const room = new Room("private", size, this.newCode(), peer, null, mode, dist);
     this.rooms.set(room.id, room);
     this.codes.set(room.code!, room);
     return room.add(peer);
@@ -123,7 +123,8 @@ export class Lobby {
           stake: Number(m.stake) || 0,
           players: m.players.map((x, i) => ({ playerId: String(x.playerId), name: cleanName(String(x.name ?? ""), () => `Player ${i + 1}`) })),
         };
-        const room = new Room("match", spec.players.length, null, null, spec);
+        // The match API carries only stake and seats: staked matches always play STAKED.
+        const room = new Room("match", spec.players.length, null, null, spec, STAKED.mode, STAKED.distance);
         room.onDecided = (r, winner) => void this.settle(r, winner);
         this.rooms.set(room.id, room);
         this.matches.set(matchId, room);

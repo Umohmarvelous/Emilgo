@@ -11,11 +11,12 @@
 //   Who is out    ONLY the server decides. Phase changes, catches and finishes
 //                 arrive as events and are passed to the session as-is.
 
-import { NET, RULES } from "../config";
+import { ATTACK, ATTACK_KINDS, FIELD, MOVE, NET, RULES, courseFor, type Course } from "../config";
 import type { Stance } from "../config";
+import { placeBaskets, type Ball, type Basket } from "../game/balls";
 import { freshMotion, moveContestant, type Contestant, type Phase, type RoundEvent, type RoundView } from "../game/rules";
 import type { NetClient } from "./client";
-import { CAUSES, SNAP_STRIDE, phaseAt, unpackFlags, type ServerMsg, type SnapMsg, type StartInfo, type SyncInfo } from "./protocol";
+import { BALL_STRIDE, CAUSES, OUTCOME_STRIDE, SNAP_STRIDE, cleanDist, cleanMode, phaseAt, unpackFlags, type ServerMsg, type SnapMsg, type StartInfo, type SyncInfo } from "./protocol";
 
 const SNAP_KEEP = 24; // ~1.6 s of history
 const HIST_KEEP_MS = 1500;
@@ -34,6 +35,9 @@ export class OnlineRound implements RoundView {
   elapsed = 0;
   readonly contestants: Contestant[];
   readonly seed: number;
+  readonly course: Course;
+  readonly balls: Ball[];
+  readonly baskets: Basket[];
 
   private readonly byId = new Map<string, Contestant>();
   private events: RoundEvent[] = [];
@@ -50,6 +54,10 @@ export class OnlineRound implements RoundView {
     private readonly net: NetClient,
   ) {
     this.seed = start.seed;
+    this.course = courseFor(cleanMode(start.mode), cleanDist(start.dist), start.hw ? start.hw / 100 : undefined);
+    const bp = start.bp ?? [];
+    this.balls = Array.from({ length: Math.floor(bp.length / 2) }, (_, i) => ({ index: i, x: bp[i * 2] / 100, z: bp[i * 2 + 1] / 100, holder: -1, basket: -1, noGrab: -1, waitUntil: 0 }));
+    this.baskets = this.course.mode === "balls" ? placeBaskets(this.course) : [];
     this.contestants = start.roster.map((r, index) => {
       const c: Contestant = {
         id: r.id,
@@ -91,7 +99,7 @@ export class OnlineRound implements RoundView {
   }
 
   get timeLeft(): number {
-    return Math.max(0, RULES.timeLimit - this.elapsed);
+    return Math.max(0, this.course.timeLimit - this.elapsed);
   }
 
   get aliveCount(): number {
@@ -124,6 +132,14 @@ export class OnlineRound implements RoundView {
     this.net.setButtons(sprint, stance, me.inJump);
   }
 
+  setActions(id: string, attack: number, grab: number): void {
+    const me = this.me;
+    if (!me || id !== me.id) return;
+    me.inAttack = attack & 255;
+    me.inGrab = grab & 255;
+    this.net.setActions(me.inAttack, me.inGrab);
+  }
+
   /**
    * Events since the last drain. Runs of phase changes collapse to the latest:
    * after a stall (app in the background) the session should hear "she is
@@ -151,7 +167,7 @@ export class OnlineRound implements RoundView {
       // Disconnected, the server holds you still — so the screen does too.
       // Your stick comes back to life when the connection does.
       if (this.net.state !== "open") me.inX = me.inZ = 0;
-      moveContestant(me, dt);
+      moveContestant(me, dt, this.course);
       // Close the gap to the server smoothly (about 90% in a quarter second).
       const k = 1 - Math.exp(-dt * 9);
       const dx = this.corrX * k;
@@ -207,6 +223,32 @@ export class OnlineRound implements RoundView {
     if (Math.abs(serverElapsed - this.elapsed) > 0.5) this.elapsed = serverElapsed;
 
     this.reconcile(s);
+    if (s.b) this.applyBalls(s.b);
+  }
+
+  /** Balls as the server has them; who holds what follows from that. */
+  private applyBalls(b: number[]): void {
+    for (const c of this.contestants) c.ball = -1;
+    for (const ball of this.balls) {
+      const o = ball.index * BALL_STRIDE;
+      if (o + 2 >= b.length) break;
+      ball.x = b[o] / 100;
+      ball.z = b[o + 1] / 100;
+      const h = b[o + 2];
+      ball.holder = h > 0 ? h - 1 : -1;
+      ball.basket = h < 0 ? -h - 1 : -1;
+      if (ball.holder >= 0 && this.contestants[ball.holder]) this.contestants[ball.holder].ball = ball.index;
+    }
+  }
+
+  /** The server says someone slid (hit or shoved): if it's us, slide now, as the referee will have us. */
+  private slide(c: Contestant, kx: number, kz: number, stun: number): void {
+    if (c !== this.me) return;
+    c.vx = kx / 100;
+    c.vz = kz / 100;
+    c.sprinting = false;
+    c.stun = Math.max(c.stun, stun, Math.hypot(c.vx, c.vz) / MOVE.decel);
+    c.forgive = c.stun + ATTACK.forgive;
   }
 
   /** Compare where the server had us with where we predicted we'd be then. */
@@ -233,9 +275,8 @@ export class OnlineRound implements RoundView {
       this.corrX = ex;
       this.corrZ = ez;
     }
-    me.progress = Math.max(me.progress, s.p[o + 5] / 100);
     // Stamina is the server's to keep; ours drifts only by a frame or two.
-    me.stamina = unpackFlags(s.p[o + 7]).stamina;
+    me.stamina = unpackFlags(s.p[o + 4]).stamina;
   }
 
   private histAt(t: number): Hist {
@@ -266,7 +307,7 @@ export class OnlineRound implements RoundView {
         const c = this.contestants[m.i];
         if (!c || c.status === "eliminated") return;
         c.status = "eliminated";
-        c.cause = CAUSES[m.c];
+        c.cause = CAUSES[m.c] ?? "moved";
         c.eliminatedAt = this.elapsed;
         // Fall where the server caught them, not where we happened to draw them.
         c.x = m.x / 100;
@@ -289,6 +330,55 @@ export class OnlineRound implements RoundView {
         this.phase = "ended";
         this.events.push({ type: "ended" });
         break;
+      case "atk": {
+        const c = this.contestants[m.i];
+        const kind = ATTACK_KINDS[m.kind - 1];
+        if (!c || !kind) return;
+        const tg = m.tg >= 0 ? this.contestants[m.tg] : undefined;
+        if (tg) this.slide(tg, m.kx ?? 0, m.kz ?? 0, ATTACK.kinds[kind].stun);
+        // Our own swing: the button cools down as the referee's does.
+        if (c === this.me) c.cool = ATTACK.kinds[kind].cooldown;
+        if (m.db >= 0 && tg) tg.ball = -1;
+        this.events.push({ type: "attack", id: c.id, kind, target: tg?.id ?? null, dropped: m.db });
+        break;
+      }
+      case "shv": {
+        const c = this.contestants[m.i];
+        const by = this.contestants[m.by];
+        if (!c || !by) return;
+        this.slide(c, m.kx, m.kz, 0);
+        this.events.push({ type: "shoved", id: c.id, by: by.id });
+        break;
+      }
+      case "grb": {
+        const c = this.contestants[m.i];
+        const ball = this.balls[m.b];
+        if (!c || !ball) return;
+        ball.holder = c.index;
+        c.ball = ball.index;
+        this.events.push({ type: "grab", id: c.id, ball: ball.index });
+        break;
+      }
+      case "drp": {
+        const ball = this.balls[m.b];
+        if (!ball) return;
+        if (ball.holder >= 0 && this.contestants[ball.holder]?.ball === ball.index) this.contestants[ball.holder].ball = -1;
+        ball.holder = -1;
+        ball.x = m.x / 100;
+        ball.z = m.z / 100;
+        this.events.push({ type: "drop", ball: ball.index, x: ball.x, z: ball.z });
+        break;
+      }
+      case "bnk": {
+        const c = this.contestants[m.i];
+        const ball = this.balls[m.b];
+        if (!c || !ball) return;
+        ball.basket = m.bk;
+        ball.holder = -1;
+        c.ball = -1;
+        this.events.push({ type: "bank", id: c.id, ball: ball.index, basket: m.bk });
+        break;
+      }
     }
   }
 
@@ -303,19 +393,18 @@ export class OnlineRound implements RoundView {
       const o = c.index * SNAP_STRIDE;
       c.x = s.p[o] / 100;
       c.z = s.p[o + 1] / 100;
-      c.vx = s.p[o + 2] / 100;
-      c.vz = s.p[o + 3] / 100;
-      c.heading = s.p[o + 4] / 1000;
-      c.progress = s.p[o + 5] / 100;
-      c.y = s.p[o + 6] / 100;
-      const fl = unpackFlags(s.p[o + 7]);
+      c.vx = c.vz = 0;
+      c.heading = s.p[o + 2] / 1000;
+      c.y = s.p[o + 3] / 100;
+      const fl = unpackFlags(s.p[o + 4]);
       c.stance = fl.stance;
       c.stamina = fl.stamina;
-      const [place, finMs, outMs, cause] = sync.outcomes.slice(c.index * 4, c.index * 4 + 4);
+      const [place, finMs, outMs, cause, progress] = sync.outcomes.slice(c.index * OUTCOME_STRIDE, (c.index + 1) * OUTCOME_STRIDE);
+      c.progress = Math.max(c.progress, (progress ?? 0) / 100);
       const st = s.st[c.index];
       if (st === "e" && c.status !== "eliminated") {
         c.status = "eliminated";
-        c.cause = cause === 2 ? "time" : "moved";
+        c.cause = cause === 3 ? "noball" : cause === 2 ? "time" : "moved";
         c.eliminatedAt = outMs / 1000;
         this.events.push({ type: "eliminated", id: c.id, cause: c.cause });
       } else if (st === "f" && c.status === "alive") {
@@ -325,6 +414,7 @@ export class OnlineRound implements RoundView {
         this.events.push({ type: "finished", id: c.id, time: c.finishTime, place });
       }
     }
+    if (s.b) this.applyBalls(s.b);
     this.hist.length = 0;
     this.corrX = this.corrZ = 0;
     this.snaps.length = 0;
@@ -352,6 +442,11 @@ export class OnlineRound implements RoundView {
     const u = span > 0 ? Math.max(0, Math.min(1, (t - a.s) / span)) : 1;
     // Past the newest snapshot: extrapolate a little on velocity, never far.
     const ahead = t > b.s ? Math.min(0.1, (t - b.s) / 1000) : 0;
+    // Velocity from the two snapshots around us (or the last two): the server doesn't send it.
+    const n = snaps.length;
+    const v0 = a !== b ? a : n > 1 ? snaps[n - 2] : null;
+    const v1 = a !== b ? b : snaps[n - 1];
+    const vdt = v0 ? (v1.s - v0.s) / 1000 : 0;
 
     for (const c of this.contestants) {
       if (c === this.me || c.status === "eliminated") continue;
@@ -360,19 +455,25 @@ export class OnlineRound implements RoundView {
       const az = a.p[o + 1] / 100;
       const bx = b.p[o] / 100;
       const bz = b.p[o + 1] / 100;
-      c.vx = (a.p[o + 2] + (b.p[o + 2] - a.p[o + 2]) * u) / 100;
-      c.vz = (a.p[o + 3] + (b.p[o + 3] - a.p[o + 3]) * u) / 100;
+      if (v0 && vdt > 0) {
+        c.vx = (v1.p[o] - v0.p[o]) / 100 / vdt;
+        c.vz = (v1.p[o + 1] - v0.p[o + 1]) / 100 / vdt;
+      } else {
+        c.vx = c.vz = 0;
+      }
       c.x = ax + (bx - ax) * u + c.vx * ahead;
       c.z = az + (bz - az) * u + c.vz * ahead;
-      const ha = a.p[o + 4] / 1000;
-      const hb = b.p[o + 4] / 1000;
+      const ha = a.p[o + 2] / 1000;
+      const hb = b.p[o + 2] / 1000;
       const dh = Math.atan2(Math.sin(hb - ha), Math.cos(hb - ha));
       c.heading = ha + dh * u;
-      c.progress = Math.max(c.progress, (a.p[o + 5] + (b.p[o + 5] - a.p[o + 5]) * u) / 100);
-      c.y = Math.max(0, (a.p[o + 6] + (b.p[o + 6] - a.p[o + 6]) * u) / 100);
-      const fl = unpackFlags(b.p[o + 7]);
+      c.progress = Math.max(c.progress, FIELD.startZ - c.z);
+      c.y = Math.max(0, (a.p[o + 3] + (b.p[o + 3] - a.p[o + 3]) * u) / 100);
+      const fl = unpackFlags(b.p[o + 4]);
       c.stance = fl.stance;
       c.sprinting = fl.sprinting;
+      // Stagger and swings come as events; the snapshot keeps the stagger honest.
+      c.stun = fl.stunned ? 0.1 : 0;
     }
   }
 }

@@ -8,6 +8,8 @@
 //   fall        caught: a stiff fall away from Mama, limbs loose
 //   cheer       arms up at the finish
 //   emotes      upper-body poses blended over whatever the legs are doing
+//   actions     fist, slap, push, picking a ball up; carrying it; staggering
+//               after a hit (SPEC-V2 §2.4)
 //   poses       lobby stances from the reference photos (hand on hip, hand in
 //               hair, hero stance, relaxed)
 //
@@ -20,6 +22,10 @@ import { BONES, BONE_INDEX, type BoneName } from "./skeleton";
 
 export type { EmoteId } from "../../social/emotes";
 export type PoseId = "relaxed" | "hip" | "hair" | "hero" | "arms";
+export type ActionId = "fist" | "slap" | "push" | "grab";
+/** How long each action takes to play, seconds. */
+export const ACTION_SECONDS: Record<ActionId, number> = { fist: 0.45, slap: 0.4, push: 0.5, grab: 0.55 };
+const HIT_SECONDS = 0.6;
 export const POSES: { id: PoseId; label: string }[] = [
   { id: "relaxed", label: "Relaxed" },
   { id: "hip", label: "Hand on hip" },
@@ -113,6 +119,13 @@ export interface AnimState {
   done: number;
   emote: EmoteId | null;
   emoteT: number;
+  /** A one-off action and its time; carrying a ball (target and blend); a stagger's time left and side. */
+  action: ActionId | null;
+  actionT: number;
+  carry: boolean;
+  carryW: number;
+  hitT: number;
+  hitSide: number;
   pose: PoseId | null;
   /** Where to look, relative to the body (radians). */
   lookYaw: number;
@@ -137,6 +150,12 @@ export function newAnimState(seed: number): AnimState {
     done: -1,
     emote: null,
     emoteT: 0,
+    action: null,
+    actionT: 0,
+    carry: false,
+    carryW: 0,
+    hitT: 0,
+    hitSide: 0,
     pose: null,
     lookYaw: 0,
     lookPitch: 0,
@@ -163,6 +182,12 @@ export function stepGait(a: AnimState, speed: number, dt: number): void {
     a.emoteT += dt;
     if (a.emoteT >= EMOTE_SECONDS) a.emote = null;
   }
+  if (a.action) {
+    a.actionT += dt;
+    if (a.actionT >= ACTION_SECONDS[a.action]) a.action = null;
+  }
+  if (a.hitT > 0) a.hitT = Math.max(0, a.hitT - dt);
+  a.carryW += ((a.carry ? 1 : 0) - a.carryW) * (1 - Math.exp(-dt * 10));
   const walkRef = a.stance > 0.5 ? 1.2 : WALK;
   const want = Math.min(1, speed / walkRef);
   // Rise fast, settle slowly: a sudden stop holds the stride for a moment.
@@ -324,9 +349,107 @@ export function computePose(a: AnimState, out: Pose): void {
     out.blendUpper(_emote, Math.max(0, w));
   }
 
+  // ── Carrying a ball: both hands round it, in front of the chest ──
+  if (a.carryW > 0.01) {
+    const w = a.carryW;
+    out.set("upperArmL", lerp(out.get("upperArmL", 0), -0.55, w), 0, lerp(out.get("upperArmL", 2), -0.08, w));
+    out.set("upperArmR", lerp(out.get("upperArmR", 0), -0.55, w), 0, lerp(out.get("upperArmR", 2), 0.08, w));
+    out.set("foreArmL", lerp(out.get("foreArmL", 0), -1.35, w), lerp(out.get("foreArmL", 1), 0.35, w));
+    out.set("foreArmR", lerp(out.get("foreArmR", 0), -1.35, w), lerp(out.get("foreArmR", 1), -0.35, w));
+    out.curlL = lerp(out.curlL, 0.55, w);
+    out.curlR = lerp(out.curlR, 0.55, w);
+  }
+
+  // ── A one-off action over everything ──
+  if (a.action) actionPose(a.action, a.actionT, out);
+
+  // ── Hit: knocked back, arms out, head snapped back ──
+  if (a.hitT > 0) {
+    const k = a.hitT / HIT_SECONDS;
+    const w = Math.sin(Math.min(1, k * 1.4) * Math.PI * 0.5) * Math.min(1, (1 - k) * 6 + 0.2);
+    out.add("spine", -0.22 * w, a.hitSide * 0.2 * w);
+    out.add("chest", -0.28 * w, a.hitSide * 0.25 * w);
+    out.add("head", -0.35 * w, a.hitSide * 0.3 * w);
+    out.add("upperArmL", -0.5 * w, 0, 0.6 * w);
+    out.add("upperArmR", -0.5 * w, 0, -0.6 * w);
+    out.add("foreArmL", -0.4 * w);
+    out.add("foreArmR", -0.4 * w);
+    out.curlL = out.curlR = lerp(out.curlL, 0.05, w);
+  }
+
   // Fingers follow the curl.
   curl(out, "L", out.curlL);
   curl(out, "R", out.curlR);
+}
+
+/** Smooth 0 → 1 → 0 over [a, b] … [c, d] of an action's time. */
+function bell(t: number, a: number, b: number, c: number, d: number): number {
+  if (t <= a || t >= d) return 0;
+  if (t < b) return (t - a) / (b - a);
+  if (t <= c) return 1;
+  return 1 - (t - c) / (d - c);
+}
+
+function actionPose(id: ActionId, t: number, out: Pose): void {
+  switch (id) {
+    case "fist": {
+      // Wind up, then a straight right.
+      const wind = bell(t, 0, 0.1, 0.12, 0.18);
+      const hit = bell(t, 0.1, 0.18, 0.26, 0.45);
+      out.set("upperArmR", lerp(lerp(out.get("upperArmR", 0), 0.35, wind), -1.5, hit), 0, lerp(out.get("upperArmR", 2), 0.12, hit));
+      out.set("foreArmR", lerp(lerp(out.get("foreArmR", 0), -1.9, wind), -0.08, hit));
+      out.set("upperArmL", lerp(out.get("upperArmL", 0), -0.6, Math.max(wind, hit)), 0, lerp(out.get("upperArmL", 2), 0.1, hit));
+      out.set("foreArmL", lerp(out.get("foreArmL", 0), -1.8, Math.max(wind, hit)));
+      out.add("chest", 0.08 * hit, 0.25 * wind - 0.4 * hit);
+      out.add("spine", 0.06 * hit, 0.1 * wind - 0.2 * hit);
+      out.curlR = lerp(out.curlR, 1, Math.max(wind, hit));
+      out.curlL = lerp(out.curlL, 1, Math.max(wind, hit));
+      break;
+    }
+    case "slap": {
+      // Open hand from out wide, swept across.
+      const up = bell(t, 0, 0.1, 0.12, 0.2);
+      const sweep = bell(t, 0.1, 0.18, 0.24, 0.4);
+      out.set("upperArmR", lerp(lerp(out.get("upperArmR", 0), -0.9, up), -1.25, sweep), lerp(0, 0.9, sweep), lerp(lerp(out.get("upperArmR", 2), -1.0, up), 0.1, sweep));
+      out.set("foreArmR", lerp(out.get("foreArmR", 0), -0.45, Math.max(up, sweep)));
+      out.add("chest", 0, 0.2 * up - 0.35 * sweep);
+      out.curlR = lerp(out.curlR, 0.05, Math.max(up, sweep));
+      break;
+    }
+    case "push": {
+      // Both hands up to the chest, then out hard.
+      const load = bell(t, 0, 0.12, 0.14, 0.22);
+      const shove = bell(t, 0.12, 0.22, 0.3, 0.5);
+      for (const [b, s] of [["L", 1], ["R", -1]] as const) {
+        out.set(`upperArm${b}`, lerp(lerp(out.get(`upperArm${b}`, 0), -0.6, load), -1.45, shove), 0, lerp(out.get(`upperArm${b}`, 2), -0.12 * s, Math.max(load, shove)));
+        out.set(`foreArm${b}`, lerp(lerp(out.get(`foreArm${b}`, 0), -1.9, load), -0.1, shove), lerp(0, 0.4 * s, load));
+      }
+      out.add("spine", 0.12 * shove - 0.05 * load);
+      out.add("chest", 0.12 * shove);
+      out.curlL = out.curlR = lerp(out.curlL, 0.1, Math.max(load, shove));
+      break;
+    }
+    case "grab": {
+      // Bend down and scoop.
+      const w = bell(t, 0, 0.18, 0.3, 0.55);
+      out.add("spine", 0.55 * w);
+      out.add("chest", 0.35 * w);
+      out.add("head", -0.3 * w);
+      out.set("upperArmL", lerp(out.get("upperArmL", 0), -0.9, w), 0, lerp(out.get("upperArmL", 2), -0.05, w));
+      out.set("upperArmR", lerp(out.get("upperArmR", 0), -0.9, w), 0, lerp(out.get("upperArmR", 2), 0.05, w));
+      out.set("foreArmL", lerp(out.get("foreArmL", 0), -0.3, w));
+      out.set("foreArmR", lerp(out.get("foreArmR", 0), -0.3, w));
+      out.add("thighL", -0.7 * w);
+      out.add("thighR", -0.7 * w);
+      out.add("shinL", 1.1 * w);
+      out.add("shinR", 1.1 * w);
+      out.add("footL", -0.4 * w);
+      out.add("footR", -0.4 * w);
+      out.hipsY -= 0.22 * w;
+      out.curlL = out.curlR = lerp(out.curlL, 0.6, w);
+      break;
+    }
+  }
 }
 
 function lerp(a: number, b: number, t: number): number {

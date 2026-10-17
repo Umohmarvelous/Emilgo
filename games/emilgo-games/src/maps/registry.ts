@@ -21,6 +21,8 @@ export interface MapInfo {
   /** Thumbnail palette: sky top, horizon, ground, silhouette, accent. */
   colors: [string, string, string, string, string];
   shape: Silhouette;
+  /** The field's half width, metres (default: the street's, config FIELD.halfWidth). */
+  halfWidth?: number;
 }
 
 export const CATEGORIES: { id: MapCategory; label: string }[] = [

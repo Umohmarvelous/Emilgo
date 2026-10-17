@@ -214,16 +214,16 @@ function handle(peer: Peer, msg: ClientMsg): void {
   const room = lobby.roomOf(peer);
   switch (msg.t) {
     case "in":
-      room?.input(peer, msg.x, msg.z, msg.b, msg.j);
+      room?.input(peer, msg.x, msg.z, msg.b, msg.j, msg.a, msg.g);
       break;
     case "pong":
       peer.pong(msg.s);
       break;
     case "quick":
-      sendErr(peer, lobby.quick(peer));
+      sendErr(peer, lobby.quick(peer, msg.mode, msg.dist));
       break;
     case "create":
-      sendErr(peer, lobby.create(peer, msg.size));
+      sendErr(peer, lobby.create(peer, msg.size, msg.mode, msg.dist));
       break;
     case "join":
       sendErr(peer, lobby.join(peer, msg.code));

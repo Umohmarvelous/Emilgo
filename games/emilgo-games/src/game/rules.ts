@@ -14,13 +14,22 @@
 //   turningBack  she turns to the wall again. Safe to set off early.
 // The round ends when nobody is still running, or time is up (everyone still
 // on the field is eliminated).
+//
+// Modes (SPEC-V2 §2.1): Classic Run — reach the line. Ball Haunting — reach
+// it HOLDING a ball (fewer balls than players); the ball goes in a basket and
+// you are safe for good. Attacks (fist, slap, push; combat.ts) knock a ball
+// loose; sprinting into someone shoves them. While she watches, an attacker
+// is shot and the one they hit is forgiven.
 
-import { FIELD, MOVE, RULES, type SingBands, type Stance } from "../config";
+import { ATTACK, ATTACK_KINDS, BALLS, DEFAULT_COURSE, FIELD, MOVE, RULES, SHOVE, ballCount, type AttackKind, type Course, type SingBands, type Stance } from "../config";
 import { Rng } from "../core/rng";
+import { inPlay, nearestBasket, placeBalls, placeBaskets, type Ball, type Basket } from "./balls";
+import { attackTarget, canAttack, knock, type ActKind } from "./combat";
 
 export type Phase = "countdown" | "sing" | "pause" | "turning" | "watch" | "turningBack" | "ended";
 export type Status = "alive" | "finished" | "eliminated";
-export type Cause = "moved" | "time";
+/** moved: caught by the doll; time: the clock ran out; noball: every ball was banked without yours. */
+export type Cause = "moved" | "time" | "noball";
 
 export interface Contestant {
   readonly id: string;
@@ -61,6 +70,20 @@ export interface Contestant {
   /** Jump requests: a counter, so a repeated or lost message can't double or drop one. */
   inJump: number;
   jumpSeen: number;
+  /** Attack requests: (counter << 2) | kind (1 fist, 2 slap, 3 push). Grab requests: a counter. */
+  inAttack: number;
+  attackSeen: number;
+  inGrab: number;
+  grabSeen: number;
+  /** The ball held (index), or −1. */
+  ball: number;
+  /** Seconds left: stunned (can't steer), forgiven by the doll, mid-action, before attacking again. */
+  stun: number;
+  forgive: number;
+  act: number;
+  cool: number;
+  /** What the current action is (animation). */
+  actKind: ActKind;
   /** Furthest distance past the start line, metres. */
   progress: number;
   /**
@@ -77,6 +100,9 @@ export interface Contestant {
  * practice; the online client implements it from the server's snapshots.
  */
 export interface RoundView {
+  readonly course: Course;
+  readonly balls: readonly Ball[];
+  readonly baskets: readonly Basket[];
   readonly phase: Phase;
   readonly phaseTime: number;
   readonly phaseDuration: number;
@@ -88,6 +114,8 @@ export interface RoundView {
   setInput(id: string, x: number, z: number): void;
   /** Buttons: sprint held, the stance wanted, and the jump counter. */
   setButtons(id: string, sprint: boolean, stance: Stance, jump: number): void;
+  /** Action counters: attack = (n << 2) | kind, grab = n. A change is one request. */
+  setActions(id: string, attack: number, grab: number): void;
   step(dt: number): void;
   drain(): RoundEvent[];
 }
@@ -101,13 +129,18 @@ export const PHASES: readonly Phase[] = ["countdown", "sing", "pause", "turning"
 export const HIDDEN_LENGTH: readonly Phase[] = ["sing", "pause", "watch"];
 
 /** A fresh contestant's movement state (shared by the referee and the online client). */
-export function freshMotion(): Pick<Contestant, "y" | "vy" | "stance" | "inStance" | "stanceT" | "inSprint" | "sprinting" | "stamina" | "rested" | "inJump" | "jumpSeen"> {
-  return { y: 0, vy: 0, stance: 0, inStance: 0, stanceT: 0, inSprint: false, sprinting: false, stamina: 1, rested: 9, inJump: 0, jumpSeen: 0 };
+type Motion = "y" | "vy" | "stance" | "inStance" | "stanceT" | "inSprint" | "sprinting" | "stamina" | "rested" | "inJump" | "jumpSeen" | "inAttack" | "attackSeen" | "inGrab" | "grabSeen" | "ball" | "stun" | "forgive" | "act" | "cool" | "actKind";
+
+export function freshMotion(): Pick<Contestant, Motion> {
+  return {
+    y: 0, vy: 0, stance: 0, inStance: 0, stanceT: 0, inSprint: false, sprinting: false, stamina: 1, rested: 9, inJump: 0, jumpSeen: 0,
+    inAttack: 0, attackSeen: 0, inGrab: 0, grabSeen: 0, ball: -1, stun: 0, forgive: 0, act: 0, cool: 0, actKind: "",
+  };
 }
 
-/** Moving, as Mama sees it: on the move, in the air, or changing stance. */
+/** Moving, as Mama sees it: on the move, in the air, changing stance, swinging or picking up. */
 export function isMoving(c: Contestant): boolean {
-  return Math.hypot(c.vx, c.vz) > RULES.tolerance || c.y > 0.02 || c.stanceT > 0;
+  return Math.hypot(c.vx, c.vz) > RULES.tolerance || c.y > 0.02 || c.stanceT > 0 || c.act > 0;
 }
 
 /**
@@ -117,8 +150,16 @@ export function isMoving(c: Contestant): boolean {
  * identically. Finishing, collisions and judging are NOT here — only the
  * referee does those.
  */
-export function moveContestant(c: Contestant, dt: number): void {
+export function moveContestant(c: Contestant, dt: number, course: Course = DEFAULT_COURSE): void {
   if (c.status === "eliminated") return;
+
+  if (c.stun > 0) c.stun = Math.max(0, c.stun - dt);
+  if (c.forgive > 0) c.forgive = Math.max(0, c.forgive - dt);
+  if (c.act > 0) {
+    c.act = Math.max(0, c.act - dt);
+    if (c.act === 0) c.actKind = "";
+  }
+  if (c.cool > 0) c.cool = Math.max(0, c.cool - dt);
 
   let ix = c.inX;
   let iz = c.inZ;
@@ -127,8 +168,14 @@ export function moveContestant(c: Contestant, dt: number): void {
   if (c.status === "finished") {
     // Walk on into the safe zone, then stand still. Input is ignored.
     ix = 0;
-    iz = c.z > FIELD.safeZ ? -0.5 : 0;
+    iz = c.z > course.safeZ ? -0.5 : 0;
     wantStance = 0;
+    wantSprint = false;
+    c.jumpSeen = c.inJump;
+  } else if (c.stun > 0) {
+    // Hit or shoved: sliding, not steering. Requests made now are dropped.
+    ix = iz = 0;
+    wantStance = c.stance;
     wantSprint = false;
     c.jumpSeen = c.inJump;
   }
@@ -196,11 +243,11 @@ export function moveContestant(c: Contestant, dt: number): void {
 
   c.x += c.vx * dt;
   c.z += c.vz * dt;
-  clampToField(c);
+  clampToField(c, course);
 
-  // Face where you are going; keep the last facing when standing still.
+  // Face where you are going; keep the last facing when standing still (or knocked back).
   const sp = Math.hypot(c.vx, c.vz);
-  if (sp > 0.3) {
+  if (sp > 0.3 && c.stun <= 0) {
     const want = Math.atan2(c.vx, c.vz);
     let d = want - c.heading;
     d = Math.atan2(Math.sin(d), Math.cos(d));
@@ -211,25 +258,34 @@ export function moveContestant(c: Contestant, dt: number): void {
   c.progress = Math.max(c.progress, FIELD.startZ - c.z);
 }
 
-export function clampToField(c: Contestant): void {
-  const lim = FIELD.halfWidth - MOVE.radius;
+export function clampToField(c: Contestant, course: Course = DEFAULT_COURSE): void {
+  const lim = course.halfWidth - MOVE.radius;
   if (c.x > lim) { c.x = lim; c.vx = Math.min(0, c.vx); }
   if (c.x < -lim) { c.x = -lim; c.vx = Math.max(0, c.vx); }
-  if (c.z > FIELD.backLimitZ) { c.z = FIELD.backLimitZ; c.vz = Math.min(0, c.vz); }
-  if (c.z < FIELD.safeZ - 2) { c.z = FIELD.safeZ - 2; c.vz = Math.max(0, c.vz); }
+  if (c.z > course.backLimitZ) { c.z = course.backLimitZ; c.vz = Math.min(0, c.vz); }
+  if (c.z < course.safeZ - 2) { c.z = course.safeZ - 2; c.vz = Math.max(0, c.vz); }
 }
 
 export type RoundEvent =
   | { type: "phase"; phase: Phase; duration: number }
   | { type: "eliminated"; id: string; cause: Cause }
   | { type: "finished"; id: string; time: number; place: number }
-  | { type: "ended" };
+  | { type: "ended" }
+  /** A swing. `target` is who it landed on (null: it missed); `dropped` the ball it knocked loose, or −1. */
+  | { type: "attack"; id: string; kind: AttackKind; target: string | null; dropped: number }
+  /** Sprinted into: `id` was shoved by `by`. */
+  | { type: "shoved"; id: string; by: string }
+  | { type: "grab"; id: string; ball: number }
+  | { type: "drop"; ball: number; x: number; z: number }
+  | { type: "bank"; id: string; ball: number; basket: number };
 
 export interface RoundOptions {
   seed: number;
   contestants: { id: string; name: string; bot: boolean }[];
   /** Whose spot is front and centre (the local player in practice). */
   featuredId?: string;
+  /** Mode, distance, time and width (default: Classic Run, 200 m). */
+  course?: Course;
 }
 
 export class RedLightRound implements RoundView {
@@ -242,16 +298,23 @@ export class RedLightRound implements RoundView {
   cycle = 0;
   readonly contestants: Contestant[];
   readonly seed: number;
+  readonly course: Course;
+  readonly balls: Ball[];
+  readonly baskets: Basket[];
 
   private readonly rng: Rng;
   private readonly byId = new Map<string, Contestant>();
   private events: RoundEvent[] = [];
   private finishedCount = 0;
   private turns = 0;
+  /** When each pair last shoved (a * 256 + b → seconds of play). */
+  private readonly shoves = new Map<number, number>();
 
   constructor(opts: RoundOptions) {
     this.seed = opts.seed;
     this.rng = new Rng(opts.seed);
+    this.course = opts.course ?? DEFAULT_COURSE;
+    const hw = this.course.halfWidth;
 
     // Spawn on a staggered grid behind the start line. The featured contestant
     // gets the centre front slot; everyone else is shuffled into the rest.
@@ -262,7 +325,7 @@ export class RedLightRound implements RoundView {
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
         const t = cols === 1 ? 0.5 : c / (cols - 1);
-        const x = (t - 0.5) * 2 * (FIELD.halfWidth - 1.4) + (r % 2 ? 0.7 : -0.7);
+        const x = (t - 0.5) * 2 * (hw - 1.4) + (r % 2 ? 0.7 : -0.7);
         const z = FIELD.spawnNearZ + (rows === 1 ? 0 : (r / (rows - 1)) * (FIELD.spawnFarZ - FIELD.spawnNearZ));
         slots.push({ x, z });
       }
@@ -303,6 +366,12 @@ export class RedLightRound implements RoundView {
       return contestant;
     });
 
+    // Ball Haunting: the balls come from their own stream, so the spawns above
+    // are the same whatever the mode.
+    const ballRng = new Rng(opts.seed ^ 0x6a09e667);
+    this.balls = this.course.mode === "balls" ? placeBalls(this.course, ballCount(n), ballRng) : [];
+    this.baskets = this.course.mode === "balls" ? placeBaskets(this.course) : [];
+
     this.events.push({ type: "phase", phase: "countdown", duration: RULES.countdown });
   }
 
@@ -312,7 +381,7 @@ export class RedLightRound implements RoundView {
   }
 
   get timeLeft(): number {
-    return Math.max(0, RULES.timeLimit - this.elapsed);
+    return Math.max(0, this.course.timeLimit - this.elapsed);
   }
 
   get aliveCount(): number {
@@ -348,6 +417,13 @@ export class RedLightRound implements RoundView {
     if (Number.isInteger(jump)) c.inJump = jump & 255;
   }
 
+  setActions(id: string, attack: number, grab: number): void {
+    const c = this.byId.get(id);
+    if (!c) return;
+    if (Number.isInteger(attack)) c.inAttack = attack & 255;
+    if (Number.isInteger(grab)) c.inGrab = grab & 255;
+  }
+
   /** Events since the last drain, oldest first. */
   drain(): RoundEvent[] {
     const out = this.events;
@@ -364,8 +440,12 @@ export class RedLightRound implements RoundView {
       this.elapsed += dt;
       this.integrate(dt);
       this.detect();
-      if (this.elapsed >= RULES.timeLimit) {
+      if (this.elapsed >= this.course.timeLimit) {
         this.timeUp();
+        return;
+      }
+      if (this.course.mode === "balls" && !this.balls.some(inPlay)) {
+        this.noBallsLeft();
         return;
       }
     }
@@ -444,24 +524,133 @@ export class RedLightRound implements RoundView {
   // ── Movement ──────────────────────────────────────────────────────────────
 
   private integrate(dt: number): void {
+    const course = this.course;
     for (const c of this.contestants) {
       if (c.status === "eliminated") continue;
-      moveContestant(c, dt);
+      this.actions(c);
+      moveContestant(c, dt, course);
 
-      if (c.status === "alive" && c.z <= FIELD.finishZ) {
+      if (c.status === "alive" && c.z <= course.finishZ && (course.mode === "classic" || c.ball >= 0)) {
         c.status = "finished";
         c.finishTime = this.elapsed;
         c.place = ++this.finishedCount;
         this.events.push({ type: "finished", id: c.id, time: c.finishTime, place: c.place });
+        if (c.ball >= 0) this.bank(c);
       }
     }
     this.separate();
+    // Held balls go where their holders go.
+    for (const b of this.balls) {
+      if (b.holder < 0 || b.basket >= 0) continue;
+      const h = this.contestants[b.holder];
+      b.x = h.x;
+      b.z = h.z;
+    }
+  }
+
+  // ── Actions: attacks and grabs ────────────────────────────────────────────
+
+  private actions(c: Contestant): void {
+    if (c.status !== "alive") {
+      c.attackSeen = c.inAttack;
+      c.grabSeen = c.inGrab;
+      return;
+    }
+    if (c.inAttack !== c.attackSeen) {
+      c.attackSeen = c.inAttack;
+      const kind = ATTACK_KINDS[(c.inAttack & 3) - 1];
+      if (kind && canAttack(c)) this.attack(c, kind);
+    }
+    if (c.inGrab !== c.grabSeen) {
+      c.grabSeen = c.inGrab;
+      if (this.course.mode === "balls" && c.ball < 0 && c.stun <= 0 && c.y <= 0 && c.stance !== 2) this.grab(c);
+    }
+  }
+
+  private attack(c: Contestant, kind: AttackKind): void {
+    const k = ATTACK.kinds[kind];
+    c.cool = k.cooldown;
+    c.act = ATTACK.swing;
+    c.actKind = kind;
+    // Online, the target moved on during the attacker's lag: a little extra reach.
+    const target = attackTarget(c, this.contestants, ATTACK.range + Math.min(0.5, c.graceBonus * 2));
+    let dropped = -1;
+    if (target) {
+      let dx = target.x - c.x;
+      let dz = target.z - c.z;
+      const d = Math.hypot(dx, dz);
+      if (d > 1e-4) {
+        dx /= d;
+        dz /= d;
+      } else {
+        dx = Math.sin(c.heading);
+        dz = Math.cos(c.heading);
+      }
+      c.heading = Math.atan2(dx, dz);
+      knock(target, dx, dz, k.knock, k.stun);
+      // The hit first, then the ball it knocked loose: cause before effect on every phone.
+      dropped = target.ball;
+      this.events.push({ type: "attack", id: c.id, kind, target: target.id, dropped });
+      if (dropped >= 0) this.drop(target, dx, dz, c.index);
+      return;
+    }
+    this.events.push({ type: "attack", id: c.id, kind, target: null, dropped });
+  }
+
+  private grab(c: Contestant): void {
+    let best: Ball | null = null;
+    let bestD: number = BALLS.reach;
+    for (const b of this.balls) {
+      if (b.holder >= 0 || b.basket >= 0) continue;
+      if (b.noGrab === c.index && this.elapsed < b.waitUntil) continue;
+      const d = Math.hypot(b.x - c.x, b.z - c.z);
+      if (d <= bestD) {
+        bestD = d;
+        best = b;
+      }
+    }
+    if (!best) return;
+    best.holder = c.index;
+    best.noGrab = -1;
+    c.ball = best.index;
+    c.act = BALLS.grabTime;
+    c.actKind = "grab";
+    this.events.push({ type: "grab", id: c.id, ball: best.index });
+  }
+
+  /** Knock `c`'s ball loose, a little along (dx, dz). `by` may not take it for a while. */
+  private drop(c: Contestant, dx: number, dz: number, by: number): number {
+    const b = this.balls[c.ball];
+    c.ball = -1;
+    b.holder = -1;
+    const lim = this.course.halfWidth - 0.5;
+    b.x = Math.max(-lim, Math.min(lim, c.x + dx * 0.9));
+    b.z = Math.max(this.course.finishZ + 0.5, Math.min(this.course.backLimitZ, c.z + dz * 0.9));
+    b.noGrab = by;
+    b.waitUntil = by >= 0 ? this.elapsed + BALLS.attackerWait : 0;
+    this.events.push({ type: "drop", ball: b.index, x: b.x, z: b.z });
+    return b.index;
+  }
+
+  /** Across the line with a ball: it goes in the nearest basket, out of play for good. */
+  private bank(c: Contestant): void {
+    const b = this.balls[c.ball];
+    const k = nearestBasket(this.baskets, c.x);
+    const basket = this.baskets[k];
+    b.basket = k;
+    b.holder = -1;
+    b.x = basket.x + ((basket.count % 3) - 1) * 0.12;
+    b.z = basket.z + (Math.floor(basket.count / 3) % 2) * 0.12;
+    basket.count++;
+    c.ball = -1;
+    this.events.push({ type: "bank", id: c.id, ball: b.index, basket: k });
   }
 
   /**
-   * Keep bodies from overlapping. Pushing changes position only, never
-   * velocity, so being bumped while frozen cannot get you eliminated — the
-   * one doing the pushing is the one moving.
+   * Keep bodies from overlapping: nobody runs through anybody. A plain bump
+   * changes position only, never velocity, so being bumped while frozen cannot
+   * get you eliminated — the one doing the pushing is the one moving. Sprinting
+   * INTO someone is a shove: they slide (stunned, forgiven by the doll).
    */
   private separate(): void {
     const list = this.contestants;
@@ -477,15 +666,29 @@ export class RedLightRound implements RoundView {
         const d2 = dx * dx + dz * dz;
         if (d2 >= min * min || d2 < 1e-8) continue;
         const d = Math.sqrt(d2);
-        const push = (min - d) / 2;
         const nx = dx / d;
         const nz = dz / d;
+        this.shove(a, b, nx, nz);
+        this.shove(b, a, -nx, -nz);
+        const push = (min - d) / 2;
         a.x -= nx * push;
         a.z -= nz * push;
         b.x += nx * push;
         b.z += nz * push;
       }
     }
+  }
+
+  /** `a` sprinting into `b` along (nx, nz): `b` is shoved. */
+  private shove(a: Contestant, b: Contestant, nx: number, nz: number): void {
+    if (!a.sprinting || a.status !== "alive" || b.status !== "alive" || b.stun > 0) return;
+    if (a.vx * nx + a.vz * nz - (b.vx * nx + b.vz * nz) < SHOVE.closing) return;
+    const key = a.index * 256 + b.index;
+    const last = this.shoves.get(key);
+    if (last !== undefined && this.elapsed - last < SHOVE.pairEvery) return;
+    this.shoves.set(key, this.elapsed);
+    knock(b, nx, nz, SHOVE.knock, 0);
+    this.events.push({ type: "shoved", id: b.id, by: a.id });
   }
 
   // ── Judging ───────────────────────────────────────────────────────────────
@@ -496,8 +699,19 @@ export class RedLightRound implements RoundView {
       if (c.status !== "alive") continue;
       // Each contestant's own grace: the base, plus their network allowance.
       if (this.phaseTime < RULES.grace + c.graceBonus) continue;
+      // Hit or shoved: the slide is the attacker's doing, not theirs.
+      if (c.forgive > 0) continue;
       if (isMoving(c)) this.eliminate(c, "moved");
     }
+  }
+
+  /** Ball Haunting: every ball is in a basket — nobody left on the field can still make it. */
+  private noBallsLeft(): void {
+    for (const c of this.contestants) {
+      if (c.status === "alive") this.eliminate(c, "noball");
+    }
+    this.enter("ended", 0);
+    this.events.push({ type: "ended" });
   }
 
   private timeUp(): void {
@@ -509,6 +723,8 @@ export class RedLightRound implements RoundView {
   }
 
   private eliminate(c: Contestant, cause: Cause): void {
+    // A ball in the hands of the fallen rolls free where they fall.
+    if (c.ball >= 0) this.drop(c, 0, 0, -1);
     c.status = "eliminated";
     c.cause = cause;
     c.eliminatedAt = this.elapsed;

@@ -29,7 +29,7 @@ import {
   type Texture,
 } from "three";
 
-import { DOLL_Z, FIELD } from "../config";
+import { DEFAULT_COURSE, FIELD, type Course } from "../config";
 import { Rng } from "../core/rng";
 import { atlasQuad, merge, moved, part, type V3 } from "./geo";
 import { CELL, SHOP_SIGN_COUNT, cellUv } from "./textures";
@@ -37,7 +37,6 @@ import { CELL, SHOP_SIGN_COUNT, cellUv } from "./textures";
 const ROAD_HALF = 7; // asphalt edge
 const FRONT_X = 11; // building facades
 const STREET_NEAR = 20;
-const STREET_FAR = DOLL_Z - 13;
 
 const FACADES = ["#f2e3c6", "#d9e8d4", "#f6c9a8", "#cfe3f2", "#efe6a5", "#e8c1c5", "#d6d0e8", "#c9e6df", "#f0d2a2", "#fafafa", "#e3d5c3"];
 const CANOPIES = ["#9aa5ad", "#c62828", "#1565c0", "#2e7d32", "#f9a825", "#8d6e63", "#9aa5ad"];
@@ -148,7 +147,12 @@ export interface Arena {
   solid: Mesh;
 }
 
-export function buildArena(atlas: Texture): Arena {
+export function buildArena(atlas: Texture, course: Course = DEFAULT_COURSE): Arena {
+  // The street runs as long as the round: the line, Mama's stage and the end
+  // of the street all follow the course.
+  const FINISH = course.finishZ;
+  const DOLL_Z = course.dollZ;
+  const STREET_FAR = DOLL_Z - 13;
   const rng = new Rng(20261013);
   const solid: BufferGeometry[] = [];
   const painted: BufferGeometry[] = []; // textured: signs + road paint
@@ -157,20 +161,20 @@ export function buildArena(atlas: Texture): Arena {
   // Ground, road and pavement. Everything players stand on is flush (y≈0):
   // the referee has no notion of height, so nothing may look like a step.
   solid.push(part(new PlaneGeometry(420, 420), "#c49a6c", { p: [0, -0.02, -60], r: [-Math.PI / 2, 0, 0] }));
-  const roadLen = STREET_NEAR - FIELD.finishZ + 2;
-  const roadMid = (STREET_NEAR + FIELD.finishZ - 2) / 2;
+  const roadLen = STREET_NEAR - FINISH + 2;
+  const roadMid = (STREET_NEAR + FINISH - 2) / 2;
   solid.push(box("#3b3f45", [ROAD_HALF * 2, 0.02, roadLen], [0, 0, roadMid]));
   for (const s of [-1, 1]) {
     solid.push(box("#cfc6b8", [FRONT_X - ROAD_HALF, 0.02, STREET_NEAR - STREET_FAR], [s * (ROAD_HALF + (FRONT_X - ROAD_HALF) / 2), 0.004, (STREET_NEAR + STREET_FAR) / 2]));
     // Black-and-yellow kerb paint, one metre at a time.
-    for (let z = STREET_NEAR; z > FIELD.finishZ - 2; z -= 1) {
+    for (let z = STREET_NEAR; z > FINISH - 2; z -= 1) {
       solid.push(box(Math.round(z) % 2 ? "#111111" : "#ffd000", [0.28, 0.03, 1], [s * (ROAD_HALF + 0.14), 0.012, z - 0.5]));
     }
     // White edge line.
     solid.push(box("#e9e9e9", [0.14, 0.03, roadLen], [s * (ROAD_HALF - 0.35), 0.012, roadMid]));
   }
   // Centre line: yellow dashes.
-  for (let z = STREET_NEAR; z > FIELD.finishZ; z -= 6) {
+  for (let z = STREET_NEAR; z > FINISH; z -= 6) {
     solid.push(box("#f2c200", [0.16, 0.03, 3], [0, 0.014, z - 1.5]));
   }
 
@@ -181,14 +185,14 @@ export function buildArena(atlas: Texture): Arena {
   for (let row = 0; row < 2; row++) {
     for (let i = 0; i < n; i++) {
       const x = -FIELD.halfWidth + (i + 0.5) * sq;
-      solid.push(box((i + row) % 2 ? "#111111" : "#fafafa", [sq, 0.035, sq], [x, 0.016, FIELD.finishZ - row * sq + sq / 2]));
+      solid.push(box((i + row) % 2 ? "#111111" : "#fafafa", [sq, 0.035, sq], [x, 0.016, FINISH - row * sq + sq / 2]));
     }
   }
 
   // The plaza past the finish: safe ground, warm tiles.
-  solid.push(box("#e6d8bf", [FRONT_X * 2, 0.02, 26], [0, 0.006, FIELD.finishZ - 14]));
+  solid.push(box("#e6d8bf", [FRONT_X * 2, 0.02, 26], [0, 0.006, FINISH - 14]));
   for (let i = 0; i < 18; i++) {
-    const z = FIELD.finishZ - 2 - i * 1.4;
+    const z = FINISH - 2 - i * 1.4;
     solid.push(box("#d8c7a8", [FRONT_X * 2, 0.025, 0.06], [0, 0.01, z]));
   }
 
@@ -196,8 +200,8 @@ export function buildArena(atlas: Texture): Arena {
   const paint = (cell: number, w: number, h: number, p: V3) =>
     painted.push(atlasQuad(w, h, cellUv(cell), { p, r: [-Math.PI / 2, 0, 0] }));
   paint(CELL.start, 6.5, 1.6, [0, 0.02, 1.3]);
-  paint(CELL.finish, 7, 1.75, [0, 0.02, FIELD.finishZ - 2.4]);
-  paint(CELL.noShaking, 6, 1.5, [0, 0.02, FIELD.finishZ / 2]);
+  paint(CELL.finish, 7, 1.75, [0, 0.02, FINISH - 2.4]);
+  paint(CELL.noShaking, 6, 1.5, [0, 0.02, FINISH / 2]);
   paint(CELL.waka, 4.2, 1.05, [-4, 0.02, -20]);
   paint(CELL.waka, 4.2, 1.05, [4, 0.02, -58]);
 
@@ -276,11 +280,11 @@ export function buildArena(atlas: Texture): Arena {
   // ── Street furniture inside the pavement band (beyond reach of players) ──
   for (const s of [-1, 1]) {
     let k = 0;
-    for (let z = STREET_NEAR - 4; z > FIELD.finishZ - 10; z -= 14, k++) {
+    for (let z = STREET_NEAR - 4; z > FINISH - 10; z -= 14, k++) {
       solid.push(moved(POLE, { p: [s * 10.4, 0, z], r: [0, 0, s * 0.03] }));
       // Two wires per side to the next pole, sagging. Lagos does not do taut.
       const z2 = z - 14;
-      if (z2 > FIELD.finishZ - 12) {
+      if (z2 > FINISH - 12) {
         for (const off of [0.75, -0.75]) addWire(wires, [s * 10.4 + off, 8.35, z], [s * 10.4 + off, 8.35, z2], 0.7);
       }
       // Now and then a wire straight across the road to the other side.
@@ -295,7 +299,7 @@ export function buildArena(atlas: Texture): Arena {
   solid.push(moved(DANFO, { p: [5.5, 0, 16.5], r: [0, -0.2, 0] }));
 
   // Plaza palms.
-  const palms: V3[] = [[-9, 0, FIELD.finishZ - 7], [9, 0, FIELD.finishZ - 7], [-9.5, 0, FIELD.finishZ - 17], [9.5, 0, FIELD.finishZ - 17], [-8.5, 0, 12], [8.5, 0, 12]];
+  const palms: V3[] = [[-9, 0, FINISH - 7], [9, 0, FINISH - 7], [-9.5, 0, FINISH - 17], [9.5, 0, FINISH - 17], [-8.5, 0, 12], [8.5, 0, 12]];
   for (const p of palms) solid.push(moved(palm(rng), { p }));
 
   // ── Mama Gele's stage ──

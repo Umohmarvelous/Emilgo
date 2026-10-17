@@ -145,6 +145,7 @@ games/emilgo-games/
   src/
     config.ts            every gameplay number (RULES, NET) — read by client AND server
     game/rules.ts        THE REFEREE: pure, seeded, fixed-step. The server runs this file
+    game/balls.ts        Ball Haunting's balls and baskets · game/combat.ts fist, slap, push, shoves
     game/bots.ts         practice CPUs (reaction-time personalities; fooled by feints)
     game/session.ts      everything wired together: rounds, online, matches, shop, social
     audio/songs.ts       the three songs as note data · audio/sound.ts the synthesiser
@@ -165,7 +166,7 @@ games/emilgo-games/
     src/vatar.ts         the Lagos Life API: sessions, matches, SIGNED results, purchases
     src/shop.ts          claim → verify → grant once → deliver; signed look tickets
     src/store.ts         who owns what (SQLite; swap for Postgres when running many processes)
-    scripts/             loadtest, fairness, matchtest, shoptest, rulestest, apicheck, mockvatar
+    scripts/             loadtest, fairness, matchtest, ballstest, shoptest, rulestest, apicheck, mockvatar
     Dockerfile           the server as a container (docker-compose.yml runs it)
   dev/                   dev-only pages and tools (never in a build): cdp.mjs (headless Chrome
                          driver for screenshots and timing), humans.html (character line-ups),
@@ -247,10 +248,11 @@ PORT=8790 WEBHOOK_URL=http://localhost:8787/vatar-webhook node server/dist/mockv
 PORT=8787 VATAR_SECRET=vtr_test_mock VATAR_RESULTS_SECRET=vtr_results_mock \
   VATAR_WEBHOOK_SECRET=vtr_whsec_test_mock VATAR_API=http://localhost:8790/api/games/v1 \
   node server/dist/index.mjs &
-node server/dist/matchtest.mjs     # matches, signatures, attacks          (19 checks)
+node server/dist/matchtest.mjs     # staked match (Ball Haunting), signatures, attacks
 node server/dist/shoptest.mjs      # purchases, refunds, forgeries, looks  (22 checks)
 node server/dist/fairness.mjs      # lag never decides who's caught        (7/7)
-node server/dist/rulestest.mjs     # jump, crouch, prone, sprint, spawns   (25 checks, no server needed)
+node server/dist/ballstest.mjs     # Ball Haunting online: grab, push, drop, reconnect (16)
+node server/dist/rulestest.mjs     # the referee: moves, modes, balls, fighting (58, no server needed)
 npx tsx scripts/filter-test.ts     # chat filter                           (22 cases)
 MAX_PER_IP=100000 …index.mjs; node server/dist/loadtest.mjs --clients 1200 --seconds 60
 ```

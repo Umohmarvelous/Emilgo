@@ -19,7 +19,7 @@
 import { ACESFilmicToneMapping, PCFSoftShadowMap, PerspectiveCamera, Scene, Vector2, Vector3, WebGLRenderer } from "three";
 
 import { Sound } from "../audio/sound";
-import { DOLL_Z, FIELD, MOVE, PRACTICE, scoreFor, type Stance } from "../config";
+import { ATTACK, BALLS, DISTANCES, FIELD, MODES, MOVE, PRACTICE, courseFor, scoreFor, type AttackKind, type Course, type Distance, type Mode, type Stance } from "../config";
 import { SONG_IDS, SONGS, type SongId } from "../audio/songs";
 import { Loop } from "../core/loop";
 import { QualityGovernor } from "../core/quality";
@@ -49,11 +49,13 @@ import { setMaxAnisotropy, warmLook } from "../world/human";
 import { cleanLook, ownedOnly, randomLook, uniformLook, type ExtraId, type Look } from "../world/human/wardrobe";
 import type { PoseId } from "../world/human/animator";
 import { LobbyStage, type Framing } from "../world/lobbyStage";
+import { PropsView } from "../world/props";
 import { setTextureAnisotropy } from "../world/tex";
 import { buildAtlas } from "../world/textures";
 import { BOT_NAMES, BotBrain } from "./bots";
 import { addProgress, ensureDaily, levelOf, xpForRound } from "./progress";
-import { type Contestant, RedLightRound, type RoundEvent, type RoundView } from "./rules";
+import { attackTarget, canAttack } from "./combat";
+import { type Cause, type Contestant, RedLightRound, type RoundEvent, type RoundView } from "./rules";
 
 const ME = "me";
 const MATCH_STILL_ON = "The match is still on. The result comes when the round ends.";
@@ -79,6 +81,7 @@ export class Game {
   private readonly doll = new Doll();
   private readonly crowd = new Crowd(MAX_PEOPLE);
   private readonly fx = new Effects();
+  private readonly props: PropsView;
   private readonly quality: QualityGovernor;
   private readonly loop: Loop;
   private readonly sound = new Sound();
@@ -184,7 +187,8 @@ export class Game {
     this.shop = host.shop && this.server ? new ShopClient(host as Host & { shop: NonNullable<Host["shop"]> }, this.server) : null;
 
     this.atlas = buildAtlas(aniso);
-    this.scene.add(this.doll.root, this.crowd.group, this.fx.group);
+    this.props = new PropsView(this.spec);
+    this.scene.add(this.doll.root, this.crowd.group, this.fx.group, this.props.group);
     this.crowd.tier = this.spec.tier;
     this.crowd.setShadows(this.spec.shadows);
     this.rig = new CameraRig(this.camera);
@@ -208,7 +212,7 @@ export class Game {
     bubbleLayer.className = "bubble-layer";
     ui.append(this.touch, bubbleLayer, this.hud.root, moveStick, lookStick);
     this.controls = new Controls(this.touch, moveStick, lookStick);
-    ui.append(this.controls.actions, this.screens.root, this.screens.toastNode);
+    ui.append(this.controls.actions, this.controls.vitals, this.screens.root, this.screens.toastNode);
     this.bubbles = new Bubbles(bubbleLayer);
     this.chat = new ChatPanel(ui, this.controls.chatBtn);
     this.wheel = new EmoteWheel(ui);
@@ -496,7 +500,9 @@ export class Game {
     const names = rng.shuffle(BOT_NAMES.filter((n) => n.toLowerCase() !== mine));
     for (let i = 0; i < PRACTICE.bots; i++) people.push({ id: `cpu${i}`, name: names[i], bot: true });
 
-    const round = new RedLightRound({ seed, contestants: people, featuredId: ME });
+    const info = mapOf(this.settings.map);
+    const course = courseFor(this.settings.mode, this.settings.distance, info.halfWidth ?? FIELD.halfWidth);
+    const round = new RedLightRound({ seed, contestants: people, featuredId: ME, course });
     this.mode = "practice";
     this.meId = ME;
     this.beginRound(round, rng, this.settings.map, this.weather, [], this.timePick);
@@ -526,7 +532,13 @@ export class Game {
     this.round = round;
     this.view = "game";
     this.stage.interactive = false;
-    this.ensureWorld(mapId, weather, time);
+    const course = round.course;
+    this.ensureWorld(mapId, weather, time, course);
+    this.doll.placeAt(course.dollZ);
+    this.rig.dollZ = course.dollZ;
+    this.rig.wallX = course.halfWidth + 1.4;
+    this.hud.setCourse(course);
+    this.props.setup(round.balls, round.baskets);
     const meIndex = round.get(this.meId)?.index ?? -1;
 
     const mine = this.myLook();
@@ -573,15 +585,15 @@ export class Game {
   }
 
   /** Build the map's world (kept if the next round is on the same map). */
-  private ensureWorld(mapId: string, weather: Weather | null, time: TimeOfDay | null = null): void {
-    const key = `${mapId}|${weather ?? ""}|${time ?? ""}|${this.spec.tier}`;
+  private ensureWorld(mapId: string, weather: Weather | null, time: TimeOfDay | null = null, course?: Course): void {
+    const key = `${mapId}|${weather ?? ""}|${time ?? ""}|${this.spec.tier}|${course ? `${course.distance}/${course.halfWidth}` : ""}`;
     if (this.world && key === this.worldKey) return;
     if (this.world) {
       this.scene.remove(this.world.group);
       this.world.dispose();
     }
     const t0 = performance.now();
-    this.world = buildWorld(mapId, weather, this.spec, this.atlas, time);
+    this.world = buildWorld(mapId, weather, this.spec, this.atlas, time, course);
     this.worldMs = performance.now() - t0;
     this.worldKey = key;
     this.scene.add(this.world.group);
@@ -629,6 +641,7 @@ export class Game {
       const wz = -Math.sin(yaw) * x - Math.cos(yaw) * y;
       round.setInput(this.meId, wx, wz);
       round.setButtons(this.meId, this.controls.sprint, this.controls.stance as Stance, this.controls.jumps);
+      round.setActions(this.meId, this.controls.attacks, this.controls.grabs);
     } else {
       round.setInput(this.meId, 0, 0);
       round.setButtons(this.meId, false, 0, this.controls.jumps);
@@ -656,6 +669,61 @@ export class Game {
       case "ended":
         this.onEnded();
         break;
+      case "attack":
+        this.onAttack(e.id, e.kind, e.target, e.dropped);
+        break;
+      case "shoved":
+        this.onShoved(e.id, e.by);
+        break;
+      case "grab": {
+        const c = this.round?.get(e.id);
+        if (c) this.crowd.act(c.index, "grab");
+        if (e.id === this.meId) {
+          this.sound.ball(false);
+          this.haptic("select");
+        }
+        break;
+      }
+      case "drop":
+        break;
+      case "bank":
+        if (e.id === this.meId) {
+          this.sound.ball(true);
+          this.haptic("success");
+        }
+        break;
+    }
+  }
+
+  /** A swing: animate it; if it landed, the target staggers (and, if it's you, the screen jolts). */
+  private onAttack(id: string, kind: AttackKind, targetId: string | null, dropped: number): void {
+    const round = this.round;
+    const c = round?.get(id);
+    if (!round || !c) return;
+    this.crowd.act(c.index, kind);
+    const t = targetId ? round.get(targetId) : undefined;
+    const me = round.get(this.meId);
+    const near = !!me && Math.hypot(c.x - me.x, c.z - me.z) < 12;
+    if (near) this.sound.strike(kind, !!t);
+    if (!t) return;
+    this.crowd.hit(t.index, t, t.x - c.x, t.z - c.z);
+    if (t.id === this.meId) {
+      this.rig.kick(kind === "fist" ? 0.45 : 0.3);
+      this.haptic("heavy");
+    }
+    if (dropped >= 0 && (t.id === this.meId || id === this.meId)) this.hud.pushFeed(t.id === this.meId ? "Your ball got knocked loose" : `You knocked ${this.label(t)}'s ball loose`, "info");
+  }
+
+  /** Sprinted into: a stagger and, for the one shoved, a slight shake (SPEC-V2 §2.4). */
+  private onShoved(id: string, by: string): void {
+    const round = this.round;
+    const c = round?.get(id);
+    const b = round?.get(by);
+    if (!round || !c || !b) return;
+    this.crowd.hit(c.index, c, c.x - b.x, c.z - b.z);
+    if (id === this.meId) {
+      this.rig.kick(0.22);
+      this.haptic("warning");
     }
   }
 
@@ -699,7 +767,7 @@ export class Game {
     }
   }
 
-  private onCaught(id: string, cause: "moved" | "time"): void {
+  private onCaught(id: string, cause: Cause): void {
     const round = this.round!;
     const c = round.get(id);
     const me = round.get(this.meId);
@@ -707,19 +775,19 @@ export class Game {
     const isMe = id === this.meId;
 
     this.crowd.chest(c, _chest);
-    _away.set(c.x, 0, c.z - DOLL_Z).normalize();
+    _away.set(c.x, 0, c.z - round.course.dollZ).normalize();
     if (cause === "moved") {
       this.doll.caught(c.x, c.z);
       this.doll.eyes(_eyeL, _eyeR);
       this.fx.beam(_eyeL, _eyeR, _chest);
     }
     this.fx.burst(_chest, _away, isMe ? 38 : cause === "time" ? 12 : 22);
-    this.crowd.kill(c.index, c, 0, DOLL_Z);
+    this.crowd.kill(c.index, c, 0, round.course.dollZ);
 
     const near = isMe || Math.hypot(c.x - me.x, c.z - me.z) < 7;
     this.sound.catch(near);
     this.rig.kick(isMe ? 1 : near ? 0.35 : 0.1);
-    if (!isMe) this.hud.pushFeed(`${this.label(c)} · ${cause === "time" ? "time up" : "caught moving"}`, "out");
+    if (!isMe) this.hud.pushFeed(`${this.label(c)} · ${cause === "time" ? "time up" : cause === "noball" ? "no ball left" : "caught moving"}`, "out");
 
     if (isMe && this.mode === "practice") this.cpuReact(["laugh", "taunt"], 2, 0.5);
     if (isMe) {
@@ -729,7 +797,7 @@ export class Game {
       this.setActions(false);
       this.touch.classList.remove("live");
       this.sound.stopSong();
-      this.hud.showVerdict(cause === "time" ? "time" : "out");
+      this.hud.showVerdict(cause === "moved" ? "out" : cause);
       this.haptic("heavy");
       setTimeout(() => this.haptic("error"), 180);
       // See the fall from outside, even in first person.
@@ -782,13 +850,13 @@ export class Game {
     }
   }
 
-  private record(outcome: "finished" | "moved" | "time"): void {
+  private record(outcome: "finished" | Cause): void {
     if (this.recorded || !this.round) return;
     const round = this.round;
     const me = round.get(this.meId)!;
     const finished = outcome === "finished";
     const first = finished && me.place === 1;
-    const score = scoreFor({ finished, timeLeft: round.timeLeft, progress: me.progress, first });
+    const score = scoreFor({ finished, timeLeft: round.timeLeft, progress: me.progress, first, distance: round.course.distance });
     const newBest = score > this.settings.best;
     if (newBest) this.settings.best = score;
     if (finished) this.settings.wins++;
@@ -814,7 +882,7 @@ export class Game {
       outcome,
       place: me.place,
       time: me.finishTime,
-      progress: Math.min(1, me.progress / -FIELD.finishZ),
+      progress: Math.min(1, me.progress / round.course.distance),
       score,
       best: this.settings.best,
       newBest,
@@ -845,7 +913,7 @@ export class Game {
       .slice()
       .sort((a, b) => (a.status === "finished" && b.status === "finished" ? a.place - b.place : a.status === "finished" ? -1 : b.status === "finished" ? 1 : b.progress - a.progress))
       .slice(0, 3);
-    this.podiumNames = ranked.map((c) => ({ name: this.label(c), time: c.status === "finished" ? c.finishTime : Math.min(1, c.progress / -FIELD.finishZ) * 100, me: c.id === this.meId }));
+    this.podiumNames = ranked.map((c) => ({ name: this.label(c), time: c.status === "finished" ? c.finishTime : Math.min(1, c.progress / round.course.distance) * 100, me: c.id === this.meId }));
     this.view = "lobby";
     this.stage.setMode("podium");
     this.stage.setPodium(ranked.map((c) => this.ownLooks[c.index]));
@@ -1141,6 +1209,8 @@ export class Game {
     const list = round.contestants;
 
     this.crowd.update(vdt, list, this.camera.position);
+    for (const c of list) this.crowd.setCarry(c.index, c.ball >= 0 && c.status !== "eliminated");
+    if (round.balls.length) this.props.update(vdt, round.balls, (h, out) => this.crowd.hands(h, out));
     this.doll.update(vdt);
     this.fx.update(vdt);
     const me = round.get(this.meId);
@@ -1186,7 +1256,10 @@ export class Game {
       d.me = c.id === this.meId;
     }
     this.hud.setAlive(inPlay, list.length);
-    this.hud.setDistance(me.progress / -FIELD.finishZ);
+    this.hud.setDistance(me.progress / round.course.distance);
+    // Fist, slap and push with someone in reach; grab with a free ball in reach.
+    if (this.my === "playing" && !this.paused) this.controls.setNear(canAttack(me) && !!attackTarget(me, round.contestants, ATTACK.range), this.canGrab(round, me));
+    else this.controls.setNear(false, false);
     this.hud.setStamina(me.stamina, me.sprinting);
     this.hud.setMap(this.dots, me.heading, round.phase === "watch");
     if (this.mode === "online" && this.net) this.hud.setPing(this.net.rtt);
@@ -1208,6 +1281,16 @@ export class Game {
         }
       }
     }
+  }
+
+  private canGrab(round: RoundView, me: Contestant): boolean {
+    if (round.course.mode !== "balls" || me.ball >= 0 || me.status !== "alive" || me.stance === 2) return false;
+    for (const b of round.balls) {
+      if (b.holder >= 0 || b.basket >= 0) continue;
+      if (b.noGrab === me.index && round.elapsed < b.waitUntil) continue;
+      if (Math.hypot(b.x - me.x, b.z - me.z) <= BALLS.reach) return true;
+    }
+    return false;
   }
 
   // ── Shop and looks ────────────────────────────────────────────────────────
@@ -1606,6 +1689,22 @@ export class Game {
         this.weather = (d.w as Weather) ?? null;
         this.showPlay();
         break;
+      case "rmode":
+        if (MODES.includes(d.m as Mode)) {
+          this.settings.mode = d.m as Mode;
+          saveSettings(this.host, this.settings);
+        }
+        this.showPlay();
+        break;
+      case "dist": {
+        const v = Number(d.d) as Distance;
+        if (DISTANCES.includes(v)) {
+          this.settings.distance = v;
+          saveSettings(this.host, this.settings);
+        }
+        this.showPlay();
+        break;
+      }
       case "time":
         this.timePick = (d.t as TimeOfDay) ?? null;
         this.showPlay();
@@ -1704,7 +1803,7 @@ export class Game {
         if (this.mode === "online") this.endRound();
         this.hud.show(false);
         this.online((net) => {
-          net.send({ t: "quick" });
+          net.send({ t: "quick", mode: this.settings.mode, dist: this.settings.distance });
           this.room = null;
           this.showWaiting("Finding players…");
         });
@@ -1714,7 +1813,7 @@ export class Game {
         const size = Number(d.size);
         this.onlineError = null;
         this.online((net) => {
-          net.send({ t: "create", size });
+          net.send({ t: "create", size, mode: this.settings.mode, dist: this.settings.distance });
           this.showWaiting("Making your room…");
         });
         break;

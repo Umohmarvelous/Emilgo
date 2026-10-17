@@ -10,16 +10,23 @@ import { CircleGeometry, DynamicDrawUsage, Group, InstancedMesh, Matrix4, MeshBa
 
 import type { Contestant } from "../game/rules";
 import type { EmoteId } from "../social/emotes";
-import { Human, lodLevels, warmBodies, type Look, type Tier } from "./human";
+import { Human, lodLevels, warmBodies, type ActionId, type Look, type Tier } from "./human";
 import { OUTFIT_BY_ID } from "./human/wardrobe";
 
 export type { Look } from "./human";
 
 const SINK_AFTER = 4.6;
-/** Distance LOD (SPEC-V2 §5.2): only this many people get full detail at once. */
-const NEAR_MAX = 8;
+/**
+ * Distance LOD (SPEC-V2 §5.2, §8): the whole crowd shares a triangle budget
+ * per tier, so twenty people bunched at the start line never push a frame past
+ * 100,000 triangles. Nearest first: each gets the best detail its distance
+ * allows that still leaves the rest room at the far level.
+ */
+const CROWD_BUDGET = [30000, 40000, 52000] as const;
 const NEAR_M = 20;
 const MID_M = 45;
+/** Real shadows only from the nearest few (the shadow pass draws them again). */
+const SHADOW_MAX = 6;
 
 const _m = new Matrix4();
 const _q = new Quaternion();
@@ -107,6 +114,32 @@ export class Crowd {
     this.people[i]?.finish();
   }
 
+  /** Fist, slap, push or a pick-up. */
+  act(i: number, id: ActionId): void {
+    if (!this.hidden[i]) this.people[i]?.act(id);
+  }
+
+  setCarry(i: number, on: boolean): void {
+    this.people[i]?.setCarry(on);
+  }
+
+  /** Hit or shoved from world direction (dx, dz): stagger, turned by the blow. */
+  hit(i: number, c: Contestant, dx: number, dz: number): void {
+    // Which side the blow lands on, relative to where they face.
+    const side = Math.sin(Math.atan2(dx, dz) - c.heading);
+    this.people[i]?.hit(side);
+  }
+
+  /** Between the hands (a carried ball). */
+  hands(i: number, out: Vector3): Vector3 | null {
+    const h = this.people[i];
+    if (!h || this.hidden[i]) return null;
+    h.mesh.updateWorldMatrix(true, true);
+    const l = h.bone("handL").getWorldPosition(_v);
+    h.bone("handR").getWorldPosition(out);
+    return out.add(l).multiplyScalar(0.5);
+  }
+
   /** Where a contestant's chest is now, following the fall (effects, camera). */
   chest(c: Contestant, out: Vector3): Vector3 {
     const h = this.people[c.index];
@@ -138,13 +171,29 @@ export class Crowd {
       this.dist[i] = h.mesh.position.distanceTo(cam);
       this.order.push(i);
     }
-    this.order.sort((a, b) => this.dist[a] - this.dist[b]);
+    // You first, then nearest first.
+    this.order.sort((a, b) => (a === this.featured ? -1 : b === this.featured ? 1 : this.dist[a] - this.dist[b]));
+    let left: number = CROWD_BUDGET[this.tier];
+    let rest = 0;
+    for (const i of this.order) rest += this.people[i]!.trianglesAt(far);
     this.order.forEach((i, rank) => {
       const h = this.people[i]!;
       const d = this.dist[i];
       const pad = (lvl: number) => (h.detail >= lvl ? 2 : 0);
-      const lvl = i === this.featured || (rank < NEAR_MAX && d < NEAR_M + pad(near)) ? near : d < MID_M + pad(mid) ? mid : far;
+      const want = i === this.featured || d < NEAR_M + pad(near) ? near : d < MID_M + pad(mid) ? mid : far;
+      rest -= h.trianglesAt(far);
+      // The best level allowed by distance that still leaves everyone after this one their far level.
+      let lvl = far;
+      for (const l of [near, mid, far]) {
+        if (l > want) continue;
+        if (i === this.featured || h.trianglesAt(l) + rest <= left) {
+          lvl = l;
+          break;
+        }
+      }
       h.setDetail(lvl);
+      left -= h.trianglesAt(lvl);
+      if (!this.blobShadows) h.mesh.castShadow = rank < SHADOW_MAX;
     });
   }
 

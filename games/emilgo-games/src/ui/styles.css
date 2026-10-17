@@ -405,6 +405,8 @@ input { font: inherit; color: inherit; }
 .md .grow small { font-size: 10px; color: var(--dim); }
 .md .tag { font: 700 9px var(--head); padding: 2px 5px; border-radius: 3px; border: 1px solid var(--line-2); letter-spacing: 0.08em; }
 .mapcard { padding: 8px; display: flex; flex-direction: column; gap: 8px; }
+.gamecard { padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.gamecard .seg { align-self: flex-start; }
 .mapcard .thumb { width: 100%; height: 110px; }
 .mapcard .row { display: flex; align-items: center; gap: 8px; }
 .mapcard .row b { flex: 1; font: 700 12px var(--head); text-transform: uppercase; }
@@ -572,6 +574,11 @@ input { font: inherit; color: inherit; }
 .actions.lefty .abtn.emote { right: auto; left: 82px; }
 .actions.lefty .abtn.chat { right: auto; left: 128px; }
 .actions[hidden], .abtn[hidden] { display: none; }
+/* Bottom centre: fist, slap, push, grab — only when they apply (SPEC-V2 §3.2). */
+.vitals { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(var(--safe-b) + 22px); display: flex; gap: 12px; pointer-events: none; }
+.vitals[hidden] { display: none; }
+.abtn.vbtn { position: relative; width: 54px; height: 54px; pointer-events: auto; animation: vpop 0.16s ease-out; }
+@keyframes vpop { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
 /* Sticks: 120px, 1px solid white, a dot at the centre, no text. */
 .stick {

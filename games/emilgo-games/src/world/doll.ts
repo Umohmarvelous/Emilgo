@@ -58,6 +58,11 @@ export class Doll {
   private headYaw = 0;
   private time = 0;
 
+  /** Stand at the far end of this round's field. */
+  placeAt(z: number): void {
+    this.root.position.z = z;
+  }
+
   constructor() {
     this.root.position.set(0, STAGE_TOP, DOLL_Z);
     this.root.scale.setScalar(SCALE);

@@ -2,7 +2,7 @@
 // build on purpose: test tools never ship with the server.
 import { build } from "esbuild";
 
-for (const name of ["loadtest", "fairness", "mockvatar", "matchtest", "shoptest", "apicheck", "rulestest"]) {
+for (const name of ["loadtest", "fairness", "mockvatar", "matchtest", "shoptest", "apicheck", "rulestest", "ballstest"]) {
   await build({
     entryPoints: [`server/scripts/${name}.ts`],
     outfile: `server/dist/${name}.mjs`,

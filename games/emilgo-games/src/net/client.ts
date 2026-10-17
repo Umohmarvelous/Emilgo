@@ -40,6 +40,10 @@ export class NetClient {
   private sentB = 0;
   private wantJ = 0;
   private sentJ = 0;
+  private wantA = 0;
+  private sentA = 0;
+  private wantG = 0;
+  private sentG = 0;
   private lastInputAt = 0;
   private inputTimer = 0;
   private connectWaiters: { ok: () => void; no: (e: Error) => void }[] = [];
@@ -98,9 +102,10 @@ export class NetClient {
   setInput(x: number, z: number): void {
     this.wantX = Math.round(Math.max(-1, Math.min(1, x)) * 100);
     this.wantZ = Math.round(Math.max(-1, Math.min(1, z)) * 100);
-    if (this.wantX === this.sentX && this.wantZ === this.sentZ && this.wantB === this.sentB && this.wantJ === this.sentJ) return;
-    // Stops and buttons go at once: a late stop, jump or crouch is a lost round.
-    const stop = (this.wantX === 0 && this.wantZ === 0) || this.wantB !== this.sentB || this.wantJ !== this.sentJ;
+    const buttons = this.wantB !== this.sentB || this.wantJ !== this.sentJ || this.wantA !== this.sentA || this.wantG !== this.sentG;
+    if (this.wantX === this.sentX && this.wantZ === this.sentZ && !buttons) return;
+    // Stops and buttons go at once: a late stop, jump, crouch or punch is a lost round.
+    const stop = (this.wantX === 0 && this.wantZ === 0) || buttons;
     const gap = 1000 / NET.inputHz;
     const since = performance.now() - this.lastInputAt;
     if (stop || since >= gap) {
@@ -117,6 +122,13 @@ export class NetClient {
     this.setInput(this.wantX / 100, this.wantZ / 100);
   }
 
+  /** Attack and grab counters (rules.ts setActions). Sent at once when they change. */
+  setActions(attack: number, grab: number): void {
+    this.wantA = attack & 255;
+    this.wantG = grab & 255;
+    this.setInput(this.wantX / 100, this.wantZ / 100);
+  }
+
   resetInput(): void {
     this.wantX = this.wantZ = 0;
     this.wantB = 0;
@@ -130,8 +142,10 @@ export class NetClient {
     this.sentZ = this.wantZ;
     this.sentB = this.wantB;
     this.sentJ = this.wantJ;
+    this.sentA = this.wantA;
+    this.sentG = this.wantG;
     this.lastInputAt = performance.now();
-    this.send({ t: "in", x: this.sentX, z: this.sentZ, b: this.sentB, j: this.sentJ });
+    this.send({ t: "in", x: this.sentX, z: this.sentZ, b: this.sentB, j: this.sentJ, a: this.sentA, g: this.sentG });
   }
 
   // ── Socket ─────────────────────────────────────────────────────────────────

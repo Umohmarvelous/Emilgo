@@ -60,6 +60,9 @@ export class CameraRig {
   /** Set from the screen's shape: wider on tall portrait phones. */
   baseFov = 65;
   colliders: Collider[] = [];
+  /** Where Mama stands this round, and the side walls the camera mustn't pass (Infinity: open ground). */
+  dollZ = DOLL_Z;
+  wallX = FIELD.halfWidth + 1.4;
   /** First person: where the eyes are (the crowd fills it in each frame). */
   readonly eye = new Vector3();
   eyeValid = false;
@@ -181,8 +184,8 @@ export class CameraRig {
     } else {
       // Lobby: a slow drift in front of Mama Gele, low, so she towers.
       const a = Math.sin(this.time * 0.1) * 0.32;
-      this.wantPos.set(Math.sin(a) * 8, 2.2 + Math.sin(this.time * 0.2) * 0.25, DOLL_Z + 17 + Math.cos(a) * 1);
-      this.wantLook.set(0, 1.9, DOLL_Z + 1);
+      this.wantPos.set(Math.sin(a) * 8, 2.2 + Math.sin(this.time * 0.2) * 0.25, this.dollZ + 17 + Math.cos(a) * 1);
+      this.wantLook.set(0, 1.9, this.dollZ + 1);
       const kk = 1 - Math.exp(-dt * 1.5);
       this.pos.lerp(this.wantPos, kk);
       this.look.lerp(this.wantLook, kk);
@@ -232,7 +235,7 @@ export class CameraRig {
     const ez = bz * DIST + rz * SHOULDER;
     const ey = by * DIST;
     // The street's walls.
-    const wall = FIELD.halfWidth + 1.4;
+    const wall = this.wallX;
     for (const side of [1, -1]) {
       const vx = ex * side;
       if (vx <= 1e-6) continue;

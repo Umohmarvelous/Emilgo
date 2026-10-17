@@ -5,12 +5,14 @@
 // passed off as a person, and a bot never sits in an online match.
 //
 // They play by the same rules and the same physics as you: a bot only ever
-// sets its stick, the referee decides everything else. What makes them human is
-// reaction time — each has a personality with a mean and a spread for how long
-// it takes to notice the song stopped, plus a habit of flinching.
+// sets its stick and presses buttons, the referee decides everything else.
+// What makes them human is reaction time — each has a personality with a mean
+// and a spread for how long it takes to notice the song stopped, plus a habit
+// of flinching — and, in Ball Haunting, how readily it fights for a ball.
 
-import { FIELD, MOVE, RULES } from "../config";
+import { ATTACK, BALLS, MOVE, RULES, type AttackKind } from "../config";
 import { Rng } from "../core/rng";
+import { attackTarget, canAttack } from "./combat";
 import type { Contestant, Phase, RedLightRound } from "./rules";
 
 interface Personality {
@@ -31,12 +33,16 @@ interface Personality {
    * feint. Freezing is safe but slow; the bold ones watch her instead.
    */
   fooled: number;
+  /** Attacks per second it's willing to throw when someone is in reach. */
+  aggression: number;
+  /** Its favourite attack. */
+  move: AttackKind;
 }
 
 const TYPES: Record<"careful" | "steady" | "bold", Personality> = {
-  careful: { reaction: 0.24, spread: 0.08, runChance: 0.4, flinch: 0.012, eager: 0.5, wander: 1.2, fooled: 0.95 },
-  steady: { reaction: 0.34, spread: 0.11, runChance: 0.68, flinch: 0.03, eager: 0.35, wander: 2.0, fooled: 0.7 },
-  bold: { reaction: 0.47, spread: 0.14, runChance: 0.95, flinch: 0.07, eager: 0.2, wander: 2.6, fooled: 0.3 },
+  careful: { reaction: 0.24, spread: 0.08, runChance: 0.4, flinch: 0.012, eager: 0.5, wander: 1.2, fooled: 0.95, aggression: 0.6, move: "slap" },
+  steady: { reaction: 0.34, spread: 0.11, runChance: 0.68, flinch: 0.03, eager: 0.35, wander: 2.0, fooled: 0.7, aggression: 1.4, move: "push" },
+  bold: { reaction: 0.47, spread: 0.14, runChance: 0.95, flinch: 0.07, eager: 0.2, wander: 2.6, fooled: 0.3, aggression: 2.6, move: "fist" },
 };
 
 const MIX: (keyof typeof TYPES)[] = ["careful", "steady", "bold", "steady", "careful", "bold", "steady", "steady", "bold", "careful", "steady", "bold"];
@@ -58,6 +64,8 @@ export class BotBrain {
   private turnFor = 0;
   private readonly wanderPhase: number;
   private laneX: number;
+  private attacks = 0;
+  private grabs = 0;
 
   constructor(
     readonly id: string,
@@ -108,8 +116,16 @@ export class BotBrain {
 
     if (!go) {
       round.setInput(this.id, 0, 0);
+      round.setButtons(this.id, false, 0, me.inJump);
       return;
     }
+
+    // Ball Haunting, empty-handed: go for a free ball, else for whoever holds one.
+    if (round.course.mode === "balls" && me.ball < 0) {
+      if (this.hunt(round, me)) return;
+    }
+    // Fight for it when it's safe to: she isn't watching (a swing is movement).
+    if (round.phase === "sing" || round.phase === "turningBack") this.maybeAttack(round, me, round.course.mode === "balls" ? 1 : 0.12);
 
     // Head for the finish, drifting toward a lane that wanders over time.
     const sway = Math.sin(round.elapsed * 0.55 + this.wanderPhase) * this.p.wander;
@@ -119,13 +135,60 @@ export class BotBrain {
     round.setInput(this.id, (dx / len) * mag, (-1 / len) * mag);
   }
 
+  /** Chase a ball (or its holder). Returns false when there is nothing to chase. */
+  private hunt(round: RedLightRound, me: Contestant): boolean {
+    let ball: { x: number; z: number; d: number } | null = null;
+    for (const b of round.balls) {
+      if (b.holder >= 0 || b.basket >= 0) continue;
+      if (b.noGrab === me.index && round.elapsed < b.waitUntil) continue;
+      const d = Math.hypot(b.x - me.x, b.z - me.z);
+      if (!ball || d < ball.d) ball = { x: b.x, z: b.z, d };
+    }
+    let holder: Contestant | null = null;
+    let hd = Infinity;
+    for (const b of round.balls) {
+      if (b.holder < 0 || b.basket >= 0) continue;
+      const h = round.contestants[b.holder];
+      if (h === me || h.status !== "alive") continue;
+      const d = Math.hypot(h.x - me.x, h.z - me.z);
+      if (d < hd) {
+        hd = d;
+        holder = h;
+      }
+    }
+    // A free ball within reach: take it.
+    if (ball && ball.d <= BALLS.reach * 0.9) {
+      round.setActions(this.id, me.inAttack, ++this.grabs & 255);
+    }
+    const target = ball && (!holder || ball.d < hd + 8) ? ball : holder ? { x: holder.x, z: holder.z, d: hd } : null;
+    if (!target) return false;
+    if (holder && target.d === hd && (round.phase === "sing" || round.phase === "turningBack")) this.maybeAttack(round, me, 1.4);
+    const dx = target.x - me.x;
+    const dz = target.z - me.z;
+    const len = Math.hypot(dx, dz) || 1;
+    // Slow down near a free ball so it doesn't run past it.
+    const mag = target.d < 2 ? MOVE.runAt * 0.7 : this.running ? 1 : MOVE.runAt * 0.95;
+    round.setInput(this.id, (dx / len) * mag, (dz / len) * mag);
+    round.setButtons(this.id, this.running && target.d > 6 && me.stamina > 0.4, 0, me.inJump);
+    return true;
+  }
+
+  /** Throw its favourite attack at whoever is in reach, now and then. */
+  private maybeAttack(round: RedLightRound, me: Contestant, k: number): void {
+    if (!canAttack(me) || !attackTarget(me, round.contestants, ATTACK.range * 0.9)) return;
+    if (!this.rng.chance(Math.min(1, this.p.aggression * k * (1 / 60)))) return;
+    const kind = this.p.move === "fist" ? 1 : this.p.move === "slap" ? 2 : 3;
+    this.attacks = (this.attacks + 1) & 63;
+    round.setActions(this.id, (this.attacks << 2) | kind, me.inGrab);
+  }
+
   private onPhase(phase: Phase, round: RedLightRound, me: Contestant): void {
     const p = this.p;
     const reaction = Math.max(0.06, p.reaction + this.rng.gauss() * p.spread);
     switch (phase) {
       case "sing": {
         // Run more when the clock is short and the line is far.
-        const remaining = Math.max(0, me.z - FIELD.finishZ);
+        const remaining = Math.max(0, me.z - round.course.finishZ);
         const urgent = round.timeLeft > 0 && remaining / round.timeLeft > MOVE.walk * 0.45;
         this.running = urgent || this.rng.chance(p.runChance);
         // After a feint it was frozen (or wasn't); either way it picks up again.

@@ -40,6 +40,9 @@ Change any of these by saying so.
 | Controls RLGL doesn't use (reload, grenade, ability) | In the controls list, hidden in RLGL. | Future games. |
 | Language | English and Pidgin. | Same as the EMILGO app. |
 | "Fill with CPU" online | Removed. CPUs only in Solo. | §8. |
+| Mode of a staked match | Every staked Lagos Life match is **Ball Haunting, 200 m, 80 s**, with one ball fewer than players (1 for 2, 2 for 3, 3 for 4). The match screens say so before anyone stakes. One line to change (`STAKED` in `src/config.ts`). | Lagos Life's match API carries only stake and seats: there is no way to agree a mode, so all staked matches must play the same one. The owner's answer asked for scaled balls in staked matches. |
+| Attack details (spec gives none) | Range 2 m. Fist: knocks you back 1 m, stuns 0.8 s, 1.6 s cooldown. Slap: 0.35 m, 0.35 s, 0.8 s. Push: 2.4 m, 0.25 s, 1.2 s. Every hit knocks a held ball loose. Sprinting into someone shoves them 1.4 m (once a second per pair). Grabbing takes 0.35 s, and counts as moving while she watches. | A fist is the big hit, a slap the quick one, a push moves people furthest. |
+| A ball's holder caught by the doll | The ball drops where they fall, free for anyone. When every ball is in a basket, everyone still on the field is out ("no ball left") and the round ends. | Nobody can win without a ball, so there's nothing left to wait for. |
 
 ## File structure
 
@@ -198,7 +201,51 @@ Each phase ends tested and waits for the owner's go-ahead.
 
 ## Status
 
-### Phase 1: clean slate and characters (done 17 Oct 2026, waiting for go-ahead)
+### Phase 2: referee v4 and server (done 17 Oct 2026, waiting for go-ahead)
+
+| Check | Result |
+| --- | --- |
+| Referee (`rulestest`, no server) | **58/58**: the 25 old checks, plus distances and time limits, ball counts and placement, grab range, holding, fist/slap/push range and cooldowns, the slide, the attacker's 3 s wait on a dropped ball, attacker shot and target forgiven in red light, nobody attacks a player past the line, across with a ball → banked and safe, across without → still in play, a caught holder drops the ball, last ball banked ends the round, sprint shoves, a walk is only a bump, nobody runs through anybody, 20 spawns apart |
+| Ball Haunting online (`ballstest`, new) | 16/16: room and start say the mode, grab → push → drop arrive in order with the slide, snapshots are 5 numbers a player with no balls, a reconnect gets every ball and everyone's distance |
+| Lagos Life match (`matchtest`) | all passed, twice: staked Ball Haunting, A fetches the ball and wins, result signed and settled |
+| Shop (`shoptest`) | all passed |
+| Lag fairness | 7/7 |
+| Load: 1,200 players, rooms of 20, half fighting over balls | 0 failures · server step p50 6.6–8.4 ms, p99 15–19 ms · 181–196 MB · **4.9 KB/s a player** (was 11.4 before slimming the snapshots). Worst case, 20 alive and running: 542 B × 15/s = 7.9 KB/s |
+| Balance (`scripts/sim.ts`, 20 players) | Classic, a sharp player (0.25 s reactions) crosses 95–98% of rounds, in 33 s / 64 s / 96 s of the 45 / 80 / 120 s; a 0.45 s player almost never; walking never makes it. Ball Haunting, a CPU-level player: 27% / 15% / 7% |
+| Feet on the ground | 1,428 checks, 0 failed (fist, slap, push, grab, carrying and staggering added) |
+| The real client online | the browser as the third player in a room with two scripted players: joined, saw the balls, the grab and the push; no console errors |
+| Builds | Lagos Life `dist/` 254 KB JS gzipped; EMILGO embed 1,136 KB. The Docker server is rebuilt on protocol 4 ("keys OK (test)") |
+
+Built:
+- **Modes and distances** (`config.ts`): Classic Run and Ball Haunting; 100,
+  200, 300 m in 45, 80, 120 s. Every map stretches to the distance: the line,
+  the plaza, Mama's stage, the street and the minimap follow it.
+- **Balls and baskets** (`game/balls.ts`, `world/props.ts`): 13 for 20, placed
+  apart in the middle of the field; three woven baskets past the line; one
+  instanced draw call for every ball.
+- **Fighting** (`game/combat.ts`): fist, slap, push; sprint shoves; the slide
+  and stagger; forgiveness for the one hit. Animations for each, plus picking
+  up, carrying (both hands round the ball) and staggering.
+- **Buttons**: fist, slap and push bottom-centre only with someone within 2 m,
+  grab only with a free ball in reach (keyboard 1, 2, 3 and F).
+- **CPUs** (Solo only): head for free balls, chase holders, throw their
+  favourite attack, never while she watches.
+- **Server**: protocol 4; rooms of 20; Play with New People matches by mode and
+  distance, starts at 20 or 60 s after the second player; staked matches
+  play `STAKED`.
+- **Crowd budget**: twenty people share 30K / 40K / 52K triangles (Low /
+  Medium / High), nearest first; real shadows from the nearest six. A bunched
+  start on High: 40 draw calls, 79K triangles (126K before).
+- **Smaller snapshots**: speed and distance are worked out on the phone; the
+  fallen are sent as zeros; balls travel as events (a reconnect gets them all).
+- Play screen: Mode and Distance pickers (the full play menu comes in Phase 5).
+
+Not yet (later phases): the walkout and waiting room (5), the elimination
+sequence and highlights (6), boosts and CP (7), the Desert Field and the laser
+guns (3). Pressing grab and the attack buttons works now; their final COD
+layout and the stamina bar over the move stick come in Phase 4.
+
+### Phase 1: clean slate and characters (done 17 Oct 2026)
 
 | Check | Result |
 | --- | --- |
@@ -220,9 +267,9 @@ Built:
   of the body, from a hull of points fixed to the bones, is put exactly on the
   ground. Only a real jump or the cheer's hop leaves it.
 - **Detail levels** (`world/human/mesh.ts`): far, Low, Medium, High, with a hard
-  ceiling per level. **Distance LOD** (`world/crowd.ts`): full detail for the 8
-  nearest within 20 m, one step down to 45 m, the far level beyond; you always
-  get full detail.
+  ceiling per level. **Distance LOD** (`world/crowd.ts`): full detail within
+  20 m, one step down to 45 m, the far level beyond, inside a triangle budget
+  for the whole crowd (Phase 2); you always get full detail.
 - **Normal maps** (`world/human/normals.ts`), Medium and High: seams, zip,
   waistband, knee and elbow creases, knit ribs, denim twill, hair coils and
   strands, faint skin grain. Nothing finer than four texels (it would alias into

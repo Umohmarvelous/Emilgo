@@ -3,7 +3,8 @@
 //
 //   1. Two test players stake ₦1,000 each in a 2-seat match on the platform.
 //   2. Both connect to our game server and ask to play it with their sessions.
-//   3. The round is played: A runs and stops in time, B stands still.
+//   3. The round is played (Ball Haunting, 1 ball for 2): A fetches the ball
+//      and carries it over the line, stopping in time; B stands still.
 //   4. Our server posts the SIGNED result; the platform verifies it with the
 //      formula from the docs and settles: A wins the pot less 5%.
 // And the attacks that must fail:
@@ -21,7 +22,8 @@ import { createHash, createHmac } from "node:crypto";
 import WebSocket from "ws";
 
 import { NET } from "../../src/config";
-import { phaseAt, type ServerMsg } from "../../src/net/protocol";
+import { BALLS } from "../../src/config";
+import { SNAP_STRIDE, phaseAt, type ServerMsg } from "../../src/net/protocol";
 import { signResult } from "../src/vatar";
 
 const PLATFORM = process.env.PLATFORM ?? "http://localhost:8790";
@@ -65,11 +67,36 @@ function gameClient(
     let seat = "";
     let vresult: { winner: string; posted: boolean } | null = null;
     let turns = 0;
+    let me = -1;
+    let ball: { x: number; z: number } | null = null;
+    let holding = false;
+    let g = 0;
+    let singing = false;
+    let at: { x: number; z: number } | null = null;
     const finish = () => {
+      clearInterval(steer);
       ws.close();
       resolve({ errors, seat, vresult });
     };
-    const timer = setTimeout(finish, 90_000);
+    const timer = setTimeout(finish, 150_000);
+    // A careful human: while she sings, fetch the ball, then run for the line; stop the instant she turns.
+    const steer = setInterval(() => {
+      if (run !== "runner" || !singing || !at) return;
+      if (!holding && ball) {
+        const dx = ball.x - at.x;
+        const dz = ball.z - at.z;
+        const d = Math.hypot(dx, dz);
+        if (d <= BALLS.reach * 0.8) {
+          g = (g + 1) & 255;
+          ws.send(JSON.stringify({ t: "in", x: 0, z: 0, g }));
+        } else {
+          const k = d < 3 ? 40 : 100;
+          ws.send(JSON.stringify({ t: "in", x: Math.round((dx / d) * k), z: Math.round((dz / d) * k), g }));
+        }
+      } else {
+        ws.send(JSON.stringify({ t: "in", x: 0, z: -100, g }));
+      }
+    }, 66);
     ws.on("open", () => ws.send(JSON.stringify({ t: "hello", v: NET.protocol, name: "ignored" })));
     ws.on("message", (d) => {
       const m = JSON.parse(d.toString()) as ServerMsg;
@@ -80,13 +107,23 @@ function gameClient(
         clearTimeout(timer);
         finish();
       } else if (m.t === "seat") seat = m.id;
-      else if (m.t === "ev" && m.k === "ph" && run === "runner") {
+      else if (m.t === "start") {
+        me = m.start.roster.findIndex((r) => r.id === seat);
+        const bp = m.start.bp ?? [];
+        if (bp.length >= 2) ball = { x: bp[0] / 100, z: bp[1] / 100 };
+      } else if (m.t === "snap" && me >= 0) {
+        at = { x: m.p[me * SNAP_STRIDE] / 100, z: m.p[me * SNAP_STRIDE + 1] / 100 };
+      } else if (m.t === "ev" && m.k === "grb" && m.i === me) {
+        holding = true;
+      } else if (m.t === "ev" && m.k === "drp") {
+        holding = false;
+        ball = { x: m.x / 100, z: m.z / 100 };
+      } else if (m.t === "ev" && m.k === "ph" && run === "runner") {
         const ph = phaseAt(m.ph);
-        // A careful human: run while she sings, stop the instant she turns.
-        if (ph === "sing" || ph === "pause") ws.send(JSON.stringify({ t: "in", x: 0, z: -100 }));
+        singing = ph === "sing" || ph === "pause";
         if (ph === "turning") {
           turns++;
-          ws.send(JSON.stringify({ t: "in", x: 0, z: 0 }));
+          ws.send(JSON.stringify({ t: "in", x: 0, z: 0, g }));
         }
       } else if (m.t === "vresult") {
         vresult = { winner: m.winner, posted: m.posted };
@@ -140,7 +177,7 @@ async function main(): Promise<void> {
   check((await askOnce(created.json.id, outsider.session)) === "not_in_match", "a real player not in the match → not_in_match");
   check((await askOnce("m_doesnotexist", a.session)) === "not_found", "an unknown match id → not_found");
 
-  console.log("\nplaying the round (A runs carefully, B stands still)…");
+  console.log("\nplaying the round (Ball Haunting: A fetches the ball and carries it over, B stands still)…");
   const [ra, rb] = await Promise.all([gameClient(created.json.id, a.session, "runner"), gameClient(created.json.id, b.session, "statue")]);
   check(!ra.errors.length && !rb.errors.length, "both seated without errors");
   check(ra.seat === a.id && rb.seat === b.id, "each client controls its own Lagos Life player id");

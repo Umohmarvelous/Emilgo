@@ -36,7 +36,7 @@ import {
   type BufferGeometry,
 } from "three";
 
-import { DOLL_Z, FIELD } from "../config";
+import { DEFAULT_COURSE, type Course } from "../config";
 import type { TierSpec } from "../graphics/tiers";
 import type { Collider } from "../world/camera";
 import { buildArena } from "../world/arena";
@@ -244,7 +244,7 @@ function waterMaterial(kind: "sea" | "river" | "lava" | "pool", time: { value: n
 
 // ── The world ─────────────────────────────────────────────────────────────────
 
-export function buildWorld(id: string, weather: Weather | null, spec: TierSpec, atlas: Texture, timePick: TimeOfDay | null = null): World {
+export function buildWorld(id: string, weather: Weather | null, spec: TierSpec, atlas: Texture, timePick: TimeOfDay | null = null, course: Course = DEFAULT_COURSE): World {
   const info = mapOf(id);
   const w: Weather = weather ?? info.weather;
   const time = timePick ?? info.time;
@@ -308,8 +308,8 @@ export function buildWorld(id: string, weather: Weather | null, spec: TierSpec, 
   // After dark, in fog or rain, Mama gets her own light: you must SEE her turn.
   if (L.night || L.lampsOn || w !== "clear") {
     const spot = new SpotLight(0xfff0d8, L.night ? 160 : 90, 40, 0.5, 0.5, 1.4);
-    spot.position.set(0, 14, DOLL_Z + 14);
-    spot.target.position.set(0, 2.5, DOLL_Z);
+    spot.position.set(0, 14, course.dollZ + 14);
+    spot.target.position.set(0, 2.5, course.dollZ);
     group.add(spot, spot.target);
   }
 
@@ -332,11 +332,11 @@ export function buildWorld(id: string, weather: Weather | null, spec: TierSpec, 
     ground.receiveShadow = spec.shadows;
     group.add(ground);
 
-    const tw = FIELD.halfWidth * 2 + 0.8;
-    const tl = FIELD.backLimitZ + 12 - (FIELD.finishZ - 1);
+    const tw = course.halfWidth * 2 + 0.8;
+    const tl = course.backLimitZ + 12 - (course.finishZ - 1);
     const tg = new PlaneGeometry(tw, tl);
     tg.rotateX(-Math.PI / 2);
-    tg.translate(0, 0.004, FIELD.backLimitZ + 12 - tl / 2);
+    tg.translate(0, 0.004, course.backLimitZ + 12 - tl / 2);
     const ttex = tiled(canvasTexture(recipe.track.name, spec.tier === 2 ? 512 : 256, recipe.track.paint), tw / recipe.track.tile, tl / recipe.track.tile);
     const wet = w === "rain";
     const trackColor = new Color(recipe.track.color).multiplyScalar(wet ? 0.72 : 1);
@@ -345,7 +345,7 @@ export function buildWorld(id: string, weather: Weather | null, spec: TierSpec, 
     track.receiveShadow = spec.shadows;
     group.add(track);
 
-    const crs = new Mesh(merge([...courseParts(recipe.course), ...gantryParts(recipe.gantry)]), vcMaterial(spec));
+    const crs = new Mesh(merge([...courseParts(recipe.course, course), ...gantryParts(recipe.gantry)]), vcMaterial(spec));
     crs.receiveShadow = spec.shadows;
     group.add(crs);
 
@@ -353,7 +353,7 @@ export function buildWorld(id: string, weather: Weather | null, spec: TierSpec, 
     const painted = merge(
       [
         atlasQuad(6.5, 1.6, cellUv(CELL.start), { p: [0, 0.02, 1.3], r: [-Math.PI / 2, 0, 0] }),
-        atlasQuad(7, 1.75, cellUv(CELL.finish), { p: [0, 0.02, FIELD.finishZ - 2.4], r: [-Math.PI / 2, 0, 0] }),
+        atlasQuad(7, 1.75, cellUv(CELL.finish), { p: [0, 0.02, course.finishZ - 2.4], r: [-Math.PI / 2, 0, 0] }),
         atlasQuad(9, 2.25, cellUv(CELL.banner), { p: [0, 8.7, 0.42] }),
         atlasQuad(9, 2.25, cellUv(CELL.banner), { p: [0, 8.7, 0.38], r: [0, Math.PI, 0] }),
       ],
@@ -375,7 +375,7 @@ export function buildWorld(id: string, weather: Weather | null, spec: TierSpec, 
   // ── The place itself ──
   const kit = new Kit(hash(info.id));
   if (flat) {
-    const arena = buildArena(atlas);
+    const arena = buildArena(atlas, course);
     arena.solid.receiveShadow = spec.shadows;
     arena.solid.castShadow = spec.shadows;
     group.add(arena.group);

@@ -28,7 +28,7 @@ import {
   Vector3,
 } from "three";
 
-import { computePose, newAnimState, Pose, stepGait, type AnimState, type EmoteId, type PoseId } from "./animator";
+import { computePose, newAnimState, Pose, stepGait, type ActionId, type AnimState, type EmoteId, type PoseId } from "./animator";
 import { buildBody, nearDetail, type BuiltBody, type Detail, type Tier } from "./mesh";
 import { paintLook, TEX_SIZE } from "./paint";
 import { BONES, PARENT, type BoneName } from "./skeleton";
@@ -36,7 +36,7 @@ import { normalMapFor } from "./normals";
 import { OUTFIT_BY_ID, paintKey, shapeKey, type Look } from "./wardrobe";
 
 export type { Look } from "./wardrobe";
-export type { EmoteId, PoseId } from "./animator";
+export type { ActionId, EmoteId, PoseId } from "./animator";
 export type { Detail, Tier } from "./mesh";
 export { nearDetail } from "./mesh";
 
@@ -257,6 +257,11 @@ export class Human {
     return this.level;
   }
 
+  /** Triangles this person would cost at a detail level (builds it if needed, cached). */
+  trianglesAt(level: Detail): number {
+    return bodyFor(this.look, level).triangles;
+  }
+
   /** Swap to another detail level (distance LOD); same bones, same paint. */
   setDetail(level: Detail): void {
     if (level === this.level) return;
@@ -278,6 +283,25 @@ export class Human {
 
   setPose(id: PoseId | null): void {
     this.anim.pose = id;
+  }
+
+  /** Fist, slap, push or picking a ball up (plays once). */
+  act(id: ActionId): void {
+    if (this.anim.dead >= 0) return;
+    this.anim.action = id;
+    this.anim.actionT = 0;
+  }
+
+  /** Hands round a ball, or free. */
+  setCarry(on: boolean): void {
+    this.anim.carry = on;
+  }
+
+  /** Hit or shoved: stagger. `side` −1…1: which way the blow turned them. */
+  hit(side: number): void {
+    if (this.anim.dead >= 0) return;
+    this.anim.hitT = 0.6;
+    this.anim.hitSide = Math.max(-1, Math.min(1, side));
   }
 
   kill(fallDir: number): void {

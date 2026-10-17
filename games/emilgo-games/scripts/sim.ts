@@ -1,13 +1,16 @@
 // Headless balance check: plays many practice rounds with bots only (plus a
 // scripted "human" with a given reaction time) and prints outcome rates.
-// Run from the repo root:  npx tsx games/emilgo-games/scripts/sim.ts [rounds]
+// Run from the repo root:  npx tsx games/emilgo-games/scripts/sim.ts [rounds] [classic|balls] [100|200|300|all]
 
-import { PRACTICE, RULES, MOVE } from "../src/config";
+import { DISTANCES, PRACTICE, RULES, MOVE, ballCount, courseFor, type Course, type Distance, type Mode } from "../src/config";
 import { Rng } from "../src/core/rng";
 import { BotBrain, BOT_NAMES } from "../src/game/bots";
 import { RedLightRound } from "../src/game/rules";
 
 const ROUNDS = Number(process.argv[2] ?? 400);
+const MODE = (process.argv[3] ?? "classic") as Mode;
+const DISTS: Distance[] = !process.argv[4] || process.argv[4] === "all" ? [...DISTANCES] : [Number(process.argv[4]) as Distance];
+let course: Course = courseFor(MODE, 200);
 const DT = 1 / 60;
 
 /**
@@ -32,18 +35,23 @@ function humanInput(round: RedLightRound, reaction: number, run: boolean, listen
   if (!go) return [0, 0];
   return [0, run ? -1 : -MOVE.runAt * 0.95];
 }
+void RULES;
 
 function play(seed: number, humanReaction: number, humanRuns: boolean, listener: boolean) {
   const rng = new Rng(seed ^ 0x5bd1e995);
   const people = [{ id: "me", name: "Me", bot: false }];
   for (let i = 0; i < PRACTICE.bots; i++) people.push({ id: `b${i}`, name: BOT_NAMES[i], bot: true });
-  const round = new RedLightRound({ seed, contestants: people, featuredId: "me" });
+  const round = new RedLightRound({ seed, contestants: people, featuredId: "me", course });
   const brains = people.slice(1).map((p, i) => new BotBrain(p.id, i, rng));
+  // Ball Haunting needs a ball: the "human" plays it like a steady CPU.
+  if (course.mode === "balls") brains.push(new BotBrain("me", 1, rng));
 
   let steps = 0;
-  while (round.phase !== "ended" && steps++ < 60 * 120) {
-    const [x, z] = humanInput(round, humanReaction, humanRuns, listener);
-    round.setInput("me", x, z);
+  while (round.phase !== "ended" && steps++ < 60 * (course.timeLimit + 10)) {
+    if (course.mode === "classic") {
+      const [x, z] = humanInput(round, humanReaction, humanRuns, listener);
+      round.setInput("me", x, z);
+    }
     for (const b of brains) b.think(round, round.get(b.id)!);
     round.step(DT);
     round.drain();
@@ -53,7 +61,7 @@ function play(seed: number, humanReaction: number, humanRuns: boolean, listener:
   return {
     botsFinished: bots.filter((c) => c.status === "finished").length,
     botsMoved: bots.filter((c) => c.cause === "moved").length,
-    botsTime: bots.filter((c) => c.cause === "time").length,
+    botsTime: bots.filter((c) => c.cause === "time" || c.cause === "noball").length,
     me: me.status === "finished" ? "finished" : me.cause ?? "?",
     meTime: me.finishTime,
     duration: round.elapsed,
@@ -77,12 +85,19 @@ function report(label: string, reaction: number, runs: boolean, listener = false
   );
 }
 
-console.log(
-  `${ROUNDS} rounds, limit ${RULES.timeLimit}s, detection ${(RULES.turning.min + RULES.grace).toFixed(2)}–${(RULES.turning.max + RULES.grace).toFixed(2)}s after she starts turning, feint chance ${RULES.feint.chance}`,
-);
-report("sharp watcher (0.25s)", 0.25, true);
-report("good watcher (0.35s)", 0.35, true);
-report("ok watcher (0.45s)", 0.45, true);
-report("slow watcher (0.60s)", 0.6, true);
-report("good listener (0.35s)", 0.35, true, true);
-report("good walker (0.35s)", 0.35, false);
+for (const d of DISTS) {
+  course = courseFor(MODE, d);
+  console.log(
+    `\n${MODE} ${d} m — ${ROUNDS} rounds, ${PRACTICE.bots + 1} players${MODE === "balls" ? `, ${ballCount(PRACTICE.bots + 1)} balls` : ""}, limit ${course.timeLimit}s, detection ${(RULES.turning.min + RULES.grace).toFixed(2)}–${(RULES.turning.max + RULES.grace).toFixed(2)}s after she starts turning, feint chance ${RULES.feint.chance}`,
+  );
+  if (MODE === "balls") {
+    report("CPU field (all 20)", 0.35, true);
+    continue;
+  }
+  report("sharp watcher (0.25s)", 0.25, true);
+  report("good watcher (0.35s)", 0.35, true);
+  report("ok watcher (0.45s)", 0.45, true);
+  report("slow watcher (0.60s)", 0.6, true);
+  report("good listener (0.35s)", 0.35, true, true);
+  report("good walker (0.35s)", 0.35, false);
+}

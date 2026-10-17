@@ -7,7 +7,7 @@
 // muted costs nothing — and, like the music, they say nothing about when she
 // will stop.
 
-import { FIELD, DOLL_Z } from "../config";
+import { DEFAULT_COURSE, type Course } from "../config";
 import { el, fmtTime } from "./dom";
 import { icon } from "./icons";
 
@@ -61,6 +61,7 @@ export class Hud {
   private readonly vignette = el("div", "vignette");
   private readonly reticle = el("div", "reticle");
   private accents: string[] = [];
+  private course: Course = DEFAULT_COURSE;
   private lastTimer = "";
   private lastAlive = "";
   private lastDist = "";
@@ -134,6 +135,11 @@ export class Hud {
     const h = Math.max(80, Math.round((r.height || 132) * dpr));
     if (this.mapCanvas.width !== w) this.mapCanvas.width = w;
     if (this.mapCanvas.height !== h) this.mapCanvas.height = h;
+  }
+
+  /** The round's field: the minimap is drawn to it. */
+  setCourse(c: Course): void {
+    this.course = c;
   }
 
   setFirstPerson(on: boolean): void {
@@ -257,23 +263,24 @@ export class Hud {
     const W = this.mapCanvas.width;
     const H = this.mapCanvas.height;
     const pad = W * 0.1;
-    const zTop = DOLL_Z - 2;
-    const zBot = FIELD.backLimitZ + 1;
-    const X = (x: number) => W / 2 + (x / (FIELD.halfWidth + 1.5)) * (W / 2 - pad);
+    const C = this.course;
+    const zTop = C.dollZ - 2;
+    const zBot = C.backLimitZ + 1;
+    const X = (x: number) => W / 2 + (x / (C.halfWidth + 1.5)) * (W / 2 - pad);
     const Z = (z: number) => pad + ((z - zTop) / (zBot - zTop)) * (H - 2 * pad);
     g.clearRect(0, 0, W, H);
     // Street.
     g.fillStyle = "rgba(255,255,255,0.06)";
-    g.fillRect(X(-FIELD.halfWidth), Z(zTop), X(FIELD.halfWidth) - X(-FIELD.halfWidth), Z(zBot) - Z(zTop));
+    g.fillRect(X(-C.halfWidth), Z(zTop), X(C.halfWidth) - X(-C.halfWidth), Z(zBot) - Z(zTop));
     // Start and finish lines.
     g.fillStyle = "rgba(255,255,255,0.7)";
-    g.fillRect(X(-FIELD.halfWidth), Z(FIELD.startZ), X(FIELD.halfWidth) - X(-FIELD.halfWidth), Math.max(1, H * 0.006));
+    g.fillRect(X(-C.halfWidth), Z(0), X(C.halfWidth) - X(-C.halfWidth), Math.max(1, H * 0.006));
     g.fillStyle = "#ffd700";
-    g.fillRect(X(-FIELD.halfWidth), Z(FIELD.finishZ), X(FIELD.halfWidth) - X(-FIELD.halfWidth), Math.max(1.5, H * 0.01));
+    g.fillRect(X(-C.halfWidth), Z(C.finishZ), X(C.halfWidth) - X(-C.halfWidth), Math.max(1.5, H * 0.01));
     // Mama.
     g.fillStyle = watching ? "#b71c1c" : "#ffffff";
     g.beginPath();
-    g.arc(X(0), Z(DOLL_Z), W * 0.06, 0, Math.PI * 2);
+    g.arc(X(0), Z(C.dollZ), W * 0.06, 0, Math.PI * 2);
     g.fill();
     const r = W * 0.035;
     for (const d of dots) {
@@ -323,8 +330,8 @@ export class Hud {
     this.hint.classList.toggle("visible", !!text);
   }
 
-  showVerdict(kind: "out" | "safe" | "time"): void {
-    this.verdict.innerHTML = `${icon(kind === "safe" ? "flag" : kind === "time" ? "timer" : "close", "", 18)}<span>${kind === "safe" ? "Safe" : kind === "time" ? "Time up" : "Eliminated"}</span>`;
+  showVerdict(kind: "out" | "safe" | "time" | "noball"): void {
+    this.verdict.innerHTML = `${icon(kind === "safe" ? "flag" : kind === "time" ? "timer" : kind === "noball" ? "ball" : "close", "", 18)}<span>${kind === "safe" ? "Safe" : kind === "time" ? "Time up" : kind === "noball" ? "No ball left" : "Eliminated"}</span>`;
     this.verdict.className = `verdict ${kind === "safe" ? "safe" : "dead"} visible`;
     if (kind !== "safe") this.vignette.className = "vignette dead";
   }

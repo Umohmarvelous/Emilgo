@@ -429,6 +429,31 @@ export class Sound {
     this.noise(t, 0.035, { gain: 0.05, freq: 900, type: "lowpass" });
   }
 
+  /** A swing: a whoosh, and if it landed, the hit — a thud (fist), a crack (slap), a shove (push). */
+  strike(kind: "fist" | "slap" | "push", landed: boolean): void {
+    const t = this.now;
+    this.noise(t, 0.12, { gain: 0.07, freq: 700, type: "bandpass" });
+    if (!landed) return;
+    const at = t + 0.09;
+    if (kind === "fist") {
+      this.tone(95, at, 0.16, { type: "sine", gain: 0.42, to: 45 });
+      this.noise(at, 0.06, { gain: 0.16, freq: 600, type: "lowpass" });
+    } else if (kind === "slap") {
+      this.noise(at, 0.07, { gain: 0.3, freq: 2400, type: "highpass" });
+      this.tone(320, at, 0.05, { type: "triangle", gain: 0.08 });
+    } else {
+      this.tone(70, at, 0.22, { type: "sine", gain: 0.3, to: 40 });
+      this.noise(at, 0.18, { gain: 0.1, freq: 400, type: "lowpass" });
+    }
+  }
+
+  /** A ball picked up, or dropped in a basket. */
+  ball(banked: boolean): void {
+    const t = this.now;
+    this.tone(banked ? 180 : 240, t, 0.12, { type: "sine", gain: 0.2, to: banked ? 110 : 160 });
+    this.noise(t, 0.05, { gain: 0.06, freq: 900, type: "lowpass" });
+  }
+
   win(): void {
     const t = this.now;
     [hz(72), hz(76), hz(79), hz(84)].forEach((f, i) =>

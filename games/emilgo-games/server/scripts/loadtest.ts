@@ -1,7 +1,9 @@
-// Load test: N scripted players connect, quick-match into rooms of 12, and play
+// Load test: N scripted players connect, quick-match into rooms of 20, and play
 // real rounds against the server — run while she sings, stop after a human-ish
-// reaction when she turns, flinch now and then. They re-queue after each round
-// so the load stays up for the whole run.
+// reaction when she turns, flinch now and then. Half play Ball Haunting at
+// 100 m: they grab at balls and throw fists, slaps and pushes while she sings,
+// so the referee's fighting and the ball snapshots are under load too. They
+// re-queue after each round so the load stays up for the whole run.
 //
 //   npm run loadtest -- --clients 1200 --seconds 90 --url ws://localhost:8787
 //
@@ -45,12 +47,16 @@ function bot(n: number): void {
   let lastSnap = 0;
   let sent = { x: 0, z: 0 };
   let timer: NodeJS.Timeout | null = null;
+  const balls = n % 2 === 1;
+  const queue = balls ? { t: "quick", mode: "balls", dist: 100 } : { t: "quick", mode: "classic", dist: 200 };
+  let a = 0;
+  let g = 0;
 
   const send = (o: object) => ws.readyState === 1 && ws.send(JSON.stringify(o));
-  const input = (x: number, z: number) => {
-    if (x === sent.x && z === sent.z) return;
+  const input = (x: number, z: number, force = false) => {
+    if (!force && x === sent.x && z === sent.z) return;
     sent = { x, z };
-    send({ t: "in", x, z });
+    send({ t: "in", x, z, a, g });
   };
 
   ws.on("open", () => {
@@ -66,7 +72,7 @@ function bot(n: number): void {
     switch (m.t) {
       case "welcome":
         myId = m.id;
-        send({ t: "quick" });
+        send(queue);
         break;
       case "ping":
         send({ t: "pong", s: m.s });
@@ -102,7 +108,7 @@ function bot(n: number): void {
           timer = null;
           lastSnap = 0;
           // Back in the queue after a pause, like a person reading results.
-          setTimeout(() => send({ t: "quick" }), 1500 + Math.random() * 3000);
+          setTimeout(() => send(queue), 1500 + Math.random() * 3000);
         }
         break;
     }
@@ -111,6 +117,13 @@ function bot(n: number): void {
   function think(): void {
     const since = (Date.now() - phaseAtMs) / 1000;
     const run = () => input(Math.round((Math.random() - 0.5) * 20), -100);
+    if (balls && phase === "sing" && Math.random() < 0.08) {
+      // A grab or a swing every so often (the referee ignores the ones out of reach).
+      if (Math.random() < 0.5) g = (g + 1) & 255;
+      else a = ((((a >> 2) + 1) & 63) << 2) | (1 + Math.floor(Math.random() * 3));
+      input(sent.x, sent.z, true);
+      return;
+    }
     if (phase === "sing") run();
     else if (phase === "turning") since < reaction ? run() : input(0, 0);
     else if (phase === "watch") since * 1000 > flinchAt && since * 1000 < flinchAt + 250 ? run() : input(0, 0);

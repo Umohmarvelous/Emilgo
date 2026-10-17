@@ -11,7 +11,7 @@
 // Nothing here identifies a person beyond the display name the host gave us.
 // No ids from Lagos Life or EMILGO ever reach the server in Phase 2.
 
-import { NET } from "../config";
+import { DEFAULT_DISTANCE, DISTANCES, MODES, NET, type Distance, type Mode } from "../config";
 import { EMOTE_IDS, type EmoteId } from "../social/emotes";
 import { filterChat } from "../social/filter";
 import type { WireLook } from "../shop/catalog";
@@ -22,13 +22,17 @@ import { PHASES } from "../game/rules";
 
 export type ClientMsg =
   | { t: "hello"; v: number; name: string; resume?: string }
-  | { t: "quick" }
-  | { t: "create"; size: number }
+  /** Play with New People: matched with others who chose the same mode and distance. */
+  | { t: "quick"; mode?: Mode; dist?: Distance }
+  | { t: "create"; size: number; mode?: Mode; dist?: Distance }
   | { t: "join"; code: string }
   | { t: "start" }
   | { t: "leave" }
-  /** Stick in WORLD space, each axis −100…100; buttons b = sprint | stance << 1; j = jump counter. */
-  | { t: "in"; x: number; z: number; b?: number; j?: number }
+  /**
+   * Stick in WORLD space, each axis −100…100; buttons b = sprint | stance << 1;
+   * j = jump counter; a = attack (counter << 2 | kind 1 fist 2 slap 3 push); g = grab counter.
+   */
+  | { t: "in"; x: number; z: number; b?: number; j?: number; a?: number; g?: number }
   | { t: "pong"; s: number }
   /**
    * Play my Lagos Life match. `session` is a fresh Vatar.session() token; the
@@ -83,6 +87,9 @@ export interface RoomInfo {
   state: "lobby" | "playing" | "ended";
   /** Lagos Life matches: the stake per player, in the world's game money. */
   stake?: number;
+  /** What this room plays. */
+  mode: Mode;
+  dist: Distance;
 }
 
 export interface StartInfo {
@@ -94,12 +101,18 @@ export interface StartInfo {
   init: number[];
   /** Map id (maps/registry.ts). Missing: the classic Lagos street. */
   map?: string;
+  /** Mode and distance (missing: Classic Run, 200 m), the field's half width (cm). */
+  mode?: Mode;
+  dist?: Distance;
+  hw?: number;
+  /** Ball Haunting: where each ball starts, [x, z] cm. */
+  bp?: number[];
 }
 
-/** Round state for (re)joining mid-round: everything a snapshot has, plus outcomes. */
+/** Round state for (re)joining mid-round: a full snapshot (balls included), plus outcomes. */
 export interface SyncInfo extends StartInfo {
   snap: SnapMsg;
-  /** Per roster index: [place, finishTime ms, eliminatedAt ms, cause 0/1/2]. */
+  /** Per roster index: [place, finishTime ms, eliminatedAt ms, cause 0 none 1 moved 2 time 3 noball, progress cm]. */
   outcomes: number[];
 }
 
@@ -116,17 +129,33 @@ export interface SnapMsg {
   /** One char per roster index: a(live) f(inished) e(liminated). */
   st: string;
   /**
-   * Per roster index: x, z, vx, vz, heading, progress, y, flags
-   * (cm, cm/s, mrad, cm, cm; flags = stance | sprinting << 2 | stamina(0–31) << 3).
+   * Per roster index: x, z, heading, y, flags (cm, cm, mrad, cm; flags =
+   * packFlags below). Speed and distance run are worked out on the phone from
+   * positions. Eliminated contestants are all zeros (they lie where the "out"
+   * event put them), except in a sync. Kept small: twenty of these go out 15
+   * times a second, to phones on mobile data.
    */
   p: number[];
+  /**
+   * Ball Haunting, in a sync only, per ball: x, z (cm), h (balls.ts ballState:
+   * holder + 1, −(basket + 1), 0 free). During play every change to a ball
+   * already arrives as an event (grb, drp, bnk), so snapshots don't repeat it.
+   */
+  b?: number[];
 }
 
 export type EventMsg =
   | { t: "ev"; k: "ph"; ph: number; d: number }
-  | { t: "ev"; k: "out"; i: number; c: 0 | 1; x: number; z: number }
+  | { t: "ev"; k: "out"; i: number; c: 0 | 1 | 2; x: number; z: number }
   | { t: "ev"; k: "fin"; i: number; time: number; place: number }
-  | { t: "ev"; k: "end" };
+  | { t: "ev"; k: "end" }
+  /** An attack by i (kind 1 fist, 2 slap, 3 push) on tg (−1: a miss), knocking ball db loose (−1: none). Target's slide: kx, kz (cm/s). */
+  | { t: "ev"; k: "atk"; i: number; kind: number; tg: number; db: number; kx?: number; kz?: number }
+  /** i was shoved by `by`, sliding at kx, kz (cm/s). */
+  | { t: "ev"; k: "shv"; i: number; by: number; kx: number; kz: number }
+  | { t: "ev"; k: "grb"; i: number; b: number }
+  | { t: "ev"; k: "drp"; b: number; x: number; z: number }
+  | { t: "ev"; k: "bnk"; i: number; b: number; bk: number };
 
 export type ServerMsg =
   | { t: "welcome"; id: string; token: string; s: number; name: string; on?: number; pl?: number }
@@ -182,17 +211,30 @@ export const ERROR_TEXT: Record<ErrorCode, string> = {
   match_state: "That match isn't being played right now.",
 };
 
-export const SNAP_STRIDE = 8;
+export const SNAP_STRIDE = 5;
+export const OUTCOME_STRIDE = 5;
+export const BALL_STRIDE = 3;
 
-/** Pack and unpack the snapshot flags word. */
-export function packFlags(stance: number, sprinting: boolean, stamina: number): number {
-  return (stance & 3) | (sprinting ? 4 : 0) | (Math.round(Math.max(0, Math.min(1, stamina)) * 31) << 3);
+/**
+ * The snapshot flags word: stance (2 bits) | sprinting << 2 | stamina 0–31 << 3
+ * | stunned << 8 | action << 9 (combat.ts ACT_CODES: 1 fist, 2 slap, 3 push, 4 grab).
+ */
+export function packFlags(stance: number, sprinting: boolean, stamina: number, stunned = false, act = 0): number {
+  return (stance & 3) | (sprinting ? 4 : 0) | (Math.round(Math.max(0, Math.min(1, stamina)) * 31) << 3) | (stunned ? 256 : 0) | ((act & 7) << 9);
 }
-export function unpackFlags(f: number): { stance: 0 | 1 | 2; sprinting: boolean; stamina: number } {
-  return { stance: (Math.min(2, f & 3) as 0 | 1 | 2), sprinting: (f & 4) !== 0, stamina: ((f >> 3) & 31) / 31 };
+export function unpackFlags(f: number): { stance: 0 | 1 | 2; sprinting: boolean; stamina: number; stunned: boolean; act: number } {
+  return { stance: Math.min(2, f & 3) as 0 | 1 | 2, sprinting: (f & 4) !== 0, stamina: ((f >> 3) & 31) / 31, stunned: (f & 256) !== 0, act: (f >> 9) & 7 };
 }
 export const STATUS_CHAR = { alive: "a", finished: "f", eliminated: "e" } as const;
-export const CAUSES: readonly Cause[] = ["moved", "time"];
+export const CAUSES: readonly Cause[] = ["moved", "time", "noball"];
+
+/** A mode and distance from the wire, or the defaults. */
+export function cleanMode(v: unknown): Mode {
+  return MODES.includes(v as Mode) ? (v as Mode) : "classic";
+}
+export function cleanDist(v: unknown): Distance {
+  return DISTANCES.includes(v as Distance) ? (v as Distance) : DEFAULT_DISTANCE;
+}
 
 export function phaseIndex(p: Phase): number {
   return PHASES.indexOf(p);
@@ -226,12 +268,13 @@ export function parseClient(raw: string): ClientMsg | null {
       return { t: "hello", v, name: o.name.slice(0, 64), resume };
     }
     case "quick":
+      return { t: "quick", mode: cleanMode(o.mode), dist: cleanDist(o.dist) };
     case "start":
     case "leave":
       return { t: o.t };
     case "create": {
       const size = int(o.size, 0, 99);
-      return size !== null && NET.privateSizes.includes(size) ? { t: "create", size } : null;
+      return size !== null && NET.privateSizes.includes(size) ? { t: "create", size, mode: cleanMode(o.mode), dist: cleanDist(o.dist) } : null;
     }
     case "join":
       return typeof o.code === "string" ? { t: "join", code: normalizeCode(o.code) } : null;
@@ -240,7 +283,9 @@ export function parseClient(raw: string): ClientMsg | null {
       const z = int(o.z, -100, 100);
       const b = o.b === undefined ? 0 : int(o.b, 0, 5);
       const j = o.j === undefined ? 0 : int(o.j, 0, 255);
-      return x === null || z === null || b === null || j === null ? null : { t: "in", x, z, b, j };
+      const a = o.a === undefined ? 0 : int(o.a, 0, 255);
+      const g = o.g === undefined ? 0 : int(o.g, 0, 255);
+      return x === null || z === null || b === null || j === null || a === null || g === null ? null : { t: "in", x, z, b, j, a, g };
     }
     case "pong": {
       const s = typeof o.s === "number" && Number.isFinite(o.s) ? o.s : null;

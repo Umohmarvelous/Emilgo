@@ -6,7 +6,7 @@
 // came from outside (a player's display name) goes through esc() — never raw
 // into innerHTML. Text is white or black; nothing is bigger than 16px; no emoji.
 
-import { NET, RULES } from "../config";
+import { DISTANCES, MODES, MODE_NAME, NET, STAKED, TIME_LIMIT, ballCount } from "../config";
 import { SONG_IDS, SONGS } from "../audio/songs";
 import type { ChallengeDef } from "../game/progress";
 import { CATEGORIES, MAPS, mapOf, thumbSvg, type MapCategory, type TimeOfDay, type Weather } from "../maps/registry";
@@ -22,7 +22,7 @@ import { esc, ordinal } from "./dom";
 import { icon } from "./icons";
 
 export interface ResultInfo {
-  outcome: "finished" | "moved" | "time";
+  outcome: "finished" | "moved" | "time" | "noball";
   place: number;
   time: number;
   progress: number; // 0..1
@@ -498,6 +498,7 @@ export class Screens {
       })
       .join("");
     const practice = s.mode === "practice";
+    const staked = s.mode === "lagos";
     const weathers = map.weathers.map((w) => `<button class="${w === s.weather ? "on" : ""}" data-act="weather" data-w="${w}">${WEATHER_LABEL[w]}</button>`).join("");
     const times = (["day", "golden", "dusk", "night"] as TimeOfDay[]).map((t) => `<button class="${t === s.time ? "on" : ""}" data-act="time" data-t="${t}">${TIME_LABEL[t]}</button>`).join("");
     const join =
@@ -512,12 +513,6 @@ export class Screens {
         <div class="modes">${modes}${join}
           ${s.error ? `<div class="status error" role="alert">${esc(s.error)}</div>` : ""}
           ${s.connecting ? `<div class="status">Connecting…</div>` : ""}
-
-          <div class="glass" style="padding:10px 12px; width: 300px; display: flex; flex-direction: column;  position: absolute; bottom: 2px; left: 0px; right: 0px; ">
-          <div class="label">Rules</div>
-          <p class="note" style="margin:4px 0 0">Move while Mama sings; freeze when she turns. Jumping or ducking while she watches counts as moving. ${RULES.timeLimit} seconds to cross 120 m.</p>
-          </div>
-
         </div>
         <div class="side">
           <div class="glass mapcard">
@@ -526,10 +521,13 @@ export class Screens {
             <span class="small">${esc(map.blurb)}</span>
             ${practice ? `<div class="label">Weather</div><div class="seg" style="align-self:flex-start">${weathers}</div><div class="label">Time</div><div class="seg" style="align-self:flex-start">${times}</div>` : `<span class="small">Online rounds pick a map for the room.</span>`}
           </div>
-          <div class="glass" style="padding:10px 12px;display:flex;flex-direction:column;gap:6px">
-            <div class="label">Mama's song</div>
-            <span class="small">${s.settings.song === "shuffle" ? "Shuffle" : esc(SONGS[s.settings.song].title)}</span>
-            <button class="btn secondary" style="height:30px" data-act="loadout">Change</button>
+          <div class="glass gamecard">${staked
+            ? `<div class="label">Lagos Life match</div><span class="small">${MODE_NAME[STAKED.mode]}, ${STAKED.distance} m, ${TIME_LIMIT[STAKED.distance]} s${STAKED.mode === "balls" ? ", one ball fewer than players" : ""}. Every staked match plays the same.</span>`
+            : `<div class="label">Mode</div>
+            <div class="seg">${MODES.map((m) => `<button class="${m === s.settings.mode ? "on" : ""}" data-act="rmode" data-m="${m}">${MODE_NAME[m]}</button>`).join("")}</div>
+            <div class="label">Distance</div>
+            <div class="seg">${DISTANCES.map((d) => `<button class="${d === s.settings.distance ? "on" : ""}" data-act="dist" data-d="${d}">${d} m</button>`).join("")}</div>
+            <span class="small">${s.settings.mode === "balls" ? "Grab a ball and carry it over the line. Fewer balls than players." : "Reach the line. Survive."} ${TIME_LIMIT[s.settings.distance]} s.</span>`}
           </div>
         </div>
         <div class="start"><button class="btn primary" data-act="go" ${off(s.mode) || s.connecting ? "disabled" : ""}>Start</button></div>
@@ -614,7 +612,8 @@ export class Screens {
       `<ul class="list">
         ${step("play", "Mama sings: waka", "Push the left side to move. A small push walks, a full push runs. Sprint while your stamina lasts.")}
         ${step("eye", "She turns: freeze", "Let go. Anyone still moving once she's looking is out. Jumping or crouching counts as moving.")}
-        ${step("flag", "Cross the line", `${RULES.timeLimit} seconds for 120 m. Walking all the way won't make it: you'll have to run.`)}
+        ${step("flag", "Cross the line", `${TIME_LIMIT[100]} s for 100 m, ${TIME_LIMIT[200]} s for 200 m, ${TIME_LIMIT[300]} s for 300 m. Walking all the way won't make it: you'll have to run.`)}
+        ${step("people", "Ball Haunting", "Grab a ball and carry it over the line. There are fewer balls than players. Fist, slap or push someone close to knock theirs loose, but never while she's looking.")}
         ${step("music", "The song never warns you", "She can stop after two words or deep in the second verse. Sometimes she stops and doesn't turn. Watch her, not the beat.")}
         ${step("swap", "Look around", "Drag the right side to look. The eye button switches to first person.")}
       </ul>`,
@@ -647,7 +646,7 @@ export class Screens {
 
   postmatch(r: ResultInfo, podium: { name: string; time: number; me: boolean }[], returnIn: number): void {
     const won = r.outcome === "finished";
-    const head = won ? (r.place === 1 ? "Victory" : `${ordinal(r.place)} across`) : r.outcome === "time" ? "Time up" : "Eliminated";
+    const head = won ? (r.place === 1 ? "Victory" : `${ordinal(r.place)} across`) : r.outcome === "time" ? "Time up" : r.outcome === "noball" ? "No ball left" : "Eliminated";
     const primary =
       r.online === "match"
         ? `<button class="btn primary" data-act="vmenu" autofocus>${icon("trophy", "", 16)}Another match</button>`
@@ -808,7 +807,7 @@ export class Screens {
     const node = this.sheet(
       "vmenu",
       "Lagos Life match",
-      `<p class="note">First across the line takes the pot. Nobody crosses? It's a draw and every stake goes back.</p>
+      `<p class="note">Every staked match is ${MODE_NAME[STAKED.mode]}, ${STAKED.distance} m, ${TIME_LIMIT[STAKED.distance]} s${STAKED.mode === "balls" ? `, with one ball fewer than players (${ballCount(seats)} for ${seats})` : ""}. First across the line${STAKED.mode === "balls" ? " holding a ball" : ""} takes the pot. Nobody makes it? It's a draw and every stake goes back.</p>
        ${error ? `<div class="status error" role="alert">${esc(error)}</div>` : ""}
        <div class="label" style="margin-bottom:6px">Stake each</div>
        <div style="display:flex;flex-wrap:wrap;gap:6px">${chips}</div>

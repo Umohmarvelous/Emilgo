@@ -23,6 +23,111 @@ export const FIELD = {
 
 export const DOLL_Z = -131;
 
+// ── Modes and distances (SPEC-V2 §2.1) ───────────────────────────────────────
+
+/** Classic Run: just reach the line. Ball Haunting: reach it holding a ball. */
+export type Mode = "classic" | "balls";
+export const MODES: readonly Mode[] = ["classic", "balls"];
+export const MODE_NAME: Record<Mode, string> = { classic: "Classic Run", balls: "Ball Haunting" };
+
+export type Distance = 100 | 200 | 300;
+export const DISTANCES: readonly Distance[] = [100, 200, 300];
+export const DEFAULT_DISTANCE: Distance = 200;
+/** Fixed per distance — players can't change it (about 2.2 × the time to run it). */
+export const TIME_LIMIT: Record<Distance, number> = { 100: 45, 200: 80, 300: 120 };
+/**
+ * Lagos Life's match API carries only stake and seats — no way to say which
+ * mode — so every staked match plays this, and says so before anyone stakes.
+ * Ball Haunting with the balls scaled to the seats (1 for 2, 2 for 3, 3 for 4),
+ * as the owner chose (SPEC-V2, 17 Oct 2026).
+ */
+export const STAKED: { mode: Mode; distance: Distance } = { mode: "balls", distance: 200 };
+
+/** One round's ground: where the line is, where she stands, how long you have. */
+export interface Course {
+  mode: Mode;
+  distance: Distance;
+  /** Crossing it (z <= finishZ) is safe (in Ball Haunting: with a ball). */
+  finishZ: number;
+  /** Finished contestants walk on into the safe zone and stop here. */
+  safeZ: number;
+  dollZ: number;
+  timeLimit: number;
+  /** The field's half width (the map decides: a street is narrower than a desert). */
+  halfWidth: number;
+  backLimitZ: number;
+}
+
+export function courseFor(mode: Mode, distance: Distance, halfWidth: number = FIELD.halfWidth): Course {
+  return {
+    mode,
+    distance,
+    finishZ: -distance,
+    safeZ: -distance - 4,
+    dollZ: -distance - 11,
+    timeLimit: TIME_LIMIT[distance],
+    halfWidth,
+    backLimitZ: FIELD.backLimitZ,
+  };
+}
+
+export const DEFAULT_COURSE: Course = courseFor("classic", DEFAULT_DISTANCE);
+
+// ── Balls, baskets and fighting (SPEC-V2 §2.3–2.4, §4.4) ─────────────────────
+
+export const BALLS = {
+  /** 13 balls for 20 players: always fewer balls than players. */
+  perPlayer: 0.65,
+  /** How close you must be to pick one up, metres. */
+  reach: 1.3,
+  /** Picking up takes this long — and counts as moving while she watches. */
+  grabTime: 0.35,
+  /** The attacker can't take the ball they knocked loose for this long, seconds. */
+  attackerWait: 3,
+  /** Balls lie between these fractions of the course. */
+  from: 0.12,
+  to: 0.72,
+  /** Baskets just past the safe line. */
+  baskets: 3,
+  basketBeyond: 2.4,
+} as const;
+
+/** How many balls for this many players: 20 → 13, 4 → 3, 2 → 1. */
+export function ballCount(players: number): number {
+  return Math.max(1, Math.min(players - 1, Math.round(players * BALLS.perPlayer)));
+}
+
+export type AttackKind = "fist" | "slap" | "push";
+export const ATTACK_KINDS: readonly AttackKind[] = ["fist", "slap", "push"];
+
+export const ATTACK = {
+  /** Attack buttons show, and land, within this distance. */
+  range: 2,
+  /**
+   * cooldown: seconds before you can attack again; stun: the target can't
+   * control their runner; knock: how far the target slides, metres.
+   * Every attack knocks a held ball loose.
+   */
+  kinds: {
+    fist: { cooldown: 1.6, stun: 0.8, knock: 1.0 },
+    slap: { cooldown: 0.8, stun: 0.35, knock: 0.35 },
+    push: { cooldown: 1.2, stun: 0.25, knock: 2.4 },
+  } satisfies Record<AttackKind, { cooldown: number; stun: number; knock: number }>,
+  /** The attacker's swing: counts as moving while she watches (the attacker is shot). */
+  swing: 0.35,
+  /** After a hit's slide ends, the doll forgives the target this much longer. */
+  forgive: 0.2,
+} as const;
+
+/** Sprinting into someone shoves them (no button). */
+export const SHOVE = {
+  /** Closing speed into them, m/s, that counts as a shove (only sprinting reaches it). */
+  closing: 4,
+  knock: 1.4,
+  /** One shove per pair per this many seconds. */
+  pairEvery: 1,
+} as const;
+
 export const MOVE = {
   walk: 2, // m/s (a small push)
   run: 6, // m/s (a full push)
@@ -97,13 +202,17 @@ export const RULES = {
 } as const;
 
 export const PRACTICE = {
-  bots: 11,
+  /** Solo vs AI: a full field of 20 (SPEC-V2 §2.5). */
+  bots: 19,
 } as const;
 
 /** Online play. Server and client both read these. */
 export const NET = {
-  /** 3: jump, crouch, prone and sprint (buttons in, height and stance out), the map, rich looks. */
-  protocol: 3,
+  /**
+   * 4: modes and distances, balls and baskets, fist / slap / push and sprint
+   * shoves, rooms of 20. (3: jump, crouch, prone, sprint, the map, rich looks.)
+   */
+  protocol: 4,
   tickHz: 60,
   /** Server → client state broadcasts per second. */
   snapshotHz: 15,
@@ -120,12 +229,12 @@ export const NET = {
   lagGraceCap: 0.35,
   maxMessageBytes: 1024,
   nameMax: 20,
-  /** Quick match: once two are waiting, start after this long (or when full). */
-  quickFillMs: 15000,
-  /** Friendly crowd rooms. */
-  crowdMax: 12,
-  /** Private room sizes: 2–4 match Lagos Life's match seats; 12 is a friendly crowd. */
-  privateSizes: [2, 3, 4, 12] as readonly number[],
+  /** Play with New People: once two are waiting, start after this long (or at once when 20). */
+  quickFillMs: 60000,
+  /** Friendly rooms hold a full field (SPEC-V2 §2.5). */
+  crowdMax: 20,
+  /** Private room sizes: 2–4 match Lagos Life's match seats; up to a full field of 20. */
+  privateSizes: [2, 3, 4, 8, 12, 20] as readonly number[],
   /** A dropped player can rejoin their round for this long. */
   rejoinMs: 20000,
   /** Six letters, like Lagos Life match codes. No I/O to avoid misreading. */
@@ -134,10 +243,10 @@ export const NET = {
 } as const;
 
 /** Score for the leaderboard: whole numbers only (Vatar keeps the best). */
-export function scoreFor(opts: { finished: boolean; timeLeft: number; progress: number; first: boolean }): number {
+export function scoreFor(opts: { finished: boolean; timeLeft: number; progress: number; first: boolean; distance?: number }): number {
   if (opts.finished) {
     return 1000 + Math.round(opts.timeLeft * 10) + (opts.first ? 200 : 0);
   }
-  const travelled = Math.max(0, Math.min(1, opts.progress / -FIELD.finishZ));
+  const travelled = Math.max(0, Math.min(1, opts.progress / (opts.distance ?? -FIELD.finishZ)));
   return Math.round(travelled * 600);
 }

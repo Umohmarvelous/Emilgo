@@ -3,6 +3,7 @@
 // copy — nothing crosses between Lagos Life and EMILGO.
 
 import { SONG_IDS, type SongChoice } from "./audio/songs";
+import { DEFAULT_DISTANCE, DISTANCES, MODES, type Distance, type Mode } from "./config";
 import { EMOTE_IDS, type EmoteId } from "./social/emotes";
 import type { Host } from "./platform/types";
 import { cleanLook, DEFAULT_LOOK, type Look } from "./world/human/wardrobe";
@@ -44,6 +45,9 @@ export interface Settings {
   wheel: EmoteId[];
   /** Last map picked for practice. */
   map: string;
+  /** The mode and distance picked on the play screen (SPEC-V2 §2.1). */
+  mode: Mode;
+  distance: Distance;
   tutorialSeen: boolean;
   best: number;
   played: number;
@@ -89,6 +93,8 @@ export function defaults(host: Host): Settings {
     xp: 0,
     daily: { day: "", progress: [] },
     recent: [],
+    mode: "classic",
+    distance: DEFAULT_DISTANCE,
   };
 }
 
@@ -105,6 +111,8 @@ export function loadSettings(host: Host): Settings {
     if (out.song !== "shuffle" && !SONG_IDS.includes(out.song)) out.song = base.song;
     if (!["auto", "low", "medium", "high"].includes(out.graphics)) out.graphics = base.graphics;
     if (out.lookStick !== "always" && out.lookStick !== "touch") out.lookStick = base.lookStick;
+    if (!MODES.includes(out.mode)) out.mode = base.mode;
+    if (!DISTANCES.includes(out.distance)) out.distance = base.distance;
     out.sensH = clamp(out.sensH, 0.05, 1);
     out.sensV = clamp(out.sensV, 0.05, 1);
     out.look = cleanLook(saved.look);

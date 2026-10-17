@@ -10,6 +10,11 @@
 // pages — so in that case only a wss:// address is accepted.
 
 export function serverUrl(hostProvided?: string | null): string | null {
+  // Development only (never in a build): ?server=ws://… points at a test server.
+  if (import.meta.env.DEV) {
+    const q = new URLSearchParams(location.search).get("server");
+    if (q && /^wss?:\/\//.test(q)) return q;
+  }
   const candidates = [hostProvided, import.meta.env.VITE_GAMES_SERVER as string | undefined];
   for (const c of candidates) {
     const url = (c ?? "").trim();
