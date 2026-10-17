@@ -35,9 +35,9 @@ const _s = new Vector3(1, 1, 1);
 const _p = new Vector3();
 const UP = new Vector3(0, 1, 0);
 
-/** A playground ball: red with a white band, smooth (≈ 360 triangles: it's 24 cm across). */
+/** A playground ball: red with a white band, smooth (≈ 190 triangles: it's 24 cm across). */
 function ballGeometry(): BufferGeometry {
-  const g = new SphereGeometry(R, 18, 12);
+  const g = new SphereGeometry(R, 12, 8);
   const pos = g.attributes.position;
   const col: number[] = [];
   const red = new Color(0xc8202c);
@@ -61,7 +61,7 @@ function basketGeometry(): BufferGeometry {
   }
   // Rim, then back down inside to a floor.
   pts.push(new Vector2(0.5, H + 0.03), new Vector2(0.44, H), new Vector2(0.4, 0.06), new Vector2(0.0, 0.05));
-  const g = new LatheGeometry(pts, 36);
+  const g = new LatheGeometry(pts, 22);
   const pos = g.attributes.position;
   const col: number[] = [];
   const a = new Color(0xb58a4c);
@@ -70,7 +70,7 @@ function basketGeometry(): BufferGeometry {
   for (let i = 0; i < pos.count; i++) {
     const y = pos.getY(i);
     const ang = Math.atan2(pos.getZ(i), pos.getX(i));
-    const weave = (Math.floor(y / 0.05) + Math.floor(((ang + Math.PI) / (Math.PI * 2)) * 36)) % 2 === 0;
+    const weave = (Math.floor(y / 0.05) + Math.floor(((ang + Math.PI) / (Math.PI * 2)) * 22)) % 2 === 0;
     const c = y > H - 0.01 ? rim : weave ? a : b;
     col.push(c.r, c.g, c.b);
   }
@@ -98,7 +98,8 @@ export class PropsView {
     const mat = () => (this.spec.pbr ? new MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0 }) : new MeshLambertMaterial({ vertexColors: true }));
     this.balls = new InstancedMesh(ballGeometry(), mat(), balls.length);
     this.balls.instanceMatrix.setUsage(DynamicDrawUsage);
-    this.balls.castShadow = this.spec.shadows;
+    // 24 cm balls: a shadow pass for them isn't worth its triangles.
+    this.balls.castShadow = false;
     this.balls.frustumCulled = false;
     this.group.add(this.balls);
     this.at.length = 0;

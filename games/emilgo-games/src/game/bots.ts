@@ -29,8 +29,8 @@ interface Personality {
   /** How far it drifts sideways, metres. */
   wander: number;
   /**
-   * Chance it freezes when the song stops even though she isn't turning — the
-   * feint. Freezing is safe but slow; the bold ones watch her instead.
+   * Chance it believes the hum and freezes before she turns — even when the hum
+   * is fake. Freezing is safe but slow; the bold ones watch her instead.
    */
   fooled: number;
   /** Attacks per second it's willing to throw when someone is in reach. */
@@ -94,8 +94,9 @@ export class BotBrain {
       case "sing":
         go = t >= this.moveFrom;
         break;
-      case "pause":
-        // The song stopped. Fooled bots stop too, a reaction later; the rest carry on.
+      case "hum":
+        // The warning. Fooled bots stop before it ends, sure she'll turn; the rest
+        // run on and watch her.
         go = t < this.moveUntil;
         break;
       case "turning":
@@ -121,11 +122,11 @@ export class BotBrain {
     }
 
     // Ball Haunting, empty-handed: go for a free ball, else for whoever holds one.
+    // Being close to someone is never a reason to fight: a CPU swings only to
+    // take a ball off its holder (hunt), like a player choosing to tap.
     if (round.course.mode === "balls" && me.ball < 0) {
       if (this.hunt(round, me)) return;
     }
-    // Fight for it when it's safe to: she isn't watching (a swing is movement).
-    if (round.phase === "sing" || round.phase === "turningBack") this.maybeAttack(round, me, round.course.mode === "balls" ? 1 : 0.12);
 
     // Head for the finish, drifting toward a lane that wanders over time.
     const sway = Math.sin(round.elapsed * 0.55 + this.wanderPhase) * this.p.wander;
@@ -162,7 +163,7 @@ export class BotBrain {
     }
     const target = ball && (!holder || ball.d < hd + 8) ? ball : holder ? { x: holder.x, z: holder.z, d: hd } : null;
     if (!target) return false;
-    if (holder && target.d === hd && (round.phase === "sing" || round.phase === "turningBack")) this.maybeAttack(round, me, 1.4);
+    if (holder && target.d === hd && (round.phase === "sing" || round.phase === "turningBack")) this.maybeAttack(round, me, holder, 1.4);
     const dx = target.x - me.x;
     const dz = target.z - me.z;
     const len = Math.hypot(dx, dz) || 1;
@@ -173,9 +174,9 @@ export class BotBrain {
     return true;
   }
 
-  /** Throw its favourite attack at whoever is in reach, now and then. */
-  private maybeAttack(round: RedLightRound, me: Contestant, k: number): void {
-    if (!canAttack(me) || !attackTarget(me, round.contestants, ATTACK.range * 0.9)) return;
+  /** Throw its favourite attack at the ball's holder, now and then, once it's the one in reach. */
+  private maybeAttack(round: RedLightRound, me: Contestant, holder: Contestant, k: number): void {
+    if (!canAttack(me) || attackTarget(me, round.contestants, ATTACK.range * 0.9) !== holder) return;
     if (!this.rng.chance(Math.min(1, this.p.aggression * k * (1 / 60)))) return;
     const kind = this.p.move === "fist" ? 1 : this.p.move === "slap" ? 2 : 3;
     this.attacks = (this.attacks + 1) & 63;
@@ -191,8 +192,8 @@ export class BotBrain {
         const remaining = Math.max(0, me.z - round.course.finishZ);
         const urgent = round.timeLeft > 0 && remaining / round.timeLeft > MOVE.walk * 0.45;
         this.running = urgent || this.rng.chance(p.runChance);
-        // After a feint it was frozen (or wasn't); either way it picks up again.
-        const fromPause = this.lastPhase === "pause";
+        // After a fake hum it was frozen (or wasn't); either way it picks up again.
+        const fromPause = this.lastPhase === "hum";
         this.moveFrom =
           this.lastPhase === "turningBack" && this.moveFrom < RULES.turningBack
             ? 0
@@ -202,8 +203,9 @@ export class BotBrain {
         this.laneX = Math.max(-6, Math.min(6, me.x + this.rng.range(-1.5, 1.5)));
         break;
       }
-      case "pause":
-        this.moveUntil = this.rng.chance(p.fooled) ? reaction : Infinity;
+      case "hum":
+        // Fooled: stops a little before the hum runs out. Otherwise waits for her to turn.
+        this.moveUntil = this.rng.chance(p.fooled) ? Math.max(0.3, RULES.hum.length - this.rng.range(0.2, 0.9)) : Infinity;
         break;
       case "turning":
         this.moveUntil = reaction;

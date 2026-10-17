@@ -5,19 +5,38 @@
 // different place. Names are generic: no real business appears anywhere.
 
 export type MapCategory = "ng-urban" | "ng-rural" | "intl-urban" | "intl-nature" | "special";
-export type TimeOfDay = "day" | "golden" | "dusk" | "night";
+export type TimeOfDay = "sunrise" | "day" | "sunset" | "night";
 /** SPEC-V2: the only falling weather is rain (no fog banks, snow, ash or storms). */
 export type Weather = "clear" | "rain";
+/** The five states a map can be played in (SPEC-V2 §6.2). */
+export type SkyState = "sunny" | "rainy" | "sunrise" | "sunset" | "night";
+export const SKY_STATES: readonly SkyState[] = ["sunny", "rainy", "sunrise", "sunset", "night"];
+export const SKY_LABEL: Record<SkyState, string> = { sunny: "Sunny", rainy: "Rainy", sunrise: "Sunrise", sunset: "Sunset", night: "Night" };
+
+/** A sky state as the world builds it: a time of day and whether it rains. */
+export function skyParts(s: SkyState): { time: TimeOfDay; weather: Weather } {
+  return s === "rainy" ? { time: "day", weather: "rain" } : s === "sunny" ? { time: "day", weather: "clear" } : { time: s, weather: "clear" };
+}
+
+/**
+ * Light / dark mode (SPEC-V2 §6.4) over a chosen state: light is full daylight
+ * (rain stays rain), dark is full night; auto keeps the state.
+ */
+export function withMode(s: SkyState, mode: "auto" | "light" | "dark"): SkyState {
+  if (mode === "dark") return "night";
+  if (mode === "light") return s === "rainy" ? "rainy" : "sunny";
+  return s;
+}
 
 export interface MapInfo {
   id: string;
   name: string;
   category: MapCategory;
   blurb: string;
+  /** The state this map is drawn for (its palette, its default). */
+  sky: SkyState;
   time: TimeOfDay;
   weather: Weather;
-  /** Weathers this map can be set to (practice). */
-  weathers: Weather[];
   /** Thumbnail palette: sky top, horizon, ground, silhouette, accent. */
   colors: [string, string, string, string, string];
   shape: Silhouette;
@@ -40,17 +59,24 @@ type Silhouette =
   | "dunes" | "snow" | "jungle" | "volcano"
   | "hospital" | "darkwood" | "mansion" | "bunker";
 
+/** The maps were first drawn for day / golden hour / dusk / night: those become the five states. */
+type DrawnFor = "day" | "golden" | "dusk" | "night";
+
 const m = (
   id: string,
   name: string,
   category: MapCategory,
   shape: Silhouette,
-  time: TimeOfDay,
+  drawn: DrawnFor,
   weather: Weather,
-  weathers: Weather[],
+  _weathers: Weather[],
   colors: MapInfo["colors"],
   blurb: string,
-): MapInfo => ({ id, name, category, shape, time, weather, weathers, colors, blurb });
+  extra: Partial<MapInfo> = {},
+): MapInfo => {
+  const sky: SkyState = drawn === "night" ? "night" : drawn === "day" ? (weather === "rain" ? "rainy" : "sunny") : "sunset";
+  return { id, name, category, shape, sky, ...skyParts(sky), colors, blurb, ...extra };
+};
 
 export const MAPS: MapInfo[] = [
   // Nigerian urban
@@ -73,7 +99,7 @@ export const MAPS: MapInfo[] = [
   m("paris-cafe", "Paris Café", "intl-urban", "paris", "golden", "clear", ["clear", "rain"], ["#87a9d6", "#f6d5a8", "#9b8f80", "#3a3530", "#8a1f2b"], "Cream façades, café tables and a long boulevard."),
   m("rio-favela", "Rio Favela", "intl-urban", "favela", "golden", "clear", ["clear", "rain"], ["#5ea3db", "#fbd38a", "#a07a5a", "#4a2a2a", "#2b9348"], "Painted houses stacked up the hill."),
   // International nature
-  m("desert-dunes", "Desert Dunes", "intl-nature", "dunes", "golden", "clear", ["clear", "rain"], ["#7fb3e0", "#ffd9a0", "#e2b57a", "#9a6a3a", "#f2a71b"], "Rolling sand under a wide sky."),
+  m("desert-field", "Desert Field", "intl-nature", "dunes", "day", "clear", ["clear", "rain"], ["#6fa9dc", "#f4dcae", "#dcb27a", "#9a6a3a", "#f2a71b"], "A wide open field of sand, far from anywhere. Mama waits at the end.", { halfWidth: 16 }),
   m("snowy-mountains", "Snowy Mountains", "intl-nature", "snow", "day", "clear", ["clear", "rain"], ["#9cc4e8", "#eef4fa", "#e9eef3", "#5b6b80", "#35b8ff"], "Pines and deep snow."),
   m("tropical-jungle", "Tropical Jungle", "intl-nature", "jungle", "day", "rain", ["clear", "rain"], ["#5f9a7a", "#cfe8b8", "#3f6a2a", "#14240e", "#ffd60a"], "Giant leaves, vines and a lot of noise."),
   m("volcanic-island", "Volcanic Island", "intl-nature", "volcano", "dusk", "clear", ["clear", "rain"], ["#3a2a3a", "#e06a3a", "#3a302c", "#120c0c", "#ff5a1f"], "Black rock and the glow of lava."),
@@ -85,7 +111,7 @@ export const MAPS: MapInfo[] = [
 ];
 
 export const MAP_BY_ID: Record<string, MapInfo> = Object.fromEntries(MAPS.map((x) => [x.id, x]));
-export const DEFAULT_MAP = "lagos-street";
+export const DEFAULT_MAP = "desert-field";
 
 export function mapOf(id: string | undefined): MapInfo {
   return (id && MAP_BY_ID[id]) || MAP_BY_ID[DEFAULT_MAP];
@@ -124,7 +150,7 @@ const SHAPES: Record<Silhouette, string> = {
 export function thumbSvg(info: MapInfo): string {
   const [top, horizon, ground, sil, accent] = info.colors;
   const id = `g${info.id.replace(/[^a-z]/g, "")}`;
-  const night = info.time === "night";
+  const night = info.sky === "night";
   return `<svg viewBox="0 0 80 40" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
     <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${top}"/><stop offset="1" stop-color="${horizon}"/></linearGradient></defs>
     <rect width="80" height="40" fill="url(#${id})"/>

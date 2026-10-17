@@ -16,18 +16,20 @@
 // Two views: the LOBBY (lobbyStage: your character on a golden-hour street,
 // the squad room, the winner's circle) and the GAME (the map, the run).
 
-import { ACESFilmicToneMapping, PCFSoftShadowMap, PerspectiveCamera, Scene, Vector2, Vector3, WebGLRenderer } from "three";
+import { ACESFilmicToneMapping, PCFShadowMap, PCFSoftShadowMap, PerspectiveCamera, Scene, Vector2, Vector3, WebGLRenderer } from "three";
 
 import { Sound } from "../audio/sound";
-import { ATTACK, BALLS, DISTANCES, FIELD, MODES, MOVE, PRACTICE, courseFor, scoreFor, type AttackKind, type Course, type Distance, type Mode, type Stance } from "../config";
+import { ATTACK, BALLS, DISTANCES, FIELD, MODES, MOVE, PRACTICE, RULES, courseFor, scoreFor, type AttackKind, type Course, type Distance, type Mode, type Stance } from "../config";
 import { SONG_IDS, SONGS, type SongId } from "../audio/songs";
 import { Loop } from "../core/loop";
 import { QualityGovernor } from "../core/quality";
 import { Rng, randomSeed } from "../core/rng";
+import { Post } from "../graphics/post";
 import { tierSpec, type TierSpec } from "../graphics/tiers";
+import { REFLECT_LAYER } from "../maps/potholes";
 import { Controls } from "../input/controls";
 import { buildWorld, type World } from "../maps/world";
-import { DEFAULT_MAP, mapOf, type MapCategory, type TimeOfDay, type Weather } from "../maps/registry";
+import { DEFAULT_MAP, SKY_STATES, mapOf, withMode, type MapCategory, type SkyState } from "../maps/registry";
 import { NetClient } from "../net/client";
 import { OnlineRound } from "../net/onlineRound";
 import { ERROR_TEXT, normalizeCode, type RoomInfo, type ServerMsg, type StartInfo, type SyncInfo } from "../net/protocol";
@@ -76,12 +78,15 @@ const _size = new Vector2();
 export class Game {
   private readonly renderer: WebGLRenderer;
   private readonly scene = new Scene();
-  private readonly camera = new PerspectiveCamera(65, 1, 0.1, 420);
+  // Far enough for the mountains behind a 300 m run (the fog ends the view first).
+  private readonly camera = new PerspectiveCamera(65, 1, 0.1, 900);
   private readonly rig: CameraRig;
   private readonly doll = new Doll();
   private readonly crowd = new Crowd(MAX_PEOPLE);
   private readonly fx = new Effects();
   private readonly props: PropsView;
+  /** High only: bloom, grade, vignette. */
+  private post: Post | null = null;
   private readonly quality: QualityGovernor;
   private readonly loop: Loop;
   private readonly sound = new Sound();
@@ -116,8 +121,10 @@ export class Game {
   private settingsTab = "graphics";
   private friendsTab: "friends" | "invite" = "friends";
   private mapCat: MapCategory = "ng-urban";
-  private weather: Weather | null = null;
-  private timePick: TimeOfDay | null = null;
+  /** The sky picked for practice (null: the map's own). */
+  private skyPick: SkyState | null = null;
+  /** What the current world was built from (rebuilt when light / dark mode changes mid-round). */
+  private worldArgs: { mapId: string; pick: SkyState | null; course?: Course } | null = null;
   private worldMs = 0;
   private tryOn: Look | null = null;
   private onlineCounts: { online: number | null; inMatch: number | null } = { online: null, inMatch: null };
@@ -177,8 +184,11 @@ export class Game {
     this.renderer.toneMapping = ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
     this.renderer.shadowMap.type = PCFSoftShadowMap;
+    // A frame's cost is every pass in it (shadows, the mirror, post), not just the last.
+    this.renderer.info.autoReset = false;
     this.spec = tierSpec(settings.graphics, this.renderer.getContext());
     this.renderer.shadowMap.enabled = this.spec.shadows;
+    this.renderer.shadowMap.type = this.spec.tier === 2 ? PCFSoftShadowMap : PCFShadowMap;
     const aniso = this.renderer.capabilities.getMaxAnisotropy();
     setMaxAnisotropy(aniso);
     setTextureAnisotropy(this.spec.tier === 2 ? Math.min(8, aniso) : 4);
@@ -192,6 +202,8 @@ export class Game {
     this.crowd.tier = this.spec.tier;
     this.crowd.setShadows(this.spec.shadows);
     this.rig = new CameraRig(this.camera);
+    // Mama shows in the puddles' mirror (High).
+    this.doll.root.traverse((o) => o.layers.enable(REFLECT_LAYER));
     this.stage = new LobbyStage(this.renderer, this.spec, canvas);
 
     this.quality = new QualityGovernor((pr) => {
@@ -421,8 +433,7 @@ export class Game {
       lagosLife: !!this.host.matches,
       error: this.playError,
       connecting: this.connecting,
-      weather: this.weather ?? mapOf(this.settings.map).weather,
-      time: this.timePick ?? mapOf(this.settings.map).time,
+      sky: withMode(this.skyPick ?? mapOf(this.settings.map).sky, this.settings.lightMode),
     });
   }
 
@@ -505,7 +516,7 @@ export class Game {
     const round = new RedLightRound({ seed, contestants: people, featuredId: ME, course });
     this.mode = "practice";
     this.meId = ME;
-    this.beginRound(round, rng, this.settings.map, this.weather, [], this.timePick);
+    this.beginRound(round, rng, this.settings.map, this.skyPick, []);
     this.brains = people.slice(1).map((p, i) => new BotBrain(p.id, i, rng));
   }
 
@@ -527,13 +538,13 @@ export class Game {
   }
 
   /** Everything both kinds of round need at their start. */
-  private beginRound(round: RoundView, rng: Rng, mapId: string, weather: Weather | null, wire: (WireLook | undefined)[] = [], time: TimeOfDay | null = null): void {
+  private beginRound(round: RoundView, rng: Rng, mapId: string, sky: SkyState | null, wire: (WireLook | undefined)[] = []): void {
     this.endRound();
     this.round = round;
     this.view = "game";
     this.stage.interactive = false;
     const course = round.course;
-    this.ensureWorld(mapId, weather, time, course);
+    this.ensureWorld(mapId, sky, course);
     this.doll.placeAt(course.dollZ);
     this.rig.dollZ = course.dollZ;
     this.rig.wallX = course.halfWidth + 1.4;
@@ -585,15 +596,18 @@ export class Game {
   }
 
   /** Build the map's world (kept if the next round is on the same map). */
-  private ensureWorld(mapId: string, weather: Weather | null, time: TimeOfDay | null = null, course?: Course): void {
-    const key = `${mapId}|${weather ?? ""}|${time ?? ""}|${this.spec.tier}|${course ? `${course.distance}/${course.halfWidth}` : ""}`;
+  private ensureWorld(mapId: string, pick: SkyState | null, course?: Course): void {
+    // Light / dark mode decides over the pick (SPEC-V2 §6.4).
+    const sky = withMode(pick ?? mapOf(mapId).sky, this.settings.lightMode);
+    this.worldArgs = { mapId, pick, course };
+    const key = `${mapId}|${sky}|${this.spec.tier}|${course ? `${course.distance}/${course.halfWidth}` : ""}`;
     if (this.world && key === this.worldKey) return;
     if (this.world) {
       this.scene.remove(this.world.group);
       this.world.dispose();
     }
     const t0 = performance.now();
-    this.world = buildWorld(mapId, weather, this.spec, this.atlas, time, course);
+    this.world = buildWorld(mapId, sky, this.spec, this.atlas, course);
     this.worldMs = performance.now() - t0;
     this.worldKey = key;
     this.scene.add(this.world.group);
@@ -651,7 +665,8 @@ export class Game {
     round.step(dt);
     const me = round.get(this.meId);
     if (me?.sprinting) this.sprintMetres += Math.hypot(me.vx, me.vz) * dt;
-    if (round.phase === "sing") this.songBeat += (dt * SONGS[this.songId].bpm) / 60;
+    // The song plays on under the hum.
+    if (round.phase === "sing" || round.phase === "hum") this.songBeat += (dt * SONGS[this.songId].bpm) / 60;
     for (const e of round.drain()) this.onEvent(e);
   }
 
@@ -671,9 +686,6 @@ export class Game {
         break;
       case "attack":
         this.onAttack(e.id, e.kind, e.target, e.dropped);
-        break;
-      case "shoved":
-        this.onShoved(e.id, e.by);
         break;
       case "grab": {
         const c = this.round?.get(e.id);
@@ -714,19 +726,6 @@ export class Game {
     if (dropped >= 0 && (t.id === this.meId || id === this.meId)) this.hud.pushFeed(t.id === this.meId ? "Your ball got knocked loose" : `You knocked ${this.label(t)}'s ball loose`, "info");
   }
 
-  /** Sprinted into: a stagger and, for the one shoved, a slight shake (SPEC-V2 §2.4). */
-  private onShoved(id: string, by: string): void {
-    const round = this.round;
-    const c = round?.get(id);
-    const b = round?.get(by);
-    if (!round || !c || !b) return;
-    this.crowd.hit(c.index, c, c.x - b.x, c.z - b.z);
-    if (id === this.meId) {
-      this.rig.kick(0.22);
-      this.haptic("warning");
-    }
-  }
-
   private onPhase(phase: string, duration: number): void {
     const playing = this.my === "playing";
     const from = this.lastPhase;
@@ -738,16 +737,18 @@ export class Game {
         this.doll.setFacing(false);
         break;
       case "sing":
-        if (from !== "pause") this.songBeat = 0;
+        // After a fake hum the song never stopped: it just carries on.
+        if (from === "hum") break;
+        this.songBeat = 0;
         this.sound.playSong(this.songId, this.songBeat);
         this.hud.setSignal("none"); // the countdown's done: nothing on screen but the run
         this.doll.setSinging(true);
         this.doll.setWatching(false);
         break;
-      case "pause":
-        // The feint: the music dies, she stops swaying — and does NOT turn.
-        this.sound.stopSong();
-        this.doll.setSinging(false);
+      case "hum":
+        // The warning: she hums under the song. Real or fake, it sounds the same.
+        this.sound.hum(duration || RULES.hum.length);
+        if (playing) this.haptic("select");
         break;
       case "turning":
         this.sound.stopSong();
@@ -777,9 +778,15 @@ export class Game {
     this.crowd.chest(c, _chest);
     _away.set(c.x, 0, c.z - round.course.dollZ).normalize();
     if (cause === "moved") {
+      // Her head snaps to the offender and her eyes flash; the nearest laser gun fires.
       this.doll.caught(c.x, c.z);
-      this.doll.eyes(_eyeL, _eyeR);
-      this.fx.beam(_eyeL, _eyeR, _chest);
+      if (this.world) {
+        this.world.lasers.fireAt(_chest, _eyeL);
+        this.fx.beam(_eyeL, _eyeL, _chest);
+      } else {
+        this.doll.eyes(_eyeL, _eyeR);
+        this.fx.beam(_eyeL, _eyeR, _chest);
+      }
     }
     this.fx.burst(_chest, _away, isMe ? 38 : cause === "time" ? 12 : 22);
     this.crowd.kill(c.index, c, 0, round.course.dollZ);
@@ -1177,6 +1184,7 @@ export class Game {
 
   private render(frameDt: number): void {
     const workStart = performance.now();
+    this.renderer.info.reset();
     const w = window.innerWidth;
     const h = window.innerHeight;
     if (this.view === "lobby") {
@@ -1227,6 +1235,16 @@ export class Game {
       this.updateHud(round, me, frameDt);
       _focus.set(target.x, 0, target.z);
       this.world?.update(frameDt, _focus, this.camera.position);
+      // The towers track runners while she turns and stares.
+      this.world?.lasers.update(frameDt, round.phase === "turning" || round.phase === "watch", list);
+      // Feet in puddles splash.
+      const pot = this.world?.potholes;
+      if (pot) {
+        for (const c of list) {
+          if (c.status === "eliminated" || (c.y ?? 0) > 0.05) continue;
+          if (pot.step(c.index, c.x, c.z, Math.hypot(c.vx, c.vz)) && (c.id === this.meId || Math.hypot(c.x - me.x, c.z - me.z) < 9)) this.sound.splash(c.id === this.meId);
+        }
+      }
     }
 
     this.updateSocial(round);
@@ -1236,8 +1254,20 @@ export class Game {
       if (this.resultsIn <= 0) this.showResults();
     }
 
-    this.renderer.render(this.scene, this.camera);
+    this.draw();
     this.quality.sample(frameDt * 1000, performance.now() - workStart, this.loop.targetMs);
+  }
+
+  /** The game view: the puddles' mirror and the post-processing on High, a plain draw otherwise. */
+  private draw(): void {
+    if (this.spec.fancy) {
+      this.world?.beforeRender(this.renderer, this.scene, this.camera);
+      if (!this.post) this.post = new Post();
+      this.post.warmth = this.world ? (this.world.time === "sunset" || this.world.time === "sunrise" ? 1 : this.world.night ? -1 : 0.2) : 0;
+      this.post.render(this.renderer, this.scene, this.camera);
+    } else {
+      this.renderer.render(this.scene, this.camera);
+    }
   }
 
   private updateHud(round: RoundView, me: Contestant, frameDt: number): void {
@@ -1680,13 +1710,12 @@ export class Game {
         break;
       case "pick-map":
         this.settings.map = d.map ?? DEFAULT_MAP;
-        this.weather = null;
-        this.timePick = null;
+        this.skyPick = null;
         saveSettings(this.host, this.settings);
         this.showPlay();
         break;
-      case "weather":
-        this.weather = (d.w as Weather) ?? null;
+      case "sky":
+        this.skyPick = SKY_STATES.includes(d.s as SkyState) ? (d.s as SkyState) : null;
         this.showPlay();
         break;
       case "rmode":
@@ -1705,10 +1734,6 @@ export class Game {
         this.showPlay();
         break;
       }
-      case "time":
-        this.timePick = (d.t as TimeOfDay) ?? null;
-        this.showPlay();
-        break;
       case "go":
         this.go();
         break;
@@ -1761,6 +1786,12 @@ export class Game {
         const key = d.key;
         if (key === "graphics" && ["auto", "low", "medium", "high"].includes(d.val ?? "")) this.settings.graphics = d.val as Settings["graphics"];
         if (key === "lookStick" && (d.val === "always" || d.val === "touch")) this.settings.lookStick = d.val;
+        if (key === "lightMode" && (d.val === "auto" || d.val === "light" || d.val === "dark")) {
+          this.settings.lightMode = d.val;
+          // Everything in the world follows at once: sky, light, lamps, neon.
+          if (this.round && this.worldArgs) this.ensureWorld(this.worldArgs.mapId, this.worldArgs.pick, this.worldArgs.course);
+          this.stage.setLightMode(this.settings.lightMode);
+        }
         this.applySettings();
         saveSettings(this.host, this.settings);
         this.showSettings();
@@ -1971,6 +2002,7 @@ export class Game {
     this.rig.invertY = s.invertY;
     this.rig.sensH = s.sensH;
     this.rig.sensV = s.sensV;
+    this.stage?.setLightMode(s.lightMode);
     this.controls.setLayout(s.leftHanded, s.lookStick === "always");
     this.wheel.setSlots(s.wheel.length === 8 ? s.wheel : DEFAULT_WHEEL);
     const spec = tierSpec(s.graphics, this.renderer.getContext());
@@ -1978,6 +2010,8 @@ export class Game {
       const changed = !!this.spec && spec.tier !== this.spec.tier;
       this.spec = spec;
       this.renderer.shadowMap.enabled = spec.shadows;
+      // Medium: basic shadows; High: full, soft (SPEC-V2 §6.3).
+      this.renderer.shadowMap.type = spec.tier === 2 ? PCFSoftShadowMap : PCFShadowMap;
       this.crowd.tier = spec.tier;
       this.crowd.setShadows(spec.shadows);
       this.stage?.setSpec(spec);

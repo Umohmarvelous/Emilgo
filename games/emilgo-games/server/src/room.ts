@@ -460,10 +460,6 @@ export class Room {
         const tg = e.target ? round.get(e.target)! : null;
         return { t: "ev", k: "atk", i: round.get(e.id)!.index, kind: ATTACK_KINDS.indexOf(e.kind) + 1, tg: tg ? tg.index : -1, db: e.dropped, ...(tg ? { kx: cm(tg.vx), kz: cm(tg.vz) } : {}) };
       }
-      case "shoved": {
-        const c = round.get(e.id)!;
-        return { t: "ev", k: "shv", i: c.index, by: round.get(e.by)!.index, kx: cm(c.vx), kz: cm(c.vz) };
-      }
       case "grab":
         return { t: "ev", k: "grb", i: round.get(e.id)!.index, b: e.ball };
       case "drop":
@@ -544,7 +540,7 @@ export function decide(list: readonly Contestant[]): Winner {
 }
 
 /**
- * A phase's length as clients may know it. The song, the feint and her stare
+ * A phase's length as clients may know it. The song and her stare
  * are secret — sending them would tell every phone exactly when she turns —
  * so they go out as 0. Countdown and the turns themselves are visible anyway.
  */

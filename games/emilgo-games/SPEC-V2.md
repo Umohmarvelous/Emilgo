@@ -10,7 +10,8 @@ this file wins. Build strictly to it: nothing extra.
 | --- | --- |
 | 20 players, but Lagos Life staked matches are 2–4 seats | **20-player matches are free**, on our server (Invite Friends, Play with New People). **Staked Lagos Life matches stay 2–4** on the same field. Balls scale with players (13 per 20, so 3 for 4 and 1 for 2). Matchmaking starts at 20, or after 60 s with at least 2. No bots online. |
 | CP and boosts | **CP is earned only by playing.** Boosts work in Solo and free matches and are **switched off in staked matches**. |
-| The 3-second warning hum | **No hum at all.** Hard mode stays: the song stops anywhere, sometimes she stops and doesn't turn. |
+| The 3-second warning hum | First "no hum at all"; **changed the same day: hum + fake hums.** Every turn is warned by a 3 s hum under the song, but about a third of hums are fake (she sings on and doesn't turn). Never two fakes running, never before her first turn. The fake hum replaces the old silent feint. |
+| Fighting when players get close | **Never automatic** (owner, 17 Oct 2026): until a player taps fist, slap or push, runners near each other just run. Sprinting into someone is only a bump: no shove, no stagger (this overrides §2.4 and §4.4's "push mechanic, no button"). CPUs swing only to take a ball off its holder. |
 | Attacks while the doll is watching | **Only the attacker is shot.** The player who was hit or pushed is forgiven for that movement. |
 
 ## Decisions (spec unclear, contradictory, or blocked by the platform)
@@ -201,7 +202,70 @@ Each phase ends tested and waits for the owner's go-ahead.
 
 ## Status
 
-### Phase 2: referee v4 and server (done 17 Oct 2026, waiting for go-ahead)
+### The hum and no automatic fights (17 Oct 2026, between Phases 2 and 3)
+
+- Referee: phase 2 is now `hum` (3 s, the song plays on under it); at its end
+  the referee decides, in secret, whether she turns or sings on (38%, never
+  twice running, never before her first turn). Protocol 5.
+- The sprint shove is gone: bodies still never pass through each other, but a
+  bump changes positions only. CPUs no longer swing at whoever is close;
+  in Ball Haunting they attack only the player holding the ball they want.
+- `rulestest` 61/61 (every one of 394 turns came after a hum; 127 of 536 hums
+  fake; running through a hum is safe; sprinting into someone staggers no
+  one). Balance (20 players): a sharp player (0.25 s) crosses 100% of rounds
+  in 25 / 50 / 75 s of the 45 / 80 / 120 s; 0.45 s: 27% / 7% / 1%; walking
+  never makes it.
+
+### Phase 3: Desert Field, sky, light and dark (done 17 Oct 2026, waiting for go-ahead)
+
+| Check | Result |
+| --- | --- |
+| Every pass counted (shadows, the mirror, post) — Desert Field, 300 m, 20 bunched at the start | Low 64K triangles / 50 draw calls · Medium 90K / 58 · High 98K / 64 |
+| All 24 maps at 300 m, start of a round | Medium 51–90K triangles, 45–76 calls · High 54–98K, 52–84 calls (Farmland trimmed after the sweep) |
+| Scenery along a 300 m run, per 50 m stretch | even on all 24 maps (no gaps) |
+| Time to lobby, slow phone profile (CPU ÷4, 1.6 Mb/s, 150 ms) | 4.1 s, 351 KB |
+| Builds | Lagos Life `dist/` 268 KB JS gzipped; EMILGO embed 1,173 KB; Docker server rebuilt on protocol 5, keys OK (test) |
+| Tests | rules 61/61 · match, balls, shop all passed · fairness 7/7 · load 1,200: 0 failures, step p99 10 ms, 6.6 KB/s |
+
+Built:
+- **Desert Field** (`maps/desert.ts`, recipe `desert-field`, the default map,
+  32 m wide): sand with grass patches (some on the field, they don't get in
+  the way), dunes beyond, two mountain ranges, and 26 details round the field
+  (7 cacti, 2 prickly pears, 2 abandoned cars, 2 cow skulls, 2 ribcages,
+  2 tyres, 3 pairs of drums, a signpost, a dead tree, 4 rock clusters).
+- **Every map at every distance**: the street, the scenery and Mama's closure
+  run to the line; the far backdrop moves back with her; the ground stretches.
+- **Laser guns** (`world/lasers.ts`) on every map: towers every 30 m down both
+  sides and two flanking Mama; turrets sweep, track the nearest runner while
+  she turns and stares, and the nearest one fires the beam on a catch. Red
+  beacons at night.
+- **Potholes** (`maps/potholes.ts`) on every outdoor map: puddles that reflect
+  the sky (a real mirror on High), ripple, and splash with rings, droplets and
+  a sound when someone runs through.
+- **Birds** (`maps/birds.ts`): three small flocks crossing in daylight (none
+  at night or in rain; no vultures).
+- **Sky** (`maps/sky.ts`): follows the camera; 2D clouds that drift with the
+  wind on Low and Medium, volumetric clouds on High; stars at night.
+- **Five states**: sunny, rainy, sunrise (new: low sun behind the runners, a
+  pink sky over Mama), sunset, night. One "Sky" picker on the play screen.
+- **Light / dark mode** (Settings → Graphics): Map, Light (full daylight,
+  lamps off), Dark (full night, lamps and neon on, red beacons). Applies at
+  once, in the lobby (its own day, golden and night looks) and mid-round.
+- **Mountains**: smooth ridges with distinct peaks instead of cones.
+- **Tiers**: world textures 256 / 512 / 1024; Medium "basic" shadows, High full
+  soft ones; real shadows from the nearest 3 people (Medium) or 2 (High), a
+  soft blob for the rest; scenery casts only near the runner (High: full
+  detail in your own stretch, the buildings' volumes beyond; Medium: volumes
+  only), from shadow-only stand-ins the screen never draws.
+- **High post** (`graphics/post.ts`): bloom on bright things, a light grade
+  warmed at sunrise and sunset and cooled at night, a soft vignette.
+- Fog only at the far edge; Mama is never lost in it; the mountains stay on the
+  horizon; the camera sees 900 m.
+
+Not in this phase: a continuous day/night cycle within a round (the five
+states are fixed per round).
+
+### Phase 2: referee v4 and server (done 17 Oct 2026)
 
 | Check | Result |
 | --- | --- |

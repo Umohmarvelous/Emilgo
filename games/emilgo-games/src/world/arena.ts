@@ -22,11 +22,14 @@ import {
   IcosahedronGeometry,
   LineBasicMaterial,
   LineSegments,
+  LOD,
   Mesh,
   MeshBasicMaterial,
   MeshLambertMaterial,
+  Object3D,
   PlaneGeometry,
   type Texture,
+  Vector3,
 } from "three";
 
 import { DEFAULT_COURSE, FIELD, type Course } from "../config";
@@ -40,6 +43,8 @@ const STREET_NEAR = 20;
 
 const FACADES = ["#f2e3c6", "#d9e8d4", "#f6c9a8", "#cfe3f2", "#efe6a5", "#e8c1c5", "#d6d0e8", "#c9e6df", "#f0d2a2", "#fafafa", "#e3d5c3"];
 const CANOPIES = ["#9aa5ad", "#c62828", "#1565c0", "#2e7d32", "#f9a825", "#8d6e63", "#9aa5ad"];
+
+const _size = new Vector3();
 
 // Shared unit primitives, transformed per use by `part`.
 const BOX = new BoxGeometry(1, 1, 1);
@@ -143,8 +148,12 @@ function generator(): BufferGeometry {
 
 export interface Arena {
   group: Group;
-  /** Static, vertex-coloured: one draw call. */
-  solid: Mesh;
+  /**
+   * Static, vertex-coloured, in 50 m pieces along the street (plus one for the
+   * long road and pavements), so what's behind you or far off isn't drawn, and
+   * only the pieces near the runner cast shadows.
+   */
+  solid: { mesh: Object3D; z: number }[];
 }
 
 export function buildArena(atlas: Texture, course: Course = DEFAULT_COURSE): Arena {
@@ -347,9 +356,51 @@ export function buildArena(atlas: Texture, course: Course = DEFAULT_COURSE): Are
 
   // ── Assemble ──
   const group = new Group();
-  const solidMesh = new Mesh(merge(solid), new MeshLambertMaterial({ vertexColors: true }));
-  solidMesh.matrixAutoUpdate = false;
-  group.add(solidMesh);
+  const solidMat = new MeshLambertMaterial({ vertexColors: true });
+  const buckets = new Map<number, BufferGeometry[]>();
+  const long: BufferGeometry[] = [];
+  for (const g of solid) {
+    g.computeBoundingBox();
+    const bb = g.boundingBox!;
+    if (bb.max.z - bb.min.z > 60) long.push(g);
+    else {
+      const k = Math.floor((bb.max.z + bb.min.z) / 2 / 50);
+      let b = buckets.get(k);
+      if (!b) buckets.set(k, (b = []));
+      b.push(g);
+    }
+  }
+  const solidMeshes: { mesh: Object3D; z: number }[] = [];
+  // What reads from far away: big, solid volumes (not window panes, signs or wires' poles).
+  const big = (g: BufferGeometry) => {
+    const s = g.boundingBox!.getSize(_size);
+    return Math.max(s.x, s.y, s.z) > 2 && Math.min(s.x, s.y, s.z) > 0.3;
+  };
+  for (const [k, gs] of [...buckets, [Infinity, long] as [number, BufferGeometry[]]]) {
+    if (!gs.length) continue;
+    const m = new Mesh(merge(gs), solidMat);
+    m.matrixAutoUpdate = false;
+    if (!Number.isFinite(k)) {
+      group.add(m);
+      continue;
+    }
+    // Far away, the small things (signs, crates, wires' poles) drop out. The LOD
+    // stands at its stretch's centre: that's where distance is measured from.
+    const cz = (k + 0.5) * 50;
+    m.geometry.translate(0, 0, -cz);
+    const lod = new LOD();
+    lod.position.z = cz;
+    lod.addLevel(m, 0);
+    const far = gs.filter(big);
+    if (far.length && far.length < gs.length) {
+      const f = new Mesh(merge(far), solidMat);
+      f.geometry.translate(0, 0, -cz);
+      f.matrixAutoUpdate = false;
+      lod.addLevel(f, 110);
+    }
+    group.add(lod);
+    solidMeshes.push({ mesh: m, z: cz });
+  }
 
   const paintedMesh = new Mesh(
     merge(painted, true),
@@ -370,7 +421,7 @@ export function buildArena(atlas: Texture, course: Course = DEFAULT_COURSE): Are
   stageShadow.position.set(0, 0.01, DOLL_Z);
   group.add(stageShadow);
 
-  return { group, solid: solidMesh };
+  return { group, solid: solidMeshes };
 }
 
 // Built once, placed many times.

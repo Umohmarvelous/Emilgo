@@ -387,6 +387,55 @@ export class Sound {
   }
 
   /** She starts turning: a falling talking-drum glide. */
+  /**
+   * Mama's warning hum (SPEC-V2 §2.2): a closed-mouth "mmm" under the song for
+   * `dur` seconds, swelling and wavering. It sounds the same whether she turns
+   * after it or not — the fake hums are the game. It goes on the effects bus,
+   * not the music one: switching the music off never mutes the warning.
+   */
+  hum(dur: number): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.master) return;
+    const t = this.now;
+    const end = t + dur;
+    const out = ctx.createGain();
+    out.gain.setValueAtTime(0.0001, t);
+    out.gain.exponentialRampToValueAtTime(0.32, t + 0.9);
+    out.gain.setValueAtTime(0.32, end - 0.5);
+    out.gain.linearRampToValueAtTime(0.38, end - 0.12);
+    out.gain.exponentialRampToValueAtTime(0.0001, end);
+    // A nasal "m": a low pass with a soft resonance.
+    const lp = ctx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = 620;
+    lp.Q.value = 4;
+    lp.connect(out).connect(this.master);
+    // Wavering pitch: the voice of someone humming to themselves.
+    const lfo = ctx.createOscillator();
+    const depth = ctx.createGain();
+    lfo.frequency.value = 4.6;
+    depth.gain.value = 2.2;
+    lfo.connect(depth);
+    const nodes: OscillatorNode[] = [lfo];
+    for (const [f, type, g] of [[147, "triangle", 0.8], [73.5, "sine", 0.6], [148.2, "sawtooth", 0.12]] as const) {
+      const o = ctx.createOscillator();
+      const og = ctx.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(f, t);
+      // A slow lean down in the last second, like a breath running out.
+      o.frequency.setValueAtTime(f, end - 1);
+      o.frequency.linearRampToValueAtTime(f * 0.97, end);
+      depth.connect(o.frequency);
+      og.gain.value = g;
+      o.connect(og).connect(lp);
+      nodes.push(o);
+    }
+    for (const n of nodes) {
+      n.start(t);
+      n.stop(end + 0.05);
+    }
+  }
+
   turn(): void {
     const t = this.now;
     this.tone(260, t, 0.42, { type: "sine", gain: 0.34, to: 120 });
@@ -445,6 +494,13 @@ export class Sound {
       this.tone(70, at, 0.22, { type: "sine", gain: 0.3, to: 40 });
       this.noise(at, 0.18, { gain: 0.1, freq: 400, type: "lowpass" });
     }
+  }
+
+  /** A foot in a puddle: a wet slap and a spray. */
+  splash(mine: boolean): void {
+    const t = this.now;
+    this.noise(t, 0.16, { gain: mine ? 0.16 : 0.07, freq: 1500, type: "bandpass" });
+    this.noise(t + 0.03, 0.22, { gain: mine ? 0.1 : 0.05, freq: 3800, type: "highpass" });
   }
 
   /** A ball picked up, or dropped in a basket. */

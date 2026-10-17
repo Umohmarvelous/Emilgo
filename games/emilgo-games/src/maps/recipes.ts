@@ -1,19 +1,21 @@
-// The 24 maps, as recipes for the kit. Every map is the same game — a 120 m
-// run to Mama Gele's stage — dressed as a different place. The run itself is
-// always flat and clear (the referee has no notion of height); everything a
-// recipe builds stands outside |x| > 10.
+// The 24 maps, as recipes for the kit. Every map is the same game — a run of
+// 100, 200 or 300 m to Mama Gele's stage — dressed as a different place. The
+// run itself is always flat and clear (the referee has no notion of height);
+// everything a recipe builds stands outside the field's half width.
 //
-//   behind the start   z  +9 … +40     (where the crowd came from)
-//   the run            z  +9 … −120
-//   the plaza / stage  z −120 … −140   (Mama at z = −131)
-//   the closure        z ≈ −143        (what stands behind her)
-//   backdrop           far beyond      (no LOD, softened by fog)
+//   behind the start   z  +9 … +40       (where the crowd came from)
+//   the run            z  +9 … FAR       (FAR = the line − 4: follows the course)
+//   the plaza / stage  past the line     (Mama at the course's dollZ)
+//   the closure        CLOSE = dollZ − 12 (what stands behind her)
+//   backdrop           far beyond        (written for the 120 m street; the
+//                                         kit moves it back with the course)
 //
 // Names are generic: no real brand, business or person appears anywhere.
 
-import { DOLL_Z, FIELD } from "../config";
+import { DOLL_Z, FIELD, type Course } from "../config";
 import type { Painter } from "../world/tex";
 import { asphalt, cobble, concrete, dirt, grass, leaves, paving, rock, sand, snow, tile } from "../world/tex";
+import { barrel, bones, cactus, grassPatch, pricklyPear, signpost, skull, tyre, wreck } from "./desert";
 import type { Kit } from "./kit";
 
 export interface Recipe {
@@ -31,14 +33,25 @@ export interface Recipe {
 
 const SIDES = [-1, 1] as const;
 const NEAR = 30;
-const FAR = FIELD.finishZ - 4;
-const CLOSE = DOLL_Z - 12;
+let FAR: number = FIELD.finishZ - 4;
+let CLOSE: number = DOLL_Z - 12;
+
+/** Lay the next recipe out for this course (call before `build`). */
+export function useCourse(c: Course): void {
+  FAR = c.finishZ - 4;
+  CLOSE = c.dollZ - 12;
+}
 const T = (paint: Painter, name: string, tile: number, color = "#ffffff") => ({ paint, name, tile, color });
 const course = (edge: string, line: string, plaza: string, stage: string, markings = true) => ({ edge, line, plaza, stage, markings });
 /** Smooth noise for terrain (a few sines; cheap and good enough at this scale). */
 const wave = (x: number, z: number) => Math.sin(x * 0.09 + z * 0.05) * 0.5 + Math.sin(x * 0.031 - z * 0.07) * 0.35 + Math.sin(x * 0.17 + z * 0.13) * 0.15;
 /** 0 on the run, rising to 1 by |x| = 26 (terrain never touches the track). */
 const away = (x: number) => Math.max(0, Math.min(1, (Math.abs(x) - 13) / 13));
+/** The Desert Field: flat across the field (|x| < 20), dunes rising beyond. */
+const desertGround = (x: number, z: number) => {
+  const a = Math.max(0, Math.min(1, (Math.abs(x) - 20) / 34));
+  return a * a * (2.5 + wave(x * 0.8, z * 0.8) * 3.5 + Math.abs(Math.sin(x * 0.04 + z * 0.01)) * 4);
+};
 
 /** Lamps both sides every `step` metres. */
 function lamps(k: Kit, x: number, step: number, style: "modern" | "classic" | "caged" | "lantern" = "modern", y?: number): void {
@@ -256,14 +269,15 @@ export const RECIPES: Record<string, Recipe> = {
     build(k) {
       const r = k.rng;
       for (const s of SIDES) {
-        for (let block = 0; block < 4; block++) {
+        // Fields all the way to the line, whatever the distance.
+        for (let block = 0; NEAR - block * 38 - 32 > FAR - 30; block++) {
           const z0 = NEAR - block * 38;
           const z1 = z0 - 32;
           const maize = (block + (s > 0 ? 1 : 0)) % 2 === 0;
-          for (let row = 0; row < 7; row++) {
-            const x = s * (12 + row * 2.2);
+          for (let row = 0; row < 6; row++) {
+            const x = s * (12 + row * 2.4);
             if (maize) {
-              for (let z = z0; z > z1; z -= 1.3) {
+              for (let z = z0; z > z1; z -= 1.8) {
                 const h = r.range(1.6, 2.3);
                 k.cyl("#7a8f3a", 0.04, h, [x + r.range(-0.2, 0.2), h / 2, z], "main", { sides: 6 });
                 k.cone(r.pick(["#5f8f2a", "#6fa034", "#4f7f24"]), 0.45, h * 0.7, [x, h * 0.75, z], "foliage", undefined, 6);
@@ -544,33 +558,78 @@ export const RECIPES: Record<string, Recipe> = {
 
   // ── International nature ────────────────────────────────────────────────
 
-  "desert-dunes": {
-    track: T(sand, "sand", 6, "#f4dcaa"),
-    ground: T(sand, "sand", 8, "#f2d49a"),
-    course: course("#ffffff", "#ffffff", "#e2c08a", "#c8a070", false),
-    gantry: "#6a4a2a",
-    terrain: (x, z) => away(x) * (3 + wave(x, z) * 4 + Math.abs(Math.sin(x * 0.05)) * 3),
+  // SPEC-V2 §6.1: a large open desert field. Sand with grass patches, dunes
+  // beyond the field, distant mountains, and 26 details round its edge (cacti,
+  // abandoned cars, bones, tyres, drums, a signpost, rocks, a dead tree). The
+  // field itself stays open: 32 m wide, nothing to hide behind.
+  "desert-field": {
+    track: T(sand, "sand", 6, "#ecd2a0"),
+    ground: T(sand, "sand", 8, "#e8c890"),
+    course: course("#ffffff", "#ffffff", "#dcbc88", "#a89070", false),
+    gantry: "#5a4028",
+    terrain: (x, z) => desertGround(x, z),
     build(k) {
       const r = k.rng;
-      for (const s of SIDES) {
-        for (let z = NEAR; z > FAR; z -= r.range(6, 12)) {
-          if (r.chance(0.5)) k.rock([s * r.range(11, 18), 0, z], r.range(0.6, 1.8), r.pick(["#b0845a", "#9a7048", "#c09468"]));
-          if (r.chance(0.4)) k.bush([s * r.range(11, 16), 0, z - 2], r.range(0.4, 0.7), "#8a8a4a");
+      const hw = 16;
+      const y = (x: number, z: number) => desertGround(x, z);
+      // Mountains on the horizon, two ranges.
+      k.mountains("#b48c64", null, -250, 10, 460, 26, 64);
+      k.mountains("#c8a47a", null, -300, 8, 620, 40, 90);
+      // 26 details round the field: placed in order along it, both sides.
+      const kinds = ["cactus", "cactus", "wreck", "skull", "cactus", "tyre", "rocks", "barrel", "bones", "cactus", "pear", "rocks", "wreck", "cactus", "barrel", "skull", "sign", "rocks", "cactus", "tyre", "bones", "deadtree", "barrel", "rocks", "pear", "cactus"];
+      const z0 = NEAR - 8;
+      const span = z0 - (FAR - 6);
+      kinds.forEach((kind, i) => {
+        const s = i % 2 ? 1 : -1;
+        const z = z0 - (i + r.range(0.1, 0.9)) * (span / kinds.length);
+        const x = s * (hw + r.range(3, kind === "wreck" ? 12 : 16));
+        const at: [number, number, number] = [x, y(x, z), z];
+        switch (kind) {
+          case "cactus":
+            cactus(k, at, r.range(3, 5.2), r.chance(0.7) ? 2 : 1);
+            break;
+          case "pear":
+            pricklyPear(k, at);
+            break;
+          case "wreck":
+            wreck(k, at, r.range(0, Math.PI * 2));
+            break;
+          case "skull":
+            skull(k, at, r.range(0, Math.PI * 2));
+            break;
+          case "bones":
+            bones(k, at, r.range(0, Math.PI * 2));
+            break;
+          case "tyre":
+            tyre(k, at);
+            break;
+          case "barrel":
+            barrel(k, at);
+            barrel(k, [at[0] + 0.8, at[1], at[2] + 0.4]);
+            break;
+          case "sign":
+            signpost(k, at, s > 0 ? -0.6 : 0.6);
+            break;
+          case "deadtree":
+            k.deadTree(at, 5.5, "#5a4632");
+            break;
+          default:
+            for (let j = 0; j < 3; j++) k.rock([at[0] + r.range(-1.5, 1.5), at[1], at[2] + r.range(-1.5, 1.5)], r.range(0.5, 1.6), r.pick(["#a8805a", "#94704e", "#b48a62"]));
         }
-        // Ruined mud-brick walls.
-        for (let z = NEAR - 20; z > FAR; z -= 35) {
-          k.box("#c8a070", [0.6, r.range(1.5, 3), 6], [s * r.range(13, 16), 1, z], "main");
-          k.box("#c8a070", [4, r.range(1, 2.5), 0.6], [s * r.range(15, 17), 0.8, z - 3], "main");
-        }
+      });
+      // Grass patches: some on the field (they don't get in the way), more round it.
+      for (let z = NEAR - 4; z > FAR - 10; z -= r.range(5, 11)) {
+        const onField = r.chance(0.45);
+        const x = onField ? r.range(-hw + 1, hw - 1) : r.pick([-1, 1]) * r.range(hw + 1, hw + 26);
+        grassPatch(k, [x, y(x, z), z], r.range(0.6, 1.6));
       }
-      // The oasis: palms round a pool past the finish.
-      for (let i = 0; i < 8; i++) {
-        const a = (i / 8) * Math.PI * 2;
-        k.palm([Math.cos(a) * 10, 0, CLOSE - 4 + Math.sin(a) * 6], r.range(6, 9));
+      // Far scrub on the dunes.
+      for (let i = 0; i < 24; i++) {
+        const x = r.pick([-1, 1]) * r.range(hw + 24, 90);
+        const z = r.range(FAR - 20, NEAR + 30);
+        k.bush([x, y(x, z), z], r.range(0.3, 0.6), "#8a8a4a");
       }
-      k.mountains("#d0a070", null, -260, 8, 360, 20, 45);
     },
-    water: [{ kind: "pool", x0: -7, x1: 7, z0: CLOSE - 1, z1: CLOSE - 8, y: 0.05 }],
   },
 
   "snowy-mountains": {

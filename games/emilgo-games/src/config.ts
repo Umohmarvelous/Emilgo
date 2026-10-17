@@ -119,14 +119,6 @@ export const ATTACK = {
   forgive: 0.2,
 } as const;
 
-/** Sprinting into someone shoves them (no button). */
-export const SHOVE = {
-  /** Closing speed into them, m/s, that counts as a shove (only sprinting reaches it). */
-  closing: 4,
-  knock: 1.4,
-  /** One shove per pair per this many seconds. */
-  pairEvery: 1,
-} as const;
 
 export const MOVE = {
   walk: 2, // m/s (a small push)
@@ -182,11 +174,13 @@ export const RULES = {
   lateAt: 15,
   singLate: { bands: [[0.5, 1.2], [1.2, 2.6], [2.6, 4]], weights: [0.45, 0.4, 0.15] } satisfies SingBands,
   /**
-   * The feint: the song stops, she does NOT turn, then sings on from where she
-   * stopped. Players who freeze at the silence lose time; nobody is ever caught
-   * during one. Never twice in a row, never before the first real turn.
+   * The warning hum (SPEC-V2 §2.2): 3 seconds of Mama humming under the song
+   * before every turn. Some hums are FAKE (the owner's choice, 17 Oct 2026): she
+   * hums, then sings on and doesn't turn. Players who froze lose time; nobody is
+   * ever caught during a hum. A fake never comes twice in a row, nor before
+   * her first real turn.
    */
-  feint: { chance: 0.38, min: 0.5, max: 1.3 },
+  hum: { length: 3, fakeChance: 0.38 },
   /** Doll turning to face the field — still safe to be moving. Varies: some turns snap. */
   turning: { min: 0.35, max: 0.55 },
   /**
@@ -209,10 +203,11 @@ export const PRACTICE = {
 /** Online play. Server and client both read these. */
 export const NET = {
   /**
-   * 4: modes and distances, balls and baskets, fist / slap / push and sprint
-   * shoves, rooms of 20. (3: jump, crouch, prone, sprint, the map, rich looks.)
+   * 5: the warning hum (phase 2 is "hum", 3 s, sometimes fake); no automatic
+   * shoves. (4: modes and distances, balls and baskets, fist / slap / push,
+   * rooms of 20. 3: jump, crouch, prone, sprint, the map, rich looks.)
    */
-  protocol: 4,
+  protocol: 5,
   tickHz: 60,
   /** Server → client state broadcasts per second. */
   snapshotHz: 15,

@@ -342,14 +342,6 @@ export class OnlineRound implements RoundView {
         this.events.push({ type: "attack", id: c.id, kind, target: tg?.id ?? null, dropped: m.db });
         break;
       }
-      case "shv": {
-        const c = this.contestants[m.i];
-        const by = this.contestants[m.by];
-        if (!c || !by) return;
-        this.slide(c, m.kx, m.kz, 0);
-        this.events.push({ type: "shoved", id: c.id, by: by.id });
-        break;
-      }
       case "grb": {
         const c = this.contestants[m.i];
         const ball = this.balls[m.b];

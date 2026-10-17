@@ -151,8 +151,6 @@ export type EventMsg =
   | { t: "ev"; k: "end" }
   /** An attack by i (kind 1 fist, 2 slap, 3 push) on tg (−1: a miss), knocking ball db loose (−1: none). Target's slide: kx, kz (cm/s). */
   | { t: "ev"; k: "atk"; i: number; kind: number; tg: number; db: number; kx?: number; kz?: number }
-  /** i was shoved by `by`, sliding at kx, kz (cm/s). */
-  | { t: "ev"; k: "shv"; i: number; by: number; kx: number; kz: number }
   | { t: "ev"; k: "grb"; i: number; b: number }
   | { t: "ev"; k: "drp"; b: number; x: number; z: number }
   | { t: "ev"; k: "bnk"; i: number; b: number; bk: number };

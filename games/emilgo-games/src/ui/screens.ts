@@ -9,7 +9,7 @@
 import { DISTANCES, MODES, MODE_NAME, NET, STAKED, TIME_LIMIT, ballCount } from "../config";
 import { SONG_IDS, SONGS } from "../audio/songs";
 import type { ChallengeDef } from "../game/progress";
-import { CATEGORIES, MAPS, mapOf, thumbSvg, type MapCategory, type TimeOfDay, type Weather } from "../maps/registry";
+import { CATEGORIES, MAPS, SKY_LABEL, SKY_STATES, mapOf, thumbSvg, type MapCategory, type SkyState } from "../maps/registry";
 import type { RoomInfo } from "../net/protocol";
 import type { Host, Leaderboard, MatchView } from "../platform/types";
 import { errorText } from "../platform/vatarErrors";
@@ -98,8 +98,6 @@ const GAMES = [
   { id: "suwe", name: "Suwe", ready: false },
 ];
 
-const TIME_LABEL: Record<TimeOfDay, string> = { day: "Day", golden: "Gold", dusk: "Dusk", night: "Night" };
-const WEATHER_LABEL: Record<Weather, string> = { clear: "Sunny", rain: "Rainy" };
 
 export class Screens {
   readonly root: HTMLDivElement;
@@ -486,7 +484,7 @@ export class Screens {
 
   // ── Play: game and mode select ─────────────────────────────────────────────
 
-  play(s: { mode: PlayMode; settings: Settings; online: OnlineAvailability; lagosLife: boolean; error: string | null; connecting: boolean; weather: Weather; time: TimeOfDay }): void {
+  play(s: { mode: PlayMode; settings: Settings; online: OnlineAvailability; lagosLife: boolean; error: string | null; connecting: boolean; sky: SkyState }): void {
     const map = mapOf(s.settings.map);
     const off = (m: PlayMode) => (m === "practice" ? false : m === "lagos" ? !s.lagosLife || s.online !== "ready" : s.online !== "ready");
     const modes = (Object.keys(MODE_INFO) as PlayMode[])
@@ -499,8 +497,8 @@ export class Screens {
       .join("");
     const practice = s.mode === "practice";
     const staked = s.mode === "lagos";
-    const weathers = map.weathers.map((w) => `<button class="${w === s.weather ? "on" : ""}" data-act="weather" data-w="${w}">${WEATHER_LABEL[w]}</button>`).join("");
-    const times = (["day", "golden", "dusk", "night"] as TimeOfDay[]).map((t) => `<button class="${t === s.time ? "on" : ""}" data-act="time" data-t="${t}">${TIME_LABEL[t]}</button>`).join("");
+    const skies = SKY_STATES.map((k) => `<button class="${k === s.sky ? "on" : ""}" data-act="sky" data-s="${k}">${SKY_LABEL[k]}</button>`).join("");
+    const forced = s.settings.lightMode !== "auto";
     const join =
       s.mode === "join"
         ? `<form class="join" style="margin-top:8px"><input name="code" maxlength="${NET.codeLength}" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="CODE" aria-label="Room code" /><button class="btn secondary" type="button" data-act="join">Join</button></form>`
@@ -519,7 +517,7 @@ export class Screens {
             <span class="thumb">${thumbSvg(map)}</span>
             <div class="row"><b>${esc(map.name)}</b><button class="btn secondary" style="height:30px;padding:0 10px" data-act="maps">${icon("swap", "", 14)}Switch</button></div>
             <span class="small">${esc(map.blurb)}</span>
-            ${practice ? `<div class="label">Weather</div><div class="seg" style="align-self:flex-start">${weathers}</div><div class="label">Time</div><div class="seg" style="align-self:flex-start">${times}</div>` : `<span class="small">Online rounds pick a map for the room.</span>`}
+            ${practice ? `<div class="label">Sky</div><div class="seg wrap" style="align-self:flex-start">${skies}</div>${forced ? `<span class="small">${s.settings.lightMode === "dark" ? "Dark" : "Light"} mode is on (Settings): ${s.settings.lightMode === "dark" ? "every map plays at night" : "every map plays in daylight"}.</span>` : ""}` : `<span class="small">Online rounds pick a map for the room.</span>`}
           </div>
           <div class="glass gamecard">${staked
             ? `<div class="label">Lagos Life match</div><span class="small">${MODE_NAME[STAKED.mode]}, ${STAKED.distance} m, ${TIME_LIMIT[STAKED.distance]} s${STAKED.mode === "balls" ? ", one ball fewer than players" : ""}. Every staked match plays the same.</span>`
@@ -548,7 +546,7 @@ export class Screens {
       .map(
         (x) => `<button class="tile ${x.id === selected ? "on" : ""}" data-act="pick-map" data-map="${x.id}">
           <span class="thumb">${thumbSvg(x)}</span>
-          <span class="cap"><span class="t">${esc(x.name)}</span><span class="s">${x.time === "night" ? "Night" : x.time === "dusk" ? "Dusk" : x.time === "golden" ? "Golden hour" : "Day"} · ${WEATHER_LABEL[x.weather]}</span></span>
+          <span class="cap"><span class="t">${esc(x.name)}</span><span class="s">${SKY_LABEL[x.sky]}</span></span>
         </button>`,
       )
       .join("");
@@ -577,7 +575,8 @@ export class Screens {
     let body = "";
     if (tab === "graphics") {
       body = `<div class="row-set"><span class="lbl"><b>Quality</b><small>${esc(tierNote)}</small></span>${seg("graphics", s.graphics, [["auto", "Auto"], ["low", "Low"], ["medium", "Med"], ["high", "High"]])}</div>
-        <p class="note" style="margin-top:10px">Low: no shadows, lightest on battery, 30 fps on menus. Medium: shadows and sharper people. High: full shadows, the finest people and textures. Auto picks for your phone and adjusts the sharpness as you play.</p>`;
+        <div class="row-set"><span class="lbl"><b>Light / dark mode</b><small>Light: full daylight, street lights off. Dark: full night, street lights and neon on</small></span>${seg("lightMode", s.lightMode, [["auto", "Map"], ["light", "Light"], ["dark", "Dark"]])}</div>
+        <p class="note" style="margin-top:10px">Low: no shadows, 2D clouds, lightest on battery, 30 fps on menus. Medium: shadows, sharper people and textures. High: full shadows, volumetric clouds, real reflections in puddles, glow and colour grading. Auto picks for your phone and adjusts the sharpness as you play.</p>`;
     } else if (tab === "audio") {
       body = `${sw("sound", "Sound effects")}${sw("music", "Mama's singing", "The words still show on screen when off")}${sw("haptics", "Vibration")}`;
     } else if (tab === "controls") {

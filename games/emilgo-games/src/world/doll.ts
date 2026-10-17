@@ -37,7 +37,8 @@ export class Doll {
   readonly root = new Group();
   private readonly body = new Group();
   private readonly head = new Group();
-  private readonly pupilMat = new MeshBasicMaterial({ color: 0x111111 });
+  // The doll is never lost in the fog, however long the run: she is what you watch.
+  private readonly pupilMat = new MeshBasicMaterial({ color: 0x111111, fog: false });
   private readonly pupils: Mesh;
 
   /** Local eye centres in head space, for aiming the beam. */
@@ -71,7 +72,7 @@ export class Doll {
     this.body.add(this.head);
     this.head.position.set(0, 2.25, 0);
 
-    const lambert = new MeshLambertMaterial({ vertexColors: true });
+    const lambert = new MeshLambertMaterial({ vertexColors: true, fog: false });
 
     // ── Body ──
     const b = [

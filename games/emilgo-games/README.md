@@ -17,6 +17,8 @@ clock runs out.
 
 ---
 
+
+
 ## 1. Lagos Life rules this game must keep
 
 Read from the primary sources on 13–14 Oct 2026: the docs
@@ -26,19 +28,21 @@ Read from the primary sources on 13–14 Oct 2026: the docs
 disagree, **the pages win** — re-read them before shipping.
 
 **Hosting and frame**
+
 - The game is our own HTTPS site, framed by the world. Send
-  `Content-Security-Policy: frame-ancestors https://lagoslife.app https://www.lagoslife.app https://naijalife.app https://www.naijalife.app https://lagoslife.eliysites.com`
-  and never `X-Frame-Options: DENY/SAMEORIGIN`. (`public/_headers` does this.)
+`Content-Security-Policy: frame-ancestors https://lagoslife.app https://www.lagoslife.app https://naijalife.app https://www.naijalife.app https://lagoslife.eliysites.com`
+and never `X-Frame-Options: DENY/SAMEORIGIN`. (`public/_headers` does this.)
 - Load the SDK from `https://lagoslife.app/sdk/vatar-games-v1.js` — never a copy.
 - Frame sandbox: `allow-scripts allow-same-origin allow-pointer-lock allow-forms`,
-  `allow="autoplay; gamepad"`. **No camera, microphone, location, clipboard,
-  payment, popups, alerts, downloads, navigation of the parent. No fullscreen**.
+`allow="autoplay; gamepad"`. **No camera, microphone, location, clipboard,
+payment, popups, alerts, downloads, navigation of the parent. No fullscreen**.
 - Third-party cookies may be blocked: identify players by session token and
-  `player.id`, never cookies. Storage is wrapped in try/catch.
+`player.id`, never cookies. Storage is wrapped in try/catch.
 
 **Review checklist (what gets us approved)** — and where each is met:
+
 1. Integration checklist ticked (init, test purchase, server-verified purchase,
-   delivery, test match with a server-posted result) → happens in the sandbox, §6.
+  delivery, test match with a server-posted result) → happens in the sandbox, §6.
 2. Loads quickly in the frame on mobile data → ~176 KB, lobby in about 2 s on slow 4G (§7).
 3. Plays at **375 × 812 portrait**, by touch, no hover-only controls → every screen checked at that size.
 4. `onPause`/`onResume` handled; **sound only after the first tap** → tested (§7).
@@ -49,13 +53,14 @@ disagree, **the pages win** — re-read them before shipping.
 9. No gambling, real-money prizes or cash-out → stakes are game money through `Vatar.match` only.
 
 **Identity and data (Agreement §8)**
+
 - We get a per-game pseudonymous id (`t_…` test / `p_…` live), display name,
-  avatar and 15-minute session tokens. Nothing else.
+avatar and 15-minute session tokens. Nothing else.
 - The server stores only purchase grants (purchase id, player id, product id,
-  test/live, timestamps) — needed to deliver what people paid for. Delete
-  `DATA_DIR` if the game is removed or Lagos Life asks (§8.2(e)).
+test/live, timestamps) — needed to deliver what people paid for. Delete
+`DATA_DIR` if the game is removed or Lagos Life asks (§8.2(e)).
 - **Never link a Lagos Life player to anything else** — including an EMILGO
-  account. The EMILGO copy of the game has no SDK, no shop, no matches.
+account. The EMILGO copy of the game has no SDK, no shop, no matches.
 - Nigeria Data Protection Act 2023 applies. Report breaches within 72 hours.
 
 **Rate limits (per player)**: `init`/`session` 10/min · `purchase` 1 per 3 s ·
@@ -64,18 +69,19 @@ disagree, **the pages win** — re-read them before shipping.
 Per server: 600 API calls/min (our client budgets 540).
 
 **Matches**
+
 - **2–4 seats**. Stake 0 = friendly (no confirm sheet).
 - Results come **only from our server**: `POST /matches/{id}/result` with
-  `{ winner: playerId | "draw" }`, `Authorization: Bearer <secret>`,
-  `X-Vatar-Timestamp` (±5 min) and `X-Vatar-Signature: v1=<hex>` = HMAC-SHA256
-  with the **results secret** over `POST\n<path>\n<ts>\n<nonce>\n<sha256(body)>`.
+`{ winner: playerId | "draw" }`, `Authorization: Bearer <secret>`,
+`X-Vatar-Timestamp` (±5 min) and `X-Vatar-Signature: v1=<hex>` = HMAC-SHA256
+with the **results secret** over `POST\n<path>\n<ts>\n<nonce>\n<sha256(body)>`.
 - Settled once; draw refunds everyone; 5% house cut; no result within 2 h of
-  start, or no fill within 15 min → all stakes refunded.
+start, or no fill within 15 min → all stakes refunded.
 - Limits: ₦100,000 per match · ₦500,000 per player per day · ₦50,000,000 per
-  game per day · ₦50,000,000 per creator per day · same two players at most 10
-  staked matches per day per game.
+game per day · ₦50,000,000 per creator per day · same two players at most 10
+staked matches per day per game.
 - Matches need Vatar's approval, and stakes a **second** approval. Until then
-  `match.*` answers `not_available` (or `friendly_only`) — the game says so.
+`match.*` answers `not_available` (or `friendly_only`) — the game says so.
 - Our share: 40% of the house cut, paid in game money, never from matches we play in.
 
 **Money**: 70% of every purchase to us (net of refunds), monthly by the 15th
@@ -91,17 +97,19 @@ treats `"error"` from `match.*` as "matches aren't open yet".
 
 ## 2. What changed from the original brief, and why
 
-| Brief said | Reality | What we did |
-| --- | --- | --- |
-| "Kukalo Games" | You chose the EMILGO name | Renamed everywhere |
-| SDK at `lagoslife.app/vatar-games-v1.js` | It's `/sdk/vatar-games-v1.js` | Fixed |
-| Red Light, Green Light for 2–10 players | Vatar matches are **2–4 seats** | Lagos Life matches are 2–4; friendly rooms on our server go to 12 |
-| "Squid Game", its doll and its music | Netflix's; Lagos Life requires we own everything (§3.3, §4(i)) | Original doll (**Mama Gele**) and **three original songs** you can choose between |
-| Proximity + party voice chat | The frame has **no microphone** | Text chat + emotes |
-| ₦50 replay viewer, ₦100 tournament ticket | Minimum price ₦100; paid entry for prizes is gambling-shaped (§4(a)) | Not built. The shop is cosmetics only |
-| React Native + R3F for the game | Lagos Life frames **web pages** | TypeScript + three.js, ~176 KB; EMILGO hosts the same build in a WebView |
-| Colyseus, Turso, GLB models | Not needed | Own WebSocket server; built-in SQLite for purchases; procedural models |
-| Blood "highly epic" | Lagos Life is 18+; EMILGO isn't age-gated | Stylised blood, on by default in Lagos Life, off in EMILGO, a Settings toggle |
+
+| Brief said                                | Reality                                                              | What we did                                                                       |
+| ----------------------------------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| "Kukalo Games"                            | You chose the EMILGO name                                            | Renamed everywhere                                                                |
+| SDK at `lagoslife.app/vatar-games-v1.js`  | It's `/sdk/vatar-games-v1.js`                                        | Fixed                                                                             |
+| Red Light, Green Light for 2–10 players   | Vatar matches are **2–4 seats**                                      | Lagos Life matches are 2–4; friendly rooms on our server go to 12                 |
+| "Squid Game", its doll and its music      | Netflix's; Lagos Life requires we own everything (§3.3, §4(i))       | Original doll (**Mama Gele**) and **three original songs** you can choose between |
+| Proximity + party voice chat              | The frame has **no microphone**                                      | Text chat + emotes                                                                |
+| ₦50 replay viewer, ₦100 tournament ticket | Minimum price ₦100; paid entry for prizes is gambling-shaped (§4(a)) | Not built. The shop is cosmetics only                                             |
+| React Native + R3F for the game           | Lagos Life frames **web pages**                                      | TypeScript + three.js, ~176 KB; EMILGO hosts the same build in a WebView          |
+| Colyseus, Turso, GLB models               | Not needed                                                           | Own WebSocket server; built-in SQLite for purchases; procedural models            |
+| Blood "highly epic"                       | Lagos Life is 18+; EMILGO isn't age-gated                            | Stylised blood, on by default in Lagos Life, off in EMILGO, a Settings toggle     |
+
 
 Added beyond the brief: **hard mode** (below), lag-fair detection,
 left-handed controls, battery saver, adaptive resolution, shader warm-up,
@@ -116,21 +124,30 @@ only cue.)
 > over-the-shoulder and first-person camera, Low/Medium/High graphics, 24 maps
 > with weather and time of day, the winner's circle and squad room — is
 > documented in **[UPGRADE.md](UPGRADE.md)**: decisions, what each reference
-> image became, what was measured, and what wasn't built and why. The track is
-> now **120 m in 45 s**; walk 2, run 6, sprint 9 m/s.
+> image became, what was measured, and what wasn't built and why. The finalized
+> spec (modes, distances, balls, the hum, the Desert Field…) is
+> **[SPEC-V2.md](SPEC-V2.md)**, which wins where they differ.
 
-- **Hard mode, by design.** Mama's song plays at its own tempo and she cuts it
-  anywhere — 0.7 s in or deep into the second verse. **38% of the time she
-  stops singing and doesn't turn** (a feint): freeze and you lose time. Her turn
-  takes 0.35–0.55 s; movement counts 0.2 s after she faces you. 48 s on the clock.
-- **The song gives nothing away** — not by ear, not on screen, not on the wire:
-  the server never sends how long a song, feint or stare will last.
+- **Classic Run or Ball Haunting, 100 / 200 / 300 m** (45 / 80 / 120 s). Walk
+2, run 6, sprint 9 m/s. Ball Haunting: carry one of the balls (one fewer than
+players… 13 for 20) over the line; fist, slap or push someone within 2 m to
+knock theirs loose. Running into people is only ever a bump.
+- **The warning hum, and its lies.** Before every turn Mama hums for 3 s under
+the song. **About a third of her hums are fake**: she sings on and doesn't
+turn, and whoever froze loses time. She cuts the song anywhere — 0.7 s in or
+deep into the second verse. Her turn takes 0.35–0.55 s; movement counts 0.2 s
+after she faces you.
+- **Nothing gives the bluff away** — not by ear, not on screen, not on the
+wire: the server never sends how long a song or stare will last, nor whether a
+hum is real (a hum is always 3 s; what follows is decided when it ends).
 - **Three original songs**, chosen in Settings (or Shuffle): *Mama's Lullaby*
-  (music box + doll's voice), *Mugunghwa* (the traditional Korean playground
-  words, new tune), *Mama Say Waka* (Pidgin call and response, talking drum).
-  Everyone hears their own choice; the referee's timing doesn't depend on it.
+(music box + doll's voice), *Mugunghwa* (the traditional Korean playground
+words, new tune), *Mama Say Waka* (Pidgin call and response, talking drum).
+Everyone hears their own choice; the referee's timing doesn't depend on it.
 - Balance (sim, 400 rounds): a player who reacts in 0.35 s to her turn crosses
-  97% of the time; 0.45 s → 25%; 0.60 s → never. Walking all the way → timed out.
+97% of the time; 0.45 s → 25%; 0.60 s → never. Walking all the way → timed out.
+
+
 
 ## 4. Architecture
 
@@ -146,14 +163,16 @@ games/emilgo-games/
     config.ts            every gameplay number (RULES, NET) — read by client AND server
     game/rules.ts        THE REFEREE: pure, seeded, fixed-step. The server runs this file
     game/balls.ts        Ball Haunting's balls and baskets · game/combat.ts fist, slap, push, shoves
-    game/bots.ts         practice CPUs (reaction-time personalities; fooled by feints)
+    game/bots.ts         practice CPUs (reaction-time personalities; fooled by fake hums; fight only for a ball)
     game/session.ts      everything wired together: rounds, online, matches, shop, social
     audio/songs.ts       the three songs as note data · audio/sound.ts the synthesiser
     world/human/*        generated people: wardrobe (+ match suit), skeleton, mesh (4 detail levels), painter, normal maps, animator, ground solver
     world/lobbyStage.ts  the lobby set, squad room and winner's circle (with background blur)
     world/*              original street, doll, crowd (one Human each, distance LOD), fx, camera, tex
-    maps/*               24 maps: registry (+ thumbnails), kit, recipes, world (sky/light), weather
-    graphics/*           tiers (Low/Medium/High/Auto)
+    maps/*               24 maps: registry (5 sky states), kit, recipes, desert (the Desert Field's props),
+                         world (light, fog, LOD, shadow casters), sky (2D or volumetric clouds), weather (rain),
+                         potholes (puddles, splashes, the High mirror), birds
+    graphics/*           tiers (Low/Medium/High/Auto), post (High: bloom, grade, vignette)
     net/*                protocol (shared), client (reconnect + clock), onlineRound (predict/interp)
     platform/*           hosts: lagoslife (SDK), emilgo (RN bridge), web; mockVatar (dev only)
     shop/catalog.ts      products (ids/prices = dashboard) · shop/client.ts buy/claim/restore
@@ -185,11 +204,11 @@ to your grace — faking lag buys nothing, it delays your own view by the same
 amount. Dropped connection: you freeze, reconnect and resume the same seat (20 s).
 No bots online, ever.
 
-**Lagos Life matches** — players create/join/quick-match through `Vatar.match`
-(stakes confirmed on Lagos Life's own sheet). When the match is `playing`, each
+**Lagos Life matches** — players create/join/quick-**match through** `Vatar.match`
+**(stakes confirmed on Lagos Life's own sheet). When the match is** `playing`**, each
 phone asks our server to play it, proving who it is with a fresh session token;
 the server verifies it with Lagos Life, checks the player is in that match,
-and seats them by their Lagos Life id (a reload comes back to the same runner).
+and seats them by their Lagos Life id (a reload comes back to the same runner).**
 First across wins; nobody across, or a dead heat, is a draw. The server signs
 and posts the result; Lagos Life settles the money.
 
@@ -216,29 +235,33 @@ npm run game:preview    # serve dist/ with the frame-ancestors header
 npm run game:sim        # balance check
 ```
 
-**After any change under `games/emilgo-games/src`, run `npm run game:embed`** or
+**After any change under** `games/emilgo-games/src`**, run** `npm run game:embed` or
 the EMILGO app keeps the old copy.
 
 **The server** (`npm --prefix games/emilgo-games run …`): `server:dev` (rebuild +
 restart on change, port 8787) · `server:build` · `server:start`.
 
-| Server env | Meaning |
-| --- | --- |
-| `PORT` | default 8787 |
-| `GAMES_ORIGINS` | comma-separated allowed page origins (unset = any) |
-| `MAX_PEERS`, `MAX_PER_IP`, `TRUST_PROXY` | connection limits; `TRUST_PROXY=1` behind a proxy |
-| `VATAR_SECRET` | `vtr_test_…` (sandbox) or `vtr_live_…` — **server only, never in the game** |
-| `VATAR_RESULTS_SECRET` | signs match results |
-| `VATAR_WEBHOOK_SECRET` | `vtr_whsec_…`, checks webhook signatures |
-| `VATAR_API` | default `https://lagoslife.app/api/games/v1` |
-| `DATA_DIR` | where the purchases database lives (default `./data`) — keep it on a persistent disk |
-| `TICKET_SECRET` | 32+ random chars; signs ownership tickets. **Required when running more than one process** |
-| `ADMIN_TOKEN` | 24+ random chars; unlocks `GET /reports` for moderators |
 
-| Game build env | Meaning |
-| --- | --- |
+| Server env                               | Meaning                                                                                    |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `PORT`                                   | default 8787                                                                               |
+| `GAMES_ORIGINS`                          | comma-separated allowed page origins (unset = any)                                         |
+| `MAX_PEERS`, `MAX_PER_IP`, `TRUST_PROXY` | connection limits; `TRUST_PROXY=1` behind a proxy                                          |
+| `VATAR_SECRET`                           | `vtr_test_…` (sandbox) or `vtr_live_…` — **server only, never in the game**                |
+| `VATAR_RESULTS_SECRET`                   | signs match results                                                                        |
+| `VATAR_WEBHOOK_SECRET`                   | `vtr_whsec_…`, checks webhook signatures                                                   |
+| `VATAR_API`                              | default `https://lagoslife.app/api/games/v1`                                               |
+| `DATA_DIR`                               | where the purchases database lives (default `./data`) — keep it on a persistent disk       |
+| `TICKET_SECRET`                          | 32+ random chars; signs ownership tickets. **Required when running more than one process** |
+| `ADMIN_TOKEN`                            | 24+ random chars; unlocks `GET /reports` for moderators                                    |
+
+
+
+| Game build env                                             | Meaning                                                  |
+| ---------------------------------------------------------- | -------------------------------------------------------- |
 | `VITE_GAMES_SERVER` (`games/emilgo-games/.env.production`) | `wss://` address of the server, for the Lagos Life build |
-| `EXPO_PUBLIC_GAMES_SERVER` (app `.env`) | `wss://` address, for the EMILGO app |
+| `EXPO_PUBLIC_GAMES_SERVER` (app `.env`)                    | `wss://` address, for the EMILGO app                     |
+
 
 **Tests** — run the server and the fake platform first:
 
@@ -252,35 +275,39 @@ node server/dist/matchtest.mjs     # staked match (Ball Haunting), signatures, a
 node server/dist/shoptest.mjs      # purchases, refunds, forgeries, looks  (22 checks)
 node server/dist/fairness.mjs      # lag never decides who's caught        (7/7)
 node server/dist/ballstest.mjs     # Ball Haunting online: grab, push, drop, reconnect (16)
-node server/dist/rulestest.mjs     # the referee: moves, modes, balls, fighting (58, no server needed)
+node server/dist/rulestest.mjs     # the referee: moves, modes, balls, fighting, the hum (61, no server needed)
 npx tsx scripts/filter-test.ts     # chat filter                           (22 cases)
 MAX_PER_IP=100000 …index.mjs; node server/dist/loadtest.mjs --clients 1200 --seconds 60
 ```
+
+
 
 ## 6. Shipping to Lagos Life — what's left, in order
 
 Everything below needs your accounts; none of it is code.
 
 1. **Host the game** on Cloudflare Pages (free): build with `VITE_GAMES_SERVER`
-   set, upload `games/emilgo-games/dist/` (it includes `_headers`). Check the
+  set, upload `games/emilgo-games/dist/` (it includes `_headers`). Check the
    `content-security-policy: frame-ancestors …` header on the live URL.
 2. **Host the server** with TLS (`wss://`): any Docker host (Fly.io, Railway,
-   Render, a VPS) using `server/Dockerfile`, a **persistent disk** for
+  Render, a VPS) using `server/Dockerfile`, a **persistent disk** for
    `DATA_DIR`, and the env above. Point a domain at it; `/health` should say `ok`.
 3. **Get test keys** at `lagoslife.app/developers/keys`: Game URL = the Pages
-   address; Webhook URL = `https://<server>/vatar-webhook`. Put the test secret,
+  address; Webhook URL = `https://<server>/vatar-webhook`. Put the test secret,
    results secret and webhook secret into the server's env.
 4. **Create the 6 products** in the dashboard — ids and prices from
-   `listing/LISTING.md`, exactly.
+  `listing/LISTING.md`, exactly.
 5. **Tick the sandbox checklist** at `/developers/sandbox/<draft>`: open the game
-   (init seen) → Shop → buy anything with *Pay (test)* (test purchase, server
+  (init seen) → Shop → buy anything with *Pay (test)* (test purchase, server
    verified, delivered) → Multiplayer → Lagos Life match → create a match, let
    the sandbox's test bot join (match created, joined, result posted).
 6. **Listing**: icon, screenshots and descriptions from `listing/`. Agree to the
-   Developer Agreement. **Submit for review.**
+  Developer Agreement. **Submit for review.**
 7. After approval: swap in the **live** secrets (`vtr_live_…`), and ask Lagos
-   Life to switch on **matches** and then **stakes** for the game (two separate
+  Life to switch on **matches** and then **stakes** for the game (two separate
    approvals; until then the game offers friendlies and says why).
+
+
 
 ## 7. What was measured
 
@@ -301,12 +328,14 @@ a third, unblocked player saw everything.
 
 **Performance (Phase 6)** — headless Chrome on this laptop's Intel Iris GPU:
 
-| | Result |
-| --- | --- |
-| Download | ~176 KB transferred (one JS file + CSS), no assets |
-| Lobby ready, slow 4G (1.6 Mbps, 150 ms) | **1.95–2.35 s** |
-| Normal CPU, a full round | 60 fps, full resolution, **no frame over 100 ms** (first tap included) |
-| CPU slowed 6× (an old budget phone) | adapts to 0.6× resolution; worst frame mid-round ~230 ms |
+
+|                                         | Result                                                                 |
+| --------------------------------------- | ---------------------------------------------------------------------- |
+| Download                                | ~176 KB transferred (one JS file + CSS), no assets                     |
+| Lobby ready, slow 4G (1.6 Mbps, 150 ms) | **1.95–2.35 s**                                                        |
+| Normal CPU, a full round                | 60 fps, full resolution, **no frame over 100 ms** (first tap included) |
+| CPU slowed 6× (an old budget phone)     | adapts to 0.6× resolution; worst frame mid-round ~230 ms               |
+
 
 Fixed during that pass: a 2.5 s mid-round freeze (shaders now compile behind the
 loading screen), auto-quality wrongly lowering resolution on 30 fps menus and
@@ -320,12 +349,14 @@ the Docker image. Do those before submitting.
 ## 8. Scaling notes
 
 The client scales by itself — each phone draws only its own round. The server:
+
 - A round is tiny; one process hosts thousands of players. Add processes behind
-  a load balancer that keeps a WebSocket on one instance.
+a load balancer that keeps a WebSocket on one instance.
 - With several processes: one shared `TICKET_SECRET`, and the purchases store
-  moved from SQLite to a shared database (implement `OwnershipStore` in
-  `server/src/store.ts` on Postgres; nothing else changes).
+moved from SQLite to a shared database (implement `OwnershipStore` in
+`server/src/store.ts` on Postgres; nothing else changes).
 - Lagos Life API calls stay low: sessions are verified once per match or claim,
-  and online outfits use signed tickets instead of an API call per connection.
+and online outfits use signed tickets instead of an API call per connection.
 - Serve the game from a CDN (Cloudflare Pages): millions of opens cost nothing
-  at the origin.
+at the origin.
+

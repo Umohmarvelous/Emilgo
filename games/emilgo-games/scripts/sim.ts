@@ -17,7 +17,7 @@ const DT = 1 / 60;
  * A scripted human. Runs while she sings and lets go `reaction` s after the
  * cue it trusts:
  *   watcher   watches Mama — ignores the song stopping, reacts to her turning
- *   listener  trusts the music — freezes whenever it stops (feints included)
+ *   listener  trusts the hum — freezes as it ends (fake hums included)
  */
 let turnFor = 0;
 let lastPhase = "";
@@ -29,7 +29,7 @@ function humanInput(round: RedLightRound, reaction: number, run: boolean, listen
   }
   const go =
     (round.phase === "sing" && t > 0.15) ||
-    (round.phase === "pause" && (!listener || t < reaction)) ||
+    (round.phase === "hum" && (!listener || t < RULES.hum.length - reaction)) ||
     (round.phase === "turning" && t < reaction) ||
     (round.phase === "watch" && t < reaction - turnFor);
   if (!go) return [0, 0];
@@ -88,7 +88,7 @@ function report(label: string, reaction: number, runs: boolean, listener = false
 for (const d of DISTS) {
   course = courseFor(MODE, d);
   console.log(
-    `\n${MODE} ${d} m — ${ROUNDS} rounds, ${PRACTICE.bots + 1} players${MODE === "balls" ? `, ${ballCount(PRACTICE.bots + 1)} balls` : ""}, limit ${course.timeLimit}s, detection ${(RULES.turning.min + RULES.grace).toFixed(2)}–${(RULES.turning.max + RULES.grace).toFixed(2)}s after she starts turning, feint chance ${RULES.feint.chance}`,
+    `\n${MODE} ${d} m — ${ROUNDS} rounds, ${PRACTICE.bots + 1} players${MODE === "balls" ? `, ${ballCount(PRACTICE.bots + 1)} balls` : ""}, limit ${course.timeLimit}s, detection ${(RULES.turning.min + RULES.grace).toFixed(2)}–${(RULES.turning.max + RULES.grace).toFixed(2)}s after she starts turning, fake hums ${RULES.hum.fakeChance}`,
   );
   if (MODE === "balls") {
     report("CPU field (all 20)", 0.35, true);

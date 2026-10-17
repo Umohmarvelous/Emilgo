@@ -22,11 +22,14 @@ const SINK_AFTER = 4.6;
  * 100,000 triangles. Nearest first: each gets the best detail its distance
  * allows that still leaves the rest room at the far level.
  */
-const CROWD_BUDGET = [30000, 40000, 52000] as const;
+const CROWD_BUDGET = [28000, 32000, 32000] as const;
 const NEAR_M = 20;
 const MID_M = 45;
-/** Real shadows only from the nearest few (the shadow pass draws them again). */
-const SHADOW_MAX = 6;
+/**
+ * Real shadows only from the nearest few: the shadow pass draws them again, and
+ * those triangles count against the frame's 100K too. The rest keep a blob.
+ */
+const SHADOW_MAX = [0, 3, 2] as const;
 
 const _m = new Matrix4();
 const _q = new Quaternion();
@@ -82,13 +85,13 @@ export class Crowd {
       return h;
     });
     this.hidden = new Array(this.n).fill(false);
-    this.shadows.count = this.blobShadows ? this.n : 0;
+    this.shadows.count = this.n;
   }
 
   setShadows(real: boolean): void {
     this.blobShadows = !real;
     for (const p of this.people) if (p) p.mesh.castShadow = real;
-    this.shadows.count = this.blobShadows ? this.n : 0;
+    this.shadows.count = this.n;
   }
 
   human(i: number): Human | null {
@@ -193,7 +196,7 @@ export class Crowd {
       }
       h.setDetail(lvl);
       left -= h.trianglesAt(lvl);
-      if (!this.blobShadows) h.mesh.castShadow = rank < SHADOW_MAX;
+      if (!this.blobShadows) h.mesh.castShadow = rank < SHADOW_MAX[this.tier];
     });
   }
 
@@ -229,7 +232,8 @@ export class Crowd {
         }
       }
 
-      if (this.blobShadows) {
+      // A blob for everyone not casting a real shadow (Low, and all but the nearest few).
+      if (this.blobShadows || !h.mesh.castShadow) {
         const lie = a.dead >= 0 ? a.fall : 0;
         const dir = c.heading + a.fallDir;
         _q.setFromAxisAngle(UP, dir);
@@ -240,9 +244,11 @@ export class Crowd {
         _v.set(c.x + Math.sin(dir) * off, 0.018, c.z + Math.cos(dir) * off);
         _m.compose(_v, _q, _s);
         this.shadows.setMatrixAt(i, _m);
+      } else {
+        this.shadows.setMatrixAt(i, ZERO);
       }
     }
-    if (this.blobShadows) this.shadows.instanceMatrix.needsUpdate = true;
+    this.shadows.instanceMatrix.needsUpdate = true;
   }
 
   get triangles(): number {

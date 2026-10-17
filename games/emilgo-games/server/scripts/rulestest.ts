@@ -353,24 +353,26 @@ console.log("\nthe line, in Ball Haunting:");
   check(r.over && r.get("p1")!.cause === "noball", "the last ball banked → the rest are out (no ball left), round over");
 }
 
-console.log("\nbodies:");
+console.log("\nbodies (no fight without a tap):");
 {
-  // Sprinting into someone shoves them; walking into them doesn't.
+  // Sprinting into someone is just a bump: no stagger, no slide, no attack.
   const { r } = ballRound(2, [[0, -20], [0, -24]], courseFor("classic", 100));
   singing(r);
   const [a, b] = r.contestants;
   a.inZ = -1;
   a.inSprint = true;
+  b.inZ = -0.3; // the one in front jogs on
   const ev: RoundEvent[] = [];
-  tick(r, 1.2, ev);
-  check(ev.some((e) => e.type === "shoved" && e.id === "p1"), "sprinting into someone shoves them");
-  check(b.z < -24.5, `…and they slide (${(-24 - b.z).toFixed(2)} m)`);
-  const w = ballRound(2, [[0, -20], [0, -22]], courseFor("classic", 100));
-  singing(w.r);
-  w.r.get("p0")!.inZ = -MOVE.runAt * 0.9; // a walk
-  const ev2: RoundEvent[] = [];
-  tick(w.r, 2, ev2);
-  check(!ev2.some((e) => e.type === "shoved"), "walking into someone is just a bump");
+  let maxStun = 0;
+  let maxSpeedB = 0;
+  for (let i = 0; i < 72; i++) {
+    r.step(DT);
+    ev.push(...r.drain());
+    maxStun = Math.max(maxStun, a.stun, b.stun);
+    maxSpeedB = Math.max(maxSpeedB, Math.hypot(b.vx, b.vz));
+  }
+  check(!ev.some((e) => e.type === "attack") && maxStun === 0, "sprinting into someone: nobody is staggered, no attack");
+  check(maxSpeedB <= MOVE.walk + 0.01, `the one bumped keeps their own pace (top ${maxSpeedB.toFixed(2)} m/s, no slide)`);
   let overlap = 0;
   const x = ballRound(2, [[0, -20], [0, -26]], courseFor("classic", 100));
   singing(x.r);
@@ -381,6 +383,62 @@ console.log("\nbodies:");
     overlap = Math.max(overlap, MOVE.radius * 2 - Math.hypot(p.x - q.x, p.z - q.z));
   }
   check(overlap < 0.05, `nobody runs through anybody (worst overlap ${(overlap * 100).toFixed(1)} cm)`);
+}
+
+console.log("\nthe warning hum:");
+{
+  // Many rounds' worth of her cycle: every turn is warned; some hums are fake.
+  let turns = 0;
+  let warned = 0;
+  let hums = 0;
+  let fakes = 0;
+  let fakeTwice = 0;
+  let fakeFirst = 0;
+  let humLenOk = true;
+  for (let seed = 1; seed <= 40; seed++) {
+    const r = new RedLightRound({ seed, contestants: [{ id: "a", name: "A", bot: false }], course: courseFor("classic", 300) });
+    r.get("a")!.graceBonus = 1e9; // never caught: just watch her cycle
+    let prev = "";
+    let lastFake = false;
+    let realTurns = 0;
+    let humDur = 0;
+    for (let i = 0; i < 60 * 120 && !r.over; i++) {
+      r.step(DT);
+      for (const e of r.drain()) {
+        if (e.type !== "phase") continue;
+        if (e.phase === "hum") {
+          hums++;
+          humDur = e.duration;
+          if (Math.abs(e.duration - RULES.hum.length) > 1e-9) humLenOk = false;
+        }
+        if (e.phase === "turning") {
+          turns++;
+          realTurns++;
+          if (prev === "hum") warned++;
+          lastFake = false;
+        }
+        if (e.phase === "sing" && prev === "hum") {
+          fakes++;
+          if (lastFake) fakeTwice++;
+          if (realTurns === 0) fakeFirst++;
+          lastFake = true;
+        }
+        prev = e.phase;
+      }
+    }
+    void humDur;
+  }
+  check(turns > 50 && warned === turns, `every turn comes after a hum (${warned}/${turns})`);
+  check(humLenOk, `every hum lasts ${RULES.hum.length} s`);
+  check(fakes > 0 && Math.abs(fakes / hums - RULES.hum.fakeChance * 0.6) < 0.2, `some hums are fake (${fakes} of ${hums})`);
+  check(fakeTwice === 0 && fakeFirst === 0, "never two fakes running, never before her first turn");
+  // Running through a hum is safe.
+  const r = new RedLightRound({ seed: 9, contestants: [{ id: "a", name: "A", bot: false }], course: courseFor("classic", 300) });
+  let guard = 0;
+  while (r.phase !== "hum" && guard++ < 60 * 60) r.step(DT);
+  r.setInput("a", 0, -1);
+  while (r.phase === "hum") r.step(DT);
+  check(r.get("a")!.status === "alive", "running all through a hum: still in");
 }
 
 console.log(`\n${failures ? `${failures} FAILED` : "all passed"}`);

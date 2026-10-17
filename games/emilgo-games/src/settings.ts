@@ -48,6 +48,8 @@ export interface Settings {
   /** The mode and distance picked on the play screen (SPEC-V2 §2.1). */
   mode: Mode;
   distance: Distance;
+  /** Light / dark mode (SPEC-V2 §6.4): full daylight, full night, or the map's own sky. */
+  lightMode: "auto" | "light" | "dark";
   tutorialSeen: boolean;
   best: number;
   played: number;
@@ -95,6 +97,7 @@ export function defaults(host: Host): Settings {
     recent: [],
     mode: "classic",
     distance: DEFAULT_DISTANCE,
+    lightMode: "auto",
   };
 }
 
@@ -113,6 +116,7 @@ export function loadSettings(host: Host): Settings {
     if (out.lookStick !== "always" && out.lookStick !== "touch") out.lookStick = base.lookStick;
     if (!MODES.includes(out.mode)) out.mode = base.mode;
     if (!DISTANCES.includes(out.distance)) out.distance = base.distance;
+    if (!["auto", "light", "dark"].includes(out.lightMode)) out.lightMode = base.lightMode;
     out.sensH = clamp(out.sensH, 0.05, 1);
     out.sensV = clamp(out.sensV, 0.05, 1);
     out.look = cleanLook(saved.look);

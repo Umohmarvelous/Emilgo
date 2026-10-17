@@ -120,7 +120,7 @@ function gameClient(
         ball = { x: m.x / 100, z: m.z / 100 };
       } else if (m.t === "ev" && m.k === "ph" && run === "runner") {
         const ph = phaseAt(m.ph);
-        singing = ph === "sing" || ph === "pause";
+        singing = ph === "sing" || ph === "hum";
         if (ph === "turning") {
           turns++;
           ws.send(JSON.stringify({ t: "in", x: 0, z: 0, g }));

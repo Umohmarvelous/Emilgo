@@ -6,9 +6,10 @@
 // client uses `moveContestant` from it to predict its own runner. Two copies of
 // the rules would drift.
 //
-// The cycle:   countdown → sing → (pause → sing)? → turning → watch → turningBack → sing → …
+// The cycle:   countdown → sing → hum → (sing → hum)* → turning → watch → turningBack → sing → …
 //   sing         doll faces the wall, song plays. Move freely. She cuts it anywhere.
-//   pause        a feint: the song stopped but she isn't turning. Still safe.
+//   hum          3 s of humming under the song: the warning. Still safe to move.
+//                Sometimes it's fake: she sings on and doesn't turn.
 //   turning      she is turning round. Still safe — stop NOW.
 //   watch        she is looking. After `grace`, any speed > tolerance = out.
 //   turningBack  she turns to the wall again. Safe to set off early.
@@ -18,15 +19,16 @@
 // Modes (SPEC-V2 §2.1): Classic Run — reach the line. Ball Haunting — reach
 // it HOLDING a ball (fewer balls than players); the ball goes in a basket and
 // you are safe for good. Attacks (fist, slap, push; combat.ts) knock a ball
-// loose; sprinting into someone shoves them. While she watches, an attacker
-// is shot and the one they hit is forgiven.
+// loose — only when someone taps an attack button: running into people is
+// just a bump. While she watches, an attacker is shot and the one they hit is
+// forgiven.
 
-import { ATTACK, ATTACK_KINDS, BALLS, DEFAULT_COURSE, FIELD, MOVE, RULES, SHOVE, ballCount, type AttackKind, type Course, type SingBands, type Stance } from "../config";
+import { ATTACK, ATTACK_KINDS, BALLS, DEFAULT_COURSE, FIELD, MOVE, RULES, ballCount, type AttackKind, type Course, type SingBands, type Stance } from "../config";
 import { Rng } from "../core/rng";
 import { inPlay, nearestBasket, placeBalls, placeBaskets, type Ball, type Basket } from "./balls";
 import { attackTarget, canAttack, knock, type ActKind } from "./combat";
 
-export type Phase = "countdown" | "sing" | "pause" | "turning" | "watch" | "turningBack" | "ended";
+export type Phase = "countdown" | "sing" | "hum" | "turning" | "watch" | "turningBack" | "ended";
 export type Status = "alive" | "finished" | "eliminated";
 /** moved: caught by the doll; time: the clock ran out; noball: every ball was banked without yours. */
 export type Cause = "moved" | "time" | "noball";
@@ -120,13 +122,13 @@ export interface RoundView {
   drain(): RoundEvent[];
 }
 
-export const PHASES: readonly Phase[] = ["countdown", "sing", "pause", "turning", "watch", "turningBack", "ended"];
+export const PHASES: readonly Phase[] = ["countdown", "sing", "hum", "turning", "watch", "turningBack", "ended"];
 
 /**
  * Phases whose length is a secret. The referee knows it; nobody else is told —
  * not the HUD, not the network — because knowing when the song ends IS the game.
  */
-export const HIDDEN_LENGTH: readonly Phase[] = ["sing", "pause", "watch"];
+export const HIDDEN_LENGTH: readonly Phase[] = ["sing", "watch"];
 
 /** A fresh contestant's movement state (shared by the referee and the online client). */
 type Motion = "y" | "vy" | "stance" | "inStance" | "stanceT" | "inSprint" | "sprinting" | "stamina" | "rested" | "inJump" | "jumpSeen" | "inAttack" | "attackSeen" | "inGrab" | "grabSeen" | "ball" | "stun" | "forgive" | "act" | "cool" | "actKind";
@@ -273,8 +275,6 @@ export type RoundEvent =
   | { type: "ended" }
   /** A swing. `target` is who it landed on (null: it missed); `dropped` the ball it knocked loose, or −1. */
   | { type: "attack"; id: string; kind: AttackKind; target: string | null; dropped: number }
-  /** Sprinted into: `id` was shoved by `by`. */
-  | { type: "shoved"; id: string; by: string }
   | { type: "grab"; id: string; ball: number }
   | { type: "drop"; ball: number; x: number; z: number }
   | { type: "bank"; id: string; ball: number; basket: number };
@@ -307,8 +307,6 @@ export class RedLightRound implements RoundView {
   private events: RoundEvent[] = [];
   private finishedCount = 0;
   private turns = 0;
-  /** When each pair last shoved (a * 256 + b → seconds of play). */
-  private readonly shoves = new Map<number, number>();
 
   constructor(opts: RoundOptions) {
     this.seed = opts.seed;
@@ -470,14 +468,18 @@ export class RedLightRound implements RoundView {
       case "countdown":
         this.enter("sing", this.singLength(RULES.firstSing));
         break;
-      case "sing": {
-        // A feint, sometimes — but never before she has turned for real once,
-        // and never twice running (the previous phase being a pause).
-        const feint = this.turns > 0 && !this.justFeinted && this.rng.chance(RULES.feint.chance);
-        this.justFeinted = false;
-        if (feint) {
-          this.justFeinted = true;
-          this.enter("pause", this.rng.range(RULES.feint.min, RULES.feint.max));
+      case "sing":
+        // Every turn is warned by the hum; whether this one is real is decided when it ends.
+        this.enter("hum", RULES.hum.length);
+        break;
+      case "hum": {
+        // A fake, sometimes — but never before she has turned for real once,
+        // and never twice running.
+        const fake = this.turns > 0 && !this.justFaked && this.rng.chance(RULES.hum.fakeChance);
+        this.justFaked = fake;
+        if (fake) {
+          // She sings on from where she was.
+          this.enter("sing", this.singLength(this.timeLeft <= RULES.lateAt ? RULES.singLate : RULES.sing));
         } else {
           this.cycle++;
           this.turns++;
@@ -485,10 +487,6 @@ export class RedLightRound implements RoundView {
         }
         break;
       }
-      case "pause":
-        // She sings on from where she stopped.
-        this.enter("sing", this.singLength(this.timeLeft <= RULES.lateAt ? RULES.singLate : RULES.sing));
-        break;
       case "turning":
         this.enter("watch", this.rng.range(RULES.watch.min, RULES.watch.max));
         break;
@@ -503,7 +501,7 @@ export class RedLightRound implements RoundView {
     }
   }
 
-  private justFeinted = false;
+  private justFaked = false;
 
   /** Weighted band, then uniform inside it: lengths cluster unpredictably. */
   private singLength(b: SingBands): number {
@@ -647,10 +645,11 @@ export class RedLightRound implements RoundView {
   }
 
   /**
-   * Keep bodies from overlapping: nobody runs through anybody. A plain bump
-   * changes position only, never velocity, so being bumped while frozen cannot
-   * get you eliminated — the one doing the pushing is the one moving. Sprinting
-   * INTO someone is a shove: they slide (stunned, forgiven by the doll).
+   * Keep bodies from overlapping: nobody runs through anybody. A bump changes
+   * position only, never velocity, so being bumped while frozen cannot get you
+   * eliminated — the one doing the pushing is the one moving. Running (even
+   * sprinting) into someone is never a fight: that takes a tap on an attack
+   * button (the owner's rule, 17 Oct 2026).
    */
   private separate(): void {
     const list = this.contestants;
@@ -668,8 +667,6 @@ export class RedLightRound implements RoundView {
         const d = Math.sqrt(d2);
         const nx = dx / d;
         const nz = dz / d;
-        this.shove(a, b, nx, nz);
-        this.shove(b, a, -nx, -nz);
         const push = (min - d) / 2;
         a.x -= nx * push;
         a.z -= nz * push;
@@ -677,18 +674,6 @@ export class RedLightRound implements RoundView {
         b.z += nz * push;
       }
     }
-  }
-
-  /** `a` sprinting into `b` along (nx, nz): `b` is shoved. */
-  private shove(a: Contestant, b: Contestant, nx: number, nz: number): void {
-    if (!a.sprinting || a.status !== "alive" || b.status !== "alive" || b.stun > 0) return;
-    if (a.vx * nx + a.vz * nz - (b.vx * nx + b.vz * nz) < SHOVE.closing) return;
-    const key = a.index * 256 + b.index;
-    const last = this.shoves.get(key);
-    if (last !== undefined && this.elapsed - last < SHOVE.pairEvery) return;
-    this.shoves.set(key, this.elapsed);
-    knock(b, nx, nz, SHOVE.knock, 0);
-    this.events.push({ type: "shoved", id: b.id, by: a.id });
   }
 
   // ── Judging ───────────────────────────────────────────────────────────────

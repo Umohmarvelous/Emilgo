@@ -17,6 +17,7 @@
 import {
   BoxGeometry,
   BufferGeometry,
+  Color,
   ConeGeometry,
   CylinderGeometry,
   DodecahedronGeometry,
@@ -67,6 +68,14 @@ export class Kit {
   readonly lamps: V3[] = [];
   /** Where the eyes in the dark are (Dark Forest), for blinking glows. */
   readonly eyes: V3[] = [];
+  /**
+   * How far the far backdrop moves along z (negative: further away). Recipes
+   * place skylines and mountains for the original 120 m street; a 300 m run
+   * pushes them back 180 m so they stay behind Mama.
+   */
+  back = 0;
+  /** Graphics tier: curved props get more segments on Medium and High. */
+  tier: 0 | 1 | 2 = 1;
 
   constructor(seed: number) {
     this.rng = new Rng(seed);
@@ -148,15 +157,15 @@ export class Kit {
 
   /** Far backdrop (no chunks). */
   farBox(color: string | number, size: V3, p: V3, r?: V3, shade = 1): void {
-    this.far.push(part(BOX, color, { p, r, s: size }, shade));
+    this.far.push(part(BOX, color, { p: [p[0], p[1], p[2] + this.back], r, s: size }, shade));
   }
 
   farCone(color: string | number, radius: number, height: number, p: V3, sides: 6 | 10 = 6): void {
-    this.far.push(part(sides === 6 ? CONE6 : CONE10, color, { p, s: [radius, height, radius] }));
+    this.far.push(part(sides === 6 ? CONE6 : CONE10, color, { p: [p[0], p[1], p[2] + this.back], s: [radius, height, radius] }));
   }
 
   farGlowBox(color: string | number, size: V3, p: V3): void {
-    this.farGlow.push(part(BOX, color, { p, s: size }));
+    this.farGlow.push(part(BOX, color, { p: [p[0], p[1], p[2] + this.back], s: size }));
   }
 
   /** Place a prebuilt piece (vertex-coloured) at `x`. */
@@ -476,16 +485,72 @@ export class Kit {
 
   // ── Terrain bits ─────────────────────────────────────────────────────────
 
+  /**
+   * A mountain range on the horizon: a smooth ridge with `n` distinct peaks
+   * (not cones: SPEC-V2 wants models that don't look low-poly), shaded by its
+   * own slopes, snow on the high ground if `snowCap`. ≈ 900 triangles.
+   */
   mountains(color: string, snowCap: string | null, z: number, n = 9, spread = 160, hMin = 40, hMax = 110): void {
-    for (let i = 0; i < n; i++) {
-      const x = -spread / 2 + (i + this.rng.next() * 0.6) * (spread / n);
-      const h = this.rng.range(hMin, hMax);
-      const rad = h * this.rng.range(0.8, 1.2);
-      const zz = z - this.rng.range(0, 60);
-      this.farCone(color, rad, h, [x, h / 2 - 2, zz], 6);
-      if (snowCap) this.farCone(snowCap, rad * 0.32, h * 0.32, [x, h - h * 0.16 - 2, zz], 6);
+    const r = this.rng;
+    const peaks = Array.from({ length: n }, (_, i) => ({
+      x: -spread / 2 + (i + 0.5 + r.range(-0.35, 0.35)) * (spread / n),
+      h: r.range(hMin, hMax),
+      w: r.range(0.45, 0.9) * (spread / n),
+    }));
+    const ph = [r.range(0, 6), r.range(0, 6), r.range(0, 6)];
+    const height = (x: number) => {
+      let h = 0;
+      for (const p of peaks) h = Math.max(h, p.h * Math.exp(-(((x - p.x) / p.w) ** 2)));
+      // Rough ridges between the peaks.
+      const rough = Math.sin(x * 0.11 + ph[0]) * 0.5 + Math.sin(x * 0.29 + ph[1]) * 0.3 + Math.abs(Math.sin(x * 0.7 + ph[2])) * 0.2;
+      return Math.max(hMin * 0.25, h + rough * hMin * 0.18);
+    };
+    const cols = 90;
+    const rows = 6;
+    const depth = 110;
+    const pos: number[] = [];
+    const idx: number[] = [];
+    for (let j = 0; j < rows; j++) {
+      const t = j / (rows - 1);
+      const bump = Math.pow(Math.sin(Math.PI * Math.min(1, t * 1.15)), 0.7);
+      for (let i = 0; i <= cols; i++) {
+        const x = -spread / 2 - 40 + (i / cols) * (spread + 80);
+        pos.push(x, -6 + (height(x) + 6) * bump, z - t * depth);
+      }
     }
+    for (let j = 0; j < rows - 1; j++) {
+      for (let i = 0; i < cols; i++) {
+        const a = j * (cols + 1) + i;
+        const b = a + cols + 1;
+        idx.push(a, a + 1, b, a + 1, b + 1, b);
+      }
+    }
+    let g = new BufferGeometry();
+    g.setAttribute("position", new Float32BufferAttribute(pos, 3));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    g = g.toNonIndexed();
+    // Colour: rock darkening on steep faces, snow above 72% of the highest peak.
+    const p = g.attributes.position;
+    const nrm = g.attributes.normal;
+    const col = new Float32Array(p.count * 3);
+    const base = new Color(color);
+    const snow = snowCap ? new Color(snowCap) : null;
+    const top = Math.max(...peaks.map((q) => q.h));
+    const c = new Color();
+    for (let i = 0; i < p.count; i++) {
+      const steep = 1 - Math.abs(nrm.getY(i));
+      c.copy(base).multiplyScalar(1 - steep * 0.25);
+      if (snow && p.getY(i) > top * 0.72 - steep * 8) c.copy(snow);
+      col[i * 3] = c.r;
+      col[i * 3 + 1] = c.g;
+      col[i * 3 + 2] = c.b;
+    }
+    g.setAttribute("color", new Float32BufferAttribute(col, 3));
+    g.translate(0, 0, this.back);
+    this.far.push(g);
   }
+
 
   /** A far city skyline of boxes, optionally with lit windows. */
   skyline(colors: string[], z0: number, z1: number, n: number, hMin: number, hMax: number, xs = 80, lit: string | null = null): void {
@@ -523,11 +588,12 @@ export function courseParts(o: { edge: string; line: string; plaza: string; stag
 }
 
 /** The start gantry posts (the banner quads are added by the world). */
-export function gantryParts(color: string): BufferGeometry[] {
+export function gantryParts(color: string, halfWidth: number = FIELD.halfWidth): BufferGeometry[] {
+  const x = halfWidth + 0.5;
   return [
-    part(CYL10, color, { p: [-9.7, 5, 0.4], s: [0.14, 10, 0.14] }),
-    part(CYL10, color, { p: [9.7, 5, 0.4], s: [0.14, 10, 0.14] }),
-    part(BOX, color, { p: [0, 9.9, 0.4], s: [19.8, 0.25, 0.25] }),
+    part(CYL10, color, { p: [-x, 5, 0.4], s: [0.14, 10, 0.14] }),
+    part(CYL10, color, { p: [x, 5, 0.4], s: [0.14, 10, 0.14] }),
+    part(BOX, color, { p: [0, 9.9, 0.4], s: [x * 2 + 0.4, 0.25, 0.25] }),
   ];
 }
 

@@ -29,6 +29,7 @@ import {
   Fog,
   Group,
   HemisphereLight,
+  PointLight,
   type Material,
   Mesh,
   MeshBasicMaterial,
@@ -108,6 +109,21 @@ export class LobbyStage {
   private flagBase: Float32Array | null = null;
   private readonly key: DirectionalLight;
   private readonly spots: SpotLight[] = [];
+  /** Everything light / dark mode changes (SPEC-V2 §6.4). */
+  private readonly lit: {
+    hemi: HemisphereLight;
+    sunBack: DirectionalLight;
+    amb: AmbientLight;
+    fill: DirectionalLight;
+    rim: DirectionalLight;
+    hemi2: HemisphereLight;
+    sky?: Mesh;
+    sun?: Mesh;
+    halo?: Mesh;
+    lampBulb?: Mesh;
+    lampLight?: PointLight;
+  };
+  private palette: "golden" | "day" | "night" = "golden";
   private spec: TierSpec;
   // Depth of field.
   private rt: WebGLRenderTarget | null = null;
@@ -141,7 +157,8 @@ export class LobbyStage {
     this.back.add(hemi);
     const sunBack = new DirectionalLight(0xffb070, 2.4);
     sunBack.position.set(-12, 9, -20);
-    this.back.add(sunBack, new AmbientLight(0xffe2c0, 0.25));
+    const amb = new AmbientLight(0xffe2c0, 0.25);
+    this.back.add(sunBack, amb);
     // On the character: key (warm, front right), fill (cool, front left), rim (sun, behind).
     this.key = new DirectionalLight(0xffe0b8, 3.0);
     this.key.position.set(2.5, 3.2, 5.5);
@@ -149,7 +166,9 @@ export class LobbyStage {
     fill.position.set(-4, 2, 4);
     const rim = new DirectionalLight(0xffa860, 3.2);
     rim.position.set(-3, 4, -6);
-    this.scene.add(this.key, fill, rim, new HemisphereLight(0xffd9a8, 0x4a3426, 0.7));
+    const hemi2 = new HemisphereLight(0xffd9a8, 0x4a3426, 0.7);
+    this.scene.add(this.key, fill, rim, hemi2);
+    this.lit = { hemi, sunBack, amb, fill, rim, hemi2 };
     if (spec.shadows) {
       this.key.castShadow = true;
       this.key.shadow.mapSize.set(spec.shadowSize, spec.shadowSize);
@@ -182,6 +201,70 @@ export class LobbyStage {
 
   /** Accepting drags/zoom (only while the lobby shows). */
   interactive = false;
+
+  /**
+   * Light / dark mode (SPEC-V2 §6.4): golden hour (the lobby's own look),
+   * full daylight with the lamp off, or full night with the lamp on.
+   */
+  setLightMode(mode: "auto" | "light" | "dark"): void {
+    const p = mode === "dark" ? "night" : mode === "light" ? "day" : "golden";
+    if (p === this.palette) return;
+    this.palette = p;
+    const L = this.lit;
+    const P = {
+      golden: { bg: 0xf2b06a, fog: 0xe8a868, far: 70, hemi: [0xffd9a8, 0x5a4030, 1.05], sun: [0xffb070, 2.4], amb: [0xffe2c0, 0.25], key: [0xffe0b8, 3.0], fill: [0xbfd0ff, 0.9], rim: [0xffa860, 3.2], hemi2: [0xffd9a8, 0x4a3426, 0.7], sky: [0x3d4f86, 0xe39a5b, 0xffc178], disc: [0xffd090, -60, 22, 36], lamp: 0 },
+      day: { bg: 0xcfe2ee, fog: 0xd6e4ec, far: 90, hemi: [0xe8f2ff, 0x6a5a48, 1.25], sun: [0xfff4e0, 2.2], amb: [0xffffff, 0.3], key: [0xfff6ea, 2.6], fill: [0xd0e0ff, 1.0], rim: [0xffffff, 1.6], hemi2: [0xe8f2ff, 0x5a4a3a, 0.8], sky: [0x4f8fd8, 0x9cc4ea, 0xd6e6f0], disc: [0xfff8e8, 30, 120, 28], lamp: 0 },
+      night: { bg: 0x0b1226, fog: 0x101a30, far: 55, hemi: [0x6a7ab0, 0x1a1a24, 0.75], sun: [0x9fb4ff, 1.0], amb: [0x8090c0, 0.16], key: [0xffdcb0, 2.4], fill: [0x8fa8ff, 0.8], rim: [0x9fb8ff, 2.2], hemi2: [0x7080b0, 0x1a1a24, 0.55], sky: [0x060a18, 0x121c38, 0x24304e], disc: [0xdfe8ff, 50, 70, 14], lamp: 14 },
+    }[p];
+    (this.back.background as Color).set(P.bg);
+    for (const f of [this.back.fog as Fog, this.scene.fog as Fog]) {
+      f.color.set(P.fog);
+      f.far = P.far;
+    }
+    L.hemi.color.set(P.hemi[0]);
+    L.hemi.groundColor.set(P.hemi[1]);
+    L.hemi.intensity = P.hemi[2];
+    L.sunBack.color.set(P.sun[0]);
+    L.sunBack.intensity = P.sun[1];
+    L.amb.color.set(P.amb[0]);
+    L.amb.intensity = P.amb[1];
+    this.key.color.set(P.key[0]);
+    this.key.intensity = P.key[1];
+    L.fill.color.set(P.fill[0]);
+    L.fill.intensity = P.fill[1];
+    L.rim.color.set(P.rim[0]);
+    L.rim.intensity = P.rim[1];
+    L.hemi2.color.set(P.hemi2[0]);
+    L.hemi2.groundColor.set(P.hemi2[1]);
+    L.hemi2.intensity = P.hemi2[2];
+    if (L.sky) {
+      const top = new Color(P.sky[0]);
+      const mid = new Color(P.sky[1]);
+      const hor = new Color(P.sky[2]);
+      const pos = L.sky.geometry.attributes.position;
+      const col = L.sky.geometry.attributes.color;
+      const c = new Color();
+      for (let i = 0; i < pos.count; i++) {
+        const y = pos.getY(i) / 180;
+        if (y > 0.25) c.copy(mid).lerp(top, Math.min(1, (y - 0.25) / 0.6));
+        else c.copy(hor).lerp(mid, Math.max(0, y / 0.25));
+        col.setXYZ(i, c.r, c.g, c.b);
+      }
+      col.needsUpdate = true;
+    }
+    if (L.sun) {
+      (L.sun.material as MeshBasicMaterial).color.set(P.disc[0]);
+      L.sun.position.set(P.disc[1], P.disc[2], -150);
+      L.sun.scale.setScalar(P.disc[3] / 36);
+      L.sun.lookAt(0, 2, 0);
+    }
+    // The street lamp: off in daylight, on at golden hour and at night.
+    const lampOn = p !== "day";
+    if (L.halo) L.halo.visible = lampOn;
+    if (L.lampBulb) (L.lampBulb.material as MeshBasicMaterial).color.set(lampOn ? 0xffe2a0 : 0x8a8a84);
+    if (L.lampLight) L.lampLight.intensity = P.lamp;
+    this.backDirty = true;
+  }
 
   setSpec(spec: TierSpec): void {
     this.spec = spec;
@@ -558,10 +641,12 @@ export class LobbyStage {
     skyGeo.setAttribute("color", new BufferAttribute(new Float32Array(skyCols), 3));
     const sky = new Mesh(skyGeo, new MeshBasicMaterial({ vertexColors: true, side: BackSide, fog: false, depthWrite: false }));
     S.add(sky);
+    this.lit.sky = sky;
     const sun = new Mesh(new PlaneGeometry(36, 36), new MeshBasicMaterial({ map: canvasTexture("glow", 128, glow, false), color: 0xffd090, transparent: true, blending: AdditiveBlending, depthWrite: false, fog: false }));
     sun.position.set(-60, 22, -150);
     sun.lookAt(0, 2, 0);
     S.add(sun);
+    this.lit.sun = sun;
 
     // Ground: pavers near, asphalt road behind.
     const pav = tiled(canvasTexture("paving", ts, paving), 14, 14);
@@ -700,7 +785,13 @@ export class LobbyStage {
     const halo = new Mesh(new PlaneGeometry(1.6, 1.6), new MeshBasicMaterial({ map: canvasTexture("glow", 128, glow, false), color: 0xffcf80, transparent: true, blending: AdditiveBlending, depthWrite: false }));
     halo.position.y = 4.25;
     lamp.add(halo);
+    const lampLight = new PointLight(0xffd8a0, 0, 10, 1.6);
+    lampLight.position.y = 4.1;
+    lamp.add(lampLight);
     add(lamp as unknown as Mesh, 1.8, 0, -14.5);
+    this.lit.halo = halo;
+    this.lit.lampBulb = lh;
+    this.lit.lampLight = lampLight;
 
     const flagPole = new Mesh(new CylinderGeometry(0.04, 0.05, 5.5, 6), this.mat(0xd0d0d0, null, { metal: 0.6, rough: 0.3 }));
     add(flagPole, -5.6, 2.75, -15);

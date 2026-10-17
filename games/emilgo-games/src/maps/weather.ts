@@ -1,7 +1,6 @@
 // Weather and air: rain (with splashes) — the only falling weather the spec
-// allows (SPEC-V2: sunny, rainy, sunset, sunrise, night). Plus the sky's
-// moving parts: a drifting cloud layer, stars at night, and soft halos round
-// lamps after dark.
+// allows (SPEC-V2: sunny, rainy, sunset, sunrise, night) — and soft halos
+// round lamps after dark. The sky, its clouds and stars are in maps/sky.ts.
 //
 // Every particle system is GPU-only: positions are fixed seeds; the vertex
 // shader moves them with time and wraps them in a box that follows the camera.
@@ -15,16 +14,13 @@ import {
   Group,
   LineSegments,
   Mesh,
-  MeshBasicMaterial,
-  PlaneGeometry,
   Points,
-  PointsMaterial,
   ShaderMaterial,
   Vector3,
 } from "three";
 
 import type { Weather } from "./registry";
-import { canvasTexture, clouds as cloudPainter, glow } from "../world/tex";
+import { canvasTexture, glow } from "../world/tex";
 
 function seeds(n: number, perVertex: number, extra?: (i: number) => number[]): BufferGeometry {
   const g = new BufferGeometry();
@@ -125,45 +121,14 @@ function splashes(n: number): Points {
 export class Air {
   readonly group = new Group();
   private readonly mats: ShaderMaterial[] = [];
-  private readonly cloudLayer: Mesh;
-  private readonly cloudMat: MeshBasicMaterial;
   private halos: Points | null = null;
   private time = 0;
 
-  constructor(
-    weather: Weather,
-    o: { particles: number; night: boolean; cloudTint: Color; cloudCover: number; lamps: [number, number, number][]; lampColor: Color; lampsOn: boolean },
-  ) {
+  constructor(weather: Weather, o: { particles: number; lamps: [number, number, number][]; lampColor: Color; lampsOn: boolean }) {
     const k = Math.max(0.15, o.particles);
     if (weather === "rain") {
       this.add(streaks(Math.round(2600 * k), new Color(0xbfd2e6), 0.32, 0.9));
       if (o.particles > 0.5) this.add(splashes(Math.round(700 * k)));
-    }
-
-    // Clouds: a broad sheet high above, drifting.
-    const tex = canvasTexture("clouds", 512, cloudPainter, true);
-    tex.repeat.set(3, 3);
-    this.cloudMat = new MeshBasicMaterial({ map: tex, color: o.cloudTint, transparent: true, opacity: o.cloudCover, depthWrite: false, fog: false });
-    this.cloudLayer = new Mesh(new PlaneGeometry(900, 900), this.cloudMat);
-    this.cloudLayer.rotation.x = Math.PI / 2;
-    this.cloudLayer.position.set(0, 140, -60);
-    this.cloudLayer.renderOrder = -1;
-    this.group.add(this.cloudLayer);
-
-    // Stars.
-    if (o.night && weather !== "rain") {
-      const g = new BufferGeometry();
-      const p: number[] = [];
-      for (let i = 0; i < 700; i++) {
-        const a = Math.random() * Math.PI * 2;
-        const e = 0.12 + Math.random() * 1.3;
-        p.push(Math.cos(a) * Math.cos(e) * 360, Math.sin(e) * 360, Math.sin(a) * Math.cos(e) * 360);
-      }
-      g.setAttribute("position", new Float32BufferAttribute(p, 3));
-      // A tiny, unattenuated point per star.
-      const stars = new Points(g, new PointsMaterial({ color: 0xffffff, size: 1.6, sizeAttenuation: false, transparent: true, opacity: 0.85, fog: false, depthWrite: false }));
-      stars.frustumCulled = false;
-      this.group.add(stars);
     }
 
     // Lamp halos after dark (steady: no flicker).
@@ -208,9 +173,6 @@ export class Air {
       m.uniforms.uTime.value = this.time;
       if (m.uniforms.uCam) m.uniforms.uCam.value.copy(cam);
     }
-    const map = this.cloudMat.map!;
-    map.offset.x = (this.time * 0.0025) % 1;
-    map.offset.y = (this.time * 0.0011) % 1;
   }
 
   dispose(): void {
