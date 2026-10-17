@@ -1,6 +1,7 @@
 # EMILGO Games
 
 > **Picking this up in a new session? Read [HANDOFF.md](HANDOFF.md) first.**
+> The owner's full spec: [SPEC-ORIGINAL.md](SPEC-ORIGINAL.md).
 
 Nigerian street games, built to run **inside Lagos Life** (through the Vatar
 Games SDK) and **inside the EMILGO app** (embedded, offline). One web codebase,

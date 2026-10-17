@@ -12,11 +12,12 @@ Read these in order:
 2. [SPEC-V2.md](SPEC-V2.md):
    - the owner's answers, the Decisions table and the 8 phases;
    - the **Status** section for what each finished phase built.
-3. [README.md](README.md):
+3. [SPEC-ORIGINAL.md](SPEC-ORIGINAL.md): the owner's own full spec (§1–§11), word for word. Every `§` in this file and in SPEC-V2 points into it. Where it disagrees with SPEC-V2's Answers and Decisions, SPEC-V2 wins.
+4. [README.md](README.md):
    - §1, the Lagos Life rules the game must keep;
    - §4, the architecture;
    - §5, how to run it and test it.
-4. [UPGRADE.md](UPGRADE.md) only for history. Where it disagrees with SPEC-V2, SPEC-V2 wins.
+5. [UPGRADE.md](UPGRADE.md) only for history. Where it disagrees with SPEC-V2, SPEC-V2 wins.
 
 ## How the owner works (follow these)
 
@@ -109,6 +110,133 @@ The full scope of each phase is in SPEC-V2.md under "Build phases". What 1–4 b
   - bump `NET.protocol` (it is 6 now);
   - add tests to `server/scripts/rulestest.ts`;
   - the Docker server must then be rebuilt.
+
+## Phase 6: Elimination and highlights
+
+### What the spec asks for (§2.2, §2.6–§2.9)
+
+- **The 10 elimination steps (§2.6):**
+  1. the doll's head snaps with a CRACK;
+  2. the screen zooms in on the offender;
+  3. blood splatters on the ground;
+  4. a slow-motion, COD-style ragdoll fall;
+  5. a violent screen shake;
+  6. a low drum;
+  7. a red vignette;
+  8. the doll's eyes flash red;
+  9. the kill feed line;
+  10. the bodies **stay** on the field until the match ends.
+- **Kill cam (§2.7):** a 2 s replay from the doll's point of view.
+- **Final survivors (§2.8):** at 2 left, the camera zooms in, the music builds, slow motion.
+- **Play of the game (§2.9):** after the match, the best moment (closest escape, best dodge, best attack).
+- **§2.2:** the doll turns 180° when the song stops.
+
+### What exists today
+
+| Piece | Today | Where |
+| --- | --- | --- |
+| Kill feed (step 9) | Done in Phase 4 | `hud.pushFeed`; `session.ts` near "kill feed" |
+| Eye beams and eye flash | The doll's head snaps toward the runner, her eyes flash and a red beam fires. | `doll.ts` (catch, eyes), `world/fx.ts` (beams) |
+| Blood | Stylised, behind a setting: on in Lagos Life, off in EMILGO (grey dust instead) | `settings.blood`, `world/fx.ts` |
+| Fall | A "cheap ragdoll" animation | `world/human/animator.ts` ~504 |
+| Slow motion | Practice only: `loop.timeScale = 0.3` for 1.5 s, when **you** are caught | `session.ts` ~848, `core/loop.ts` |
+| Red vignette, shake | Both exist (`hud` vignette, `settings.shake`) | `ui/hud.ts`, `world/camera.ts` |
+| Sounds | `catch`, `turn`, `watch`, `hum`, `strike`, `win`, `lose`. No crack or drum yet. | `audio/sound.ts` |
+| Spectate | A spectate button after you're out | `.spectate-btn` |
+| Kill cam, final two, play of the game | Not built | — |
+
+### Decisions that apply (SPEC-V2 Decisions)
+
+- **Zoom:** 1.2 s on the nearest player caught that turn, once per turn. If it's you:
+  - the crack;
+  - a 2 s kill cam from the doll's eyes;
+  - a slow-motion fall, a hard shake and the red vignette;
+  - then you spectate.
+- **Final two, online:** the whole room slows to 0.4× for 2.5 s, because the **server slows the referee clock**. This is a referee and protocol change: bump `NET.protocol` and add tests to `rulestest`.
+- **Blood:** unchanged; still a setting.
+- **The song:** the spec's "Nigerian lullaby" was replaced by the owner's choice, the Mugunghwa chant (Phase 4). So Phase 6's "new lullaby" item is probably already covered. **Ask the owner** before building another song.
+
+### Watch out for
+
+- Bodies that stay on the field cost triangles and draw calls with 20 players. Check the Phase 8 budget (under 100 draw calls, under 100K triangles).
+- Play of the game needs the round recorded: positions and events in a ring buffer, replayed after the match. Keep it small enough for low-end phones.
+
+## Phase 7: Menus, settings, social, store
+
+### What the spec asks for (§6.5, §7.1–§7.7)
+
+- **Pause menu (§7.1):** Settings, quit, resume, controls, audio, graphics, over a blurred, opaque background.
+- **Audio (§7.2):** music toggle, sound-effects toggle, master volume. Voice chat is not built (no microphone).
+- **The 20 settings (§7.5)**, see the next table.
+- **Rotate prompt (§6.5):**
+  - an animated rotate icon appears at the start;
+  - tapping it rotates the game 90° on screen;
+  - it fades after a few seconds;
+  - it is also in Settings.
+- **Chat moderation (§7.3):** report, block, mute and the filter, in the match roster.
+- **Friends:** invites and requests (SPEC-V2 Decisions: a friends list kept on the phone, plus lobby notifications).
+- **Store (§7.7):**
+  - 10–20 CP boosts: speed, stamina, freeze resistance, ball grip and so on;
+  - boosts are off in staked matches;
+  - cosmetics use Lagos Life Naira through `Vatar.purchase`.
+
+### The 20 settings (§7.5) against what's built
+
+| # | Setting | State |
+| --- | --- | --- |
+| 1 | Graphics quality | Built (`graphics`) |
+| 2–4 | Camera, vertical and horizontal sensitivity | Built (`sensH`, `sensV`) |
+| 5 | Invert Y | Built (`invertY`) |
+| 6–7 | Stick size and opacity | Built (Phase 4) |
+| 8 | Left/right hand | Built (`leftHanded`) |
+| 9–10 | Auto-sprint, toggle vs hold | Built as one "Sprint" setting (Phase 4) |
+| 11 | Voice chat volume | Not possible (no microphone). Show it greyed out, like the controls list. |
+| 12–13 | Music and SFX volume | Only on/off today (`music`, `sound`). Needs sliders, and `audio/sound.ts` needs gain per bus. |
+| 14 | Light/dark mode | Built (`lightMode`) |
+| 15 | Map size | Built (`mapSize`, the minimap) |
+| 16 | Language | English and Pidgin. Check it is in Settings. |
+| 17–18 | Notifications, friend requests | Not built |
+| 19 | Data saver | Not built |
+| 20 | Reset to default | Not built |
+
+### What exists today
+
+| Piece | Where |
+| --- | --- |
+| Pause sheet: resume, restart, settings, leave, close | `screens.pause()` |
+| Settings tabs | `screens.settings()`; handlers in `session.ts` (the "set" and "range" actions) |
+| Chat filter, mute, block, report | `social/filter.ts`, `ui/social.ts`; server `room.ts` (`GET /reports`) |
+| Shop | `shop/catalog.ts`, `shop/client.ts`; server `shop.ts` and `store.ts` |
+
+There are no CP boosts yet. The CP rule is: earned only by playing, boosts off in staked matches.
+
+## Phase 8: Performance and regression
+
+### What the spec asks for (§8, §9)
+
+- **Frame rate:** 30 fps or better on low-end phones (Tecno, Infinix); 60 fps on mid-range.
+- **Budgets, with 20 players:** under 100 draw calls and under 100K triangles.
+- **Size and speed:** under 5 s to the lobby; under 50 MB.
+- **Network:** offline and poor-connection play.
+- **Vatar SDK:** the §9 list. All of it is already wired, in `platform/lagoslife.ts` and the server's `vatar.ts`.
+- **Wrap-up:**
+  - every test passes;
+  - the three builds succeed: Lagos Life `dist/`, the EMILGO embed, and the server;
+  - the docs are updated;
+  - this handoff is updated.
+
+### Tools that already exist
+
+- `core/quality.ts`: an automatic quality governor.
+- `graphics/tiers.ts`: the Low, Medium and High tiers.
+- `dev/cdp.mjs`, run with `CPU_RATE=4` and `NET_KBPS` / `NET_RTT` to throttle CPU and network.
+- `npm run game:sim`.
+- The load test.
+- README §7 has the earlier measurements.
+
+### Not possible here
+
+A real phone. Only headless Chrome has run it so far. The owner needs to test on a Tecno or Infinix and an iPhone.
 
 ## Running and testing
 

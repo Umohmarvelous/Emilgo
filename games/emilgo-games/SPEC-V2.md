@@ -1,7 +1,8 @@
 # Red Light, Green Light v2: the finalized spec (17 Oct 2026)
 
 The owner's finalized specification (sections 1–11, pasted in chat on
-16 Oct 2026) is the rule book. Where it disagrees with [UPGRADE.md](UPGRADE.md),
+16 Oct 2026, saved word for word in [SPEC-ORIGINAL.md](SPEC-ORIGINAL.md)) is
+the rule book. Where it disagrees with [UPGRADE.md](UPGRADE.md),
 this file wins. Build strictly to it: nothing extra.
 
 ## Answers (owner, 17 Oct 2026)
