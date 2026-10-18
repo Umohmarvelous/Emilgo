@@ -40,6 +40,7 @@ import type { TierSpec } from "../graphics/tiers";
 import type { Collider } from "../world/camera";
 import { buildArena } from "../world/arena";
 import { Lasers } from "../world/lasers";
+import { TUNNEL, buildTunnel } from "../world/tunnel";
 import { atlasQuad, merge } from "../world/geo";
 import {
   brick,
@@ -481,6 +482,11 @@ export function buildWorld(id: string, skyState: SkyState | null, spec: TierSpec
   group.add(lasers.group);
   for (const p of lasers.pieces) casters.push({ mesh: p.mesh, z: p.z, within: 45 });
   disposables.push(lasers);
+  // The walkout's tunnel behind the start (SPEC-V2 §1.3).
+  const tunnel = buildTunnel(spec);
+  group.add(tunnel);
+  casters.push({ mesh: tunnel, z: TUNNEL.mouthZ + TUNNEL.depth / 2, within: 45 });
+  disposables.push({ dispose: () => (tunnel.material as Material).dispose() });
   const potholes = DRY.has(info.id) ? null : new Potholes(course, hash(info.id), { top: L.skyTop, horizon: L.skyHorizon, sunDir: L.sunDir, sunColor: L.sunColor, night: L.night }, spec.fancy);
   if (potholes) {
     group.add(potholes.group);

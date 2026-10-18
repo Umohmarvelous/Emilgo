@@ -170,8 +170,11 @@ games/emilgo-games/
     game/session.ts      everything wired together: rounds, online, matches, shop, social
     audio/songs.ts       the Mugunghwa chant as note data · audio/sound.ts the synthesiser
     world/human/*        generated people: wardrobe (+ match suit), skeleton, mesh (4 detail levels), painter, normal maps, animator, ground solver
-    world/lobbyStage.ts  the lobby set, squad room and winner's circle (with background blur)
-    world/*              original street, doll, crowd (one Human each, distance LOD), fx, camera, tex
+    flow/*               the match flow, for every game: machine (stages), waitingRoom (the circle),
+                         cinema (camera shots), walkout (tunnel walk + skip), countdown (5 → 1), tutorial (player)
+    rlgl/*               Red Light, Green Light's own flow parts: shots (field preview), tutorial (the script)
+    world/lobbyStage.ts  the lobby set, the waiting room's circle and winner's circle (with background blur)
+    world/*              original street, doll, crowd (one Human each, distance LOD), fx, camera, tex, tunnel (walkout)
     maps/*               24 maps: registry (5 sky states), kit, recipes, desert (the Desert Field's props),
                          world (light, fog, LOD, shadow casters), sky (2D or volumetric clouds), weather (rain),
                          potholes (puddles, splashes, the High mirror), birds
@@ -184,7 +187,7 @@ games/emilgo-games/
   server/
     src/index.ts         HTTP (/health, /metrics, /shop/*, /vatar-webhook, /reports) + WebSocket
     src/lobby.ts         quick match, private codes, Lagos Life match rooms
-    src/room.ts          one room: lobby → playing → ended; referee, snapshots, chat, results
+    src/room.ts          one room: waiting (ready marks) → 2 s loading → playing (walkout, countdown, round) → ended
     src/vatar.ts         the Lagos Life API: sessions, matches, SIGNED results, purchases
     src/shop.ts          claim → verify → grant once → deliver; signed look tickets
     src/store.ts         who owns what (SQLite; swap for Postgres when running many processes)

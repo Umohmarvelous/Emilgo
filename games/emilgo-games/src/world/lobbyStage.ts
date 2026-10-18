@@ -11,7 +11,8 @@
 // character, the ground under them and the air in front are drawn every frame.
 // The backdrop is redrawn only when the camera moves (zoom, a side panel).
 //
-// Modes: lobby (you), squad (your room standing around you), podium (the
+// Modes: lobby (you), squad (the waiting room: everyone in a circle, you at
+// the front; flow/waitingRoom.ts), podium (the
 // winner's circle: top three on numbered plinths under spotlights).
 
 import {
@@ -54,6 +55,7 @@ import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeom
 import type { TierSpec } from "../graphics/tiers";
 import { Human, type Look, type PoseId } from "./human";
 import type { EmoteId } from "../social/emotes";
+import { circleRadius, circleSpots } from "../flow/waitingRoom";
 import { bark, canvasTexture, danfoSkin, flagNg, foliage, frond, glow, mural, paving, plaster, tiled, wood, zinc } from "./tex";
 
 export type StageMode = "lobby" | "squad" | "podium";
@@ -66,27 +68,15 @@ interface Member {
   human: Human;
 }
 
-const SQUAD_SPOTS: [number, number, number][] = [
-  // x, z, facing (radians, 0 = toward the camera)
-  [-1.15, -0.6, 0.35],
-  [1.15, -0.55, -0.3],
-  [-2.1, -1.4, 0.45],
-  [2.15, -1.3, -0.45],
-  [-0.55, -1.7, 0.1],
-  [0.6, -1.9, -0.1],
-  [-3.0, -2.3, 0.5],
-  [3.0, -2.2, -0.55],
-  [-1.6, -2.8, 0.2],
-  [1.7, -2.9, -0.2],
-  [0, -3.2, 0],
-];
-
 export class LobbyStage {
   readonly scene = new Scene(); // what is drawn every frame
   private readonly back = new Scene(); // the set behind (blurred backdrop)
   readonly camera = new PerspectiveCamera(36, 1, 0.1, 400);
   private me: Human | null = null;
   private members: Member[] = [];
+  /** The waiting room's circle. */
+  private squadR = circleRadius(1);
+  private disc: Mesh | null = null;
   private podium: Human[] = [];
   private readonly podiumSet = new Group();
   private readonly streetSet = new Group();
@@ -301,11 +291,11 @@ export class LobbyStage {
     this.me?.emote(id);
   }
 
-  /** Room members (not you) standing around you. */
+  /** Room members (not you): the rest of the circle. */
   setSquad(list: { id: string; name: string; look: Look }[]): void {
     const keep = new Map(this.members.map((m) => [m.id, m]));
     const next: Member[] = [];
-    for (const p of list.slice(0, SQUAD_SPOTS.length)) {
+    for (const p of list.slice(0, 19)) {
       const old = keep.get(p.id);
       if (old && JSON.stringify(old.human.look) === JSON.stringify(p.look)) {
         next.push(old);
@@ -320,13 +310,23 @@ export class LobbyStage {
     }
     for (const m of keep.values()) m.human.dispose();
     this.members = next;
+    const spots = circleSpots(next.length + 1);
+    this.squadR = circleRadius(next.length + 1);
     this.members.forEach((m, i) => {
-      const [x, z, f] = SQUAD_SPOTS[i];
-      m.human.mesh.position.set(x, 0, z);
-      m.human.mesh.rotation.y = f;
-      // A few sit on their heels like the reference lobby.
-      if (i === 2 || i === 7) m.human.anim.stance = 1;
+      const s = spots[i + 1];
+      m.human.mesh.position.set(s.x, 0, s.z);
+      m.human.mesh.rotation.y = s.facing;
     });
+    this.placeDisc();
+    this.backDirty = true;
+  }
+
+  /** The pavers under the circle (or under you). */
+  private placeDisc(): void {
+    if (!this.disc) return;
+    const squad = this.mode === "squad";
+    this.disc.position.z = squad ? -this.squadR : 0;
+    this.disc.scale.setScalar(squad ? Math.max(1, (this.squadR + 1.6) / 4.2) : 1);
   }
 
   /** The winner's circle: up to three people, first in the middle. */
@@ -362,7 +362,8 @@ export class LobbyStage {
     for (const m of this.members) m.human.mesh.visible = mode === "squad";
     this.backDirty = true;
     this.yaw = 0;
-    this.zoom = mode === "squad" ? 0.72 : 1;
+    this.zoom = 1;
+    this.placeDisc();
   }
 
   setFraming(f: Framing): void {
@@ -451,9 +452,16 @@ export class LobbyStage {
     let lookY = 0.98;
     let side = 0;
     let lift = 0;
+    let high = 0.72;
+    let lookZ = 0;
     if (this.mode === "squad") {
-      dist = 6.2 / z;
-      lookY = 0.9;
+      // The whole circle in view, from a little above.
+      const r = this.squadR;
+      // A big circle from higher up, so the back row's name tags clear the front's.
+      dist = (3.2 + r * 2.5) / z;
+      high = 2.4 + r * (r > 2 ? 2 : 1.3);
+      lookY = 0.6;
+      lookZ = -r * 0.9;
     } else if (this.mode === "podium") {
       dist = 6.4;
       lookY = 1.25;
@@ -466,12 +474,12 @@ export class LobbyStage {
     if (portrait && this.mode !== "podium") {
       // Tall screen: the character stands in the clear band between the tabs
       // and the bottom stack, a little higher than centre.
-      dist *= 1.25;
+      dist *= this.mode === "squad" ? 1.7 : 1.25;
       lookY -= 0.5;
     }
     // Low angle: heroic.
-    this.wantPos.set(side, 0.72 + lift * 0.2, dist);
-    this.wantLook.set(side, lookY + lift, 0);
+    this.wantPos.set(side, high + lift * 0.2, dist);
+    this.wantLook.set(side, lookY + lift, lookZ);
     const k = 1 - Math.exp(-dt * 5);
     if (this.camPos.lengthSq() === 0) {
       this.camPos.copy(this.wantPos);
@@ -955,6 +963,7 @@ export class LobbyStage {
     disc.rotation.x = -Math.PI / 2;
     disc.position.y = 0.002;
     this.near.add(disc);
+    this.disc = disc;
     // A soft contact shadow under your feet (always, even without shadow maps).
     const contact = new Mesh(new CircleGeometry(0.55, 24), new MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35, map: canvasTexture("glow", 64, glow, false), depthWrite: false }));
     contact.rotation.x = -Math.PI / 2;

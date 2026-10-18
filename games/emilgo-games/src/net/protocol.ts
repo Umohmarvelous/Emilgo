@@ -26,7 +26,10 @@ export type ClientMsg =
   | { t: "quick"; mode?: Mode; dist?: Distance }
   | { t: "create"; size: number; mode?: Mode; dist?: Distance }
   | { t: "join"; code: string }
-  | { t: "start" }
+  /** Waiting room: I'm ready (or not any more). Everyone ready starts the 2 s loading. */
+  | { t: "ready"; on: boolean }
+  /** Walkout: skip to behind the players (counts once everyone is in the arena). */
+  | { t: "skip" }
   | { t: "leave" }
   /**
    * Stick in WORLD space, each axis −100…100; buttons b = sprint | stance << 1;
@@ -71,6 +74,8 @@ export interface RoomPlayer {
   away?: boolean;
   /** What they look like (already checked against what they own). */
   look?: WireLook;
+  /** Ticked ready in the waiting room. */
+  ready?: 1;
 }
 
 export interface RoomInfo {
@@ -79,11 +84,13 @@ export interface RoomInfo {
   /** Private rooms only. */
   code: string | null;
   size: number;
-  /** Who created a private room (can start early). */
+  /** Who created a private room. */
   owner: string | null;
   players: RoomPlayer[];
   /** Server time (ms) the round starts, or null while waiting. */
   startsAt: number | null;
+  /** Loading (the last FLOW.loading s before the start): the map is chosen, so phones build it now. */
+  map?: string;
   state: "lobby" | "playing" | "ended";
   /** Lagos Life matches: the stake per player, in the world's game money. */
   stake?: number;
@@ -107,6 +114,8 @@ export interface StartInfo {
   hw?: number;
   /** Ball Haunting: where each ball starts, [x, z] cm. */
   bp?: number[];
+  /** The walkout's length, ms (missing: none, the round opens on the countdown). */
+  wo?: number;
 }
 
 /** Round state for (re)joining mid-round: a full snapshot (balls included), plus outcomes. */
@@ -188,7 +197,6 @@ export type ErrorCode =
   | "started" // round already running
   | "rate" // too many messages
   | "busy" // server at capacity
-  | "not_owner" // only the creator can start early
   | "vatar_off" // Lagos Life matches aren't set up on this server
   | "verify" // Lagos Life didn't accept the session
   | "not_in_match" // the session's player isn't in that match
@@ -202,7 +210,6 @@ export const ERROR_TEXT: Record<ErrorCode, string> = {
   started: "That round has already started.",
   rate: "Easy! Too many taps. Try again small.",
   busy: "The server is busy. Try again in a moment.",
-  not_owner: "Only the person who made the room can start it early.",
   vatar_off: "Lagos Life matches aren't switched on for this game yet.",
   verify: "Lagos Life couldn't confirm who you are. Try again.",
   not_in_match: "You're not in that match.",
@@ -268,9 +275,11 @@ export function parseClient(raw: string): ClientMsg | null {
     }
     case "quick":
       return { t: "quick", mode: cleanMode(o.mode), dist: cleanDist(o.dist) };
-    case "start":
+    case "skip":
     case "leave":
       return { t: o.t };
+    case "ready":
+      return typeof o.on === "boolean" ? { t: "ready", on: o.on } : null;
     case "create": {
       const size = int(o.size, 0, 99);
       return size !== null && NET.privateSizes.includes(size) ? { t: "create", size, mode: cleanMode(o.mode), dist: cleanDist(o.dist) } : null;

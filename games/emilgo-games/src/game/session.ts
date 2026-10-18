@@ -14,17 +14,29 @@
 // doesn't wait for anyone.
 //
 // Two views: the LOBBY (lobbyStage: your character on a golden-hour street,
-// the squad room, the winner's circle) and the GAME (the map, the run).
+// the waiting room, the winner's circle) and the GAME (the map, the run).
+//
+// The match flow (SPEC-V2 §1; flow/machine.ts): Play menu → waiting room →
+// 2 s loading → walkout and field preview (flow/walkout.ts, rlgl/shots.ts) →
+// countdown 5 → 1 (flow/countdown.ts) → play → results. The tutorial
+// (flow/tutorial.ts, rlgl/tutorial.ts) plays a real round with a model.
 
 import { ACESFilmicToneMapping, OrthographicCamera, PCFShadowMap, PCFSoftShadowMap, SRGBColorSpace, WebGLRenderTarget, PerspectiveCamera, Scene, Vector2, Vector3, WebGLRenderer } from "three";
 
 import { Sound } from "../audio/sound";
-import { ATTACK, BALLS, DISTANCES, FIELD, MODES, MOVE, PRACTICE, RULES, courseFor, scoreFor, type AttackKind, type Course, type Distance, type Mode, type Stance } from "../config";
+import { ATTACK, BALLS, DISTANCES, FIELD, FLOW, MODES, MOVE, PRACTICE, RULES, courseFor, scoreFor, walkoutLength, type AttackKind, type Course, type Distance, type Mode, type Stance } from "../config";
 import { SONG_IDS, SONGS, type SongId } from "../audio/songs";
 import { Loop } from "../core/loop";
 import { QualityGovernor } from "../core/quality";
 import { Rng, randomSeed } from "../core/rng";
 import { Post } from "../graphics/post";
+import { frame as cinemaFrame } from "../flow/cinema";
+import { Countdown } from "../flow/countdown";
+import { MatchFlow } from "../flow/machine";
+import { TutorialPlayer } from "../flow/tutorial";
+import { Walkout, WalkoutButtons } from "../flow/walkout";
+import { behindShot, previewShots } from "../rlgl/shots";
+import { DEMO, TutorialScript, tutorialPeople, tutorialSteps } from "../rlgl/tutorial";
 import { tierSpec, type TierSpec } from "../graphics/tiers";
 import { REFLECT_LAYER } from "../maps/potholes";
 import { Controls } from "../input/controls";
@@ -115,8 +127,21 @@ export class Game {
   private shopBusy: string | null = null;
   private shopNote: string | null = null;
 
+  // The match flow
+  private readonly flow = new MatchFlow();
+  private readonly countdown: Countdown;
+  private readonly flowBtns: WalkoutButtons;
+  private readonly tutorial: TutorialPlayer;
+  private readonly shotFrame = cinemaFrame();
+  /** This round's walkout (null once the countdown starts). */
+  private walkout: Walkout | null = null;
+  /** The first time on a field (Solo): the tutorial button shows through the walkout and countdown. */
+  private offerTutorial = false;
+  /** The tutorial running: its script, where to go after, when to wrap up. */
+  private tut: { script: TutorialScript; after: "solo" | "menu"; wrapAt: number } | null = null;
+
   // Lobby state
-  private playMode: PlayMode = "practice";
+  private playMode: PlayMode = "new";
   private playError: string | null = null;
   private customizeTab = "outfit";
   private emoteSel: EmoteId | null = null;
@@ -242,6 +267,15 @@ export class Game {
     this.spectateBtn.textContent = "Next runner";
     this.spectateBtn.addEventListener("click", () => this.nextSpectate());
     ui.append(this.spectateBtn);
+    this.flowBtns = new WalkoutButtons(ui);
+    this.flowBtns.skipBtn.addEventListener("click", () => this.skipWalkout());
+    this.flowBtns.tutorialBtn.addEventListener("click", () => {
+      this.sound.ui();
+      this.startTutorial("solo");
+    });
+    this.tutorial = new TutorialPlayer(ui);
+    this.tutorial.onClose(() => this.endTutorial());
+    this.countdown = new Countdown(this.hud, (last) => this.sound.bassDrop(last));
     this.chat.onSend((text) => this.net?.send({ t: "chat", text }));
     this.chat.onAction((a) => {
       if (a.kind === "block") this.net?.send({ t: "block", id: a.seat });
@@ -354,8 +388,10 @@ export class Game {
   // ── Lobby ─────────────────────────────────────────────────────────────────
 
   private toLobby(): void {
+    if (this.tut) this.closeTutorial();
     this.leaveOnline();
     this.endRound();
+    this.flow.reset("lobby");
     this.paused = false;
     this.tryOn = null;
     this.returnAt = 0;
@@ -514,24 +550,27 @@ export class Game {
     this.spectateId = null;
     this.doll.setSinging(false);
     this.doll.setWatching(false);
+    this.walkout = null;
+    this.offerTutorial = false;
+    this.flowBtns.show(false, false);
+    this.countdown.clear();
     this.rig.firstPerson = false;
     this.crowd.hideMyHead = false;
     this.hud.setFirstPerson(false);
   }
 
+  /** Play Solo vs AI: a short loading card while the map is built, then the walkout. */
   private practice(): void {
-    if (!this.settings.tutorialSeen) {
-      this.settings.tutorialSeen = true;
-      saveSettings(this.host, this.settings);
-      this.frame("full");
-      this.screens.howto(true);
-      return;
-    }
-    this.startPractice();
+    this.leaveOnline();
+    this.flow.go("loading");
+    this.screens.loading();
+    // Let the card paint before the (blocking) build.
+    setTimeout(() => this.startPractice(), 40);
   }
 
   private startPractice(): void {
     this.leaveOnline();
+    this.flow.reset("loading");
     const seed = randomSeed();
     const rng = new Rng(seed ^ 0xa5a5a5a5);
     const people: { id: string; name: string; bot: boolean }[] = [{ id: ME, name: "You", bot: false }];
@@ -542,10 +581,14 @@ export class Game {
 
     const info = mapOf(this.settings.map);
     const course = courseFor(this.settings.mode, this.settings.distance, info.halfWidth ?? FIELD.halfWidth);
-    const round = new RedLightRound({ seed, contestants: people, featuredId: ME, course });
+    const round = new RedLightRound({ seed, contestants: people, featuredId: ME, course, walkout: walkoutLength(course.mode) });
     this.mode = "practice";
     this.meId = ME;
+    // The first time on a field: the tutorial button (SPEC-V2 §1.5).
+    const first = !this.settings.tutorialSeen;
+    if (first) this.settings.tutorialSeen = true;
     this.beginRound(round, rng, this.settings.map, this.skyPick, []);
+    this.offerTutorial = first;
     this.brains = people.slice(1).map((p, i) => new BotBrain(p.id, i, rng));
   }
 
@@ -556,6 +599,7 @@ export class Game {
     const me = this.seatId ?? net.id;
     const round = sync ? OnlineRound.fromSync(info as SyncInfo, me, net) : new OnlineRound(info, me, net);
     this.mode = "online";
+    this.flow.reset("loading");
     this.meId = me;
     // People you played with show up in Friends (names only).
     const at = Date.now();
@@ -583,7 +627,7 @@ export class Game {
 
     const mine = this.myLook();
     this.ownLooks = round.contestants.map((c, i) => {
-      if (i === meIndex) return mine;
+      if (i === meIndex && !this.tut) return mine;
       // Online: as the server says they look; practice: a believable stranger.
       if (this.mode === "online" && wire[i]) return fromWire(wire[i]);
       return randomLook(new Rng((rng.next() * 1e9) ^ (c.id.length * 77)));
@@ -591,7 +635,8 @@ export class Game {
     // On the field everyone wears the black suit with their seat number.
     this.looks = this.ownLooks.map((l, i) => uniformLook(l, i + 1));
     this.crowd.setup(this.looks, meIndex);
-    this.doll.setFacing(false);
+    // Through the walkout she faces the field (the close-up); she turns to the wall for the countdown.
+    this.doll.setFacing(round.phase === "walkout");
 
     this.my = "playing";
     this.paused = false;
@@ -603,15 +648,18 @@ export class Game {
     this.lastPhase = "";
 
     this.hud.reset(this.looks.map((l, i) => ({ accent: accentOf(l), me: i === meIndex })));
-    this.hud.show(true);
     this.hud.setOnline(this.mode === "online");
     this.screens.hide();
     this.controls.reset();
-    this.controls.enabled = true;
-    this.setActions(true);
-    this.touch.classList.add("live");
     const me = round.get(this.meId);
-    if (me) this.rig.follow(true, me);
+    if (round.phase === "walkout") {
+      // The walkout: pictures only, no HUD, no controls (SPEC-V2 §1.3).
+      this.startWalkout(round);
+    } else {
+      this.hud.show(true);
+      this.setLive(!this.tut);
+      if (me) this.rig.follow(true, me);
+    }
     this.rig.firstPerson = this.settings.firstPerson;
     this.crowd.hideMyHead = this.settings.firstPerson;
     this.hud.setFirstPerson(this.settings.firstPerson);
@@ -623,8 +671,86 @@ export class Game {
     this.board.show(false);
     this.quick.toggle(false);
 
-    this.settings.played++;
+    if (!this.tut) this.settings.played++;
     saveSettings(this.host, this.settings);
+  }
+
+  /** Controls on (or off) for play. */
+  private setLive(on: boolean): void {
+    this.controls.enabled = on;
+    this.setActions(on);
+    this.touch.classList.toggle("live", on);
+  }
+
+  // ── Walkout, countdown, tutorial (SPEC-V2 §1.3, §1.5) ────────────────────
+
+  private startWalkout(round: RoundView): void {
+    this.flow.go("walkout");
+    this.hud.show(false);
+    this.setLive(false);
+    const me = round.get(this.meId) ?? round.contestants[0];
+    const lasers = this.world?.lasers;
+    const preview = previewShots({
+      course: round.course,
+      balls: round.balls,
+      baskets: round.baskets,
+      towers: lasers?.spots ?? [],
+      dollFace: (out) => {
+        this.doll.eyes(_eyeL, _eyeR);
+        return out.addVectors(_eyeL, _eyeR).multiplyScalar(0.5);
+      },
+    });
+    this.walkout = new Walkout(round.contestants, preview, behindShot((p, l) => this.rig.restPose(me, p, l)));
+  }
+
+  /** Skip: your lens jumps behind the players; the referee starts the countdown when everyone has. */
+  private skipWalkout(): void {
+    const round = this.round;
+    const w = this.walkout;
+    if (!round || !w || round.phase !== "walkout" || !w.canSkip(round.phaseTime)) return;
+    this.sound.ui();
+    w.skip(round.phaseTime);
+    if (this.mode === "online") this.net?.send({ t: "skip" });
+    else if (round instanceof RedLightRound) round.skip(this.meId);
+  }
+
+  /** The tutorial: a real round on the short field, played by a model (rlgl/tutorial.ts). */
+  private startTutorial(after: "solo" | "menu"): void {
+    if (this.tut) return;
+    this.leaveOnline();
+    this.endRound();
+    const mode = this.settings.mode;
+    const info = mapOf(this.settings.map);
+    const course = courseFor(mode, 100, info.halfWidth ?? FIELD.halfWidth);
+    const seed = randomSeed();
+    const script = new TutorialScript(mode);
+    this.tut = { script, after, wrapAt: 0 };
+    this.settings.tutorialSeen = true;
+    const round = new RedLightRound({ seed, contestants: tutorialPeople(mode), featuredId: DEMO, course });
+    this.mode = "practice";
+    this.meId = DEMO;
+    this.flow.reset("play");
+    this.beginRound(round, new Rng(seed ^ 0xa5a5a5a5), this.settings.map, this.skyPick, []);
+    this.tutorial.start(mode === "balls" ? "Ball Haunting" : "Classic Run", tutorialSteps(mode), this.settings.sound);
+  }
+
+  private closeTutorial(): void {
+    this.tutorial.close();
+    this.tut = null;
+    this.meId = ME;
+  }
+
+  /** Closed or done: back where it was opened from (a Solo match starts fresh). */
+  private endTutorial(): void {
+    const after = this.tut?.after ?? "menu";
+    this.closeTutorial();
+    this.endRound();
+    if (after === "solo") {
+      this.startPractice();
+    } else {
+      this.toLobby();
+      this.showPlay();
+    }
   }
 
   /** Build the map's world (kept if the next round is on the same map). */
@@ -679,7 +805,10 @@ export class Game {
     if (this.paused && this.mode === "practice") return;
 
     this.controls.update();
-    if (this.my === "playing" && !this.paused) {
+    if (this.tut) {
+      // The model plays; your stick does nothing.
+      this.tut.script.think(round as RedLightRound);
+    } else if (this.my === "playing" && !this.paused) {
       const { x, y } = this.controls.move;
       const yaw = this.rig.yaw;
       // Stick is camera-relative: up = where the camera looks.
@@ -695,6 +824,15 @@ export class Game {
 
     for (const b of this.brains) b.think(round as RedLightRound, round.get(b.id)!);
     round.step(dt);
+    if (this.tut) {
+      // The model is over the line: a moment to see it, then the last step.
+      if (this.tut.script.done && !this.tut.wrapAt) this.tut.wrapAt = performance.now() + 2500;
+      if (this.tut.wrapAt && performance.now() >= this.tut.wrapAt) {
+        this.tutorial.show("end");
+        this.tutorial.finish();
+        this.tut.wrapAt = Infinity;
+      }
+    }
     const me = round.get(this.meId);
     if (me?.sprinting) this.sprintMetres += Math.hypot(me.vx, me.vz) * dt;
     // The song plays on under the hum.
@@ -703,6 +841,11 @@ export class Game {
   }
 
   private onEvent(e: RoundEvent): void {
+    if (this.tut) {
+      const step = this.tut.script.onEvent(e, this.round as RedLightRound);
+      if (step) this.tutorial.show(step);
+      if (step === "end") this.tutorial.finish();
+    }
     switch (e.type) {
       case "phase":
         this.onPhase(e.phase, e.duration);
@@ -766,9 +909,15 @@ export class Game {
     if (from === "watch" && playing) this.watchesSurvived++;
     switch (phase) {
       case "countdown":
-        this.doll.setFacing(false);
+        this.toCountdown(from === "walkout");
         break;
       case "sing":
+        if (from === "countdown") {
+          this.flow.go("play");
+          this.countdown.clear();
+          this.offerTutorial = false;
+          this.flowBtns.show(false, false);
+        }
         // After a fake hum the song never stopped: it just carries on.
         if (from === "hum") break;
         this.songBeat = 0;
@@ -800,12 +949,27 @@ export class Game {
     }
   }
 
+  /** The walkout is over (or there wasn't one): HUD and controls on, the lens behind you, Mama to the wall. */
+  private toCountdown(fromWalkout: boolean): void {
+    const round = this.round;
+    if (!round) return;
+    this.walkout = null;
+    this.flow.go("countdown");
+    if (fromWalkout) this.doll.face(false, 1.1);
+    else this.doll.setFacing(false);
+    this.hud.show(true);
+    this.setLive(!this.tut && this.my === "playing");
+    const me = round.get(this.meId);
+    if (me) this.rig.follow(true, me);
+    this.flowBtns.show(false, this.offerTutorial, true);
+  }
+
   private onCaught(id: string, cause: Cause): void {
     const round = this.round!;
     const c = round.get(id);
     const me = round.get(this.meId);
     if (!c || !me) return;
-    const isMe = id === this.meId;
+    const isMe = id === this.meId && !this.tut;
 
     this.crowd.chest(c, _chest);
     _away.set(c.x, 0, c.z - round.course.dollZ).normalize();
@@ -862,6 +1026,10 @@ export class Game {
     const c = round.get(id);
     if (!c) return;
     this.crowd.finish(c.index);
+    if (this.tut) {
+      this.hud.pushFeed(`${c.name} crossed`, "safe");
+      return;
+    }
     if (id === this.meId) {
       this.my = "safe";
       this.controls.enabled = false;
@@ -880,6 +1048,7 @@ export class Game {
   }
 
   private onEnded(): void {
+    this.flow.go("end");
     if (this.mode === "online" && this.room?.kind === "match" && (!this.vOutcome || this.vOutcome === MATCH_STILL_ON)) {
       this.setOutcome("Round over. Sending the result to Lagos Life…");
     }
@@ -891,7 +1060,7 @@ export class Game {
   }
 
   private record(outcome: "finished" | Cause): void {
-    if (this.recorded || !this.round) return;
+    if (this.recorded || !this.round || this.tut) return;
     const round = this.round;
     const me = round.get(this.meId)!;
     const finished = outcome === "finished";
@@ -949,6 +1118,7 @@ export class Game {
     this.hud.clearVerdict();
     this.hud.show(false);
     this.setActions(false);
+    this.flow.reset("post");
     const ranked = round.contestants
       .slice()
       .sort((a, b) => (a.status === "finished" && b.status === "finished" ? a.place - b.place : a.status === "finished" ? -1 : b.status === "finished" ? 1 : b.progress - a.progress))
@@ -1131,7 +1301,18 @@ export class Game {
         break;
       case "room":
         this.room = m.room;
+        if (m.room.state === "lobby" && !this.round) this.flow.go(m.room.map ? "loading" : "waiting");
         if (this.screens.name === "room" || this.screens.name === "friends") this.showRoom();
+        // Loading: the server has picked the map — build it now, under the loading bar.
+        if (m.room.map && m.room.state === "lobby" && !this.round) {
+          const r = m.room;
+          const map = r.map!;
+          setTimeout(() => {
+            if (this.room !== r || this.round) return;
+            this.ensureWorld(map, null, courseFor(r.mode, r.dist, mapOf(map).halfWidth ?? FIELD.halfWidth));
+            this.warmUp();
+          }, 60);
+        }
         break;
       case "start":
         this.startOnline(m.start, false);
@@ -1151,7 +1332,9 @@ export class Game {
         if (this.screens.name === "room") this.showRoom();
         else {
           this.playError = this.onlineError;
-          this.showPlay();
+          // Only over the Play menu: a background check (the friends counts)
+          // never pulls the menu over the lobby or a Solo round.
+          if (this.screens.name === "play") this.showPlay();
         }
         break;
       default:
@@ -1249,6 +1432,12 @@ export class Game {
     if (!round) return;
     const list = round.contestants;
 
+    if (round.phase === "walkout" && this.walkout) {
+      this.renderWalkout(round, frameDt, vdt);
+      this.quality.sample(frameDt * 1000, performance.now() - workStart, this.loop.targetMs);
+      return;
+    }
+
     this.crowd.update(vdt, list, this.camera.position);
     for (const c of list) this.crowd.setCarry(c.index, c.ball >= 0 && c.status !== "eliminated");
     if (round.balls.length) this.props.update(vdt, round.balls, (h, out) => this.crowd.hands(h, out));
@@ -1291,6 +1480,23 @@ export class Game {
     this.quality.sample(frameDt * 1000, performance.now() - workStart, this.loop.targetMs);
   }
 
+  /** The walkout: the walkers on their paths, the lens on the reel, the skip and tutorial buttons. */
+  private renderWalkout(round: RoundView, frameDt: number, vdt: number): void {
+    const w = this.walkout!;
+    const t = round.phaseTime;
+    if (t >= FLOW.walk) this.flow.go("preview");
+    w.update(t, this.shotFrame);
+    this.crowd.update(vdt, w.walk.walkers, this.camera.position);
+    if (round.balls.length) this.props.update(vdt, round.balls, (h, out) => this.crowd.hands(h, out));
+    this.doll.update(vdt);
+    this.rig.shot(this.shotFrame.pos, this.shotFrame.look, this.shotFrame.fov);
+    this.rig.update(frameDt, null);
+    this.world?.update(frameDt, this.shotFrame.look, this.camera.position);
+    this.world?.lasers.update(frameDt, false, round.contestants);
+    this.flowBtns.show(w.canSkip(t) && !this.paused, this.offerTutorial && !this.paused);
+    this.draw();
+  }
+
   /** The game view: the puddles' mirror and the post-processing on High, a plain draw otherwise. */
   private draw(): void {
     if (this.spec.fancy) {
@@ -1326,7 +1532,7 @@ export class Game {
     this.hud.setAlive(inPlay, list.length);
     this.hud.setDistance(me.progress / round.course.distance);
     // Fist, slap and push with someone in reach; grab with a free ball in reach.
-    if (this.my === "playing" && !this.paused) this.controls.setNear(canAttack(me) && !!attackTarget(me, round.contestants, ATTACK.range), this.canGrab(round, me));
+    if (this.my === "playing" && !this.paused && !this.tut) this.controls.setNear(canAttack(me) && !!attackTarget(me, round.contestants, ATTACK.range), this.canGrab(round, me));
     else this.controls.setNear(false, false);
     this.controls.setStamina(me.stamina, me.sprinting);
     const watching = round.phase === "watch" || round.phase === "turning";
@@ -1336,11 +1542,7 @@ export class Game {
     this.board.update(round.contestants, this.meId, round.course.distance, (c) => this.label(c));
     if (this.mode === "online" && this.net) this.hud.setPing(this.net.rtt);
 
-    if (round.phase === "countdown") {
-      const left = round.phaseDuration - round.phaseTime;
-      const n = Math.ceil(left);
-      if (this.hud.setCountdown(n, left - Math.floor(left))) this.sound.countdown(n <= 0);
-    }
+    if (round.phase === "countdown") this.countdown.update(round.phaseDuration - round.phaseTime);
 
     if (this.my === "playing" && this.controls.moving) {
       // Footsteps for you only: a quiet rhythm that stops when you stop.
@@ -1508,6 +1710,7 @@ export class Game {
   }
 
   private label(c: Contestant): string {
+    if (this.tut) return c.name;
     return c.bot ? `${c.name} · CPU` : c.id === this.meId ? "You" : c.name;
   }
 
@@ -1541,7 +1744,7 @@ export class Game {
     if (!this.paused) return;
     this.paused = false;
     this.screens.hide();
-    this.controls.enabled = this.my === "playing";
+    this.controls.enabled = this.my === "playing" && !this.tut && !this.walkout;
     if (!this.hostPaused) {
       this.sound.resume();
       this.loop.start();
@@ -1566,6 +1769,7 @@ export class Game {
 
   private back(): void {
     const s = this.screens.name;
+    if (this.tut && !s) return this.endTutorial();
     if (this.round && !this.paused && !s) this.pause();
     else if (s === "pause") this.resume();
     else if (s === "settings") this.action(this.settingsFrom === "pause" ? "pause-menu" : "back", document.body);
@@ -1774,13 +1978,13 @@ export class Game {
         break;
       case "again":
       case "restart":
+        if (this.tut) this.closeTutorial();
         this.paused = false;
         this.sound.resume();
         this.startPractice();
         break;
-      case "howto":
-        this.frame("full");
-        this.screens.howto(false);
+      case "tutorial":
+        this.startTutorial("menu");
         break;
       case "back":
         if (this.round && this.paused) this.screens.pause(this.host, this.mode === "online");
@@ -1900,8 +2104,8 @@ export class Game {
         });
         break;
       }
-      case "start-now":
-        this.net?.send({ t: "start" });
+      case "ready":
+        this.net?.send({ t: "ready", on: d.on === "1" });
         break;
       case "room":
         this.endRound();
@@ -1969,18 +2173,15 @@ export class Game {
   /** START on the play screen. */
   private go(): void {
     switch (this.playMode) {
-      case "practice":
+      case "solo":
         this.practice();
         break;
-      case "quick":
+      case "new":
         this.action("quick", document.body);
         break;
-      case "private":
+      case "friends":
         this.friendsTab = "invite";
         this.showFriends();
-        break;
-      case "join":
-        this.action("join", document.body);
         break;
       case "lagos":
         this.vError = null;

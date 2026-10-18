@@ -6,7 +6,7 @@
 // came from outside (a player's display name) goes through esc() — never raw
 // into innerHTML. Text is white or black; nothing is bigger than 16px; no emoji.
 
-import { DISTANCES, MODES, MODE_NAME, NET, STAKED, TIME_LIMIT, ballCount } from "../config";
+import { DISTANCES, FLOW, MODES, MODE_NAME, NET, PRACTICE, STAKED, TIME_LIMIT, ballCount } from "../config";
 import { CONTROLS, RLGL_CONTROLS, unusedReason } from "../input/actions";
 import type { ChallengeDef } from "../game/progress";
 import { CATEGORIES, MAPS, SKY_LABEL, SKY_STATES, mapOf, thumbSvg, type MapCategory, type SkyState } from "../maps/registry";
@@ -65,7 +65,8 @@ export function payoutOf(stake: number, players: number): number {
 /** ready: a server is configured · offline: no network · unavailable: no server in this build. */
 export type OnlineAvailability = "ready" | "offline" | "unavailable";
 
-export type PlayMode = "practice" | "quick" | "private" | "join" | "lagos";
+/** The Play menu (SPEC-V2 §1.1): Invite Friends, Play with New People, Play Solo vs AI; and staked Lagos Life matches. */
+export type PlayMode = "friends" | "new" | "solo" | "lagos";
 export type LobbyTab = "lobby" | "loadout" | "store" | "friends" | "clan" | "board";
 
 export interface LobbyState {
@@ -84,10 +85,9 @@ export interface LobbyState {
 type Action = (name: string, el: HTMLElement, ev: Event) => void;
 
 const MODE_INFO: Record<PlayMode, { name: string; sub: string; icon: string }> = {
-  practice: { name: "Practice", sub: "11 CPU players · works offline", icon: "target" },
-  quick: { name: "Quick match", sub: `Up to ${NET.crowdMax} real people`, icon: "bolt" },
-  private: { name: "Private room", sub: "Make a room, share the code", icon: "lock" },
-  join: { name: "Join with code", sub: "Six letters from a friend", icon: "invite" },
+  friends: { name: "Invite Friends", sub: "Make a room and share its code, or join one", icon: "invite" },
+  new: { name: "Play with New People", sub: `Matched with up to ${NET.crowdMax} players`, icon: "people" },
+  solo: { name: "Play Solo vs AI", sub: `Practice with ${PRACTICE.bots} CPU players · works offline`, icon: "target" },
   lagos: { name: "Lagos Life match", sub: "2–4 players · optional stakes", icon: "trophy" },
 };
 
@@ -179,7 +179,7 @@ export class Screens {
       </div>
       ${tabsHtml("lobby")}
       <div class="lb-tr">
-        <button class="ibtn" data-act="howto" aria-label="How to play">${icon("help")}</button>
+        <button class="ibtn" data-act="tutorial" aria-label="Tutorial">${icon("help")}</button>
 
         <button class="ibtn" data-act="settings" aria-label="Settings">${icon("gear", "ico-spin")}</button>
         ${exit}
@@ -212,7 +212,7 @@ export class Screens {
         <button class="act" data-act="customize">${icon("customize")}<span>Customize</span></button>
         <button class="act" data-act="emotes">${icon("emote")}<span>Emotes</span></button>
         <button class="act" data-act="invite" ${s.online !== "ready" ? "disabled" : ""}>${icon("invite")}<span>Invite</span></button>
-        <button class="act play" data-act="start"  "ico-pulse")}<span>Play</span></button>
+        <button class="act play" data-act="start">${icon("play", "ico-pulse")}<span>Play</span></button>
       </div>`,
       "lobby",
     );
@@ -479,21 +479,21 @@ export class Screens {
 
   play(s: { mode: PlayMode; settings: Settings; online: OnlineAvailability; lagosLife: boolean; error: string | null; connecting: boolean; sky: SkyState }): void {
     const map = mapOf(s.settings.map);
-    const off = (m: PlayMode) => (m === "practice" ? false : m === "lagos" ? !s.lagosLife || s.online !== "ready" : s.online !== "ready");
+    const off = (m: PlayMode) => (m === "solo" ? false : m === "lagos" ? !s.lagosLife || s.online !== "ready" : s.online !== "ready");
     const modes = (Object.keys(MODE_INFO) as PlayMode[])
       .filter((m) => m !== "lagos" || s.lagosLife)
       .map((m) => {
         const i = MODE_INFO[m];
-        const tag = m === "practice" ? "Offline" : m === "lagos" ? "Stakes" : "Online";
-        return `<button class="md ${s.mode === m ? "on" : ""}" style="top: calc(var(--safe-t) + var(--gap) + 100px); " data-act="pick-mode" data-mode="${m}" ${off(m) ? "disabled" : ""}>${icon(i.icon, "", 20)}<span class="grow"><b>${i.name}</b><small>${off(m) && s.online !== "ready" ? (s.online === "offline" ? "You're offline" : "Coming soon in this build") : i.sub}</small></span><span class="tag">${tag}</span></button>`;
+        const tag = m === "solo" ? "Practice" : m === "lagos" ? "Stakes" : "Online";
+        return `<button class="md ${s.mode === m ? "on" : ""}" data-act="pick-mode" data-mode="${m}" ${off(m) ? "disabled" : ""}>${icon(i.icon, "", 20)}<span class="grow"><b>${i.name}</b><small>${off(m) && s.online !== "ready" ? (s.online === "offline" ? "You're offline" : "Coming soon in this build") : i.sub}</small></span><span class="tag">${tag}</span></button>`;
       })
       .join("");
-    const practice = s.mode === "practice";
+    const practice = s.mode === "solo";
     const staked = s.mode === "lagos";
     const skies = SKY_STATES.map((k) => `<button class="${k === s.sky ? "on" : ""}" data-act="sky" data-s="${k}">${SKY_LABEL[k]}</button>`).join("");
     const forced = s.settings.lightMode !== "auto";
     const join =
-      s.mode === "join"
+      s.mode === "friends" && !off("friends")
         ? `<form class="join" style="margin-top:8px"><input name="code" maxlength="${NET.codeLength}" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="CODE" aria-label="Room code" /><button class="btn secondary" type="button" data-act="join">Join</button></form>`
         : "";
     const node = this.mount(
@@ -521,7 +521,7 @@ export class Screens {
             <span class="small">${s.settings.mode === "balls" ? "Grab a ball and carry it over the line. Fewer balls than players." : "Reach the line. Survive."} ${TIME_LIMIT[s.settings.distance]} s.</span>`}
           </div>
         </div>
-        <div class="start"><button class="btn primary" data-act="go" ${off(s.mode) || s.connecting ? "disabled" : ""}>Start</button></div>
+        <div class="start"><button class="btn secondary" data-act="tutorial">${icon("help", "", 16)}Tutorial</button><button class="btn primary" data-act="go" ${off(s.mode) || s.connecting ? "disabled" : ""}>${s.mode === "friends" ? "Make a room" : "Start"}</button></div>
       </div>`,
       "dim",
     );
@@ -599,29 +599,12 @@ export class Screens {
         <div class="row-set"><span class="lbl"><b>Rounds played</b></span><span class="num">${s.played}</span></div>
         <div class="row-set"><span class="lbl"><b>Lines crossed</b></span><span class="num">${s.wins}</span></div>
         <div class="row-set"><span class="lbl"><b>Best score</b></span><span class="num">${s.best}</span></div>
-        <div class="row-set"><span class="lbl"><b>How to play</b></span><button class="btn secondary" style="height:30px" data-act="howto">Open</button></div>`;
+        <div class="row-set"><span class="lbl"><b>Tutorial</b><small>Watch a round played, every rule explained</small></span><button class="btn secondary" style="height:30px" data-act="tutorial">Play</button></div>`;
     }
     this.sheet("settings", "Settings", body, { tabs, side: "wide", back: from === "pause" ? "pause-menu" : "back" });
   }
 
   // ── How to play ────────────────────────────────────────────────────────────
-
-  howto(firstTime: boolean): void {
-    const step = (ico: string, title: string, text: string) => `<li class="li">${icon(ico, "", 22)}<span class="grow"><b>${title}</b><small>${text}</small></span></li>`;
-    this.sheet(
-      "howto",
-      "How to play",
-      `<ul class="list">
-        ${step("play", "Mama sings: waka", "Push the left side to move. A small push walks, a full push runs. Sprint while your stamina lasts.")}
-        ${step("eye", "She turns: freeze", "Let go. Anyone still moving once she's looking is out. Jumping or crouching counts as moving.")}
-        ${step("flag", "Cross the line", `${TIME_LIMIT[100]} s for 100 m, ${TIME_LIMIT[200]} s for 200 m, ${TIME_LIMIT[300]} s for 300 m. Walking all the way won't make it: you'll have to run.`)}
-        ${step("people", "Ball Haunting", "Grab a ball and carry it over the line. There are fewer balls than players. Fist, slap or push someone close to knock theirs loose, but never while she's looking.")}
-        ${step("music", "The song never warns you", "She can stop after two words or deep in the second verse. Sometimes she stops and doesn't turn. Watch her, not the beat.")}
-        ${step("swap", "Look around", "Drag the right side to look. The eye button switches to first person.")}
-      </ul>`,
-      { side: "wide", foot: `<span class="grow"></span><button class="btn primary" data-act="${firstTime ? "go" : "back"}" autofocus>${firstTime ? "Oya, let's go" : "Got it"}</button>` },
-    );
-  }
 
   // ── Pause ──────────────────────────────────────────────────────────────────
 
@@ -710,6 +693,11 @@ export class Screens {
 
   // ── Online: the squad room ─────────────────────────────────────────────────
 
+  /** Solo: a moment while the map is built. */
+  loading(): void {
+    this.mount("loading", `<div class="sq-status glass sq-loading" style="bottom:50%"><span>Loading</span><i class="sq-load busy"><b></b></i></div>`);
+  }
+
   /** A short holding card while the server answers. */
   waiting(text: string): void {
     this.mount(
@@ -719,30 +707,42 @@ export class Screens {
     );
   }
 
+  /**
+   * The waiting room (SPEC-V2 §1.2) over the 3D circle: name tags with ready
+   * marks, the ready button, text chat (the chat button), and the 2 s loading
+   * once everyone is ready.
+   */
   room(room: RoomInfo, meId: string, serverNow: number, error: string | null): void {
-    const owner = room.owner === meId;
     const n = room.players.length;
-    const waitingFor = Math.max(0, Math.min(room.size, 2) - n);
-    const canStart = room.kind === "private" && owner && n >= 2 && room.state === "lobby" && room.startsAt === null;
-    const title = room.kind === "quick" ? "Quick match" : room.kind === "match" ? "Lagos Life match" : "Private room";
+    const ready = room.players.filter((p) => p.ready).length;
+    const me = room.players.find((p) => p.id === meId);
+    const loading = !!room.map && room.state === "lobby";
+    const canReady = room.kind !== "match" && room.state === "lobby" && !loading;
+    const title = room.kind === "quick" ? "Play with New People" : room.kind === "match" ? "Lagos Life match" : "Invite Friends";
     this.mount(
       "room",
       `<div class="sq-head">
-         <span class="label">${room.kind === "match" && room.stake ? `${naira(room.stake)} each` : "Public lobby"}</span>
+         <span class="label">${room.kind === "match" && room.stake ? `${naira(room.stake)} each` : `${MODE_NAME[room.mode]} · ${room.dist} m`}</span>
          <span class="h">${title}</span>
          ${room.code && room.kind !== "match" ? `<div style="display:flex;gap:6px;align-items:center"><span class="code" style="padding:6px 10px;font-size:14px">${esc(room.code)}</span><button class="ibtn glass" data-act="copy-code" aria-label="Copy code">${icon("copy", "", 18)}</button></div>` : ""}
        </div>
        <div class="sq-right">
          <span class="sq-count glass" style="padding:4px 10px">${n}/${room.size}</span>
-         <span class="sq-next" data-next>${this.nextText(room, serverNow)}</span>
+         ${room.kind !== "match" ? `<span class="sq-ready">${icon("check", "", 14)}<b>${ready}/${n}</b> ready</span>` : ""}
        </div>
        <div class="tags" data-tags>${room.players
-         .map((p) => `<span class="ntag ${p.id === meId ? "me" : ""} ${p.id === room.owner ? "host" : ""} ${p.away ? "away" : ""}" data-tag="${esc(p.id)}" style="left:-999px">${esc(p.name)}</span>`)
+         .map((p) => `<span class="ntag ${p.id === meId ? "me" : ""} ${p.ready ? "ready" : ""} ${p.away ? "away" : ""}" data-tag="${esc(p.id)}" style="left:-999px">${p.ready ? icon("check", "rd", 12) : ""}${esc(p.name)}</span>`)
          .join("")}</div>
-       ${error ? `<div class="sq-status glass status error" role="alert">${esc(error)}</div>` : `<div class="sq-status glass" data-starts="${room.startsAt ?? ""}">${this.roomStatus(room, serverNow, waitingFor, owner)}</div>`}
+       ${
+         error
+           ? `<div class="sq-status glass status error" role="alert">${esc(error)}</div>`
+           : loading
+             ? `<div class="sq-status glass sq-loading" data-starts="${room.startsAt ?? ""}" data-loading="1"><span>Loading</span><i class="sq-load"><b data-load></b></i></div>`
+             : `<div class="sq-status glass" data-starts="${room.startsAt ?? ""}">${this.roomStatus(room, serverNow, !!me?.ready)}</div>`
+       }
        <div class="sq-bar glass">
          <button class="btn secondary" data-act="leave-room">${icon("exit", "", 16)}Leave</button>
-         ${canStart ? `<button class="btn primary" data-act="start-now">${icon("play", "", 16)}Start now · ${n}</button>` : ""}
+         ${canReady ? `<button class="btn ${me?.ready ? "secondary" : "primary"}" data-act="ready" data-on="${me?.ready ? "0" : "1"}">${icon("check", "", 16)}${me?.ready ? "Not ready" : "Ready"}</button>` : ""}
        </div>`,
     );
   }
@@ -756,26 +756,23 @@ export class Screens {
     }
   }
 
-  private nextText(room: RoomInfo, serverNow: number): string {
-    if (!room.startsAt) return room.state === "playing" ? "Round in progress" : "Waiting";
-    const s = Math.max(0, Math.ceil((room.startsAt - serverNow) / 1000));
-    return `Next match <b>${String(s).padStart(2, "0")}</b>`;
-  }
-
-  /** Called every frame while the room is showing: updates the countdown text only. */
+  /** Called every frame while the room is showing: the countdown text, or the loading bar. */
   tickRoom(serverNow: number): void {
     const el = this.root.querySelector<HTMLElement>("[data-starts]");
     const at = Number(el?.dataset.starts);
     if (!el || !at) return;
+    if (el.dataset.loading) {
+      const bar = el.querySelector<HTMLElement>("[data-load]");
+      const left = Math.max(0, at - serverNow) / (FLOW.loading * 1000);
+      if (bar) bar.style.width = `${Math.round((1 - Math.min(1, left)) * 100)}%`;
+      return;
+    }
     const s = Math.max(0, Math.ceil((at - serverNow) / 1000));
-    const text = s > 0 ? `Starting in ${s}s…` : "Here we go";
+    const text = s > 0 ? `Starting in ${s}s, or when everyone's ready` : "Here we go";
     if (el.textContent !== text) el.textContent = text;
-    const next = this.root.querySelector<HTMLElement>("[data-next]");
-    const t = `Next match <b>${String(s).padStart(2, "0")}</b>`;
-    if (next && next.innerHTML !== t) next.innerHTML = t;
   }
 
-  private roomStatus(room: RoomInfo, serverNow: number, waitingFor: number, owner: boolean): string {
+  private roomStatus(room: RoomInfo, serverNow: number, meReady: boolean): string {
     if (room.kind === "match") {
       if (room.state !== "lobby") return "Here we go";
       if (room.startsAt) {
@@ -787,17 +784,12 @@ export class Screens {
     }
     if (room.state === "playing") return "A round is running. You'll join the next one.";
     if (room.state === "ended") return "Round over. Back in a moment…";
+    if (room.players.length < 2) return room.kind === "private" ? "Share the code. It starts when everyone's ready." : "Waiting for more players…";
     if (room.startsAt) {
       const s = Math.max(0, Math.ceil((room.startsAt - serverNow) / 1000));
-      return s > 0 ? `Starting in ${s}s…` : "Here we go";
+      return s > 0 ? `Starting in ${s}s, or when everyone's ready` : "Here we go";
     }
-    if (waitingFor > 0) return `Waiting for ${waitingFor === 1 ? "one more person" : `${waitingFor} more people`}…`;
-    if (room.kind === "private") {
-      const full = room.players.length >= room.size;
-      if (owner) return full ? "Everyone's here. Start when you're ready." : `Waiting for friends (${room.players.length}/${room.size}), or start now.`;
-      return full ? "Everyone's here. Waiting for the host…" : `Waiting for friends (${room.players.length}/${room.size}) or the host…`;
-    }
-    return "Waiting for more players…";
+    return meReady ? "Waiting for everyone to be ready…" : "Tap Ready. It starts when everyone's ready.";
   }
 
   // ── Lagos Life matches ─────────────────────────────────────────────────────

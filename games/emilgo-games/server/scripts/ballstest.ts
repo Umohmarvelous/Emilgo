@@ -21,7 +21,7 @@ import { existsSync, readFileSync } from "node:fs";
 
 import WebSocket from "ws";
 
-import { BALLS, NET, ballCount } from "../../src/config";
+import { BALLS, FLOW, NET, ballCount, walkoutLength } from "../../src/config";
 import { BALL_STRIDE, OUTCOME_STRIDE, SNAP_STRIDE, phaseAt, type ServerMsg, type SnapMsg, type StartInfo } from "../../src/net/protocol";
 
 const GAME = process.env.GAME ?? "ws://localhost:8787";
@@ -51,6 +51,8 @@ interface Client {
   me: number;
   /** Where each ball is, as this phone knows it (start, then drop events). */
   balls: { x: number; z: number; holder: number }[];
+  /** When the start arrived (ms, this machine). */
+  startedAt: number;
   a: number;
   g: number;
 }
@@ -58,7 +60,7 @@ interface Client {
 function connect(role: Role, resume?: string, reuse?: Client): Promise<Client> {
   return new Promise((resolve) => {
     const ws = new WebSocket(GAME);
-    const c: Client = reuse ?? { role, ws, id: "", token: "", code: null, start: null, snaps: [], events: [], sync: null, room: null, phase: "", me: -1, balls: [], a: 0, g: 0 };
+    const c: Client = reuse ?? { role, ws, id: "", token: "", code: null, start: null, snaps: [], events: [], sync: null, room: null, phase: "", me: -1, balls: [], startedAt: 0, a: 0, g: 0 };
     c.ws = ws;
     ws.on("open", () => ws.send(JSON.stringify({ t: "hello", v: NET.protocol, name: role, ...(resume ? { resume } : {}) })));
     ws.on("message", (d) => {
@@ -78,6 +80,7 @@ function connect(role: Role, resume?: string, reuse?: Client): Promise<Client> {
           break;
         case "start":
           c.start = m.start;
+          c.startedAt = Date.now();
           c.me = m.start.roster.findIndex((r) => r.id === c.id);
           c.balls = [];
           for (let i = 0; i + 1 < (m.start.bp ?? []).length; i += 2) c.balls.push({ x: m.start.bp![i] / 100, z: m.start.bp![i + 1] / 100, holder: -1 });
@@ -154,16 +157,91 @@ async function main(): Promise<void> {
   send(B, { t: "join", code });
   if (C) send(C, { t: "join", code });
 
-  console.log("room:");
-  for (let i = 0; i < 100 && !A.start; i++) await sleep(100);
+  console.log("waiting room:");
+  await sleep(600);
+  if (C) {
+    check(A.room?.state === "lobby" && A.room.players.length === 3 && A.room.startsAt === null, "a full room waits until everyone's ready");
+    send(A, { t: "ready", on: true });
+    send(B, { t: "ready", on: true });
+    await sleep(400);
+    check(A.room?.players.filter((p) => p.ready).length === 2 && A.room.startsAt === null, "two of three ready: still waiting");
+    send(B, { t: "ready", on: false });
+    await sleep(300);
+    check(A.room?.players.filter((p) => p.ready).length === 1, "B unticks: one ready");
+    send(B, { t: "ready", on: true });
+    send(C, { t: "ready", on: true });
+  } else {
+    send(A, { t: "ready", on: true });
+    send(B, { t: "ready", on: true });
+  }
+  for (let i = 0; i < 600 && !A.room?.map && !A.start; i++) await sleep(50);
+  const loadingMap = A.room?.map;
+  const loadingAt = Date.now();
+  if (C) {
+    // A second room of 4 with two in: once both are ready and it's loading, the door is shut.
+    const D = await connect("statue");
+    const E = await connect("statue");
+    const F = await connect("statue");
+    send(D, { t: "create", size: 4, mode: "classic", dist: 100 });
+    for (let i = 0; i < 50 && !D.code; i++) await sleep(100);
+    send(E, { t: "join", code: D.code });
+    await sleep(300);
+    send(D, { t: "ready", on: true });
+    send(E, { t: "ready", on: true });
+    for (let i = 0; i < 20 && !D.room?.map; i++) await sleep(100);
+    let refused = "";
+    F.ws.on("message", (d) => {
+      const m = JSON.parse(d.toString()) as ServerMsg;
+      if (m.t === "err") refused = m.code;
+    });
+    send(F, { t: "join", code: D.code });
+    await sleep(300);
+    check(refused === "started" && !D.room?.players.some((p) => p.id === F.id), `nobody can join once loading has begun (${refused || "joined"})`);
+    for (const c of [D, E, F]) c.ws.close();
+  }
+
+  for (let i = 0; i < 200 && !A.start; i++) await sleep(50);
+  const loadingFor = (A.startedAt - loadingAt) / 1000;
+  check(!!loadingMap && !!A.start && loadingFor > FLOW.loading - 0.4, `everyone ready: the map (${loadingMap}) announced, then ${loadingFor.toFixed(1)} s loading`);
+
+  console.log("\nroom:");
   check(!!A.room && A.room.mode === "balls" && A.room.dist === 100, `the room plays ${A.room?.mode} at ${A.room?.dist} m`);
   const st = A.start;
   check(!!st && st.mode === "balls" && st.dist === 100, "the start says Ball Haunting, 100 m");
   check(!!st && (st.bp?.length ?? 0) === ballCount(3) * 2, `${ballCount(3)} balls for 3 players, positions in the start`);
+  check(!!st && st.map === loadingMap, "the round is on the map announced at loading");
   if (!st) {
     console.log("\nno round started");
     process.exit(1);
   }
+
+  console.log("\nwalkout:");
+  const wo = walkoutLength("balls");
+  for (let i = 0; i < 20 && !A.phase; i++) await sleep(50);
+  check(st.wo === Math.round(wo * 1000) && A.phase === "walkout", `the round opens on the walkout (${wo.toFixed(1)} s)`);
+  for (const c of [A, B, C]) if (c) send(c, { t: "skip" });
+  await sleep(400);
+  check(A.phase === "walkout", "a skip before everyone has walked in is ignored");
+  while (Date.now() < A.startedAt + FLOW.walk * 1000 + 300) await sleep(50);
+  send(A, { t: "skip" });
+  send(B, { t: "skip" });
+  await sleep(400);
+  if (C) {
+    check(A.phase === "walkout", "two of three skipped: the walkout goes on");
+    send(C, { t: "skip" });
+    await sleep(400);
+  } else {
+    // The browser player skips (or watches) on their own.
+    for (let i = 0; i < wo * 10 && A.phase === "walkout"; i++) await sleep(100);
+  }
+  const into = (Date.now() - A.startedAt) / 1000;
+  check(A.phase === "countdown" && (!C || into < wo - 5), `everyone skipped: the countdown starts at ${into.toFixed(1)} s, not ${wo.toFixed(1)} s`);
+  const p0 = pos(A, A.me);
+  send(A, { t: "in", x: 0, z: -100, a: 0, g: 0 });
+  await sleep(600);
+  const p1 = pos(A, A.me);
+  still(A);
+  check(!!p0 && !!p1 && Math.abs(p1.z - p0.z) < 0.01, "nobody moves in the countdown");
 
   // Wait for the song.
   for (let i = 0; i < 100 && A.phase !== "sing"; i++) await sleep(100);
@@ -174,7 +252,8 @@ async function main(): Promise<void> {
   const t0 = Date.now();
   while (Date.now() - t0 < 30_000 && !(grabbed >= 0 && pushed && A.events.some((e) => e.k === "drp"))) {
     await sleep(1000 / NET.inputHz);
-    const singing = A.phase === "sing" || A.phase === "turningBack";
+    // Safe to move: the song (the hum under it too) and her turn back to the wall.
+    const singing = A.phase === "sing" || A.phase === "hum" || A.phase === "turningBack";
     if (!singing) {
       still(A);
       still(B);
@@ -224,6 +303,7 @@ async function main(): Promise<void> {
   still(A);
   still(B);
   await sleep(400);
+  if (process.env.DEBUG) console.log(A.events.map((e) => e.k + (e.k === "ph" ? ":" + phaseAt(e.ph) : "") + (e.k === "atk" ? JSON.stringify(e) : "")).join(" "), { grabbed, pushed, me: A.me, b: B.me });
 
   const grb = A.events.findIndex((e) => e.k === "grb" && e.i === A.me);
   const atk = A.events.findIndex((e) => e.k === "atk" && e.i === B.me);

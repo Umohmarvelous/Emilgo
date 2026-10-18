@@ -14,7 +14,7 @@
 import { ATTACK, ATTACK_KINDS, FIELD, MOVE, NET, RULES, courseFor, type Course } from "../config";
 import type { Stance } from "../config";
 import { placeBaskets, type Ball, type Basket } from "../game/balls";
-import { freshMotion, moveContestant, type Contestant, type Phase, type RoundEvent, type RoundView } from "../game/rules";
+import { freshMotion, moveContestant, prePlay, type Contestant, type Phase, type RoundEvent, type RoundView } from "../game/rules";
 import type { NetClient } from "./client";
 import { BALL_STRIDE, CAUSES, OUTCOME_STRIDE, SNAP_STRIDE, cleanDist, cleanMode, phaseAt, unpackFlags, type ServerMsg, type SnapMsg, type StartInfo, type SyncInfo } from "./protocol";
 
@@ -84,6 +84,11 @@ export class OnlineRound implements RoundView {
       return c;
     });
     this.me = this.byId.get(myId) ?? null;
+    // Rounds open on the walkout (its "ph" event follows within a tick).
+    if (start.wo) {
+      this.phase = "walkout";
+      this.phaseDuration = start.wo / 1000;
+    }
     this.off = net.on((m) => this.receive(m));
   }
 
@@ -159,11 +164,11 @@ export class OnlineRound implements RoundView {
   step(dt: number): void {
     if (this.phase !== "ended") {
       this.phaseTime += dt;
-      if (this.phase !== "countdown") this.elapsed += dt;
+      if (!prePlay(this.phase)) this.elapsed += dt;
     }
 
     const me = this.me;
-    if (me && me.status !== "eliminated" && this.phase !== "countdown") {
+    if (me && me.status !== "eliminated" && !prePlay(this.phase)) {
       // Disconnected, the server holds you still — so the screen does too.
       // Your stick comes back to life when the connection does.
       if (this.net.state !== "open") me.inX = me.inZ = 0;

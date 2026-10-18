@@ -228,8 +228,11 @@ function handle(peer: Peer, msg: ClientMsg): void {
     case "join":
       sendErr(peer, lobby.join(peer, msg.code));
       break;
-    case "start":
-      if (room) sendErr(peer, room.requestStart(peer));
+    case "ready":
+      room?.setReady(peer, msg.on);
+      break;
+    case "skip":
+      room?.skip(peer);
       break;
     case "leave":
       lobby.leave(peer);

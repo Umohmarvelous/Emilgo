@@ -21,7 +21,7 @@
 import { createHash, createHmac } from "node:crypto";
 import WebSocket from "ws";
 
-import { NET } from "../../src/config";
+import { FLOW, NET } from "../../src/config";
 import { BALLS } from "../../src/config";
 import { SNAP_STRIDE, phaseAt, type ServerMsg } from "../../src/net/protocol";
 import { signResult } from "../src/vatar";
@@ -109,6 +109,8 @@ function gameClient(
       } else if (m.t === "seat") seat = m.id;
       else if (m.t === "start") {
         me = m.start.roster.findIndex((r) => r.id === seat);
+        // Both skip the walkout once they're in the arena.
+        if (m.start.wo) setTimeout(() => ws.readyState === 1 && ws.send(JSON.stringify({ t: "skip" })), FLOW.walk * 1000 + 400);
         const bp = m.start.bp ?? [];
         if (bp.length >= 2) ball = { x: bp[0] / 100, z: bp[1] / 100 };
       } else if (m.t === "snap" && me >= 0) {

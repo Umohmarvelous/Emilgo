@@ -468,9 +468,16 @@ export class Sound {
 
 
 
-  countdown(final: boolean): void {
+  /**
+   * The countdown's bass drop, one per number (SPEC-V2 §1.3): a sub that
+   * falls away under a soft thump. The last number (1) drops deepest.
+   */
+  bassDrop(last: boolean): void {
     const t = this.now;
-    this.tone(final ? 988 : 660, t, final ? 0.32 : 0.14, { type: "square", gain: 0.12 });
+    const len = last ? 1.3 : 0.85;
+    this.tone(last ? 110 : 130, t, len, { type: "sine", gain: 0.75, to: last ? 30 : 40, attack: 0.008 });
+    this.tone(last ? 55 : 65, t, len * 0.9, { type: "triangle", gain: 0.3, to: 28, attack: 0.01 });
+    this.noise(t, 0.09, { gain: 0.32, freq: 220, type: "lowpass" });
   }
 
   step(): void {

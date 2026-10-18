@@ -46,6 +46,11 @@ Change any of these by saying so.
 | Controls RLGL doesn't use (reload, grenade, ability) | In the controls list, hidden in RLGL. | Future games. |
 | Language | English and Pidgin. | Same as the EMILGO app. |
 | "Fill with CPU" online | Removed. CPUs only in Solo. | §8. |
+| Starting a room (Phase 5) | **Invite Friends** (a private room): it loads when everyone in it, two or more, has tapped Ready. The old "Start now" button is gone; after a round everyone is un-ready again, so nobody is pulled into a round they didn't ask for. **Play with New People**: the same, but it also loads when 20 are in, or 60 s after the second person arrives, ready or not. **Lagos Life match**: no Ready button; being there is being ready (the stakes are in). It loads when everyone in the match has arrived, or after 30 s. | Strangers can't hold a public room hostage; friends wait for each other. |
+| The 2 s loading | When the room loads, the server picks the map first and tells every phone, which builds it under a loading bar. Nobody can join during those 2 s. Solo shows a short loading card instead. | §1.2; the map is ready when the walkout starts. |
+| Walkout length | 9 s of walk (front, side, behind, overhead), then the preview: 4 sweeps of 1.6 s, Mama 2.4 s, the balls 1.1 s and baskets 1.1 s (Ball Haunting only), the lasers 2.2 s, back behind the players 1.4 s. 21.4 s in all for Classic Run, 23.6 s for Ball Haunting. Skip shows after the 9 s walk. Mama faces the field for her close-up and turns back to the wall as the countdown starts. | Every phone cuts on the same clock (the referee's walkout phase). |
+| Play menu (§1.1) | Invite Friends (make a room and share its code, or join one with a code), Play with New People, Play Solo vs AI, plus Lagos Life match where the platform allows it. The old Private room and Join with code are both inside Invite Friends. Mode, distance and map are picked on the same screen. | §1.1's three choices; staked matches have their own path. |
+| Tutorial (§1.5) | Offered with a button through the walkout and countdown of your first Solo match, and always from the Play menu, the lobby's help button and Settings. A real round on the short field (100 m) in the mode you picked, with three scripted people: Ada (the model) keeps every rule, Tunde runs through her first stare and is caught, and in Ball Haunting Bisi slaps Ada's ball loose. Steps light up as they happen, with captions; the phone's own voice reads them when sound is on. The old "How to play" sheet is gone. | Every step is sure to happen (tested on 30 seeds per mode). |
 | Mode of a staked match | Every staked Lagos Life match is **Ball Haunting, 200 m, 80 s**, with one ball fewer than players (1 for 2, 2 for 3, 3 for 4). The match screens say so before anyone stakes. One line to change (`STAKED` in `src/config.ts`). | Lagos Life's match API carries only stake and seats: there is no way to agree a mode, so all staked matches must play the same one. The owner's answer asked for scaled balls in staked matches. |
 | Attack details (spec gives none) | Range 2 m. Fist: knocks you back 1 m, stuns 0.8 s, 1.6 s cooldown. Slap: 0.35 m, 0.35 s, 0.8 s. Push: 2.4 m, 0.25 s, 1.2 s. Every hit knocks a held ball loose. Sprinting into someone shoves them 1.4 m (once a second per pair). Grabbing takes 0.35 s, and counts as moving while she watches. | A fist is the big hit, a slap the quick one, a push moves people furthest. |
 | A ball's holder caught by the doll | The ball drops where they fall, free for anyone. When every ball is in a basket, everyone still on the field is out ("no ball left") and the round ends. | Nobody can win without a ball, so there's nothing left to wait for. |
@@ -206,6 +211,52 @@ Each phase ends tested and waits for the owner's go-ahead.
    - Every test, the three builds, the docs, the handoff.
 
 ## Status
+
+### Phase 5: Match flow (done 18 Oct 2026)
+
+| Check | Result |
+| --- | --- |
+| Solo, start to finish, in headless Chrome | Play menu → loading → walkout (all four angles) → field preview (4 sweeps, Mama, the balls, the baskets, the lasers) → behind the players → countdown 5 → 1 → play |
+| Online, the browser and 5 scripted players (and 19 in a room) | the waiting room's circle with ready marks, Ready, the 2 s loading bar, the walkout on the announced map, skip (after the walk) → the countdown for everyone at once |
+| Layout, landscape 844×390 and portrait 390×844, right- and left-handed | nothing overlaps (the tutorial button moves to the top centre once the controls show) |
+| Cost during the walkout, 20 people | High: 67 draw calls and 97K triangles at the worst moment (behind the players, everyone close). Low: 53 and 62K |
+| Tests | rules 81/81 (13 new: the walkout, skips, countdown; 2 new: the tutorial shows every step and the model crosses, 30 seeds per mode) · balls test now also checks ready marks, the loading, the door shutting, the walkout and skips: all passed · match, shop all passed · fairness 7/7 · load 600 clients: 0 failures, tick p99 6.8 ms, 6.4 KB/s |
+| Builds | Lagos Life `dist/` 277 KB JS gzipped; EMILGO embed 1,206 KB. **Protocol 7**: the Docker server on :8787 must be rebuilt |
+
+Built:
+- **The flow** (`flow/machine.ts`): lobby → Play menu → waiting room →
+  loading → walkout → preview → countdown → play → end → results. Written for
+  every game; a late server message can't drag the screen backwards.
+- **Play menu** (`ui/screens.ts`): Invite Friends, Play with New People, Play
+  Solo vs AI (and Lagos Life match); mode, distance and map on the same
+  screen; the Tutorial button by Start.
+- **Waiting room** (`flow/waitingRoom.ts`, `world/lobbyStage.ts`):
+  everyone's model in their own outfit, standing in a circle with you at the
+  front; the camera rises and pulls back as the circle grows (checked with
+  6 and 19, both orientations). Name tags carry a ready tick;
+  the count of ready players top right; Ready / Not ready and Leave at the
+  bottom; text chat as before. Everyone ready: the 2 s loading bar while the
+  map is built.
+- **Referee and server, protocol 7**: a new first phase, `walkout`, in which
+  nobody moves and the clock doesn't run. Skips count only after the walk,
+  and when everyone still connected has skipped, the countdown starts for all
+  (CPUs never hold it up). The countdown is 5 s. New messages `ready` and
+  `skip`; `start` is gone.
+- **Walkout** (`flow/walkout.ts`, `flow/cinema.ts`, `world/tunnel.ts`): a
+  plain concrete tunnel behind the start (about 300 triangles) and a walkway
+  to the start line. The players file out in the black suits, two or four
+  abreast, each to the place the referee gave them, filmed from the front,
+  the side, behind and overhead. No name tags, flags, crowd sounds or lights.
+- **Field preview** (`rlgl/shots.ts`): four sweeps, Mama close up, the balls
+  where they lie and the baskets past the line (Ball Haunting), the laser
+  guns, then down behind the players, exactly where the game camera starts.
+- **Skip**: a skip button bottom right once everyone is in the arena; your
+  lens jumps behind the players and waits there.
+- **Countdown** (`flow/countdown.ts`): 5 → 1, big in the centre, no words,
+  each number on a synthesised bass drop, the last one deepest.
+- **Tutorial** (`flow/tutorial.ts`, `rlgl/tutorial.ts`): see Decisions.
+- Fixed on the way: an error from a background check (the friends counts)
+  no longer pulls the Play menu over the lobby or a Solo round.
 
 ### The hum and no automatic fights (17 Oct 2026, between Phases 2 and 3)
 

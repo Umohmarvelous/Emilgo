@@ -169,7 +169,8 @@ export interface SingBands {
 // rule that keeps it fair: nobody is ever caught until she has visibly turned
 // to face them, plus a short grace.
 export const RULES = {
-  countdown: 3,
+  /** 5 → 1 in the centre, each number a bass drop (SPEC-V2 §1.3). */
+  countdown: 5,
   timeLimit: 45,
   /** The opening song: long enough to get going, never the same length twice. */
   firstSing: { bands: [[1.6, 3], [3, 6]], weights: [0.5, 0.5] } satisfies SingBands,
@@ -200,6 +201,32 @@ export const RULES = {
   tolerance: 0.2, // m/s
 } as const;
 
+/**
+ * The match flow before play (SPEC-V2 §1.2–1.3), seconds. The referee holds
+ * everyone still through the walkout, so its length is part of the rules:
+ * server and phones must agree on it.
+ */
+export const FLOW = {
+  /** Waiting room → walkout: everyone ready, then this long loading. */
+  loading: 2,
+  /** From the tunnel to their places, filmed from the front, side, behind and overhead. The skip button shows after this. */
+  walk: 9,
+  /** The field preview: four sweeps … */
+  sweep: 1.6,
+  sweeps: 4,
+  /** … Mama close up, the balls and baskets (Ball Haunting only), the laser guns … */
+  doll: 2.4,
+  balls: 2.2,
+  lasers: 2.2,
+  /** … then back behind the players. */
+  behind: 1.4,
+} as const;
+
+/** How long the walkout and field preview last for this mode (the countdown follows). */
+export function walkoutLength(mode: Mode): number {
+  return FLOW.walk + FLOW.sweep * FLOW.sweeps + FLOW.doll + (mode === "balls" ? FLOW.balls : 0) + FLOW.lasers + FLOW.behind;
+}
+
 export const PRACTICE = {
   /** Solo vs AI: a full field of 20 (SPEC-V2 §2.5). */
   bots: 19,
@@ -208,12 +235,14 @@ export const PRACTICE = {
 /** Online play. Server and client both read these. */
 export const NET = {
   /**
-   * 6: the slide (a flag in snapshots). 5: the warning hum (phase 2 is "hum",
+   * 7: the match flow — ready marks and a 2 s loading in the room, the
+   * walkout (phase 0, skippable once everyone is in the arena), a 5 s
+   * countdown. 6: the slide (a flag in snapshots). 5: the warning hum (phase 2 is "hum",
    * 3 s, sometimes fake); no automatic shoves. (4: modes and distances, balls
    * and baskets, fist / slap / push, rooms of 20. 3: jump, crouch, prone,
    * sprint, the map, rich looks.)
    */
-  protocol: 6,
+  protocol: 7,
   tickHz: 60,
   /** Server → client state broadcasts per second. */
   snapshotHz: 15,

@@ -12,6 +12,7 @@
 //   follow     third person behind a contestant (you, or whoever you spectate)
 //   first      first person, from the eyes
 //   cinematic  swing round to a catch, with shake
+//   shot       placed by the match flow's cinema (walkout, field preview, tutorial)
 
 import { PerspectiveCamera, Vector3 } from "three";
 
@@ -67,7 +68,7 @@ export class CameraRig {
   readonly eye = new Vector3();
   eyeValid = false;
 
-  private mode: "lobby" | "follow" | "cinematic" = "lobby";
+  private mode: "lobby" | "follow" | "cinematic" | "shot" = "lobby";
   private readonly pos = new Vector3(0, 6, 16);
   private readonly look = new Vector3(0, 2, -30);
   private readonly wantPos = new Vector3();
@@ -90,8 +91,31 @@ export class CameraRig {
     camera.lookAt(this.look);
   }
 
-  get current(): "lobby" | "follow" | "cinematic" {
+  get current(): "lobby" | "follow" | "cinematic" | "shot" {
     return this.mode;
+  }
+
+  /**
+   * Where follow() would put the lens behind `target` from a fresh start
+   * (behind, level, looking up the field), and its field of view. The
+   * walkout's last shot lands here, so the countdown starts without a jump.
+   */
+  restPose(target: Follow, pos: Vector3, look: Vector3): number {
+    this.yaw = this.viewYaw = 0;
+    this.pitch = this.viewPitch = 0.12;
+    this.dist = DIST;
+    this.computeFollow(target, 1);
+    pos.copy(this.wantPos);
+    look.copy(this.wantLook);
+    return this.baseFov;
+  }
+
+  /** A cinema frame: the lens exactly here, looking there (a cut, no smoothing). */
+  shot(pos: Vector3, look: Vector3, fov: number): void {
+    this.mode = "shot";
+    this.pos.copy(pos);
+    this.look.copy(look);
+    this.fov = fov;
   }
 
   lobby(): void {
@@ -174,6 +198,8 @@ export class CameraRig {
         this.pos.lerp(this.wantPos, 1 - Math.exp(-dt * 18));
         this.look.copy(this.wantLook);
       }
+    } else if (this.mode === "shot") {
+      wantFov = this.fov;
     } else if (this.mode === "cinematic") {
       this.cineT += dt;
       const t = Math.min(1, this.cineT / 0.6);

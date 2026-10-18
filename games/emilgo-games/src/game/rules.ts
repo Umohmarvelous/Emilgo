@@ -6,6 +6,12 @@
 // client uses `moveContestant` from it to predict its own runner. Two copies of
 // the rules would drift.
 //
+// Before play: walkout → countdown. Nobody moves through either. The walkout
+// (SPEC-V2 §1.3) is the cinematic walk from the tunnel and the field preview;
+// it ends early once every person has tapped skip (allowed only after the walk,
+// FLOW.walk), else after walkoutLength(mode). Rounds made without it (tests,
+// the tutorial) start at the countdown.
+//
 // The cycle:   countdown → sing → hum → (sing → hum)* → turning → watch → turningBack → sing → …
 //   sing         doll faces the wall, song plays. Move freely. She cuts it anywhere.
 //   hum          3 s of humming under the song: the warning. Still safe to move.
@@ -23,12 +29,12 @@
 // just a bump. While she watches, an attacker is shot and the one they hit is
 // forgiven.
 
-import { ATTACK, ATTACK_KINDS, BALLS, DEFAULT_COURSE, FIELD, MOVE, RULES, ballCount, type AttackKind, type Course, type SingBands, type Stance } from "../config";
+import { ATTACK, ATTACK_KINDS, BALLS, DEFAULT_COURSE, FIELD, FLOW, MOVE, RULES, ballCount, type AttackKind, type Course, type SingBands, type Stance } from "../config";
 import { Rng } from "../core/rng";
 import { inPlay, nearestBasket, placeBalls, placeBaskets, type Ball, type Basket } from "./balls";
 import { attackTarget, canAttack, knock, type ActKind } from "./combat";
 
-export type Phase = "countdown" | "sing" | "hum" | "turning" | "watch" | "turningBack" | "ended";
+export type Phase = "walkout" | "countdown" | "sing" | "hum" | "turning" | "watch" | "turningBack" | "ended";
 export type Status = "alive" | "finished" | "eliminated";
 /** moved: caught by the doll; time: the clock ran out; noball: every ball was banked without yours. */
 export type Cause = "moved" | "time" | "noball";
@@ -124,7 +130,12 @@ export interface RoundView {
   drain(): RoundEvent[];
 }
 
-export const PHASES: readonly Phase[] = ["countdown", "sing", "hum", "turning", "watch", "turningBack", "ended"];
+export const PHASES: readonly Phase[] = ["walkout", "countdown", "sing", "hum", "turning", "watch", "turningBack", "ended"];
+
+/** Before play: nobody moves and the clock doesn't run. */
+export function prePlay(p: Phase): boolean {
+  return p === "walkout" || p === "countdown";
+}
 
 /**
  * Phases whose length is a secret. The referee knows it; nobody else is told —
@@ -313,13 +324,15 @@ export interface RoundOptions {
   featuredId?: string;
   /** Mode, distance, time and width (default: Classic Run, 200 m). */
   course?: Course;
+  /** Seconds of walkout before the countdown (walkoutLength(mode)); 0 or missing: none. */
+  walkout?: number;
 }
 
 export class RedLightRound implements RoundView {
   phase: Phase = "countdown";
   phaseTime = 0;
   phaseDuration: number = RULES.countdown;
-  /** Seconds of play, excluding the countdown. */
+  /** Seconds of play, excluding the walkout and countdown. */
   elapsed = 0;
   /** Completed sing phases. */
   cycle = 0;
@@ -334,6 +347,8 @@ export class RedLightRound implements RoundView {
   private events: RoundEvent[] = [];
   private finishedCount = 0;
   private turns = 0;
+  /** People who tapped skip during the walkout (CPUs never hold it up). */
+  private readonly skipped = new Set<string>();
 
   constructor(opts: RoundOptions) {
     this.seed = opts.seed;
@@ -397,7 +412,29 @@ export class RedLightRound implements RoundView {
     this.balls = this.course.mode === "balls" ? placeBalls(this.course, ballCount(n), ballRng) : [];
     this.baskets = this.course.mode === "balls" ? placeBaskets(this.course) : [];
 
-    this.events.push({ type: "phase", phase: "countdown", duration: RULES.countdown });
+    const walkout = opts.walkout ?? 0;
+    if (walkout > 0) {
+      this.phase = "walkout";
+      this.phaseDuration = walkout;
+    }
+    this.events.push({ type: "phase", phase: this.phase, duration: this.phaseDuration });
+  }
+
+  /**
+   * Skip the rest of the walkout. Counts only once everyone has walked into
+   * the arena (FLOW.walk); when every person has skipped, the countdown starts.
+   */
+  skip(id: string): void {
+    if (this.phase !== "walkout" || this.phaseTime < FLOW.walk || !this.byId.has(id)) return;
+    this.skipped.add(id);
+    for (const c of this.contestants) if (!c.bot && !this.skipped.has(c.id)) return;
+    this.phaseTime = 0;
+    this.enter("countdown", RULES.countdown);
+  }
+
+  /** Has this person skipped the walkout? */
+  hasSkipped(id: string): boolean {
+    return this.skipped.has(id);
   }
 
   /** Read through a getter: TypeScript can't see that advance() changes `phase`. */
@@ -461,7 +498,7 @@ export class RedLightRound implements RoundView {
 
     this.phaseTime += dt;
 
-    if (this.phase !== "countdown") {
+    if (!prePlay(this.phase)) {
       this.elapsed += dt;
       this.integrate(dt);
       this.detect();
@@ -482,7 +519,7 @@ export class RedLightRound implements RoundView {
       this.advance();
     }
 
-    if (!this.over && this.phase !== "countdown" && this.aliveCount === 0) {
+    if (!this.over && !prePlay(this.phase) && this.aliveCount === 0) {
       this.enter("ended", 0);
       this.events.push({ type: "ended" });
     }
@@ -492,6 +529,9 @@ export class RedLightRound implements RoundView {
 
   private advance(): void {
     switch (this.phase) {
+      case "walkout":
+        this.enter("countdown", RULES.countdown);
+        break;
       case "countdown":
         this.enter("sing", this.singLength(RULES.firstSing));
         break;

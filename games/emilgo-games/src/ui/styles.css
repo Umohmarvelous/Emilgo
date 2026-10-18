@@ -528,7 +528,7 @@ input { font: inherit; color: inherit; }
 .bigmap canvas { display: block; border-radius: 6px; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25); }
 
 /* Centre: the countdown (numbers only), the verdict, the first-person dot. */
-.bigcount { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); font: 700 56px/1 var(--num); text-shadow: 0 0 4px #000, 0 2px 8px rgba(0, 0, 0, 0.6); pointer-events: none; opacity: 0; }
+.bigcount { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); font: 800 min(26vh, 132px)/1 var(--head); text-shadow: 0 0 4px #000, 0 2px 8px rgba(0, 0, 0, 0.6); pointer-events: none; opacity: 0; }
 .bigcount.pulse { animation: countpulse 0.9s ease-out forwards; }
 @keyframes countpulse { 0% { opacity: 0; transform: translate(-50%, -50%) scale(1.5); } 15% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); } }
 
@@ -693,3 +693,58 @@ input { font: inherit; color: inherit; }
   .minfo .clock.urgent, .ico-pulse, .ico-bob { animation: none; }
   .sheet, .screen { animation: none; }
 }
+
+/* ── Match flow (SPEC-V2 §1): waiting room, loading, walkout, tutorial ── */
+.ntag .rd { color: var(--green-hi); flex: none; }
+.ntag.ready { box-shadow: inset 0 0 0 1px var(--green-hi); }
+.sq-ready { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--dim); }
+.sq-ready b { font: 500 13px var(--num); color: var(--white); }
+.sq-ready .ico { color: var(--green-hi); }
+.sq-loading { display: flex; align-items: center; gap: 10px; font: 700 12px var(--head); letter-spacing: 0.2em; text-transform: uppercase; }
+.sq-load { position: relative; width: 140px; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.sq-load b { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--green-hi); transition: width 0.1s linear; }
+.sq-load.busy b { width: 40%; animation: loadbusy 0.9s ease-in-out infinite alternate; }
+@keyframes loadbusy { from { left: 0; } to { left: 60%; } }
+
+.flow-btn { position: absolute; z-index: 20; display: none; align-items: center; gap: 6px; height: 40px; padding: 0 14px; border-radius: 20px; pointer-events: auto;
+  font: 700 12px var(--head); letter-spacing: 0.12em; text-transform: uppercase; color: var(--white); border: 1px solid var(--line); }
+.flow-btn.visible { display: inline-flex; animation: flowin 0.3s ease-out; }
+.flow-skip { right: calc(var(--safe-r) + var(--gap) + 4px); bottom: calc(var(--safe-b) + var(--gap) + 8px); width: 52px; justify-content: center; padding: 0; }
+.flow-tutorial { left: calc(var(--safe-l) + var(--gap) + 4px); bottom: calc(var(--safe-b) + var(--gap) + 8px); }
+@keyframes flowin { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+/* Once the HUD and controls are up (the countdown): top centre, under the compass, clear of every control. */
+.flow-tutorial.up { left: 0; right: 0; width: max-content; margin: 0 auto; bottom: auto; top: calc(var(--safe-t) + 52px); }
+@media (orientation: portrait) { .flow-tutorial.up { top: calc(var(--safe-t) + 178px); } }
+
+.tut { position: absolute; inset: 0; z-index: 25; display: none; pointer-events: none; }
+.tut.visible { display: block; }
+.tut-head { position: absolute; left: calc(var(--safe-l) + var(--gap)); top: calc(var(--safe-t) + var(--gap) + 116px); display: flex; flex-direction: column; gap: 0; }
+.tut-head b { font: 800 14px var(--head); }
+.tut-steps { position: absolute; left: calc(var(--safe-l) + var(--gap)); top: calc(var(--safe-t) + var(--gap) + 150px); margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; counter-reset: st; }
+.tut-steps li { counter-increment: st; display: flex; align-items: center; gap: 6px; padding: 2px 8px 2px 3px; border-radius: 4px; font: 600 10px var(--body); color: var(--faint); background: rgba(0, 0, 0, 0.35); transition: color 0.2s, background 0.2s; }
+.tut-steps li::before { content: counter(st); display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; font: 700 9px var(--num); background: var(--line); color: var(--white); }
+.tut-steps li.done { color: var(--dim); }
+.tut-steps li.done::before { content: "✓"; background: var(--green); }
+.tut-steps li.on { color: var(--white); background: rgba(0, 135, 81, 0.75); }
+.tut-steps li.on::before { background: var(--yellow); color: var(--black); }
+.tut-cap { position: absolute; left: 50%; bottom: calc(var(--safe-b) + 28px); transform: translateX(-50%); width: min(500px, calc(100% - 2 * var(--gap) - 16px)); padding: 10px 14px; border-radius: var(--radius);
+  background: var(--glass-2); display: flex; flex-direction: column; gap: 3px; text-align: center; opacity: 0; }
+.tut-cap b { font: 800 15px var(--head); color: var(--yellow); }
+.tut-cap span { font: 500 13px/1.35 var(--body); }
+.tut-cap.in { animation: capin 0.35s ease-out forwards; }
+@keyframes capin { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+.tut-close { position: absolute; right: calc(var(--safe-r) + var(--gap)); top: calc(var(--safe-t) + var(--gap) + 150px); pointer-events: auto; }
+.tut-done { position: absolute; left: 50%; bottom: calc(var(--safe-b) + 130px); transform: translateX(-50%); display: none; pointer-events: auto; }
+.tut.finished .tut-done { display: inline-flex; }
+.tut-hi { outline: 2px solid var(--yellow); outline-offset: 4px; border-radius: 6px; animation: tuthi 1s ease-in-out infinite alternate; }
+@keyframes tuthi { from { outline-color: rgba(255, 215, 0, 1); } to { outline-color: rgba(255, 215, 0, 0.3); } }
+@media (orientation: portrait) {
+  .tut-head { top: calc(var(--safe-t) + var(--gap) + 190px); }
+  .tut-steps { top: calc(var(--safe-t) + var(--gap) + 232px); }
+  .tut-close { top: calc(var(--safe-t) + var(--gap) + 230px); }
+}
+.playscreen .start { display: flex; gap: 8px; }
+.playscreen .games { grid-column: 1; grid-row: 2; }
+.playscreen .modes { grid-column: 2; grid-row: 2 / 4; justify-content: center; gap: 8px; }
+@media (orientation: portrait), (max-width: 700px) { .playscreen .games, .playscreen .modes { grid-column: 1; grid-row: auto; } .playscreen .modes { justify-content: flex-start; } .md { width: auto; } }
+.playscreen .start .btn.secondary { flex: 0 0 auto; width: auto; font-size: 11px; gap: 4px; }

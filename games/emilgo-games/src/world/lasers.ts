@@ -63,6 +63,8 @@ export class Lasers {
   /** The towers in 50 m pieces (so only nearby ones need to cast shadows), and where each stands. */
   readonly pieces: { mesh: Mesh; z: number }[] = [];
   private readonly turrets: Turret[] = [];
+  /** Where each tower stands (the field preview films them). */
+  readonly spots: { x: number; z: number }[] = [];
   private heads: InstancedMesh | null = null;
   private time = 0;
   private readonly mats: Material[] = [];
@@ -70,7 +72,7 @@ export class Lasers {
   /** Build for this course (call each round's world). At night each tower shows a red beacon. */
   constructor(course: Course, spec: TierSpec, night = false) {
     const sides = [-1, 1];
-    const spots: { x: number; z: number }[] = [];
+    const spots = this.spots;
     const x = course.halfWidth + 2.6;
     for (let z = -12; z > course.finishZ + 4; z -= 30) for (const s of sides) spots.push({ x: s * x, z });
     // Two more flanking Mama.

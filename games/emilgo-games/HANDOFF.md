@@ -1,9 +1,9 @@
 # EMILGO Games: session handoff
 
-> Updated 17 Oct 2026. Branch `sdk-54-temp`. Red Light, Green Light v2 is being
+> Updated 18 Oct 2026. Branch `sdk-54-temp`. Red Light, Green Light v2 is being
 > built to the owner's spec, [SPEC-V2.md](SPEC-V2.md), in **8 phases**.
-> **Phases 1–4 are done and committed. 4 phases are left (5, 6, 7, 8). Next:
-> Phase 5, Match flow.** The owner said go ahead with Phase 5 (17 Oct 2026).
+> **Phases 1–5 are done (5 is not committed yet). 3 phases are left (6, 7, 8).
+> Next: Phase 6, Elimination and highlights — wait for the owner's go-ahead.**
 
 ## Start here (new session)
 
@@ -60,56 +60,33 @@ Read these in order:
 | 2 | Referee v4 and server | Done, committed `36dc89e` |
 | — | The hum, no automatic fights | Done, committed `5906bd9` |
 | 3 | Desert Field, sky, light and dark | Done, committed `5906bd9` |
-| 4 | HUD, controls, camera (+ the new song and doll) | Done, committed (the commit after `5906bd9`) |
-| 5 | **Match flow** | **Next.** Not started |
-| 6 | Elimination and highlights | Not started |
+| 4 | HUD, controls, camera (+ the new song and doll) | Done, committed `d8dfc01` |
+| 5 | Match flow | Done 18 Oct 2026, **not committed** (commit only when the owner asks) |
+| 6 | **Elimination and highlights** | **Next**, after the owner's go-ahead. Not started |
 | 7 | Menus, settings, social, store | Not started |
 | 8 | Performance and regression | Not started |
 
 The full scope of each phase is in SPEC-V2.md under "Build phases". What 1–4 built is in its "Status" section.
 
-## Phase 5: Match flow (next)
+## Phase 5: Match flow (done)
 
-### What the spec asks for (SPEC-V2 §1)
+What it built, the checks and the numbers: SPEC-V2.md, Status, "Phase 5". The
+new decisions (starting a room, the 2 s loading, walkout length, the Play
+menu, the tutorial) are rows in its Decisions table.
 
-- **Play menu:** Invite Friends, Play with New People, Play Solo vs AI. Mode and distance are picked here.
-- **Waiting room:**
-  - everyone's model standing in a circle;
-  - ready marks;
-  - text chat;
-  - 2 s loading.
-- **Walkout:**
-  - players walk out in the black suits, filmed from the front, the side, behind and overhead;
-  - field preview: 4 sweeps, a close-up of the doll, the balls and baskets, the lasers, then back behind the players;
-  - a skip button once you're in the arena;
-  - a countdown from 5 to 1 with a bass drop.
-- **Tutorial:** a tutorial button on first entry, and the tutorial played live in the 3D engine.
-
-### What exists today to build on
-
-| Piece | Today | Where |
-| --- | --- | --- |
-| Play menu | Practice, Quick match, Private room, Join by code, Lagos Life match. Mode and Distance pickers are already there. | `screens.play()`, `PlayMode` and `MODE_INFO` in `src/ui/screens.ts` |
-| Waiting room | A "squad room": the players stand around you on the street, with name tags and chat. | `stage.setMode("squad")` in `src/world/lobbyStage.ts`; `screens.room()`; `session.ts` near "The squad room" |
-| Countdown | 3 s (`countdown: 3`), shown big in the centre. The spec wants 5 → 1. | `src/config.ts` RULES, `src/game/rules.ts` phase `countdown`, `hud.setCountdown` |
-| Tutorial | A text "How to play" sheet, shown once (`settings.tutorialSeen`). The in-engine tutorial isn't built. | `screens.howto()`, `session.ts` |
-| Walkout, field preview, skip | Not built. | — |
-| Friends and invites | A friends list kept on the phone, plus room codes. Notifications are Phase 7. | `screens.friends()` |
-
-### Decisions already taken that affect Phase 5 (from the Decisions table)
-
-- **Skip online:** your skip jumps to "behind the players" and waits there. The countdown starts when everyone has skipped or the walkout ends.
-- **Tutorial:** played live in the engine. A model plays the game with each step highlighted, narrated by the phone's own text-to-speech, with captions. No video file.
-- **Black suit:** worn for the whole match, including the walkout. Your own outfit shows in the lobby, the waiting room and after the match.
-- **No CPUs online.** "Fill with CPU" is removed; CPUs appear only in Solo.
-- **Walkout:** no name tags, no flags, no crowd sounds (spec §3.6 / §10, the "Removed" row).
-
-### Watch out for
-
-- A longer countdown, a new phase, or a skip that crosses the wire changes the referee or protocol. If so:
-  - bump `NET.protocol` (it is 6 now);
-  - add tests to `server/scripts/rulestest.ts`;
-  - the Docker server must then be rebuilt.
+Where things are, for Phase 6:
+- `flow/` is for every game: `machine.ts` (stages), `cinema.ts` (camera
+  shots and reels: dolly, orbit, hold, follow), `walkout.ts`, `countdown.ts`,
+  `tutorial.ts` (the player), `waitingRoom.ts` (the circle).
+- `rlgl/` is this game's own: `shots.ts` (field preview), `tutorial.ts` (the
+  scripted round: Ada, Tunde, Bisi).
+- The camera has a `shot` mode (`rig.shot(pos, look, fov)`) and
+  `rig.restPose()`; the kill cam and final-two zoom can reuse both, and a
+  `Reel` of `follow` shots.
+- The referee's first phase is `walkout` (protocol 7). `prePlay(phase)` is
+  true for walkout and countdown.
+- `?server=ws://localhost:8797` with scripted players is how the online flow
+  was checked; a quick room starts at once when it fills to 20.
 
 ## Phase 6: Elimination and highlights
 
@@ -260,7 +237,7 @@ PORT=8797 DATA_DIR=<scratch>/data TICKET_SECRET=test-ticket-secret-0123456789abc
   MAX_PER_IP=100000 VATAR_SECRET=vtr_test_mock VATAR_RESULTS_SECRET=vtr_results_mock \
   VATAR_WEBHOOK_SECRET=vtr_whsec_test_mock VATAR_API=http://localhost:8790/api/games/v1 \
   node server/dist/index.mjs &
-node server/dist/rulestest.mjs                          # 66/66, no server needed
+node server/dist/rulestest.mjs                          # 81/81, no server needed
 GAME=ws://localhost:8797 node server/dist/matchtest.mjs
 GAME=ws://localhost:8797 node server/dist/ballstest.mjs
 GAME=ws://localhost:8797 node server/dist/shoptest.mjs
@@ -287,7 +264,7 @@ VIEW=844x390 node dev/cdp.mjs "http://localhost:5173/" <outdir> <steps.json>   #
 
 ## Open items (not code; the owner's)
 
-- **Docker server on :8787 is still on protocol 5.** Docker Desktop wasn't running, so it couldn't be rebuilt. New builds (protocol 6) can't join it until someone runs this:
+- **Docker server on :8787 is still on protocol 5.** New builds (protocol 7) can't join it; the Play menu says "Update the game to play online." Rebuild it with:
   ```bash
   cd games/emilgo-games && docker compose up -d --build
   ```
@@ -299,8 +276,9 @@ VIEW=844x390 node dev/cdp.mjs "http://localhost:5173/" <outdir> <steps.json>   #
   - audio volumes;
   - the rest of the 20 settings.
 
-## Key numbers (Phase 4)
+## Key numbers (Phase 5)
 
-- rules 66/66 · match, balls, shop all passed · fairness 7/7.
-- Load test, 600 clients: 0 failures · tick p99 7.7 ms · 6.2 KB/s.
-- Lagos Life `dist/`: 270 KB JS gzipped. EMILGO embed: 1,184 KB.
+- rules 81/81 · match, balls, shop all passed · fairness 7/7.
+- Load test, 600 clients: 0 failures · tick p99 6.8 ms · 6.4 KB/s.
+- Lagos Life `dist/`: 277 KB JS gzipped. EMILGO embed: 1,206 KB.
+- Walkout, 20 people: High 67 draw calls / 97K triangles at worst; Low 53 / 62K.

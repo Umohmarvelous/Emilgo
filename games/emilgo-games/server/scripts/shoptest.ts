@@ -149,6 +149,8 @@ async function main(): Promise<void> {
   const plainLine = (await ca.waitFor((m) => m.t === "chat" && m.text === "hello from plain")) as Extract<ServerMsg, { t: "chat" }> | null;
   check(goldLine?.b === 1, "A's chat line carries the gold name");
   check(!!plainLine && plainLine.b === undefined, "B's doesn't (a forged ticket buys nothing)");
+  ca.send({ t: "ready", on: true });
+  cb.send({ t: "ready", on: true });
   const start = (await cb.waitFor((m) => m.t === "start", 15_000)) as Extract<ServerMsg, { t: "start" }> | null;
   const ra = start?.start.roster.find((r) => r.name === "Ada");
   const rb = start?.start.roster.find((r) => r.name === "Bayo");

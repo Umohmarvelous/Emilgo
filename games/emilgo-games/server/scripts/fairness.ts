@@ -16,7 +16,7 @@
 
 import WebSocket from "ws";
 
-import { NET } from "../../src/config";
+import { FLOW, NET } from "../../src/config";
 import { phaseAt, type ServerMsg } from "../../src/net/protocol";
 
 const URL_ = process.argv[2] ?? "ws://localhost:8787";
@@ -83,6 +83,8 @@ function player(spec: Spec, joinCode: Promise<string> | null): Player {
         case "ev":
           if (m.k === "ph") {
             const ph = phaseAt(m.ph);
+            // Skip the walkout once everyone is in the arena (the referee ignores it sooner).
+            if (ph === "walkout") setTimeout(() => send({ t: "skip" }), FLOW.walk * 1000 + 400);
             if (watches === 0 && ph === "sing") send({ t: "in", x: 0, z: -100 });
             if (watches === 0 && ph === "turning") setTimeout(() => send({ t: "in", x: 0, z: 0 }), spec.reaction);
             if (ph === "watch") watches++;
@@ -106,9 +108,9 @@ async function main(): Promise<void> {
   await Promise.all([owner.joined, ...others.map((p) => p.joined)]);
 
   // Let every player's lag be measured (the server pings at 50/400/800 ms and
-  // every 2 s), then the owner starts the round.
+  // every 2 s), then everyone ticks ready and the round loads.
   await new Promise((r) => setTimeout(r, 3000));
-  owner.send({ t: "start" });
+  for (const p of [owner, ...others]) p.send({ t: "ready", on: true });
 
   const outcomes = await Promise.all([owner, ...others].map((p) => p.result));
   let pass = 0;

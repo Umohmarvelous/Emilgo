@@ -14,7 +14,7 @@
 
 import WebSocket from "ws";
 
-import { NET } from "../../src/config";
+import { FLOW, NET } from "../../src/config";
 import { phaseAt, type ServerMsg } from "../../src/net/protocol";
 
 const args = new Map<string, string>();
@@ -51,6 +51,7 @@ function bot(n: number): void {
   const queue = balls ? { t: "quick", mode: "balls", dist: 100 } : { t: "quick", mode: "classic", dist: 200 };
   let a = 0;
   let g = 0;
+  let ready = false;
 
   const send = (o: object) => ws.readyState === 1 && ws.send(JSON.stringify(o));
   const input = (x: number, z: number, force = false) => {
@@ -77,8 +78,18 @@ function bot(n: number): void {
       case "ping":
         send({ t: "pong", s: m.s });
         break;
+      case "room":
+        // Tick ready in the waiting room, like a person who's keen to play.
+        if (m.room.state === "lobby" && !ready && !m.room.map) {
+          ready = true;
+          setTimeout(() => send({ t: "ready", on: true }), 300 + Math.random() * 2000);
+        }
+        break;
       case "start":
         stats.rounds++;
+        ready = false;
+        // Most skip the walkout as soon as they can; the rest watch it to the end.
+        if (m.start.wo && Math.random() < 0.8) setTimeout(() => send({ t: "skip" }), FLOW.walk * 1000 + Math.random() * 3000);
         me = m.start.roster.findIndex((r) => r.id === myId);
         sent = { x: 0, z: 0 };
         lastSnap = 0; // spacing is measured within a round, not across the wait between rounds

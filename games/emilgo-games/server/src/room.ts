@@ -1,12 +1,18 @@
 // A room: people waiting together, then one round of Red Light, Green Light
 // refereed by the SAME RedLightRound class the game uses offline.
 //
-//   lobby    → filling. Quick rooms (Play with New People) start 60 s after the
-//              second person arrives, at once when all 20 are in; private rooms start when full, or when the
-//              creator taps Start with two or more; Lagos Life match rooms
-//              start when every player in the match is here (or after 30 s).
-//   playing  → the referee runs at 60 Hz. Inputs in, snapshots + events out.
-//   ended    → results. A private room goes back to lobby with the same code;
+//   lobby    → the waiting room (SPEC-V2 §1.2). Everyone ticks ready; when
+//              all (two or more) are, a 2 s loading begins: the seed and map
+//              are chosen and announced, so phones build the map meanwhile,
+//              and nobody else can join. Quick rooms (Play with New People)
+//              also load 60 s after the second person arrives, or at once
+//              when all 20 are in. Lagos Life match rooms load when every
+//              player in the match is here (or after 30 s): the stakes are in.
+//   playing  → the referee runs at 60 Hz: the walkout (skippable once all are
+//              in the arena), the countdown, the round. Inputs in, snapshots +
+//              events out.
+//   ended    → results. A private room goes back to lobby with the same code
+//              (everyone un-ready, so nobody is pulled into a round);
 //              quick and match rooms close. A match room first posts the
 //              signed result to Lagos Life (see vatar.ts).
 //
@@ -19,7 +25,7 @@
 
 import { randomInt } from "node:crypto";
 
-import { ATTACK_KINDS, FIELD, NET, courseFor, type Distance, type Mode } from "../../src/config";
+import { ATTACK_KINDS, FIELD, FLOW, NET, courseFor, walkoutLength, type Distance, type Mode } from "../../src/config";
 import { ballState } from "../../src/game/balls";
 import { actCode } from "../../src/game/combat";
 import { HIDDEN_LENGTH, RedLightRound, type Contestant, type Phase, type RoundEvent } from "../../src/game/rules";
@@ -49,6 +55,7 @@ const CLOSE_QUICK_MS = 4000;
 /** A match room waits this long for everyone, then plays with whoever came. */
 const MATCH_WAIT_MS = 30_000;
 const CLOSE_MATCH_MS = 15_000;
+const LOADING_MS = FLOW.loading * 1000;
 
 let nextRoomId = 1;
 
@@ -89,9 +96,12 @@ export class Room {
   private readonly bySeat = new Map<string, Peer>();
   private ticks = 0;
   private endedAt = 0;
-  private roundsPlayed = 0;
   private lastSnap: SnapMsg | null = null;
   private readonly createdAt = now();
+  /** Seat ids ticked ready in the waiting room. */
+  private readonly readySeats = new Set<string>();
+  /** Chosen when loading starts (the last LOADING_MS before startsAt). */
+  private pending: { seed: number; map: string } | null = null;
 
   constructor(
     readonly kind: "quick" | "private" | "match",
@@ -106,16 +116,17 @@ export class Room {
     this.owner = owner?.id ?? null;
   }
 
-  private get fullDelay(): number {
-    return this.kind === "private" ? 3000 : 1000;
-  }
-
   get full(): boolean {
     return this.members.length >= this.size;
   }
 
   get playing(): boolean {
     return this.state === "playing";
+  }
+
+  /** The 2 s before the start: the map is chosen and the door is shut. */
+  get loading(): boolean {
+    return this.pending !== null;
   }
 
   has(peer: Peer): boolean {
@@ -132,7 +143,7 @@ export class Room {
   add(peer: Peer): "full" | "started" | null {
     if (this.has(peer)) return null;
     if (this.kind === "match") return "started"; // match rooms are entered with addToMatch
-    if (this.state !== "lobby") return "started";
+    if (this.state !== "lobby" || this.loading) return "started";
     if (this.full) return "full";
     this.members.push(peer);
     this.bySeat.set(peer.id, peer);
@@ -177,6 +188,7 @@ export class Room {
     peer.roomId = null;
     const seat = this.seatOf(peer);
     this.seats.delete(peer.id);
+    this.readySeats.delete(seat);
     if (this.bySeat.get(seat) === peer) this.bySeat.delete(seat);
     if (this.round && this.inRound.has(seat)) this.round.setInput(seat, 0, 0);
     if (this.owner === peer.id) this.owner = this.members[0]?.id ?? null;
@@ -205,14 +217,21 @@ export class Room {
     this.broadcastRoom();
   }
 
-  requestStart(peer: Peer): "not_owner" | null {
-    if (this.kind !== "private" || this.state !== "lobby") return null;
-    if (peer.id !== this.owner) return "not_owner";
-    if (this.connectedCount() >= 2) {
-      this.startsAt = now() + 600;
-      this.broadcastRoom();
-    }
-    return null;
+  /** Waiting room: tick (or untick) ready. Fixed once loading has begun. */
+  setReady(peer: Peer, on: boolean): void {
+    if (this.kind === "match" || this.state !== "lobby" || this.loading) return;
+    const seat = this.seatOf(peer);
+    if (on === this.readySeats.has(seat)) return;
+    if (on) this.readySeats.add(seat);
+    else this.readySeats.delete(seat);
+    this.broadcastRoom();
+  }
+
+  /** Walkout: this player skips to behind the players (the referee decides when it counts). */
+  skip(peer: Peer): void {
+    if (this.state !== "playing" || !this.round) return;
+    const seat = this.seatOf(peer);
+    if (this.inRound.has(seat)) this.round.skip(seat);
   }
 
   input(peer: Peer, x: number, z: number, b = 0, j = 0, a = 0, g = 0): void {
@@ -234,30 +253,38 @@ export class Room {
   }
 
   private tickLobby(t: number): void {
-    if (this.kind === "match") return this.tickMatchLobby(t);
+    if (this.kind === "match") this.tickMatchLobby(t);
+    else this.tickWaiting(t);
+    // The last LOADING_MS: pick the place now, so every phone can build it in time.
+    if (this.startsAt !== null && !this.pending && t >= this.startsAt - LOADING_MS) {
+      const seed = randomInt(0, 2 ** 31);
+      // A different place every round: the map comes from the seed.
+      this.pending = { seed, map: MAPS[seed % MAPS.length].id };
+      this.broadcastRoom();
+    }
+    if (this.startsAt !== null && t >= this.startsAt) this.begin(t);
+  }
+
+  /** Quick and private rooms: everyone ready (two or more), or a quick room full or out of time. */
+  private tickWaiting(t: number): void {
     const n = this.connectedCount();
     if (n < 2) {
       if (this.startsAt !== null) {
         this.startsAt = null;
+        this.pending = null;
         this.broadcastRoom();
       }
       return;
     }
-    // After a private room's first round, only the creator starts the next one:
-    // nobody gets pulled off the results screen into a round they didn't ask for.
-    const autoStart = this.kind === "quick" || this.roundsPlayed === 0;
-    if (this.startsAt === null) {
-      if (autoStart) {
-        // Full: go now. Quick with 2+: give others a moment to join.
-        // A full room of friends gets a moment to say hello; strangers go at once.
-        this.startsAt = this.full ? t + this.fullDelay : this.kind === "quick" ? t + NET.quickFillMs : null;
-        if (this.startsAt !== null) this.broadcastRoom();
-      }
-    } else if (autoStart && this.full && this.startsAt > t + this.fullDelay) {
-      this.startsAt = t + this.fullDelay;
+    if (this.pending) return;
+    let ready = 0;
+    for (const p of this.members) if (p.connected && this.readySeats.has(this.seatOf(p))) ready++;
+    const go = ready >= n || (this.kind === "quick" && this.full);
+    const at = go ? t + LOADING_MS : this.kind === "quick" ? (this.startsAt ?? t + NET.quickFillMs) : null;
+    if (at !== this.startsAt) {
+      this.startsAt = at;
       this.broadcastRoom();
     }
-    if (this.startsAt !== null && t >= this.startsAt) this.begin(t);
   }
 
   /**
@@ -271,12 +298,11 @@ export class Room {
     for (const p of this.members) if (p.connected) here.add(this.seatOf(p));
     if (!here.size) return;
     const deadline = this.createdAt + MATCH_WAIT_MS;
-    const goAt = here.size >= want ? Math.min(t + 1500, deadline) : deadline;
+    const goAt = here.size >= want ? Math.min(t + LOADING_MS, deadline) : deadline;
     if (this.startsAt !== goAt && (this.startsAt === null || goAt < this.startsAt)) {
       this.startsAt = goAt;
       this.broadcastRoom();
     }
-    if (t >= this.startsAt!) this.begin(t);
   }
 
   private begin(t: number): void {
@@ -293,24 +319,27 @@ export class Room {
       const players = this.members.filter((p) => p.connected);
       if (players.length < 2) {
         this.startsAt = null;
+        this.pending = null;
         return;
       }
       roster = players.map((p) => ({ id: p.id, name: p.name, look: p.look }));
     }
-    const seed = randomInt(0, 2 ** 31);
-    // A different place every round: the map comes from the seed.
+    const seed = this.pending?.seed ?? randomInt(0, 2 ** 31);
     const info = MAPS[seed % MAPS.length];
     const course = courseFor(this.mode, this.dist, info.halfWidth ?? FIELD.halfWidth);
-    this.round = new RedLightRound({ seed, contestants: roster.map((r) => ({ id: r.id, name: r.name, bot: false })), course });
+    const walkout = walkoutLength(this.mode);
+    this.round = new RedLightRound({ seed, contestants: roster.map((r) => ({ id: r.id, name: r.name, bot: false })), course, walkout });
     this.inRound.clear();
     for (const r of roster) this.inRound.add(r.id);
     const init: number[] = [];
     for (const c of this.round.contestants) init.push(cm(c.x), cm(c.z), mrad(c.heading));
     const bp: number[] = [];
     for (const b of this.round.balls) bp.push(cm(b.x), cm(b.z));
-    this.start = { seed, s: t, roster, init, map: info.id, mode: this.mode, dist: this.dist, hw: cm(course.halfWidth), ...(bp.length ? { bp } : {}) };
+    this.start = { seed, s: t, roster, init, map: info.id, mode: this.mode, dist: this.dist, hw: cm(course.halfWidth), ...(bp.length ? { bp } : {}), wo: Math.round(walkout * 1000) };
     this.state = "playing";
     this.startsAt = null;
+    this.pending = null;
+    this.readySeats.clear();
     this.ticks = 0;
     this.lastSnap = null;
     this.broadcastRoom();
@@ -323,7 +352,11 @@ export class Room {
     for (const c of round.contestants) {
       const peer = this.peerAt(c.id);
       c.graceBonus = peer?.connected ? peer.graceBonus : 0;
-      if (!peer?.connected) round.setInput(c.id, 0, 0);
+      if (!peer?.connected) {
+        round.setInput(c.id, 0, 0);
+        // Nobody waits on an empty seat to skip the walkout.
+        round.skip(c.id);
+      }
     }
 
     round.step(dt);
@@ -337,7 +370,6 @@ export class Room {
     if (round.over) {
       this.state = "ended";
       this.endedAt = now();
-      this.roundsPlayed++;
       if (this.kind === "match") this.onDecided?.(this, decide(round.contestants));
     }
   }
@@ -402,9 +434,10 @@ export class Room {
       this.kind === "match"
         ? this.match!.players.map((s) => {
             const peer = this.peerAt(s.playerId);
-            return peer?.connected ? { id: s.playerId, name: s.name, look: peer.look } : { id: s.playerId, name: s.name, away: true };
+            // Everyone in a staked match is in for the stakes: ready by being here.
+            return peer?.connected ? { id: s.playerId, name: s.name, look: peer.look, ready: 1 as const } : { id: s.playerId, name: s.name, away: true };
           })
-        : this.members.map((p) => (p.connected ? { id: p.id, name: p.name, look: p.look } : { id: p.id, name: p.name, away: true, look: p.look }));
+        : this.members.map((p) => ({ id: p.id, name: p.name, look: p.look, ...(p.connected ? {} : { away: true }), ...(this.readySeats.has(this.seatOf(p)) ? { ready: 1 as const } : {}) }));
     return {
       kind: this.kind,
       code: this.code,
@@ -412,6 +445,7 @@ export class Room {
       owner: this.owner,
       players,
       startsAt: this.startsAt,
+      ...(this.pending ? { map: this.pending.map } : {}),
       state: this.state,
       ...(this.match ? { stake: this.match.stake } : {}),
       mode: this.mode,

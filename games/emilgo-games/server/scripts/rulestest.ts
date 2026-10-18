@@ -12,8 +12,9 @@
 //     holding a crouch or lying still is safe
 //   - stance changes one step at a time (prone ↔ crouch ↔ stand)
 
-import { ATTACK, BALLS, DISTANCES, MOVE, RULES, TIME_LIMIT, ballCount, courseFor, type Course } from "../../src/config";
+import { ATTACK, BALLS, DISTANCES, FLOW, MOVE, RULES, TIME_LIMIT, ballCount, courseFor, walkoutLength, type Course } from "../../src/config";
 import { RedLightRound, freshMotion, isMoving, moveContestant, type Contestant, type RoundEvent } from "../../src/game/rules";
+import { TutorialScript, tutorialPeople, tutorialSteps } from "../../src/rlgl/tutorial";
 
 let failures = 0;
 function check(ok: boolean, label: string): void {
@@ -464,6 +465,88 @@ console.log("\nthe warning hum:");
   r.setInput("a", 0, -1);
   while (r.phase === "hum") r.step(DT);
   check(r.get("a")!.status === "alive", "running all through a hum: still in");
+}
+
+console.log("match flow (protocol 7):");
+{
+  const people = (n: number, bots = 0) => Array.from({ length: n }, (_, i) => ({ id: `p${i}`, name: `P${i}`, bot: i >= n - bots }));
+  const phasesOf = (ev: RoundEvent[]) => ev.filter((e) => e.type === "phase").map((e) => (e as { phase: string }).phase);
+  check(RULES.countdown === 5, "the countdown runs 5 → 1");
+  check(walkoutLength("balls") > walkoutLength("classic") && walkoutLength("classic") > FLOW.walk, `walkout ${walkoutLength("classic").toFixed(1)} s (Classic) / ${walkoutLength("balls").toFixed(1)} s (Ball Haunting, + the balls shot)`);
+
+  // A full walkout: nobody moves, the clock doesn't run, then the countdown, then the song.
+  const course = courseFor("classic", 100);
+  const r = new RedLightRound({ seed: 21, contestants: people(3), course, walkout: walkoutLength("classic") });
+  const ev: RoundEvent[] = [...r.drain()];
+  const start = r.contestants.map((c) => [c.x, c.z]);
+  for (const c of r.contestants) r.setInput(c.id, 0, -1);
+  let t = 0;
+  while (r.phase === "walkout" && t < 60) {
+    r.step(DT);
+    t += DT;
+    ev.push(...r.drain());
+  }
+  check(phasesOf(ev)[0] === "walkout" && ev[0].type === "phase" && near(ev[0].duration, walkoutLength("classic"), 1e-9), "a room's round opens on the walkout, its length announced");
+  check(near(t, walkoutLength("classic"), 2 * DT), `unskipped, it lasts the full ${walkoutLength("classic").toFixed(1)} s`);
+  check(r.contestants.every((c, i) => c.x === start[i][0] && c.z === start[i][1]) && r.elapsed === 0, "nobody moves and the clock doesn't run through the walkout");
+  while (r.phase === "countdown") {
+    r.step(DT);
+    t += DT;
+    ev.push(...r.drain());
+  }
+  check(r.contestants.every((c, i) => c.z === start[i][1]) && r.elapsed < 2 * DT, "or through the countdown");
+  check(phasesOf(ev).slice(0, 3).join(",") === "walkout,countdown,sing", "walkout → countdown → sing");
+
+  // Skips: too early does nothing; once everyone in the arena has skipped, the countdown starts at once.
+  const s = new RedLightRound({ seed: 22, contestants: people(3), course, walkout: walkoutLength("classic") });
+  for (let i = 0; i < Math.round((FLOW.walk - 1) / DT); i++) s.step(DT);
+  for (const c of s.contestants) s.skip(c.id);
+  check(s.phase === "walkout", "a skip before everyone has walked in doesn't count");
+  for (let i = 0; i < Math.round(1.1 / DT); i++) s.step(DT);
+  s.skip("p0");
+  s.skip("p1");
+  check(s.phase === "walkout" && s.hasSkipped("p0") && !s.hasSkipped("p2"), "two of three skipped: the others still watch");
+  s.skip("nobody");
+  check(s.phase === "walkout", "a stranger's skip counts for nothing");
+  s.drain();
+  s.skip("p2");
+  const sk = s.drain();
+  check(s.phase === "countdown" && phasesOf(sk).join(",") === "countdown" && sk[0].type === "phase" && near(sk[0].duration, RULES.countdown, 1e-9), "the last skip starts the countdown for everyone");
+
+  // Solo: CPUs never hold it up — your skip is enough.
+  const solo = new RedLightRound({ seed: 23, contestants: people(20, 19), course: courseFor("balls", 200), walkout: walkoutLength("balls") });
+  for (let i = 0; i < Math.round((FLOW.walk + 0.1) / DT); i++) solo.step(DT);
+  solo.skip("p0");
+  check(solo.phase === "countdown", "Solo: your skip alone starts the countdown");
+
+  // Without a walkout (tests, the tutorial): straight to the countdown, as before.
+  const plain = new RedLightRound({ seed: 24, contestants: people(2), course });
+  check(plain.phase === "countdown" && phasesOf(plain.drain())[0] === "countdown", "a round made without a walkout opens on the countdown");
+}
+
+console.log("\nthe tutorial:");
+for (const mode of ["classic", "balls"] as const) {
+  // The scripted round shows every step, on any seed, and the model makes it over the line.
+  let missed = 0;
+  let worst = 0;
+  for (let seed = 1; seed <= 30; seed++) {
+    const r = new RedLightRound({ seed, contestants: tutorialPeople(mode), featuredId: "demo", course: courseFor(mode, 100) });
+    const script = new TutorialScript(mode);
+    const seen = new Set<string>();
+    let t = 0;
+    while (!r.over && !script.done && t < 90) {
+      script.think(r);
+      r.step(DT);
+      t += DT;
+      for (const e of r.drain()) {
+        const id = script.onEvent(e, r);
+        if (id) seen.add(id);
+      }
+    }
+    worst = Math.max(worst, t);
+    if (!script.done || tutorialSteps(mode).some((s) => s.id !== "end" && !seen.has(s.id))) missed++;
+  }
+  check(missed === 0, `${mode === "balls" ? "Ball Haunting" : "Classic Run"}: every step shown and the model crosses, 30/30 seeds (longest ${worst.toFixed(0)} s)`);
 }
 
 console.log(`\n${failures ? `${failures} FAILED` : "all passed"}`);
