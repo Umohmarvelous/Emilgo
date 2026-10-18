@@ -1,12 +1,11 @@
 // The tutorial (SPEC-V2 §1.5), for every game: not a video file but the game
-// itself — a model plays a real round in the 3D engine while the rules are
-// narrated and each step is highlighted. A few KB instead of megabytes
-// (SPEC-V2 Decisions: Tutorial "video").
+// itself — a model plays a real round in the 3D engine while each step is
+// captioned and highlighted. A few KB instead of megabytes (SPEC-V2
+// Decisions: Tutorial "video"). Captions only: no spoken voice (the owner
+// had it removed, 18 Oct 2026).
 //
-//   steps      the game's script: titles, what's said, what on screen to light up
+//   steps      the game's script: titles, captions, what on screen to light up
 //   captions   always on screen (bottom centre); the step list on the side
-//   voice      the phone's own text-to-speech, when sound is on and the phone
-//              has it (no recordings, nothing downloaded)
 //
 // This file is only the player. Each game supplies the steps and the model's
 // brain (rlgl/tutorial.ts) and tells the player when a step happens.
@@ -21,7 +20,6 @@ export class TutorialPlayer {
   readonly root: HTMLDivElement;
   private steps: TutorialStep[] = [];
   private readonly shown = new Set<string>();
-  private voice = false;
   private lit: Element | null = null;
   private closeFn: () => void = () => {};
 
@@ -44,10 +42,9 @@ export class TutorialPlayer {
     this.closeFn = fn;
   }
 
-  start(title: string, steps: TutorialStep[], voice: boolean): void {
+  start(title: string, steps: TutorialStep[]): void {
     this.steps = steps;
     this.shown.clear();
-    this.voice = voice && typeof speechSynthesis !== "undefined";
     this.root.innerHTML = `<div class="tut-head"><span class="label">Tutorial</span><b>${esc(title)}</b></div>
       <ol class="tut-steps">${steps.map((s) => `<li data-step="${esc(s.id)}">${esc(s.title)}</li>`).join("")}</ol>
       <div class="tut-cap" aria-live="polite"><b></b><span></span></div>
@@ -57,7 +54,7 @@ export class TutorialPlayer {
     this.root.classList.remove("finished");
   }
 
-  /** Light up a step (each once, in whatever order the game plays them): the list, the caption, the voice, the ring. */
+  /** Light up a step (each once, in whatever order the game plays them): the list, the caption, the ring. */
   show(id: string): void {
     const i = this.steps.findIndex((s) => s.id === id);
     if (i < 0 || this.shown.has(id)) return;
@@ -74,7 +71,6 @@ export class TutorialPlayer {
     void (cap as HTMLElement).offsetWidth;
     cap.classList.add("in");
     this.ring(step.hi ? document.querySelector(step.hi) : null);
-    this.speak(step.say);
   }
 
   /** The round is over: every step done, and the Got it button. */
@@ -86,27 +82,11 @@ export class TutorialPlayer {
     this.root.classList.remove("visible", "finished");
     this.root.replaceChildren();
     this.ring(null);
-    if (this.voice) speechSynthesis.cancel();
   }
 
   private ring(el: Element | null): void {
     this.lit?.classList.remove("tut-hi");
     this.lit = el;
     el?.classList.add("tut-hi");
-  }
-
-  private speak(text: string): void {
-    if (!this.voice) return;
-    try {
-      speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(text);
-      // A Nigerian English voice if the phone has one, else its own English.
-      const v = speechSynthesis.getVoices();
-      u.voice = v.find((x) => /en[-_]NG/i.test(x.lang)) ?? v.find((x) => /^en/i.test(x.lang)) ?? null;
-      u.rate = 1.02;
-      speechSynthesis.speak(u);
-    } catch {
-      this.voice = false;
-    }
   }
 }

@@ -731,7 +731,7 @@ export class Game {
     this.meId = DEMO;
     this.flow.reset("play");
     this.beginRound(round, new Rng(seed ^ 0xa5a5a5a5), this.settings.map, this.skyPick, []);
-    this.tutorial.start(mode === "balls" ? "Ball Haunting" : "Classic Run", tutorialSteps(mode), this.settings.sound);
+    this.tutorial.start(mode === "balls" ? "Ball Haunting" : "Classic Run", tutorialSteps(mode));
   }
 
   private closeTutorial(): void {

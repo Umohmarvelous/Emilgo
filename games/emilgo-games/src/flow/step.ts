@@ -5,7 +5,7 @@
 export interface TutorialStep {
   id: string;
   title: string;
-  /** Spoken and captioned. */
+  /** The caption. */
   say: string;
   /** A CSS selector of something on screen to ring while this step shows. */
   hi?: string;
