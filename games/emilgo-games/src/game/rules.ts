@@ -110,6 +110,8 @@ export interface Contestant {
  * practice; the online client implements it from the server's snapshots.
  */
 export interface RoundView {
+  /** The round's seed (the server's online): everything chosen from it is the same on every phone. */
+  readonly seed: number;
   readonly course: Course;
   readonly balls: readonly Ball[];
   readonly baskets: readonly Basket[];

@@ -25,7 +25,7 @@ import { ACESFilmicToneMapping, OrthographicCamera, PCFShadowMap, PCFSoftShadowM
 
 import { Sound } from "../audio/sound";
 import { ATTACK, BALLS, DISTANCES, FIELD, FLOW, MODES, MOVE, PRACTICE, RULES, courseFor, scoreFor, walkoutLength, type AttackKind, type Course, type Distance, type Mode, type Stance } from "../config";
-import { SONG_IDS, SONGS, type SongId } from "../audio/songs";
+import { SONGS, songFor, type SongId } from "../audio/songs";
 import { Loop } from "../core/loop";
 import { QualityGovernor } from "../core/quality";
 import { Rng, randomSeed } from "../core/rng";
@@ -179,6 +179,8 @@ export class Game {
   private settingsFrom: "lobby" | "pause" = "lobby";
   private songId: SongId = "mugunghwa";
   private songBeat = 0;
+  /** Her calls so far this round: she takes turns with her two songs. */
+  private songTurn = 0;
   private lastPhase = "";
   private watchesSurvived = 0;
   private sprintMetres = 0;
@@ -643,7 +645,8 @@ export class Game {
     this.recorded = null;
     this.watchesSurvived = 0;
     this.sprintMetres = 0;
-    this.songId = SONG_IDS[0];
+    this.songTurn = 0;
+    this.songId = songFor(round.seed, 0);
     this.songBeat = 0;
     this.lastPhase = "";
 
@@ -920,6 +923,8 @@ export class Game {
         }
         // After a fake hum the song never stopped: it just carries on.
         if (from === "hum") break;
+        // A fresh call: the next of her two songs (the seed decides which comes first, so a room hears the same).
+        this.songId = songFor(this.round?.seed ?? 0, this.songTurn++);
         this.songBeat = 0;
         this.sound.playSong(this.songId, this.songBeat);
         this.hud.setSignal("none"); // the countdown's done: nothing on screen but the run
