@@ -162,7 +162,15 @@ export type EventMsg =
   | { t: "ev"; k: "atk"; i: number; kind: number; tg: number; db: number; kx?: number; kz?: number }
   | { t: "ev"; k: "grb"; i: number; b: number }
   | { t: "ev"; k: "drp"; b: number; x: number; z: number }
-  | { t: "ev"; k: "bnk"; i: number; b: number; bk: number };
+  | { t: "ev"; k: "bnk"; i: number; b: number; bk: number }
+  /** Two left running (protocol 8): everyone's clock slows (config FINAL). a, b: their roster indexes. */
+  | { t: "ev"; k: "fn2"; a: number; b: number }
+  /**
+   * A highlight that beat the best so far (game/highlights.ts): kind (1 escape,
+   * 2 dodge, 3 attack), contestant i, at (ms of play), sc (score × 10). The
+   * last one before "end" is the play of the game.
+   */
+  | { t: "ev"; k: "hl"; i: number; kind: number; at: number; sc: number };
 
 export type ServerMsg =
   | { t: "welcome"; id: string; token: string; s: number; name: string; on?: number; pl?: number }
@@ -233,6 +241,8 @@ export function unpackFlags(f: number): { stance: 0 | 1 | 2; sprinting: boolean;
 }
 export const STATUS_CHAR = { alive: "a", finished: "f", eliminated: "e" } as const;
 export const CAUSES: readonly Cause[] = ["moved", "time", "noball"];
+/** Highlight kinds on the wire: index + 1. */
+export const MOMENT_WIRE = ["escape", "dodge", "attack"] as const;
 
 /** A mode and distance from the wire, or the defaults. */
 export function cleanMode(v: unknown): Mode {

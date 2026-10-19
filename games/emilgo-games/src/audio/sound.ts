@@ -399,10 +399,12 @@ export class Sound {
     const t = this.now;
     const end = t + dur;
     const out = ctx.createGain();
+    // (Times clamp to the hum's own span, however short it is.)
+    const at = (x: number) => Math.min(end, Math.max(t, x));
     out.gain.setValueAtTime(0.0001, t);
-    out.gain.exponentialRampToValueAtTime(0.32, t + 0.9);
-    out.gain.setValueAtTime(0.32, end - 0.5);
-    out.gain.linearRampToValueAtTime(0.38, end - 0.12);
+    out.gain.exponentialRampToValueAtTime(0.32, at(t + 0.9));
+    out.gain.setValueAtTime(0.32, at(end - 0.5));
+    out.gain.linearRampToValueAtTime(0.38, at(end - 0.12));
     out.gain.exponentialRampToValueAtTime(0.0001, end);
     // A nasal "m": a low pass with a soft resonance.
     const lp = ctx.createBiquadFilter();
@@ -423,7 +425,7 @@ export class Sound {
       o.type = type;
       o.frequency.setValueAtTime(f, t);
       // A slow lean down in the last second, like a breath running out.
-      o.frequency.setValueAtTime(f, end - 1);
+      o.frequency.setValueAtTime(f, at(end - 1));
       o.frequency.linearRampToValueAtTime(f * 0.97, end);
       depth.connect(o.frequency);
       og.gain.value = g;
@@ -454,16 +456,108 @@ export class Sound {
     this.tone(330, t, 0.25, { type: "triangle", gain: 0.12, to: 440 });
   }
 
-  /** The catch: a crack, a zap, and a deep drum that hangs. */
+  /** The shot: the laser's zap (the crack and the drum are their own cues). */
   catch(near: boolean): void {
     const t = this.now;
-    this.noise(t, 0.14, { gain: near ? 0.55 : 0.3, freq: 1800 });
-    this.tone(90, t, 0.08, { type: "square", gain: near ? 0.25 : 0.12 });
-    this.tone(1200, t + 0.03, 0.28, { type: "sawtooth", gain: near ? 0.12 : 0.06, to: 140 });
-    if (near) {
-      this.tone(62, t + 0.08, 1.8, { type: "sine", gain: 0.7, to: 34, attack: 0.01 });
-      this.noise(t + 0.08, 1.2, { gain: 0.18, freq: 160, type: "lowpass" });
+    this.noise(t, 0.1, { gain: near ? 0.3 : 0.16, freq: 2600 });
+    this.tone(1200, t + 0.02, 0.28, { type: "sawtooth", gain: near ? 0.12 : 0.06, to: 140 });
+  }
+
+  /**
+   * Her head snaps round to the offender (SPEC-V2 §2.6 step 1): a hard CRACK,
+   * like a wooden neck twisted too far — a sharp split, a knock, a creak.
+   */
+  crack(near: boolean): void {
+    const t = this.now;
+    const g = near ? 1 : 0.55;
+    this.noise(t, 0.05, { gain: 0.7 * g, freq: 3200, type: "highpass" });
+    this.noise(t + 0.004, 0.09, { gain: 0.4 * g, freq: 900, type: "bandpass" });
+    this.tone(180, t, 0.07, { type: "square", gain: 0.22 * g, to: 90 });
+    this.tone(620, t + 0.05, 0.16, { type: "sawtooth", gain: 0.035 * g, to: 410 });
+  }
+
+  /** A low, ominous drum after a catch (step 6): a deep hit and its softer echo. */
+  drum(near: boolean): void {
+    const t = this.now + 0.12;
+    const g = near ? 1 : 0.6;
+    for (const [at, gain] of [[0, 0.8], [0.42, 0.45]] as const) {
+      this.tone(64, t + at, 1.6, { type: "sine", gain: gain * g, to: 36, attack: 0.008 });
+      this.tone(128, t + at, 0.25, { type: "triangle", gain: gain * 0.25 * g, to: 70 });
+      this.noise(t + at, 0.5, { gain: gain * 0.2 * g, freq: 180, type: "lowpass" });
     }
+  }
+
+  private tension: { stop: (at: number) => void } | null = null;
+
+  /**
+   * Two runners left (SPEC-V2 §2.8): the music builds — a low drone that
+   * swells under a heartbeat that quickens, for `dur` seconds, then a quiet
+   * pulse that carries on until stopTension().
+   */
+  finalTwo(dur: number): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.music) return;
+    this.stopTension();
+    const t = this.now;
+    const bus = ctx.createGain();
+    bus.gain.setValueAtTime(0.0001, t);
+    bus.gain.exponentialRampToValueAtTime(0.9, t + dur * 0.85);
+    bus.gain.setTargetAtTime(0.35, t + dur, 0.6);
+    bus.connect(this.music);
+    const nodes: OscillatorNode[] = [];
+    for (const [f, type, g] of [[55, "sawtooth", 0.08], [55.4, "sawtooth", 0.08], [82.4, "triangle", 0.12], [110, "sine", 0.1]] as const) {
+      const o = ctx.createOscillator();
+      const og = ctx.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(f, t);
+      // Rising a semitone over the build: the strain.
+      o.frequency.linearRampToValueAtTime(f * 1.06, t + dur);
+      og.gain.value = g;
+      const lp = ctx.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.setValueAtTime(300, t);
+      lp.frequency.exponentialRampToValueAtTime(1400, t + dur);
+      o.connect(lp).connect(og).connect(bus);
+      o.start(t);
+      nodes.push(o);
+    }
+    // The heartbeat: lub-dub, faster and faster through the build.
+    let at = t;
+    let gap = 0.75;
+    while (at < t + dur) {
+      this.tone(58, at, 0.2, { type: "sine", gain: 0.5, to: 40, bus });
+      this.tone(52, at + 0.16, 0.18, { type: "sine", gain: 0.32, to: 38, bus });
+      at += gap;
+      gap = Math.max(0.36, gap * 0.82);
+    }
+    // Afterwards a slower pulse, every 0.8 s, until the round is over.
+    let pulse = 0;
+    const begin = window.setTimeout(() => {
+      pulse = window.setInterval(() => {
+        // Paused (the clock stands still): don't pile beats up for the resume.
+        if (ctx.state !== "running") return;
+        const n = this.now;
+        this.tone(58, n, 0.2, { type: "sine", gain: 0.3, to: 40, bus });
+        this.tone(52, n + 0.16, 0.18, { type: "sine", gain: 0.2, to: 38, bus });
+      }, 800);
+    }, dur * 1000);
+    this.tension = {
+      stop: (when: number) => {
+        clearTimeout(begin);
+        clearInterval(pulse);
+        bus.gain.cancelScheduledValues(when);
+        bus.gain.setTargetAtTime(0, when, 0.15);
+        for (const o of nodes) o.stop(when + 0.8);
+        setTimeout(() => bus.disconnect(), 1200);
+      },
+    };
+  }
+
+  /** The tension bed stops (the round is over, or you left). */
+  stopTension(): void {
+    if (!this.tension || !this.ctx) return;
+    this.tension.stop(this.ctx.currentTime);
+    this.tension = null;
   }
 
 

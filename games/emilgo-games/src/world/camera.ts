@@ -44,6 +44,12 @@ const SHOULDER = 0.5;
 const EYE = 1.6;
 const SMOOTH = 0.15; // per 1/60 s
 
+/** 0 → 1 over the first `inF` of u, 1 → 0 over the last `outF`, eased. */
+function ramp(u: number, inF: number, outF: number): number {
+  const w = Math.max(0, Math.min(1, u / inF, (1 - u) / outF));
+  return w * w * (3 - 2 * w);
+}
+
 export class CameraRig {
   /** Where the player is aiming: 0 = looking down −Z, toward the doll. */
   yaw = 0;
@@ -84,6 +90,15 @@ export class CameraRig {
   private readonly cineFrom = new Vector3();
   private readonly cineAt = new Vector3();
   private cineT = 0;
+
+  /** The zoom on an offender (SPEC-V2 §2.6 step 2): where, how far in, how long. */
+  private readonly zoomAt = new Vector3();
+  private zoomT = 0;
+  private zoomLen = 0;
+  /** The final-two push-in (§2.8): the lens narrows by `pushBy` and comes back. */
+  private pushT = 0;
+  private pushLen = 0;
+  private pushBy = 1;
 
   constructor(readonly camera: PerspectiveCamera) {
     camera.fov = this.fov;
@@ -154,6 +169,38 @@ export class CameraRig {
     this.cineTarget.copy(target);
   }
 
+  /**
+   * Zoom in on `target` for `seconds`, from where the lens is (a telephoto
+   * zoom, the lens doesn't move), then back. Behind a player only.
+   */
+  zoom(target: Vector3, seconds: number): void {
+    this.zoomAt.copy(target);
+    this.zoomT = 0;
+    this.zoomLen = seconds;
+  }
+
+  /** Keep the zoom on the falling body. */
+  zoomTrack(target: Vector3): void {
+    if (this.zoomLen > 0) this.zoomAt.copy(target);
+  }
+
+  get zooming(): boolean {
+    return this.zoomLen > 0;
+  }
+
+  /** Narrow the lens by `factor` (< 1) and bring it back over `seconds`. */
+  push(factor: number, seconds: number): void {
+    this.pushBy = factor;
+    this.pushT = 0;
+    this.pushLen = seconds;
+  }
+
+  /** Cancel a zoom or push (a new round, the kill cam). */
+  clearZoom(): void {
+    this.zoomLen = 0;
+    this.pushLen = 0;
+  }
+
   /** Look stick (−1..1 each axis) and mouse drag (px) for this frame. */
   orbit(x: number, y: number, dt: number, mouseX = 0, mouseY = 0): void {
     const moved = Math.abs(x) > 0.02 || Math.abs(y) > 0.02 || mouseX !== 0 || mouseY !== 0;
@@ -198,6 +245,7 @@ export class CameraRig {
         this.pos.lerp(this.wantPos, 1 - Math.exp(-dt * 18));
         this.look.copy(this.wantLook);
       }
+      wantFov = this.zoomed(dt, wantFov);
     } else if (this.mode === "shot") {
       wantFov = this.fov;
     } else if (this.mode === "cinematic") {
@@ -230,6 +278,31 @@ export class CameraRig {
       this.camera.fov = this.fov;
       this.camera.updateProjectionMatrix();
     }
+  }
+
+  /** The zoom and the push on top of the follow view: the look and the field of view this frame. */
+  private zoomed(dt: number, fov: number): number {
+    if (this.pushLen > 0) {
+      this.pushT += dt;
+      const u = this.pushT / this.pushLen;
+      if (u >= 1) this.pushLen = 0;
+      else fov *= 1 + (this.pushBy - 1) * ramp(u, 0.25, 0.3);
+    }
+    if (this.zoomLen > 0) {
+      this.zoomT += dt;
+      const u = this.zoomT / this.zoomLen;
+      if (u >= 1) {
+        this.zoomLen = 0;
+      } else {
+        const w = ramp(u, 0.2, 0.25);
+        this.look.lerp(this.zoomAt, w);
+        // Narrow enough that they fill about a third of the screen's height.
+        const d = Math.max(1, this.pos.distanceTo(this.zoomAt));
+        const tight = Math.max(6, Math.min(fov * 0.6, (2 * Math.atan(1.7 / d) * 180) / Math.PI));
+        fov += (tight - fov) * w;
+      }
+    }
+    return fov;
   }
 
   /** Unit view direction from the smoothed angles. */

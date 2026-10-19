@@ -227,6 +227,14 @@ export function walkoutLength(mode: Mode): number {
   return FLOW.walk + FLOW.sweep * FLOW.sweeps + FLOW.doll + (mode === "balls" ? FLOW.balls : 0) + FLOW.lasers + FLOW.behind;
 }
 
+/**
+ * The final two (SPEC-V2 §2.8): when a third-last runner goes and two are
+ * left, the whole room slows — the referee's own clock runs at `scale` for
+ * `seconds` of real time — so it stays fair for both (one screen can't slow
+ * down alone online).
+ */
+export const FINAL = { scale: 0.4, seconds: 2.5 } as const;
+
 export const PRACTICE = {
   /** Solo vs AI: a full field of 20 (SPEC-V2 §2.5). */
   bots: 19,
@@ -235,6 +243,8 @@ export const PRACTICE = {
 /** Online play. Server and client both read these. */
 export const NET = {
   /**
+   * 8: the final two (the referee's clock slows; event fn2), highlight
+   * moments for the play of the game (event hl).
    * 7: the match flow — ready marks and a 2 s loading in the room, the
    * walkout (phase 0, skippable once everyone is in the arena), a 5 s
    * countdown. 6: the slide (a flag in snapshots). 5: the warning hum (phase 2 is "hum",
@@ -242,7 +252,7 @@ export const NET = {
    * and baskets, fist / slap / push, rooms of 20. 3: jump, crouch, prone,
    * sprint, the map, rich looks.)
    */
-  protocol: 7,
+  protocol: 8,
   tickHz: 60,
   /** Server → client state broadcasts per second. */
   snapshotHz: 15,

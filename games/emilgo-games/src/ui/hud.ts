@@ -236,6 +236,14 @@ export class Hud {
     if (kind !== "safe") this.vignette.className = "vignette dead";
   }
 
+  /** A brief red edge round the screen (someone caught as you watch: SPEC-V2 §2.6 step 7). */
+  flashRed(): void {
+    if (this.vignette.classList.contains("dead")) return;
+    this.vignette.className = "vignette";
+    void this.vignette.offsetWidth;
+    this.vignette.className = "vignette hit";
+  }
+
   clearVerdict(): void {
     this.verdict.className = "verdict";
     this.vignette.className = "vignette";

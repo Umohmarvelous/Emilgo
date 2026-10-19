@@ -15,6 +15,7 @@
 import { AdditiveBlending, Group, Mesh, MeshBasicMaterial, type MeshStandardMaterial, Quaternion, SphereGeometry, Vector3 } from "three";
 
 import { DOLL_Z } from "../config";
+import type { DollPose } from "../game/replay";
 import { Human } from "./human";
 import { FACE } from "./human/mesh";
 import { PROPORTIONS, restPositions } from "./human/skeleton";
@@ -47,6 +48,12 @@ export class Doll {
   private turnTo = Math.PI;
   private turnT = 1;
   private turnDur = 0.5;
+  /** How far ahead of the body the head turns (bigger: the head snaps round first). */
+  private headLead = 1.35;
+  /** Seconds since the last snap toward an offender (the jerk's overshoot). */
+  private snapAge = 9;
+  /** A replay's pose, drawn instead of her live one. */
+  private shown: DollPose | null = null;
 
   private singing = false;
   private watching = false;
@@ -96,8 +103,13 @@ export class Doll {
     this.root.position.z = z;
   }
 
-  /** Turn to face the field (true) or the wall (false) over `duration` s. */
+  /**
+   * Turn to face the field (true) or the wall (false) over `duration` s. To
+   * the field her head snaps round first, then the body follows (SPEC-V2 §2.2);
+   * back to the wall she turns as one, slowly.
+   */
   face(players: boolean, duration: number): void {
+    this.headLead = players ? 2.1 : 1.35;
     this.turnFrom = this.yaw;
     // Always spin the same way round, so a turn never looks like a twitch.
     const TAU = Math.PI * 2;
@@ -129,8 +141,9 @@ export class Doll {
     const dz = z - this.root.position.z;
     // Angle relative to her facing (+Z when watching), clamped to a neck's reach.
     const a = Math.atan2(dx, dz) - this.yaw;
-    this.snapYaw = Math.max(-0.7, Math.min(0.7, Math.atan2(Math.sin(a), Math.cos(a))));
+    this.snapYaw = Math.max(-0.9, Math.min(0.9, Math.atan2(Math.sin(a), Math.cos(a))));
     this.snapHold = 1.3;
+    this.snapAge = 0;
   }
 
   update(dt: number): void {
@@ -139,7 +152,7 @@ export class Doll {
     if (this.turnT < 1) {
       this.turnT = Math.min(1, this.turnT + dt / this.turnDur);
       const body = easeInOut(this.turnT);
-      const head = easeOut(Math.min(1, this.turnT * 1.35));
+      const head = easeOut(Math.min(1, this.turnT * this.headLead));
       this.yaw = this.turnFrom + (this.turnTo - this.turnFrom) * body;
       // The head leads the body round, then the body catches up.
       this.headYaw = (head - body) * (this.turnTo - this.turnFrom);
@@ -152,23 +165,28 @@ export class Doll {
       this.snapHold -= dt;
       this.headYaw += (this.snapYaw - this.headYaw) * (1 - Math.exp(-dt * 30));
     }
-    this.root.rotation.y = this.yaw;
+    this.snapAge += dt;
+    // A replay shows her as she was; her own turns carry on underneath.
+    const shown = this.shown;
+    this.root.rotation.y = shown ? shown.yaw : this.yaw;
 
     // Pose (standing, breathing), then her head on top of it.
     this.human.update(dt, 0, 0, 0);
-    const wantTilt = this.singing ? Math.sin(this.time * 4.2) * 0.12 : 0;
+    const wantTilt = this.singing && !shown ? Math.sin(this.time * 4.2) * 0.12 : 0;
     this.tilt += (wantTilt - this.tilt) * (1 - Math.exp(-dt * 8));
-    _q.setFromAxisAngle(Y, this.headYaw).multiply(_q2.setFromAxisAngle(Z, this.tilt));
+    // The snap overshoots and jerks back: a crack, not a glide.
+    const jerk = this.snapAge < 0.6 ? Math.sin(this.snapAge * 30) * 0.1 * Math.exp(-this.snapAge * 7) : 0;
+    _q.setFromAxisAngle(Y, (shown ? shown.head : this.headYaw) + jerk).multiply(_q2.setFromAxisAngle(Z, this.tilt));
     if (this.flash > 0.5) _q.multiply(_q2.setFromAxisAngle(X, -0.12 * this.flash));
     this.head.quaternion.multiply(_q);
 
-    // Eyes: a red glow while she watches; a hot flash on a catch.
-    const want = this.watching ? 1 : 0;
+    // Eyes: a red glow while she watches; a bright red flash on a catch (SPEC-V2 §2.6 step 8).
+    const want = (shown ? shown.watching : this.watching) ? 1 : 0;
     this.glow += (want - this.glow) * (1 - Math.exp(-dt * 6));
     this.flash = Math.max(0, this.flash - dt * 1.6);
     const hot = this.flash;
     this.glowMat.opacity = Math.min(1, this.glow * 0.85 + hot);
-    this.glowMat.color.setRGB(1, 0.16 + hot * 0.6, 0.1 + hot * 0.45);
+    this.glowMat.color.setRGB(1, 0.16 - hot * 0.1, 0.1 - hot * 0.06);
     const pulse = this.watching ? 1 + Math.sin(this.time * 9) * 0.08 : 1;
     for (const g of this.glows) {
       g.visible = this.glowMat.opacity > 0.01;
@@ -186,5 +204,18 @@ export class Doll {
   /** For tinting UI to the doll's mood without reading three.js state. */
   get isWatching(): boolean {
     return this.watching;
+  }
+
+  /** How she stands now, for the replay recorder. */
+  pose(out: DollPose): DollPose {
+    out.yaw = this.yaw;
+    out.head = this.headYaw;
+    out.watching = this.watching;
+    return out;
+  }
+
+  /** Show her as a replay had her (null: back to now). */
+  show(p: DollPose | null): void {
+    this.shown = p;
   }
 }

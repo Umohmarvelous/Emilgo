@@ -314,6 +314,26 @@ async function main(): Promise<void> {
   check(drp > atk, "then the ball drops (with where it landed)");
   check(atkEv?.k === "atk" && Math.hypot(atkEv.kx ?? 0, atkEv.kz ?? 0) > 100, `A's slide comes with the push (${atkEv?.k === "atk" ? Math.round(Math.hypot(atkEv.kx ?? 0, atkEv.kz ?? 0)) : 0} cm/s)`);
 
+  console.log("\nthe play of the game (protocol 8):");
+  // B takes back the ball it knocked loose once its wait is up: a steal, the best attack.
+  const t1 = Date.now();
+  while (Date.now() - t1 < 20_000 && !A.events.some((e) => e.k === "hl" && e.kind === 3)) {
+    await sleep(1000 / NET.inputHz);
+    const singing = A.phase === "sing" || A.phase === "hum" || A.phase === "turningBack";
+    const b = A.balls[grabbed];
+    if (!singing || !b || b.holder !== -1) {
+      still(B);
+      continue;
+    }
+    if (walk(B, b.x, b.z, BALLS.reach * 0.6) <= BALLS.reach * 0.8) {
+      B.g = (B.g + 1) & 255;
+      still(B);
+    }
+  }
+  still(B);
+  const hl = A.events.find((e) => e.k === "hl" && e.kind === 3);
+  check(!!hl && hl.k === "hl" && hl.i === B.me && hl.sc > 0, `B takes back the ball it knocked loose: everyone hears it as the best attack (${hl?.k === "hl" ? hl.sc / 10 : "none"})`);
+
   console.log("\nsnapshots:");
   const s = A.snaps[A.snaps.length - 1];
   check(!!s && s.p.length === 3 * SNAP_STRIDE, `${SNAP_STRIDE} numbers a player (${s?.p.length} for 3)`);
@@ -330,9 +350,33 @@ async function main(): Promise<void> {
     check(!!sy, "C comes back to a sync");
     check(!!sy && (sy.snap.b?.length ?? 0) === ballCount(3) * BALL_STRIDE, "the sync carries every ball");
     const h = sy?.snap.b?.[grabbed * BALL_STRIDE + 2];
-    check(h === 0, `…including A's ball, free on the ground (state ${h})`);
+    const want = (A.balls[grabbed]?.holder ?? -1) + 1;
+    check(h === want, `…including the ball knocked loose (state ${h}: ${want ? "B took it back" : "free on the ground"})`);
     check(!!sy && sy.outcomes.length === 3 * OUTCOME_STRIDE && sy.outcomes[A.me * OUTCOME_STRIDE + 4] > 0, "outcomes carry everyone's distance run");
     check(!!sy && sy.snap.st[C.me] === "a", "C, standing still the whole time, is still in");
+  }
+
+  if (C) {
+    console.log("\nthe final two (protocol 8):");
+    // C walks while she stares: caught, two left — the slow motion starts for everyone.
+    const t2 = Date.now();
+    while (Date.now() - t2 < 40_000 && !A.events.some((e) => e.k === "out" && e.i === C.me)) {
+      await sleep(1000 / NET.inputHz);
+      still(A);
+      still(B);
+      const p = pos(C, C.me);
+      if (A.phase === "watch" && p) send(C, { t: "in", x: 0, z: -40, a: C.a, g: C.g });
+      else still(C);
+    }
+    still(C);
+    await sleep(1200);
+    const fn2 = A.events.find((e) => e.k === "fn2");
+    const fn2C = C.events.find((e) => e.k === "fn2");
+    check(!!fn2 && fn2.k === "fn2" && [fn2.a, fn2.b].sort().join() === [A.me, B.me].sort().join() && !!fn2C, "C caught, two left: \"fn2\" names A and B, to every phone");
+    // The last ten snapshots (two thirds of a second), all inside the slow motion.
+    const last = A.snaps.slice(-10);
+    const rate = last.length > 2 ? (last[last.length - 1].el - last[0].el) / (last[last.length - 1].s - last[0].s) : 0;
+    check(rate > 0.3 && rate < 0.5, `the server's clock runs slow: ${rate.toFixed(2)} s of play a second`);
   }
 
   check(!A.events.some((e) => e.k === "out" && (e.i === A.me || e.i === B.me) && e.c !== 0), "no one was ruled out for anything but moving");

@@ -534,6 +534,8 @@ input { font: inherit; color: inherit; }
 
 .vignette { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 55%, rgba(183, 28, 28, 0.75) 100%); opacity: 0; transition: opacity 0.25s; pointer-events: none; }
 .vignette.watch { opacity: 0.35; }
+.vignette.hit { animation: vhit 1.1s ease-out forwards; }
+@keyframes vhit { 0% { opacity: 0; } 12% { opacity: 0.85; } 100% { opacity: 0; } }
 .vignette.dead { opacity: 1; background: radial-gradient(ellipse at center, rgba(120, 0, 0, 0.15) 30%, rgba(90, 0, 0, 0.9) 100%); transition: opacity 0.4s; }
 
 .verdict { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%) scale(0.9); display: flex; align-items: center; gap: 10px; padding: 10px 18px; border-radius: var(--radius); font: 800 16px var(--head); letter-spacing: 0.24em; opacity: 0; pointer-events: none; }
@@ -715,6 +717,26 @@ input { font: inherit; color: inherit; }
 /* Once the HUD and controls are up (the countdown): top centre, under the compass, clear of every control. */
 .flow-tutorial.up { left: 0; right: 0; width: max-content; margin: 0 auto; bottom: auto; top: calc(var(--safe-t) + 52px); }
 @media (orientation: portrait) { .flow-tutorial.up { top: calc(var(--safe-t) + 178px); } }
+
+/* Replays: the kill cam and the play of the game (SPEC-V2 §2.7, §2.9). Letterbox bars, a tag top centre. */
+.replay { position: absolute; inset: 0; z-index: 18; display: none; pointer-events: none; }
+.replay.visible { display: block; }
+.replay::before, .replay::after { content: ""; position: absolute; left: 0; right: 0; height: 7%; background: #000; }
+.replay::before { top: 0; }
+.replay::after { bottom: 0; }
+.replay-tag { position: absolute; left: 50%; top: calc(var(--safe-t) + 7% + 10px); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 2px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9); animation: flowin 0.35s ease-out; white-space: nowrap; }
+.replay-tag b { font: 800 13px var(--head); letter-spacing: 0.28em; text-transform: uppercase; }
+.replay-tag.killcam b { color: #ff5a4e; }
+.replay-tag.potg b { color: var(--yellow); }
+.replay-tag .who { font: 800 18px var(--head); }
+.replay-tag .what { font: 600 11px var(--body); letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); }
+.replay-line { position: absolute; left: 0; right: 0; bottom: 7%; height: 2px; background: rgba(255, 255, 255, 0.12); }
+.replay-bar { position: absolute; inset: 0; background: rgba(255, 255, 255, 0.7); transform-origin: left center; transform: scaleX(0); }
+.replay-skip { z-index: 21; }
+/* Beside "Next runner", bottom centre: clear of the chat button bottom right. */
+.results-btn { position: absolute; left: calc(50% + 76px); bottom: calc(var(--safe-b) + 24px); display: none; pointer-events: auto; z-index: 20; }
+.results-btn.visible { display: inline-flex; }
 
 .tut { position: absolute; inset: 0; z-index: 25; display: none; pointer-events: none; }
 .tut.visible { display: block; }

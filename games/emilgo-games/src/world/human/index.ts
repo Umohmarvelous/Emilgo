@@ -31,6 +31,7 @@ import {
 import { computePose, newAnimState, Pose, stepGait, type ActionId, type AnimState, type EmoteId, type PoseId } from "./animator";
 import { buildBody, nearDetail, type BuiltBody, type Detail, type Tier } from "./mesh";
 import { paintLook, TEX_SIZE } from "./paint";
+import { FALL_TIME } from "./ragdoll";
 import { BONES, PARENT, type BoneName } from "./skeleton";
 import { normalMapFor } from "./normals";
 import { OUTFIT_BY_ID, paintKey, shapeKey, type Look } from "./wardrobe";
@@ -45,6 +46,8 @@ export { nearDetail } from "./mesh";
 interface Body extends BuiltBody {
   /** Ground-solver hull: [bone, x, y, z] per point, bone-local (rest pose has no rotation). */
   contacts: Float32Array;
+  /** The same with the fingers: a body lying down can have its hands flat under it. */
+  contactsAll: Float32Array;
 }
 
 const bodies = new Map<string, Body>();
@@ -60,7 +63,7 @@ function bodyFor(look: Look, level: Detail): Body {
   let b = bodies.get(key);
   if (!b) {
     const built = buildBody(look, level);
-    b = { ...built, contacts: hullOf(built) };
+    b = { ...built, contacts: hullOf(built, MAIN_BONES, DIRS), contactsAll: hullOf(built, BONES.length, DIRS_DOWN) };
     bodies.set(key, b);
     // Bodies are small (tens of KB): keep up to 128 (shape × detail).
     if (bodies.size > 128) {
@@ -109,18 +112,36 @@ function releaseTexture(tex: CanvasTexture): void {
 
 /** Main bones only: finger points move with the curl, the palm stands in for them. */
 const MAIN_BONES = BONES.indexOf("footR") + 1;
-const DIRS: [number, number, number][] = [
-  [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1],
-  [0.7, -0.7, 0], [-0.7, -0.7, 0], [0, -0.7, 0.7], [0, -0.7, -0.7],
-];
+/** Seconds after the shot when a fallen body has stopped moving (ragdoll.ts: the fall, then the settle). */
+const REST_AT = FALL_TIME + 1.1;
+/**
+ * Directions (in each bone's rest frame) to take its extreme points along:
+ * every face, edge and corner of a cube, so a bone lying at any angle — a body
+ * on its back, its side, its face (ragdoll.ts) — has a point near its lowest.
+ */
+function cubeDirs(steps: number): [number, number, number][] {
+  const out: [number, number, number][] = [];
+  for (let i = -steps; i <= steps; i++)
+    for (let j = -steps; j <= steps; j++)
+      for (let k = -steps; k <= steps; k++) {
+        // Only the cube's surface: one coordinate at the edge.
+        if (Math.max(Math.abs(i), Math.abs(j), Math.abs(k)) !== steps) continue;
+        const l = Math.hypot(i, j, k);
+        out.push([i / l, j / l, k / l]);
+      }
+  return out;
+}
+const DIRS = cubeDirs(1);
+/** Lying down every surface faces the ground somewhere: sample it finer (98 directions). */
+const DIRS_DOWN = cubeDirs(2);
 
-/** A few extreme points per bone: whatever can touch the ground first in any pose. */
-function hullOf(b: BuiltBody): Float32Array {
+/** A few extreme points per bone (the first `bones`): whatever can touch the ground first in any pose. */
+function hullOf(b: BuiltBody, bones: number, dirs: readonly [number, number, number][]): Float32Array {
   const g = b.geometry;
   const pos = g.attributes.position;
   const si = g.attributes.skinIndex;
   const sw = g.attributes.skinWeight;
-  const best: { i: number; d: number }[][] = Array.from({ length: MAIN_BONES }, () => DIRS.map(() => ({ i: -1, d: -Infinity })));
+  const best: { i: number; d: number }[][] = Array.from({ length: bones }, () => dirs.map(() => ({ i: -1, d: -Infinity })));
   for (let i = 0; i < pos.count; i++) {
     // Dominant bone, if it holds most of the vertex.
     let bone = -1;
@@ -132,19 +153,19 @@ function hullOf(b: BuiltBody): Float32Array {
         bone = si.getComponent(i, k);
       }
     }
-    if (bone < 0 || bone >= MAIN_BONES) continue;
+    if (bone < 0 || bone >= bones) continue;
     const r = b.rest[BONES[bone]];
     const x = pos.getX(i) - r.x;
     const y = pos.getY(i) - r.y;
     const z = pos.getZ(i) - r.z;
     const row = best[bone];
-    for (let d = 0; d < DIRS.length; d++) {
-      const v = x * DIRS[d][0] + y * DIRS[d][1] + z * DIRS[d][2];
+    for (let d = 0; d < dirs.length; d++) {
+      const v = x * dirs[d][0] + y * dirs[d][1] + z * dirs[d][2];
       if (v > row[d].d) row[d] = { i, d: v };
     }
   }
   const out: number[] = [];
-  for (let bone = 0; bone < MAIN_BONES; bone++) {
+  for (let bone = 0; bone < bones; bone++) {
     const seen = new Set<number>();
     for (const { i } of best[bone]) {
       if (i < 0 || seen.has(i)) continue;
@@ -193,11 +214,13 @@ export class Human {
   readonly tier: Tier;
   private body: Body;
   private level: Detail;
+  /** The detail level this body was last posed at, lying still (−1: not lying still). */
+  private restedAt = -1;
   private readonly tex: CanvasTexture;
   private readonly hipsRest: Vector3;
   private readonly rootRest: Vector3;
   /** Bone matrices in the mesh's own space (ground solver scratch). */
-  private readonly local: Matrix4[] = Array.from({ length: MAIN_BONES }, () => new Matrix4());
+  private readonly local: Matrix4[] = Array.from({ length: BONES.length }, () => new Matrix4());
   /** Off the ground on purpose (the referee says it is jumping). */
   private airborne = false;
 
@@ -318,6 +341,13 @@ export class Human {
   /** Advance and pose. `speed` m/s on the ground; `stance` 0..2; `air` 0..1 (1: jumping); `slide` 0/1. */
   update(dt: number, speed: number, stance = 0, air = 0, slide = 0): void {
     const a = this.anim;
+    // Down and still: the pose can't change any more, so it isn't worked out again
+    // (twenty bodies on the field cost nothing). A new detail level re-poses once.
+    if (a.dead > REST_AT && this.restedAt === this.level) {
+      a.dead += dt;
+      a.time += dt;
+      return;
+    }
     this.airborne = air > 0.5;
     a.slide += (slide - a.slide) * (1 - Math.exp(-dt * (slide > a.slide ? 18 : 8)));
     a.stance += (stance - a.stance) * (1 - Math.exp(-dt * 10));
@@ -325,6 +355,7 @@ export class Human {
     stepGait(a, speed, dt);
     computePose(a, this.pose);
     this.apply();
+    this.restedAt = a.dead > REST_AT ? this.level : -1;
   }
 
   private apply(): void {
@@ -359,13 +390,16 @@ export class Human {
   private ground(lift: number): void {
     const B = this.bones;
     const L = this.local;
-    for (let i = 0; i < MAIN_BONES; i++) {
+    // Lying down, the hands can be under the body: their fingers count too.
+    const down = this.anim.dead >= 0;
+    const n = down ? B.length : MAIN_BONES;
+    for (let i = 0; i < n; i++) {
       B[i].updateMatrix();
       const p = PARENT_INDEX[i];
       if (p < 0) L[i].copy(B[i].matrix);
       else L[i].multiplyMatrices(L[p], B[i].matrix);
     }
-    const c = this.body.contacts;
+    const c = down ? this.body.contactsAll : this.body.contacts;
     let min = Infinity;
     for (let k = 0; k < c.length; k += 4) {
       const e = L[c[k]].elements;

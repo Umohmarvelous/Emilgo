@@ -5,7 +5,7 @@
 //               sudden stop: the statue look Red Light is all about
 //   stance      stand → crouch → prone, blended continuously
 //   air         a tuck while jumping
-//   fall        caught: a stiff fall away from Mama, limbs loose
+//   fall        caught: a COD-style death away from Mama (ragdoll.ts)
 //   cheer       arms up at the finish
 //   emotes      upper-body poses blended over whatever the legs are doing
 //   actions     fist, slap, push, picking a ball up; carrying it; staggering
@@ -18,6 +18,7 @@
 // leans forward. Everything here is presentation; the referee never reads it.
 
 import { EMOTE_SECONDS, type EmoteId } from "../../social/emotes";
+import { fallKind, fallProgress, ragdollPose } from "./ragdoll";
 import { BONES, BONE_INDEX, type BoneName } from "./skeleton";
 
 export type { EmoteId } from "../../social/emotes";
@@ -170,14 +171,13 @@ export function newAnimState(seed: number): AnimState {
 export const WALK = 2;
 export const RUN = 6;
 export const SPRINT = 9;
-const FALL_TIME = 0.85;
 
 /** Advance the gait from how fast the body is actually moving. */
 export function stepGait(a: AnimState, speed: number, dt: number): void {
   a.time += dt;
   if (a.dead >= 0) {
     a.dead += dt;
-    a.fall = Math.min(1, a.dead / FALL_TIME);
+    a.fall = fallProgress(a.dead, fallKind(a.seed));
     return;
   }
   if (a.done >= 0) a.done += dt;
@@ -212,7 +212,9 @@ export function computePose(a: AnimState, out: Pose): void {
   const t = a.time;
 
   if (a.dead >= 0) {
-    fallPose(a, out);
+    ragdollPose(a, out);
+    curl(out, "L", out.curlL);
+    curl(out, "R", out.curlR);
     return;
   }
 
@@ -492,31 +494,6 @@ function curl(out: Pose, L: "L" | "R", k: number): void {
   }
   out.set(`thumb1${L}` as BoneName, -0.2 - k * 0.3, 0, s * 0.2 * k);
   out.set(`thumb2${L}` as BoneName, -0.1 - k * 0.4, 0, s * 0.3 * k);
-}
-
-function fallPose(a: AnimState, out: Pose): void {
-  const f = a.fall;
-  const d = a.dead;
-  const settle = f >= 1 ? Math.sin(Math.min(d - FALL_TIME, 0.6) * 14) * 0.04 * Math.max(0, 0.6 - (d - FALL_TIME)) : 0;
-  out.tilt = (Math.PI / 2) * f * f + settle;
-  out.tiltYaw = a.fallDir;
-  out.rootY = 0.11 * f;
-  // Arms fly up, legs buckle, head snaps back: a cheap ragdoll.
-  const flail = Math.sin(d * 9) * 0.25 * (1 - f);
-  out.set("upperArmL", -2.2 * f + flail, 0, 0.5 * f);
-  out.set("upperArmR", -2.2 * f - flail, 0, -0.5 * f);
-  out.set("foreArmL", -0.6 * f);
-  out.set("foreArmR", -0.6 * f);
-  out.set("thighL", -0.1 * f, 0, 0.12 * f);
-  out.set("thighR", 0.08 * f, 0, -0.12 * f);
-  out.set("shinL", 0.3 * f);
-  out.set("shinR", 0.2 * f);
-  out.set("spine", -0.12 * f);
-  out.set("chest", -0.13 * f);
-  out.set("head", -0.4 * f);
-  out.curlL = out.curlR = 0.15;
-  curl(out, "L", 0.15);
-  curl(out, "R", 0.15);
 }
 
 /** Lobby stances. */

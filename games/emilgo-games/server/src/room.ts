@@ -27,10 +27,12 @@ import { randomInt } from "node:crypto";
 
 import { ATTACK_KINDS, FIELD, FLOW, NET, courseFor, walkoutLength, type Distance, type Mode } from "../../src/config";
 import { ballState } from "../../src/game/balls";
+import { Highlights } from "../../src/game/highlights";
 import { actCode } from "../../src/game/combat";
 import { HIDDEN_LENGTH, RedLightRound, type Contestant, type Phase, type RoundEvent } from "../../src/game/rules";
 import {
   BALL_STRIDE,
+  MOMENT_WIRE,
   STATUS_CHAR,
   SNAP_STRIDE,
   packFlags,
@@ -87,6 +89,8 @@ export class Room {
   onDecided: ((room: Room, winner: Winner) => void) | null = null;
 
   private round: RedLightRound | null = null;
+  /** The play of the game: the round's best moment, scored here so every phone shows the same one. */
+  private highlights = new Highlights();
   private start: StartInfo | null = null;
   /** Seat ids in this round's roster. */
   private readonly inRound = new Set<string>();
@@ -329,6 +333,7 @@ export class Room {
     const course = courseFor(this.mode, this.dist, info.halfWidth ?? FIELD.halfWidth);
     const walkout = walkoutLength(this.mode);
     this.round = new RedLightRound({ seed, contestants: roster.map((r) => ({ id: r.id, name: r.name, bot: false })), course, walkout });
+    this.highlights = new Highlights();
     this.inRound.clear();
     for (const r of roster) this.inRound.add(r.id);
     const init: number[] = [];
@@ -360,7 +365,11 @@ export class Room {
     }
 
     round.step(dt);
-    for (const e of round.drain()) this.broadcast(this.encode(e));
+    const events = round.drain();
+    const best = this.highlights.observe(round, events);
+    // A new best moment goes out before "end", so the last one heard is the play of the game.
+    if (best) events.splice(events[events.length - 1]?.type === "ended" ? events.length - 1 : events.length, 0, { type: "moment", ...best });
+    for (const e of events) this.broadcast(this.encode(e));
 
     if (++this.ticks % SNAP_EVERY === 0 || round.over) {
       this.lastSnap = this.snapshot();
@@ -500,6 +509,10 @@ export class Room {
         return { t: "ev", k: "drp", b: e.ball, x: cm(e.x), z: cm(e.z) };
       case "bank":
         return { t: "ev", k: "bnk", i: round.get(e.id)!.index, b: e.ball, bk: e.basket };
+      case "final":
+        return { t: "ev", k: "fn2", a: round.get(e.ids[0])!.index, b: round.get(e.ids[1])!.index };
+      case "moment":
+        return { t: "ev", k: "hl", i: e.who, kind: MOMENT_WIRE.indexOf(e.kind) + 1, at: Math.round(e.t * 1000), sc: Math.round(e.score * 10) };
     }
   }
 

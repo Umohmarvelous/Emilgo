@@ -22,6 +22,11 @@
 // The round ends when nobody is still running, or time is up (everyone still
 // on the field is eliminated).
 //
+// The final two (SPEC-V2 §2.8): the moment only two are left running (in a
+// round that started with three or more), the referee's clock slows to
+// FINAL.scale for FINAL.seconds of real time — the song, the stare, the run,
+// everything — for every phone at once.
+//
 // Modes (SPEC-V2 §2.1): Classic Run — reach the line. Ball Haunting — reach
 // it HOLDING a ball (fewer balls than players); the ball goes in a basket and
 // you are safe for good. Attacks (fist, slap, push; combat.ts) knock a ball
@@ -29,7 +34,7 @@
 // just a bump. While she watches, an attacker is shot and the one they hit is
 // forgiven.
 
-import { ATTACK, ATTACK_KINDS, BALLS, DEFAULT_COURSE, FIELD, FLOW, MOVE, RULES, ballCount, type AttackKind, type Course, type SingBands, type Stance } from "../config";
+import { ATTACK, ATTACK_KINDS, BALLS, DEFAULT_COURSE, FIELD, FINAL, FLOW, MOVE, RULES, ballCount, type AttackKind, type Course, type SingBands, type Stance } from "../config";
 import { Rng } from "../core/rng";
 import { inPlay, nearestBasket, placeBalls, placeBaskets, type Ball, type Basket } from "./balls";
 import { attackTarget, canAttack, knock, type ActKind } from "./combat";
@@ -119,6 +124,8 @@ export interface RoundView {
   readonly phaseTime: number;
   readonly phaseDuration: number;
   readonly elapsed: number;
+  /** How fast the referee's clock runs now: 1, or FINAL.scale through the final two's slow motion. */
+  readonly timeScale: number;
   readonly contestants: Contestant[];
   readonly timeLeft: number;
   readonly aliveCount: number;
@@ -317,7 +324,15 @@ export type RoundEvent =
   | { type: "attack"; id: string; kind: AttackKind; target: string | null; dropped: number }
   | { type: "grab"; id: string; ball: number }
   | { type: "drop"; ball: number; x: number; z: number }
-  | { type: "bank"; id: string; ball: number; basket: number };
+  | { type: "bank"; id: string; ball: number; basket: number }
+  /** Two runners left: the slow motion starts (FINAL). */
+  | { type: "final"; ids: [string, string] }
+  /**
+   * A highlight beat the best so far (game/highlights.ts): the play of the
+   * game, unless a better one comes. Never from the referee itself — from
+   * whoever runs the highlights (the server online, the session in Solo).
+   */
+  | { type: "moment"; kind: "escape" | "dodge" | "attack"; who: number; t: number; score: number };
 
 export interface RoundOptions {
   seed: number;
@@ -338,6 +353,7 @@ export class RedLightRound implements RoundView {
   elapsed = 0;
   /** Completed sing phases. */
   cycle = 0;
+  timeScale = 1;
   readonly contestants: Contestant[];
   readonly seed: number;
   readonly course: Course;
@@ -349,6 +365,9 @@ export class RedLightRound implements RoundView {
   private events: RoundEvent[] = [];
   private finishedCount = 0;
   private turns = 0;
+  /** Real seconds of the final two's slow motion left; whether it has happened. */
+  private slowLeft = 0;
+  private hadFinal = false;
   /** People who tapped skip during the walkout (CPUs never hold it up). */
   private readonly skipped = new Set<string>();
 
@@ -495,9 +514,16 @@ export class RedLightRound implements RoundView {
     return out;
   }
 
-  step(dt: number): void {
+  step(realDt: number): void {
     if (this.phase === "ended") return;
 
+    // The final two: the clock runs slow for a moment of real time.
+    let dt = realDt;
+    if (this.slowLeft > 0) {
+      dt = realDt * FINAL.scale;
+      this.slowLeft = Math.max(0, this.slowLeft - realDt);
+      if (this.slowLeft === 0) this.timeScale = 1;
+    }
     this.phaseTime += dt;
 
     if (!prePlay(this.phase)) {
@@ -525,6 +551,16 @@ export class RedLightRound implements RoundView {
       this.enter("ended", 0);
       this.events.push({ type: "ended" });
     }
+    if (!this.over && !this.hadFinal && !prePlay(this.phase) && this.contestants.length >= 3 && this.aliveCount === 2) this.finalTwo();
+  }
+
+  /** Two left running: everyone's clock slows (FINAL), once a round. */
+  private finalTwo(): void {
+    this.hadFinal = true;
+    this.slowLeft = FINAL.seconds;
+    this.timeScale = FINAL.scale;
+    const two = this.contestants.filter((c) => c.status === "alive");
+    this.events.push({ type: "final", ids: [two[0].id, two[1].id] });
   }
 
   // ── Phases ────────────────────────────────────────────────────────────────

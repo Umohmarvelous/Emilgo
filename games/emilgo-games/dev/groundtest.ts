@@ -54,7 +54,13 @@ const RUNS: Run[] = [
   ...(["fist", "slap", "push", "grab"] as const).map((id): Run => ({ state: `act:${id}`, frames: 18, dt: 1 / 30, grounded: "always", speed: 0, setup: (h) => h.act(id) })),
   { state: "carry-run", frames: 60, dt: 1 / 30, grounded: "stride", speed: MOVE.run, setup: (h) => h.setCarry(true) },
   { state: "hit", frames: 18, dt: 1 / 30, grounded: "always", speed: 0, setup: (h) => h.hit(0.7) },
-    { state: "fallen", frames: 120, dt: 1 / 30, grounded: "always", speed: 0, setup: (h) => h.kill(0.4) },
+  // The three falls (ragdoll.ts picks one by the person's seed), forward-ish and straight back.
+  ...([["thrown", 0], ["spin", 0.04], ["crumple", 0.07]] as const).flatMap(([kind, seed]) =>
+    [0.4, Math.PI].map((dir): Run => ({ state: `fallen:${kind}${dir > 1 ? "-back" : ""}`, frames: 120, dt: 1 / 30, grounded: "always", speed: 0, setup: (h) => {
+      h.anim.seed = seed;
+      h.kill(dir);
+    } })),
+  ),
   // The cheer is a deliberate hop: it must come back down onto the ground.
   { state: "cheer", frames: 60, dt: 1 / 30, grounded: "stride", speed: 0, setup: (h) => h.finish() },
 ];

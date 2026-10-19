@@ -24,7 +24,7 @@
 import { ACESFilmicToneMapping, OrthographicCamera, PCFShadowMap, PCFSoftShadowMap, SRGBColorSpace, WebGLRenderTarget, PerspectiveCamera, Scene, Vector2, Vector3, WebGLRenderer } from "three";
 
 import { Sound } from "../audio/sound";
-import { ATTACK, BALLS, DISTANCES, FIELD, FLOW, MODES, MOVE, PRACTICE, RULES, courseFor, scoreFor, walkoutLength, type AttackKind, type Course, type Distance, type Mode, type Stance } from "../config";
+import { ATTACK, BALLS, DISTANCES, FIELD, FINAL, FLOW, MODES, MOVE, PRACTICE, RULES, courseFor, scoreFor, walkoutLength, type AttackKind, type Course, type Distance, type Mode, type Stance } from "../config";
 import { SONGS, songFor, type SongId } from "../audio/songs";
 import { Loop } from "../core/loop";
 import { QualityGovernor } from "../core/quality";
@@ -35,7 +35,8 @@ import { Countdown } from "../flow/countdown";
 import { MatchFlow } from "../flow/machine";
 import { TutorialPlayer } from "../flow/tutorial";
 import { Walkout, WalkoutButtons } from "../flow/walkout";
-import { behindShot, previewShots } from "../rlgl/shots";
+import { ReplayView } from "../rlgl/replayView";
+import { behindShot, finalTwoLens, killCamLens, potgLens, previewShots } from "../rlgl/shots";
 import { DEMO, TutorialScript, tutorialPeople, tutorialSteps } from "../rlgl/tutorial";
 import { tierSpec, type TierSpec } from "../graphics/tiers";
 import { REFLECT_LAYER } from "../maps/potholes";
@@ -57,6 +58,7 @@ import { QuickChat } from "../ui/quickchat";
 import { Scoreboard } from "../ui/scoreboard";
 import type { TerrainShot } from "../ui/minimap";
 import { Screens, naira, payoutOf, type LobbyTab, type OnlineAvailability, type PlayMode, type ResultInfo } from "../ui/screens";
+import { ReplayOverlay } from "../ui/replay";
 import { Bubbles, ChatPanel, EmoteWheel } from "../ui/social";
 import { CameraRig } from "../world/camera";
 import { Crowd, accentOf } from "../world/crowd";
@@ -72,7 +74,9 @@ import { buildAtlas } from "../world/textures";
 import { BOT_NAMES, BotBrain } from "./bots";
 import { addProgress, ensureDaily, levelOf, xpForRound } from "./progress";
 import { attackTarget, canAttack } from "./combat";
-import { type Cause, type Contestant, RedLightRound, type RoundEvent, type RoundView } from "./rules";
+import { CLIP, Highlights, type Moment, type MomentKind } from "./highlights";
+import { Recorder, type Clip, type DollPose } from "./replay";
+import { PHASES, prePlay, type Cause, type Contestant, RedLightRound, type RoundEvent, type RoundView } from "./rules";
 
 const ME = "me";
 const MATCH_STILL_ON = "The match is still on. The result comes when the round ends.";
@@ -89,6 +93,19 @@ const _eyeR = new Vector3();
 const _head = new Vector3();
 const _focus = new Vector3();
 const _size = new Vector2();
+const _a = new Vector3();
+const _b = new Vector3();
+const _lensPos = new Vector3();
+const _lensLook = new Vector3();
+
+/** The zoom on an offender (SPEC-V2 §2.6 step 2), seconds. */
+const ZOOM_S = 1.2;
+/** Your own fall, live and in slow motion, before the kill cam (seconds, real time). */
+const OUT_FALL_S = 1.5;
+/** The kill cam: this much before the shot and after it, seconds of play. */
+const KILLCAM_BEFORE = 1.2;
+const KILLCAM_AFTER = 0.4;
+const MOMENT_NAME: Record<MomentKind, string> = { escape: "Closest escape", dodge: "Best dodge", attack: "Best attack" };
 
 export class Game {
   private readonly renderer: WebGLRenderer;
@@ -188,6 +205,34 @@ export class Game {
   private readonly board: Scoreboard;
   private readonly quick: QuickChat;
 
+  // Elimination and highlights (SPEC-V2 §2.6–2.9)
+  private readonly replay: ReplayView;
+  private readonly replayUi: ReplayOverlay;
+  private readonly resultsBtn: HTMLButtonElement;
+  /** What this phone shows, the last 12 s of it: the kill cam and the play of the game are cut from it. */
+  private rec: Recorder | null = null;
+  /** Solo: the highlights are scored here (online the server scores them). */
+  private hl: Highlights | null = null;
+  /** Caught this step: one crack, one drum and one zoom for the lot. */
+  private caughtNow: Contestant[] = [];
+  /** Her real turns this round, and the one the zoom last went to (once a turn). */
+  private turnNo = 0;
+  private zoomTurn = -1;
+  private zoomId: string | null = null;
+  /** Your own elimination: the live fall, then the kill cam, then you spectate. */
+  private outSeq: { stage: "fall" | "killcam"; left: number } | null = null;
+  /** After crossing: a moment to enjoy it, then you spectate. */
+  private spectateIn = -1;
+  /** The play of the game: the moment, its clip (once recorded), when to show it (s, −1: not yet). */
+  private potg: { m: Moment; clip: Clip } | null = null;
+  /** A better moment whose clip isn't cut yet (the seconds after it are still being recorded). */
+  private potgNext: Moment | null = null;
+  private potgIn = -1;
+  private replaying: "killcam" | "potg" | null = null;
+  /** Two left: the cutscene's lens (when you're watching), for this long. */
+  private finalShot: { ids: [string, string]; t: number } | null = null;
+  private readonly dollPose: DollPose = { yaw: Math.PI, head: 0, watching: false };
+
   // Online
   private readonly server: string | null;
   private net: NetClient | null = null;
@@ -269,6 +314,22 @@ export class Game {
     this.spectateBtn.textContent = "Next runner";
     this.spectateBtn.addEventListener("click", () => this.nextSpectate());
     ui.append(this.spectateBtn);
+    // While you spectate: straight to the results (the round goes on without you).
+    this.resultsBtn = document.createElement("button");
+    this.resultsBtn.className = "results-btn btn secondary";
+    this.resultsBtn.dataset.ui = "1";
+    this.resultsBtn.textContent = "Results";
+    this.resultsBtn.addEventListener("click", () => {
+      this.sound.ui();
+      this.showResults();
+    });
+    ui.append(this.resultsBtn);
+    this.replay = new ReplayView(this.crowd, this.doll, this.props, this.fx);
+    this.replayUi = new ReplayOverlay(ui);
+    this.replayUi.skipBtn.addEventListener("click", () => {
+      this.sound.ui();
+      this.endReplay();
+    });
     this.flowBtns = new WalkoutButtons(ui);
     this.flowBtns.skipBtn.addEventListener("click", () => this.skipWalkout());
     this.flowBtns.tutorialBtn.addEventListener("click", () => {
@@ -559,6 +620,23 @@ export class Game {
     this.rig.firstPerson = false;
     this.crowd.hideMyHead = false;
     this.hud.setFirstPerson(false);
+    // Elimination and highlights.
+    this.replay.stop();
+    this.replayUi.hide();
+    this.replaying = null;
+    this.rec = null;
+    this.hl = null;
+    this.caughtNow = [];
+    this.zoomId = null;
+    this.outSeq = null;
+    this.spectateIn = -1;
+    this.potg = null;
+    this.potgNext = null;
+    this.potgIn = -1;
+    this.finalShot = null;
+    this.rig.clearZoom();
+    this.sound.stopTension();
+    this.resultsBtn.classList.remove("visible");
   }
 
   /** Play Solo vs AI: a short loading card while the map is built, then the walkout. */
@@ -643,6 +721,11 @@ export class Game {
     this.my = "playing";
     this.paused = false;
     this.recorded = null;
+    this.rec = new Recorder(round.contestants.length, round.balls.length);
+    // Solo scores its own highlights; online the server does (the tutorial has none).
+    this.hl = this.mode === "practice" && !this.tut ? new Highlights() : null;
+    this.turnNo = 0;
+    this.zoomTurn = -1;
     this.watchesSurvived = 0;
     this.sprintMetres = 0;
     this.songTurn = 0;
@@ -840,7 +923,30 @@ export class Game {
     if (me?.sprinting) this.sprintMetres += Math.hypot(me.vx, me.vz) * dt;
     // The song plays on under the hum.
     if (round.phase === "sing" || round.phase === "hum") this.songBeat += (dt * SONGS[this.songId].bpm) / 60;
-    for (const e of round.drain()) this.onEvent(e);
+    const events = round.drain();
+    // Solo: the play of the game is scored here (online it arrives from the server as a "moment").
+    if (this.hl && round instanceof RedLightRound) {
+      const m = this.hl.observe(round, events);
+      if (m) events.splice(events[events.length - 1]?.type === "ended" ? events.length - 1 : events.length, 0, { type: "moment", ...m });
+    }
+    // What this phone shows, for the kill cam and the play of the game.
+    if (this.rec && !prePlay(round.phase) && round.phase !== "ended") this.rec.step(dt, round.elapsed, PHASES.indexOf(round.phase), round.contestants, round.balls, this.doll.pose(this.dollPose));
+    for (const e of events) this.onEvent(e);
+    if (this.caughtNow.length) this.afterCatches();
+    this.keepPotgClip(false);
+  }
+
+  /**
+   * A better moment's clip, cut once everything after it is recorded (or the
+   * round is over). Until then — or if it can't be cut — the last one stands.
+   */
+  private keepPotgClip(force: boolean): void {
+    const next = this.potgNext;
+    if (!next || !this.rec) return;
+    if (!force && this.rec.latest < next.t + CLIP.after) return;
+    this.potgNext = null;
+    const clip = this.rec.clip(next.t - CLIP.before, next.t + CLIP.after);
+    if (clip) this.potg = { m: next, clip };
   }
 
   private onEvent(e: RoundEvent): void {
@@ -882,6 +988,32 @@ export class Game {
           this.haptic("success");
         }
         break;
+      case "final":
+        this.onFinalTwo(e.ids);
+        break;
+      case "moment":
+        // A better play of the game: its clip is cut once the seconds after it are recorded.
+        this.potgNext = { kind: e.kind, who: e.who, t: e.t, score: e.score };
+        break;
+    }
+  }
+
+  /**
+   * Two left running (SPEC-V2 §2.8): everything slows (the referee's clock —
+   * the round's timeScale — the same on every phone), the music builds, and
+   * the camera closes in: on your own run if you're one of them, else a
+   * cutscene of the two.
+   */
+  private onFinalTwo(ids: [string, string]): void {
+    if (this.tut) return;
+    this.sound.finalTwo(FINAL.seconds);
+    this.haptic("heavy");
+    if (ids.includes(this.meId) && this.my === "playing") this.rig.push(0.78, FINAL.seconds);
+    else if (!this.replaying && this.view === "game") {
+      // A cutscene: the pair, nothing else on screen.
+      this.finalShot = { ids, t: 0 };
+      this.hud.show(false);
+      this.resultsBtn.classList.remove("visible");
     }
   }
 
@@ -937,6 +1069,7 @@ export class Game {
         if (playing) this.haptic("select");
         break;
       case "turning":
+        this.turnNo++;
         this.sound.stopSong();
         this.doll.setSinging(false);
         this.doll.face(true, duration);
@@ -976,11 +1109,12 @@ export class Game {
     if (!c || !me) return;
     const isMe = id === this.meId && !this.tut;
 
+    // The elimination (SPEC-V2 §2.6). Per body: the beam from the nearest laser
+    // gun, the blood, the slow fall that stays, the kill feed. Per batch (all
+    // caught this step, afterCatches): her head's crack, the drum, the zoom.
     this.crowd.chest(c, _chest);
     _away.set(c.x, 0, c.z - round.course.dollZ).normalize();
     if (cause === "moved") {
-      // Her head snaps to the offender and her eyes flash; the nearest laser gun fires.
-      this.doll.caught(c.x, c.z);
       if (this.world) {
         this.world.lasers.fireAt(_chest, _eyeL);
         this.fx.beam(_eyeL, _eyeL, _chest);
@@ -989,13 +1123,14 @@ export class Game {
         this.fx.beam(_eyeL, _eyeR, _chest);
       }
     }
-    this.fx.burst(_chest, _away, isMe ? 38 : cause === "time" ? 12 : 22);
+    this.fx.burst(_chest, _away, isMe ? 40 : cause === "time" ? 14 : 24);
     this.crowd.kill(c.index, c, 0, round.course.dollZ);
+    if (cause === "moved") this.caughtNow.push(c);
 
     const near = isMe || Math.hypot(c.x - me.x, c.z - me.z) < 7;
     this.sound.catch(near);
-    this.rig.kick(isMe ? 1 : near ? 0.35 : 0.1);
-    // The kill feed (SPEC-V2 §2.6 step 9): "[Name] was eliminated".
+    this.rig.kick(isMe ? 1.2 : near ? 0.35 : 0.1);
+    // The kill feed (step 9): "[Name] was eliminated".
     this.hud.pushFeed(`${isMe ? "You were" : `${this.label(c)} was`} eliminated`, "out");
 
     if (isMe && this.mode === "practice") this.cpuReact(["laugh", "taunt"], 2, 0.5);
@@ -1006,6 +1141,7 @@ export class Game {
       this.setActions(false);
       this.touch.classList.remove("live");
       this.sound.stopSong();
+      // The red vignette (step 7) comes with the verdict.
       this.hud.showVerdict(cause === "moved" ? "out" : cause);
       this.haptic("heavy");
       setTimeout(() => this.haptic("error"), 180);
@@ -1013,17 +1149,54 @@ export class Game {
       this.rig.firstPerson = false;
       this.crowd.hideMyHead = false;
       this.hud.setFirstPerson(false);
+      this.rig.clearZoom();
       if (cause === "moved") {
-        // Slow motion only in practice: an online round can't slow the server.
+        // Your fall in slow motion: the whole round in Solo; online (the server
+        // can't wait) just your body's own clock.
         if (this.mode === "practice") {
           this.loop.timeScale = 0.3;
-          this.slowmo = 1.5;
+          this.slowmo = OUT_FALL_S;
+        } else {
+          this.crowd.slowFall(c.index, 0.3, OUT_FALL_S);
         }
         this.rig.cinematic(_chest, _away);
+        // Then the kill cam (2 s from her eyes), then you spectate.
+        this.outSeq = { stage: "fall", left: OUT_FALL_S };
+      } else {
+        this.spectateIn = 2;
       }
       this.record(cause);
-      this.resultsIn = cause === "moved" ? 2.7 : 2.0;
     }
+  }
+
+  /**
+   * Everyone Mama caught this step, together: her head snaps round to the
+   * nearest of them with a CRACK (step 1), her eyes flash red (step 8), one
+   * low drum (step 6). Your screen zooms in on that one for a moment (step 2,
+   * once a turn), their fall in slow motion (step 4), a shake (step 5) and a
+   * red edge (step 7) — unless it was you: then your own sequence plays.
+   */
+  private afterCatches(): void {
+    const round = this.round;
+    const list = this.caughtNow;
+    this.caughtNow = [];
+    if (!round) return;
+    const me = round.get(this.meId);
+    if (!me) return;
+    let nearest = list[0];
+    for (const c of list) if (Math.hypot(c.x - me.x, c.z - me.z) < Math.hypot(nearest.x - me.x, nearest.z - me.z)) nearest = c;
+    const mine = list.some((c) => c.id === this.meId) && !this.tut;
+    const near = mine || Math.hypot(nearest.x - me.x, nearest.z - me.z) < 12;
+    this.doll.caught(nearest.x, nearest.z);
+    this.sound.crack(near);
+    this.sound.drum(near);
+    if (mine || this.replaying || this.zoomTurn === this.turnNo || this.view !== "game") return;
+    this.zoomTurn = this.turnNo;
+    this.zoomId = nearest.id;
+    this.rig.zoom(this.crowd.chest(nearest, _chest), ZOOM_S);
+    this.crowd.slowFall(nearest.index, 0.35, ZOOM_S);
+    this.rig.kick(0.55);
+    this.hud.flashRed();
   }
 
   private onFinished(id: string, place: number): void {
@@ -1045,7 +1218,8 @@ export class Game {
       this.sound.win();
       this.haptic("success");
       this.record("finished");
-      this.resultsIn = 2.2;
+      // A moment to enjoy it, then watch the rest (the results come when the round ends).
+      this.spectateIn = 2.2;
     } else {
       this.hud.pushFeed(`${this.label(c)} crossed${place === 1 ? " first" : ""}`, "safe");
       if (c.bot && Math.random() < 0.4) setTimeout(() => this.playEmote(c.id, Math.random() < 0.5 ? "dance" : "flex"), 600);
@@ -1058,10 +1232,103 @@ export class Game {
       this.setOutcome("Round over. Sending the result to Lagos Life…");
     }
     this.sound.stopSong();
-    if (this.watching) {
-      this.watching = false;
-      this.resultsIn = 1.6;
+    this.sound.stopTension();
+    // Still on the field (playing, watching, or in your own sequence): the play
+    // of the game, then the results. Already on the results: nothing more.
+    if (this.view !== "game" || this.tut) return;
+    this.keepPotgClip(true);
+    this.potgIn = this.potg ? 1.2 : -1;
+    if (!this.potg) this.resultsIn = 1.6;
+  }
+
+  /** Into spectating: follow whoever is ahead, next-runner and results buttons. */
+  private toSpectate(): void {
+    this.outSeq = null;
+    this.spectateIn = -1;
+    if (!this.round || this.view !== "game") return;
+    this.hud.clearVerdict();
+    if (this.round.phase === "ended" || this.round.aliveCount === 0) {
+      if (this.potgIn < 0 && this.resultsIn < 0 && !this.replaying) this.resultsIn = 0.6;
+      return;
     }
+    this.watching = true;
+    this.rig.follow();
+    this.resultsBtn.classList.add("visible");
+  }
+
+  /** The kill cam (SPEC-V2 §2.7): the 2 s before you were shot, from Mama's eyes. */
+  private startKillCam(): boolean {
+    const round = this.round;
+    const me = round?.get(this.meId);
+    if (!round || !me || !this.rec || me.eliminatedAt < 0) return false;
+    const clip = this.rec.clip(me.eliminatedAt - KILLCAM_BEFORE, me.eliminatedAt + KILLCAM_AFTER);
+    if (!clip) return false;
+    const idx = me.index;
+    const shotAt = KILLCAM_BEFORE / (KILLCAM_BEFORE + KILLCAM_AFTER);
+    this.replay.start(
+      clip,
+      round.course.dollZ,
+      (pos, look, at) => {
+        const c = at.people[idx];
+        this.crowd.chest(c, _a);
+        return killCamLens((l, r) => this.doll.eyes(l, r), _a, at.u, pos, look);
+      },
+      // As it was, then the shot and the fall at half speed (about 2 s in all).
+      (u) => (u < shotAt ? 1 : 0.5),
+    );
+    this.beginReplay("killcam");
+    return true;
+  }
+
+  /** The play of the game (SPEC-V2 §2.9): the round's best moment, in slow motion at its heart. */
+  private startPotg(): boolean {
+    const round = this.round;
+    const p = this.potg;
+    if (!round || !p) return false;
+    const who = round.contestants[p.m.who];
+    if (!who) return false;
+    const key = CLIP.before / (CLIP.before + CLIP.after);
+    const side = who.x > 0 ? -1 : 1;
+    this.replay.start(
+      p.clip,
+      round.course.dollZ,
+      (pos, look, at) => {
+        this.crowd.chest(at.people[p.m.who], _a);
+        return potgLens(_a, at.u, side, pos, look);
+      },
+      // Slow motion round the moment itself.
+      (u) => (Math.abs(u - key) < 0.14 ? 0.35 : 1),
+    );
+    this.beginReplay("potg", this.label(who), MOMENT_NAME[p.m.kind]);
+    return true;
+  }
+
+  private beginReplay(kind: "killcam" | "potg", who = "", what = ""): void {
+    this.replaying = kind;
+    this.finalShot = null;
+    this.rig.clearZoom();
+    this.hud.show(false);
+    this.hud.clearVerdict();
+    this.setActions(false);
+    this.resultsBtn.classList.remove("visible");
+    this.watching = false;
+    this.bubbles.clear();
+    this.replayUi.show(kind, who, what);
+  }
+
+  /** The replay is over (or skipped): the kill cam goes on to spectating, the play of the game to the results. */
+  private endReplay(): void {
+    const kind = this.replaying;
+    if (!kind) return;
+    this.replay.stop(this.round?.contestants);
+    this.replaying = null;
+    this.replayUi.hide();
+    if (kind === "potg") {
+      this.showResults();
+      return;
+    }
+    this.hud.show(true);
+    this.toSpectate();
   }
 
   private record(outcome: "finished" | Cause): void {
@@ -1120,6 +1387,18 @@ export class Game {
     const r = this.recorded;
     r.survivors = round.contestants.filter((c) => c.status === "finished").length;
     r.canWatch = round.phase !== "ended" && round.aliveCount > 0;
+    // Whatever was on: a replay, a sequence, the final two's music.
+    if (this.replaying) this.replay.stop(round.contestants);
+    this.replaying = null;
+    this.replayUi.hide();
+    this.outSeq = null;
+    this.spectateIn = -1;
+    this.potgIn = -1;
+    this.resultsIn = -1;
+    this.finalShot = null;
+    this.watching = false;
+    this.resultsBtn.classList.remove("visible");
+    this.sound.stopTension();
     this.hud.clearVerdict();
     this.hud.show(false);
     this.setActions(false);
@@ -1432,13 +1711,19 @@ export class Game {
       this.slowmo -= frameDt;
       if (this.slowmo <= 0) this.loop.timeScale = 1;
     }
-    const vdt = frameDt * this.loop.timeScale;
     const round = this.round;
     if (!round) return;
+    // Slow motion: yours in Solo (the loop), the final two's everywhere (the referee's clock).
+    const vdt = frameDt * this.loop.timeScale * round.timeScale;
     const list = round.contestants;
 
     if (round.phase === "walkout" && this.walkout) {
       this.renderWalkout(round, frameDt, vdt);
+      this.quality.sample(frameDt * 1000, performance.now() - workStart, this.loop.targetMs);
+      return;
+    }
+    if (this.replaying) {
+      this.renderReplay(round, frameDt);
       this.quality.sample(frameDt * 1000, performance.now() - workStart, this.loop.targetMs);
       return;
     }
@@ -1450,6 +1735,12 @@ export class Game {
     this.fx.update(vdt);
     const me = round.get(this.meId);
     if (me && this.my === "out" && this.rig.current === "cinematic") this.rig.track(this.crowd.chest(me, _chest));
+    // The zoom stays on the falling body.
+    if (this.zoomId && this.rig.zooming) {
+      const z = round.get(this.zoomId);
+      if (z) this.rig.zoomTrack(this.crowd.chest(z, _chest));
+    }
+    this.poolBlood(list);
 
     if (me) {
       if (this.my === "playing" && !this.paused) {
@@ -1458,6 +1749,7 @@ export class Game {
       }
       const target = this.watching ? this.leader() ?? me : me;
       if (this.rig.firstPerson && !this.watching) this.rig.eyeValid = !!this.crowd.eye(me.index, this.rig.eye);
+      if (this.finalShot) this.finalTwoShot(round, frameDt);
       this.rig.update(frameDt, target);
       this.updateHud(round, me, frameDt);
       _focus.set(target.x, 0, target.z);
@@ -1475,14 +1767,84 @@ export class Game {
     }
 
     this.updateSocial(round);
+    this.sequence(frameDt);
 
+    this.draw();
+    this.quality.sample(frameDt * 1000, performance.now() - workStart, this.loop.targetMs);
+  }
+
+  /**
+   * What comes next, in order: your fall → the kill cam → spectating; across
+   * the line → spectating; the round over → the play of the game → the results.
+   */
+  private sequence(frameDt: number): void {
+    const seq = this.outSeq;
+    if (seq) {
+      seq.left -= frameDt;
+      if (seq.left <= 0) {
+        this.outSeq = null;
+        if (!this.startKillCam()) this.toSpectate();
+      }
+      return;
+    }
+    if (this.spectateIn > 0) {
+      this.spectateIn -= frameDt;
+      if (this.spectateIn <= 0) this.toSpectate();
+      return;
+    }
+    if (this.potgIn > 0) {
+      this.potgIn -= frameDt;
+      if (this.potgIn <= 0) {
+        this.potgIn = -1;
+        if (!this.startPotg()) this.showResults();
+      }
+      return;
+    }
     if (this.resultsIn > 0) {
       this.resultsIn -= frameDt;
       if (this.resultsIn <= 0) this.showResults();
     }
+  }
 
+  /** A replay frame: the clip on the field, the lens it asks for, the overlay's progress. */
+  private renderReplay(round: RoundView, frameDt: number): void {
+    const r = this.replay.update(frameDt, round.contestants, this.camera.position, _lensPos, _lensLook);
+    this.replayUi.progress(this.replay.progress);
+    if (!r.done) this.rig.shot(_lensPos, _lensLook, r.fov);
+    this.rig.update(frameDt, null);
+    this.world?.update(frameDt, _lensLook, this.camera.position);
+    this.world?.lasers.update(frameDt, false, round.contestants);
+    this.updateSocial(round);
     this.draw();
-    this.quality.sample(frameDt * 1000, performance.now() - workStart, this.loop.targetMs);
+    if (r.done) this.endReplay();
+  }
+
+  /** Two left, and you're watching: a cutscene of the pair while the clock runs slow. */
+  private finalTwoShot(round: RoundView, frameDt: number): void {
+    const f = this.finalShot!;
+    f.t += frameDt;
+    const a = round.get(f.ids[0]);
+    const b = round.get(f.ids[1]);
+    if (f.t >= FINAL.seconds || !a || !b || this.my === "playing") {
+      this.finalShot = null;
+      this.rig.follow();
+      this.hud.show(true);
+      if (this.watching) this.resultsBtn.classList.add("visible");
+      return;
+    }
+    const fov = finalTwoLens(this.crowd.chest(a, _a), this.crowd.chest(b, _b), f.t / FINAL.seconds, _lensPos, _lensLook);
+    this.rig.shot(_lensPos, _lensLook, fov);
+  }
+
+  /** Under each body as it comes to rest, its pool (SPEC-V2 §2.6 step 3); it stays. */
+  private poolBlood(list: readonly Contestant[]): void {
+    for (const c of list) {
+      if (c.status !== "eliminated") continue;
+      const a = this.crowd.anim(c.index);
+      if (!a || a.dead < 0.8 || a.dead > 4) continue;
+      this.crowd.chest(c, _chest);
+      this.fx.blood.pool(c.index, _chest.x, _chest.z);
+    }
   }
 
   /** The walkout: the walkers on their paths, the lens on the reel, the skip and tutorial buttons. */
@@ -1675,7 +2037,7 @@ export class Game {
       // In the room and results, the chat button stands alone (no play buttons).
       if (!this.actionsOn) this.controls.actions.hidden = !chatOn;
     }
-    const spectate = this.watching && !s;
+    const spectate = this.watching && !s && !this.finalShot;
     if (spectate !== this.spectateOn) {
       this.spectateOn = spectate;
       this.spectateBtn.classList.toggle("visible", spectate);
@@ -2067,6 +2429,7 @@ export class Game {
         this.hud.show(true);
         this.hud.clearVerdict();
         this.rig.follow();
+        this.resultsBtn.classList.add("visible");
         break;
       case "reload":
         location.reload();

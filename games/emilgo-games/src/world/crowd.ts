@@ -3,7 +3,8 @@
 // The referee moves contestants; this only dresses and animates them. Walk,
 // run and sprint come from how fast each one actually moved; a sudden stop
 // holds the stride for a moment (the statue look); a catch is a fall away from
-// Mama; crossing the line is a cheer. Everything here is presentation — the
+// Mama, and the body stays where it fell until the match ends; crossing the
+// line is a cheer. Everything here is presentation — the
 // referee never reads it.
 
 import { CircleGeometry, DynamicDrawUsage, Group, InstancedMesh, Matrix4, MeshBasicMaterial, Quaternion, Vector3 } from "three";
@@ -11,11 +12,11 @@ import { CircleGeometry, DynamicDrawUsage, Group, InstancedMesh, Matrix4, MeshBa
 import type { Contestant } from "../game/rules";
 import type { EmoteId } from "../social/emotes";
 import { Human, lodLevels, warmBodies, type ActionId, type Look, type Tier } from "./human";
+import type { AnimState } from "./human/animator";
 import { OUTFIT_BY_ID } from "./human/wardrobe";
 
 export type { Look } from "./human";
 
-const SINK_AFTER = 4.6;
 /**
  * Distance LOD (SPEC-V2 §5.2, §8): the whole crowd shares a triangle budget
  * per tier, so twenty people bunched at the start line never push a frame past
@@ -48,6 +49,8 @@ export class Crowd {
   private people: (Human | null)[] = [];
   private readonly shadows: InstancedMesh;
   private hidden: boolean[] = [];
+  private slowBy: number[] = [];
+  private slowLeft: number[] = [];
   private n = 0;
   /** Index of the local player (full-size texture, first-person hiding), or -1. */
   featured = -1;
@@ -85,6 +88,8 @@ export class Crowd {
       return h;
     });
     this.hidden = new Array(this.n).fill(false);
+    this.slowBy = new Array(this.n).fill(1);
+    this.slowLeft = new Array(this.n).fill(0);
     this.shadows.count = this.n;
   }
 
@@ -104,6 +109,30 @@ export class Crowd {
     if (!h) return;
     const away = Math.atan2(c.x - dollX, c.z - dollZ);
     h.kill(away - c.heading);
+  }
+
+  /** Every body's animation state: a replay borrows the bodies, then gives them back. */
+  saveAnims(): (AnimState | null)[] {
+    return this.people.map((h) => (h ? { ...h.anim } : null));
+  }
+
+  loadAnims(saved: readonly (AnimState | null)[]): void {
+    this.people.forEach((h, i) => {
+      const s = saved[i];
+      if (h && s) Object.assign(h.anim, s);
+    });
+  }
+
+  /** Contestant i's animation state (the replay sets who is down, who is up). */
+  anim(i: number): AnimState | null {
+    return this.people[i]?.anim ?? null;
+  }
+
+  /** Play contestant i's animation at `factor` speed for `seconds` (a slow-motion fall). */
+  slowFall(i: number, factor: number, seconds: number): void {
+    if (i < 0 || i >= this.n) return;
+    this.slowBy[i] = factor;
+    this.slowLeft[i] = seconds;
   }
 
   /** Play an emote on contestant i (upper body only — the feet never move). */
@@ -215,22 +244,19 @@ export class Crowd {
       const speed = Math.hypot(c.vx, c.vz);
       h.mesh.position.set(c.x, c.y ?? 0, c.z);
       h.mesh.quaternion.setFromAxisAngle(UP, c.heading);
-      h.update(dt, speed, c.stance ?? 0, (c.y ?? 0) > 0.03 ? 1 : 0, c.slide > 0 ? 1 : 0);
+      // A fall in slow motion runs on its own, slower clock (the zoom, the kill cam).
+      let k = 1;
+      if (this.slowLeft[i] > 0) {
+        this.slowLeft[i] -= dt;
+        k = this.slowBy[i];
+      }
+      h.update(dt * k, speed, c.stance ?? 0, (c.y ?? 0) > 0.03 ? 1 : 0, c.slide > 0 ? 1 : 0);
 
       // First person: no head in front of the lens.
       if (i === this.featured) h.bone("head").scale.setScalar(this.hideMyHead ? 0.001 : 1);
 
-      // Caught long ago: sink away and disappear.
+      // The fallen stay where they fell until the match ends (SPEC-V2 §2.6 step 10).
       const a = h.anim;
-      if (a.dead > SINK_AFTER) {
-        h.mesh.position.y -= (a.dead - SINK_AFTER) * 0.22;
-        if (a.dead > SINK_AFTER + 2.2) {
-          this.hidden[i] = true;
-          h.mesh.visible = false;
-          this.shadows.setMatrixAt(i, ZERO);
-          continue;
-        }
-      }
 
       // A blob for everyone not casting a real shadow (Low, and all but the nearest few).
       if (this.blobShadows || !h.mesh.castShadow) {

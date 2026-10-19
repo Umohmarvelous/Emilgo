@@ -90,6 +90,69 @@ export function behindShot(rest: (pos: Vector3, look: Vector3) => number): Shot 
   });
 }
 
+// ── Elimination and highlights (SPEC-V2 §2.7–2.9) ───────────────────────────
+
+const _mid = new Vector3();
+const _dir = new Vector3();
+
+/**
+ * The kill cam's lens: Mama's own eyes, looking at the runner (her head is
+ * just behind the lens, so it never fills the frame). It starts wide enough to
+ * see them run and closes in as the beam fires (u: 0 … 1 of the replay).
+ */
+export function killCamLens(eyes: (l: Vector3, r: Vector3) => void, chest: Vector3, u: number, pos: Vector3, look: Vector3): number {
+  eyes(_mid, _dir);
+  _mid.add(_dir).multiplyScalar(0.5);
+  _dir.subVectors(chest, _mid);
+  const d = _dir.length();
+  _dir.divideScalar(d || 1);
+  pos.copy(_mid).addScaledVector(_dir, 1.4);
+  look.copy(chest);
+  // Wide enough at first for a few metres round them, then tight on them.
+  const wide = (2 * Math.atan(6 / Math.max(4, d)) * 180) / Math.PI;
+  const tight = (2 * Math.atan(1.6 / Math.max(4, d)) * 180) / Math.PI;
+  const e = smooth(Math.min(1, u * 1.25));
+  // From 200 m away that's a long lens: a degree or so.
+  return Math.max(1.2, Math.min(40, wide + (tight - wide) * e));
+}
+
+/**
+ * The play of the game's lens: low beside the runner, a little ahead of them,
+ * turning slowly round them as the moment plays (u: 0 … 1). `side` picks the
+ * side with the open field.
+ */
+export function potgLens(chest: Vector3, u: number, side: number, pos: Vector3, look: Vector3): number {
+  const a = side * (1.25 - 0.7 * smooth(u));
+  const r = 4.2 - 0.9 * smooth(u);
+  pos.set(chest.x + Math.sin(a) * r, Math.max(0.6, chest.y + 0.25), chest.z - Math.cos(a) * r);
+  look.set(chest.x, chest.y - 0.1, chest.z);
+  return 42;
+}
+
+/**
+ * Two runners left (§2.8), seen from outside: side by side in the frame (the
+ * lens square on to the line between them, from the start's side), far enough
+ * back for both, closing in.
+ */
+export function finalTwoLens(a: Vector3, b: Vector3, u: number, pos: Vector3, look: Vector3): number {
+  _mid.addVectors(a, b).multiplyScalar(0.5);
+  const dx = b.x - a.x;
+  const dz = b.z - a.z;
+  const span = Math.max(1.5, Math.hypot(dx, dz));
+  let px = -dz / span;
+  let pz = dx / span;
+  if (pz < 0 || (Math.abs(pz) < 1e-3 && px * _mid.x > 0)) {
+    px = -px;
+    pz = -pz;
+  }
+  const fov = 44;
+  // Wide enough for both (the frame is wider than tall), with room round them.
+  const r = Math.max(5, Math.min(34, (span * 0.62) / Math.tan(((fov / 2) * Math.PI) / 180) + 3.5)) * (1 - 0.18 * smooth(u));
+  pos.set(_mid.x + px * r, 1.5 + r * 0.1, _mid.z + pz * r);
+  look.set(_mid.x, 1.0, _mid.z);
+  return fov;
+}
+
 function nearestTower(list: readonly { x: number; z: number }[], z: number): { x: number; z: number } | null {
   let best: { x: number; z: number } | null = null;
   for (const t of list) if (t.z < 0 && (!best || Math.abs(t.z - z) < Math.abs(best.z - z) || (Math.abs(t.z - best.z) < 0.1 && t.x < best.x))) best = t;

@@ -12,7 +12,8 @@
 //     holding a crouch or lying still is safe
 //   - stance changes one step at a time (prone ↔ crouch ↔ stand)
 
-import { ATTACK, BALLS, DISTANCES, FLOW, MOVE, RULES, TIME_LIMIT, ballCount, courseFor, walkoutLength, type Course } from "../../src/config";
+import { ATTACK, BALLS, DISTANCES, FINAL, FLOW, MOVE, RULES, TIME_LIMIT, ballCount, courseFor, walkoutLength, type Course } from "../../src/config";
+import { Highlights, type Moment } from "../../src/game/highlights";
 import { RedLightRound, freshMotion, isMoving, moveContestant, type Contestant, type RoundEvent } from "../../src/game/rules";
 import { TutorialScript, tutorialPeople, tutorialSteps } from "../../src/rlgl/tutorial";
 
@@ -522,6 +523,151 @@ console.log("match flow (protocol 7):");
   // Without a walkout (tests, the tutorial): straight to the countdown, as before.
   const plain = new RedLightRound({ seed: 24, contestants: people(2), course });
   check(plain.phase === "countdown" && phasesOf(plain.drain())[0] === "countdown", "a round made without a walkout opens on the countdown");
+}
+
+console.log("\nthe final two (protocol 8):");
+{
+  /** A Classic Run round of n, past the countdown, Mama watching, everyone in a row. */
+  const watched = (n: number) => {
+    const r = new RedLightRound({ seed: 11, contestants: people(n), course: courseFor("classic", 100) });
+    while (r.phase === "countdown") r.step(DT);
+    r.contestants.forEach((c, i) => {
+      c.x = -6 + i * 3;
+      c.z = -20;
+      c.vx = c.vz = 0;
+    });
+    r.phase = "watch";
+    r.phaseTime = 1;
+    r.phaseDuration = 999;
+    r.drain();
+    return r;
+  };
+  const r = watched(4);
+  const ev: RoundEvent[] = [];
+  r.get("p2")!.inZ = -1;
+  r.get("p3")!.inZ = -1;
+  tick(r, 0.3, ev);
+  const finals = ev.filter((e) => e.type === "final");
+  check(r.aliveCount === 2 && finals.length === 1 && finals[0].type === "final" && finals[0].ids.join() === "p0,p1", `two caught, two left: one "final" for p0 and p1`);
+  check(r.timeScale === FINAL.scale, `the referee's clock runs at ${r.timeScale}×`);
+  const e0 = r.elapsed;
+  tick(r, 1, ev);
+  check(near(r.elapsed - e0, FINAL.scale, 0.02), `1 s of real time is ${(r.elapsed - e0).toFixed(2)} s of play`);
+  const p0 = r.get("p0")!;
+  const z0 = p0.z;
+  r.phase = "sing";
+  p0.inZ = -1;
+  tick(r, 1, ev);
+  p0.inZ = 0;
+  check(p0.z < z0 && near(Math.hypot(p0.vx, p0.vz), MOVE.run, 0.3), `slowed, a runner still runs at ${Math.hypot(p0.vx, p0.vz).toFixed(1)} m/s of play (just slower in real time)`);
+  tick(r, FINAL.seconds, ev);
+  check(r.timeScale === 1, `after ${FINAL.seconds} s of real time the clock is back to 1×`);
+  r.phase = "watch";
+  r.phaseTime = 1;
+  r.get("p1")!.inZ = -1;
+  tick(r, 0.3, ev);
+  check(r.aliveCount === 1 && ev.filter((e) => e.type === "final").length === 1, "once a round: one left is no second final");
+  const two = watched(2);
+  const ev2: RoundEvent[] = [];
+  tick(two, 0.5, ev2);
+  check(!ev2.some((e) => e.type === "final") && two.timeScale === 1, "a round of two (a staked match) has no final two");
+  const three = watched(3);
+  const ev3: RoundEvent[] = [];
+  three.get("p0")!.inZ = -1;
+  three.get("p1")!.inZ = -1;
+  three.get("p2")!.inZ = -1;
+  tick(three, 0.3, ev3);
+  check(!ev3.some((e) => e.type === "final"), "three caught at once: nobody is left to slow down for");
+}
+
+console.log("\nhighlights (the play of the game):");
+{
+  /** Step the referee and the scorer together; the moments it announced. */
+  const run = (r: RedLightRound, h: Highlights, seconds: number, each?: () => void): Moment[] => {
+    const out: Moment[] = [];
+    for (let i = 0; i < Math.round(seconds / DT); i++) {
+      each?.();
+      r.step(DT);
+      const m = h.observe(r, r.drain());
+      if (m) out.push(m);
+    }
+    return out;
+  };
+  const setup = (n: number, mode: "classic" | "balls" = "classic") => {
+    const r = new RedLightRound({ seed: 21, contestants: people(n), course: courseFor(mode, 100) });
+    while (r.phase === "countdown") r.step(DT);
+    r.contestants.forEach((c, i) => {
+      c.x = -6 + i * 4;
+      c.z = -20;
+      c.vx = c.vz = 0;
+    });
+    r.drain();
+    return r;
+  };
+
+  // A close escape: walking as she turns, stopping just before she can see.
+  {
+    const r = setup(3);
+    const h = new Highlights();
+    r.phase = "turning";
+    r.phaseTime = 0;
+    r.phaseDuration = 0.4;
+    const p0 = r.get("p0")!;
+    p0.inZ = -0.3;
+    const ms = run(r, h, 7, () => {
+      if (r.phase === "watch" && r.phaseTime >= 0.08) p0.inZ = 0;
+      if (r.phase === "turningBack") r.phaseDuration = 999;
+    });
+    const m = ms[ms.length - 1];
+    check(p0.status === "alive" && !!m && m.kind === "escape" && m.who === 0 && m.score > 70, `stopped just in time and not caught: a close escape (${m?.kind} ${m?.score})`);
+  }
+
+  // A near miss: shot right beside you while you stood still.
+  {
+    const r = setup(3);
+    const h = new Highlights();
+    r.get("p1")!.x = r.get("p0")!.x + 1;
+    r.phase = "watch";
+    r.phaseTime = 1;
+    r.phaseDuration = 1.5;
+    // (Two left after the shot: the final two's slow motion stretches the stare.)
+    const ms = run(r, h, 2.5, () => {
+      r.get("p1")!.inZ = -1;
+      if (r.phase === "turningBack") r.phaseDuration = 999;
+    });
+    const m = ms[ms.length - 1];
+    check(r.get("p1")!.status === "eliminated" && !!m && m.kind === "dodge" && m.who === 0 && m.score > 60, `1 m from someone shot, and still in: a dodge (${m?.kind} ${m?.score})`);
+  }
+
+  // A steal: knock the ball loose, wait out the 3 s, take it.
+  {
+    const r = setup(2, "balls");
+    const h = new Highlights();
+    singing(r);
+    const [a, b] = [r.get("p0")!, r.get("p1")!];
+    b.x = a.x + 1.2;
+    b.z = a.z;
+    const ball = r.balls[0];
+    ball.x = a.x;
+    ball.z = a.z;
+    r.setActions("p0", 0, 1);
+    run(r, h, 0.5);
+    r.setActions("p1", (1 << 2) | 1, 0); // fist
+    run(r, h, 0.2);
+    const loose = ball.holder === -1;
+    b.x = ball.x;
+    b.z = ball.z;
+    r.setActions("p1", (1 << 2) | 1, 1);
+    const early = run(r, h, 1);
+    r.setActions("p1", (1 << 2) | 1, 2);
+    const ms = run(r, h, BALLS.attackerWait + 0.5, () => {
+      b.x = ball.x;
+      b.z = ball.z;
+      if (r.elapsed > BALLS.attackerWait + 1.2 && b.ball < 0) r.setActions("p1", (1 << 2) | 1, 3);
+    });
+    const m = ms.find((x) => x.kind === "attack");
+    check(loose && early.every((x) => x.kind !== "attack") && b.ball === ball.index && !!m && m.who === 1, `knocked loose, taken back after the wait: the best attack (${m?.score})`);
+  }
 }
 
 console.log("\nthe tutorial:");

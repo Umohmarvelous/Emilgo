@@ -10,13 +10,15 @@
 //                 two snapshots, so they move smoothly however the network jitters.
 //   Who is out    ONLY the server decides. Phase changes, catches and finishes
 //                 arrive as events and are passed to the session as-is.
+//   Slow motion   the final two (the server's clock slows): our clock and our
+//                 own runner slow with it, for the same real time.
 
-import { ATTACK, ATTACK_KINDS, FIELD, MOVE, NET, RULES, courseFor, type Course } from "../config";
+import { ATTACK, ATTACK_KINDS, FIELD, FINAL, MOVE, NET, RULES, courseFor, type Course } from "../config";
 import type { Stance } from "../config";
 import { placeBaskets, type Ball, type Basket } from "../game/balls";
 import { freshMotion, moveContestant, prePlay, type Contestant, type Phase, type RoundEvent, type RoundView } from "../game/rules";
 import type { NetClient } from "./client";
-import { BALL_STRIDE, CAUSES, OUTCOME_STRIDE, SNAP_STRIDE, cleanDist, cleanMode, phaseAt, unpackFlags, type ServerMsg, type SnapMsg, type StartInfo, type SyncInfo } from "./protocol";
+import { BALL_STRIDE, CAUSES, MOMENT_WIRE, OUTCOME_STRIDE, SNAP_STRIDE, cleanDist, cleanMode, phaseAt, unpackFlags, type ServerMsg, type SnapMsg, type StartInfo, type SyncInfo } from "./protocol";
 
 const SNAP_KEEP = 24; // ~1.6 s of history
 const HIST_KEEP_MS = 1500;
@@ -33,6 +35,8 @@ export class OnlineRound implements RoundView {
   phaseTime = 0;
   phaseDuration: number = RULES.countdown;
   elapsed = 0;
+  /** FINAL.scale through the final two's slow motion, else 1. */
+  timeScale = 1;
   readonly contestants: Contestant[];
   readonly seed: number;
   readonly course: Course;
@@ -46,6 +50,7 @@ export class OnlineRound implements RoundView {
   private readonly hist: Hist[] = [];
   private corrX = 0;
   private corrZ = 0;
+  private slowLeft = 0;
   private readonly off: () => void;
 
   constructor(
@@ -161,7 +166,14 @@ export class OnlineRound implements RoundView {
     return out;
   }
 
-  step(dt: number): void {
+  step(realDt: number): void {
+    // The final two: the server's clock runs slow; ours follows it.
+    let dt = realDt;
+    if (this.slowLeft > 0) {
+      dt = realDt * FINAL.scale;
+      this.slowLeft = Math.max(0, this.slowLeft - realDt);
+      if (this.slowLeft === 0) this.timeScale = 1;
+    }
     if (this.phase !== "ended") {
       this.phaseTime += dt;
       if (!prePlay(this.phase)) this.elapsed += dt;
@@ -376,6 +388,21 @@ export class OnlineRound implements RoundView {
         this.events.push({ type: "bank", id: c.id, ball: ball.index, basket: m.bk });
         break;
       }
+      case "fn2": {
+        const a = this.contestants[m.a];
+        const b = this.contestants[m.b];
+        if (!a || !b) return;
+        this.slowLeft = FINAL.seconds;
+        this.timeScale = FINAL.scale;
+        this.events.push({ type: "final", ids: [a.id, b.id] });
+        break;
+      }
+      case "hl": {
+        const kind = MOMENT_WIRE[m.kind - 1];
+        if (!kind || !this.contestants[m.i]) return;
+        this.events.push({ type: "moment", kind, who: m.i, t: m.at / 1000, score: m.sc / 10 });
+        break;
+      }
     }
   }
 
@@ -453,13 +480,14 @@ export class OnlineRound implements RoundView {
       const bx = b.p[o] / 100;
       const bz = b.p[o + 1] / 100;
       if (v0 && vdt > 0) {
-        c.vx = (v1.p[o] - v0.p[o]) / 100 / vdt;
-        c.vz = (v1.p[o + 1] - v0.p[o + 1]) / 100 / vdt;
+        // Per second of the referee's clock (it runs slow in the final two).
+        c.vx = (v1.p[o] - v0.p[o]) / 100 / vdt / this.timeScale;
+        c.vz = (v1.p[o + 1] - v0.p[o + 1]) / 100 / vdt / this.timeScale;
       } else {
         c.vx = c.vz = 0;
       }
-      c.x = ax + (bx - ax) * u + c.vx * ahead;
-      c.z = az + (bz - az) * u + c.vz * ahead;
+      c.x = ax + (bx - ax) * u + c.vx * this.timeScale * ahead;
+      c.z = az + (bz - az) * u + c.vz * this.timeScale * ahead;
       const ha = a.p[o + 2] / 1000;
       const hb = b.p[o + 2] / 1000;
       const dh = Math.atan2(Math.sin(hb - ha), Math.cos(hb - ha));
