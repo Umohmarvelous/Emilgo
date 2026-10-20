@@ -20,6 +20,13 @@ export class QualityGovernor {
   private pending = -1;
   private calm = 0;
   private mode: QualityMode = "auto";
+  /** Decisions in a row late at the lowest resolution. */
+  private lateAtFloor = 0;
+
+  /** Struggling at the lowest resolution (three decisions running: a few seconds). */
+  get struggling(): boolean {
+    return this.lateAtFloor >= 3;
+  }
 
   constructor(private readonly apply: (pixelRatio: number) => void) {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -61,6 +68,10 @@ export class QualityGovernor {
     this.work = 0;
 
     let want = this.idx;
+    // Already at the lowest resolution and still late: the tier is too heavy for
+    // this phone (the session drops a tier between rounds, in Auto).
+    if (avg > targetMs * 1.25 && this.idx === 0 && this.mode === "auto") this.lateAtFloor++;
+    else if (avg <= targetMs * 1.1) this.lateAtFloor = 0;
     if (avg > targetMs * 1.25 && this.idx > 0) {
       want = this.idx - 1;
       this.calm = 0;
@@ -88,6 +99,7 @@ export class QualityGovernor {
     this.work = 0;
     this.calm = 0;
     this.pending = -1;
+    this.lateAtFloor = 0;
   }
 
   private indexFor(ratio: number): number {

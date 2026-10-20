@@ -251,6 +251,16 @@ export class Human {
     });
     this.hipsRest = this.bones[BONES.indexOf("hips")].position.clone();
     this.rootRest = this.bones[0].position.clone();
+    // Bones' local matrices are rebuilt only when the body is posed (apply), not
+    // by the renderer every frame: a body that isn't re-posed this frame (far
+    // away, or down and still) costs no matrix work for its 40 bones.
+    for (const b of this.bones) {
+      b.matrixAutoUpdate = false;
+      // Nobody reads a bone's Euler `rotation`: don't keep it in step with every
+      // quaternion set (three.js would, at a matrix decomposition per bone per frame).
+      b.quaternion._onChange(() => {});
+      b.updateMatrix();
+    }
 
     // Medium and High: a generated normal map adds weave, seams, folds and skin
     // detail without triangles (SPEC-V2 §5.2). Low: plain Lambert, cheapest.
@@ -377,17 +387,31 @@ export class Human {
     } else {
       root.quaternion.identity();
     }
-    this.ground(P.lift / this.look.height);
+    const done = this.ground(P.lift / this.look.height);
+    // The ground solver built the main bones' matrices; the root moved after, and the rest are left.
+    const B = this.bones;
+    B[0].updateMatrix();
+    for (let i = done; i < B.length; i++) B[i].updateMatrix();
     void _q2;
     void Y;
+  }
+
+  /** First person: no head in front of the lens. */
+  hideHead(on: boolean): void {
+    const head = this.bone("head");
+    const s = on ? 0.001 : 1;
+    if (head.scale.x === s) return;
+    head.scale.setScalar(s);
+    head.updateMatrix();
   }
 
   /**
    * Put the lowest point of the body on the ground (y = 0 in the mesh's own
    * space: wherever the owner placed the mesh). In the air, only stop the feet
    * going through the floor. `lift` (local units) is a deliberate hop.
+   * Returns how many bones (from the first) it rebuilt the local matrix of.
    */
-  private ground(lift: number): void {
+  private ground(lift: number): number {
     const B = this.bones;
     const L = this.local;
     // Lying down, the hands can be under the body: their fingers count too.
@@ -406,13 +430,14 @@ export class Human {
       const y = e[1] * c[k + 1] + e[5] * c[k + 2] + e[9] * c[k + 3] + e[13];
       if (y < min) min = y;
     }
-    if (!Number.isFinite(min)) return;
+    if (!Number.isFinite(min)) return n;
     const root = B[0];
     if (this.airborne) {
       if (min < 0) root.position.y -= min;
     } else {
       root.position.y += lift - min;
     }
+    return n;
   }
 
   dispose(): void {

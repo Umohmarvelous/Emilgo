@@ -14,6 +14,9 @@
 //   {"hold": [[x0,y0],[x1,y1]]}          {"release": true}
 //   {"key": "Space"}                     (keyDown + keyUp)
 //   {"saveEval": "canvas.toDataURL()", "file": "path"}  (write a data: URL to disk)
+//   {"profile": ms, "top": 25}           (sample the CPU for ms; print the functions with the most self time)
+//   {"offline": true}                    (drop the network, or bring it back with false)
+//   {"net": [kbps, rttMs]}               (throttle the network from here on; [0, 0] lifts it)
 
 import { spawn } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
@@ -160,6 +163,38 @@ async function main() {
       await send("Input.dispatchKeyEvent", { type: "keyDown", key: s.key === "Space" ? " " : s.key, code: s.key });
       await sleep(40);
       await send("Input.dispatchKeyEvent", { type: "keyUp", key: s.key === "Space" ? " " : s.key, code: s.key });
+    }
+    if (s.net) {
+      await send("Network.enable");
+      const [kbps, rtt] = s.net;
+      const bps = kbps ? (kbps * 1024) / 8 : -1;
+      await send("Network.emulateNetworkConditions", { offline: false, latency: rtt, downloadThroughput: bps, uploadThroughput: kbps ? bps / 2 : -1 });
+      console.log(`network ${kbps ? `${kbps} kbps, ${rtt} ms` : "unthrottled"}`);
+    }
+    if (s.offline !== undefined) {
+      await send("Network.enable");
+      await send("Network.emulateNetworkConditions", { offline: !!s.offline, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+      console.log(`network ${s.offline ? "off" : "on"}`);
+    }
+    if (s.profile) {
+      await send("Profiler.enable");
+      await send("Profiler.setSamplingInterval", { interval: 200 });
+      await send("Profiler.start");
+      await sleep(s.profile);
+      const { profile } = await send("Profiler.stop");
+      const dt = profile.timeDeltas;
+      const self = new Map();
+      const byId = new Map(profile.nodes.map((n) => [n.id, n]));
+      profile.samples.forEach((id, i) => {
+        const n = byId.get(id);
+        const f = n.callFrame;
+        const key = `${f.functionName || "(anon)"} ${f.url.split("/").pop()}:${f.lineNumber + 1}`;
+        self.set(key, (self.get(key) ?? 0) + (dt[i] ?? 0));
+      });
+      const total = [...self.values()].reduce((a, b) => a + b, 0);
+      const top = [...self.entries()].sort((a, b) => b[1] - a[1]).slice(0, s.top ?? 25);
+      console.log(`profile ${(total / 1000).toFixed(0)} ms sampled`);
+      for (const [k, v] of top) console.log(`  ${((v / total) * 100).toFixed(1).padStart(5)}%  ${k}`);
     }
     if (s.saveEval) {
       // Evaluate to a data: URL and write the decoded bytes to s.file.

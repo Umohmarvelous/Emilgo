@@ -38,7 +38,7 @@ import { Walkout, WalkoutButtons } from "../flow/walkout";
 import { ReplayView } from "../rlgl/replayView";
 import { behindShot, finalTwoLens, killCamLens, potgLens, previewShots } from "../rlgl/shots";
 import { DEMO, TutorialScript, tutorialPeople, tutorialSteps } from "../rlgl/tutorial";
-import { tierSpec, type TierSpec } from "../graphics/tiers";
+import { tierSpec, type Tier, type TierSpec } from "../graphics/tiers";
 import { REFLECT_LAYER } from "../maps/potholes";
 import { Controls } from "../input/controls";
 import { buildWorld, type World } from "../maps/world";
@@ -179,6 +179,8 @@ export class Game {
   private boostSeed = -1;
   private readonly rotator: Rotator;
   private readonly uiRoot: HTMLElement;
+  /** Auto graphics: the highest tier this phone held (lowered when it struggles at the lowest resolution). */
+  private autoCap: Tier = 2;
   private mapCat: MapCategory = "ng-urban";
   /** The sky picked for practice (null: the map's own). */
   private skyPick: SkyState | null = null;
@@ -666,6 +668,19 @@ export class Game {
     this.screens.setPlayer(null, this.host);
   }
 
+  /**
+   * Auto graphics on a phone that can't hold its tier even at the lowest
+   * resolution: one tier down, between rounds (never mid-round: the world is
+   * rebuilt). Kept for the session; the Settings choice stays "Auto".
+   */
+  private stepDownIfStruggling(): void {
+    if (this.settings.graphics !== "auto" || !this.quality.struggling || this.spec.tier === 0) return;
+    this.autoCap = (this.spec.tier - 1) as Tier;
+    this.applySettings();
+    this.quality.reset();
+    this.screens.toast(`Graphics: ${this.spec.name}, to keep the game smooth on this phone`);
+  }
+
   private tierNote(): string {
     const s = this.spec;
     return this.settings.graphics === "auto" ? `Auto chose ${s.name} for this device` : `${s.name}`;
@@ -799,6 +814,7 @@ export class Game {
   /** Everything both kinds of round need at their start. */
   private beginRound(round: RoundView, rng: Rng, mapId: string, sky: SkyState | null, wire: (WireLook | undefined)[] = []): void {
     this.endRound();
+    this.stepDownIfStruggling();
     this.round = round;
     this.view = "game";
     this.stage.interactive = false;
@@ -2826,7 +2842,7 @@ export class Game {
     this.hud.map.setSize(s.mapSize);
     this.hud.setFeedOn(s.killFeed);
     this.wheel.setSlots(s.wheel.length === 8 ? s.wheel : DEFAULT_WHEEL);
-    const spec = tierSpec(s.graphics, this.renderer.getContext());
+    const spec = tierSpec(s.graphics, this.renderer.getContext(), this.autoCap);
     if (spec.tier !== this.spec?.tier || spec.name !== this.spec?.name) {
       const changed = !!this.spec && spec.tier !== this.spec.tier;
       this.spec = spec;

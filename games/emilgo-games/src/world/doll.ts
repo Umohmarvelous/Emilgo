@@ -179,6 +179,8 @@ export class Doll {
     _q.setFromAxisAngle(Y, (shown ? shown.head : this.headYaw) + jerk).multiply(_q2.setFromAxisAngle(Z, this.tilt));
     if (this.flash > 0.5) _q.multiply(_q2.setFromAxisAngle(X, -0.12 * this.flash));
     this.head.quaternion.multiply(_q);
+    // Bones rebuild their matrix only when told (world/human: posed on demand).
+    this.head.updateMatrix();
 
     // Eyes: a red glow while she watches; a bright red flash on a catch (SPEC-V2 §2.6 step 8).
     const want = (shown ? shown.watching : this.watching) ? 1 : 0;

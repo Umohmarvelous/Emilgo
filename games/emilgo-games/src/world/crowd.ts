@@ -12,6 +12,7 @@ import { CircleGeometry, DynamicDrawUsage, Group, InstancedMesh, Matrix4, MeshBa
 import type { Contestant } from "../game/rules";
 import type { EmoteId } from "../social/emotes";
 import { Human, lodLevels, warmBodies, type ActionId, type Look, type Tier } from "./human";
+import { FALL_TIME } from "./human/ragdoll";
 import type { AnimState } from "./human/animator";
 import { OUTFIT_BY_ID } from "./human/wardrobe";
 
@@ -31,6 +32,11 @@ const MID_M = 45;
  * those triangles count against the frame's 100K too. The rest keep a blob.
  */
 const SHADOW_MAX = [0, 3, 2] as const;
+/**
+ * Animation LOD per tier: a body not at the nearest detail is posed every
+ * this many frames (Low runs at 30 fps, so 10 poses a second far away).
+ */
+const ANIM_STRIDE = [3, 2, 2] as const;
 
 const _m = new Matrix4();
 const _q = new Quaternion();
@@ -63,6 +69,14 @@ export class Crowd {
   private lodClock = 0;
   private readonly order: number[] = [];
   private readonly dist: number[] = [];
+  /** Animation LOD: time owed to each body since it was last posed, and a frame counter. */
+  private readonly animDt: number[] = [];
+  private frameNo = 0;
+
+  /** The tier's top body detail (bodies at it are posed every frame). */
+  private get nearLevel(): number {
+    return lodLevels(this.tier)[0];
+  }
 
   constructor(private readonly max: number) {
     const shadowGeo = new CircleGeometry(0.42, 14);
@@ -80,6 +94,9 @@ export class Crowd {
     for (const p of this.people) p?.dispose();
     this.featured = featured;
     this.n = Math.min(looks.length, this.max);
+    // NaN: never posed yet (posed on the first frame, whatever the stride).
+    this.animDt.length = 0;
+    for (let i = 0; i < this.n; i++) this.animDt.push(Number.NaN);
     this.people = looks.slice(0, this.n).map((l, i) => {
       warmBodies(l, this.tier);
       const h = new Human(l, this.tier, { featured: i === featured, seed: i * 1.37 + 0.5 });
@@ -230,6 +247,7 @@ export class Crowd {
   }
 
   update(dt: number, list: readonly Contestant[], cam?: Vector3): void {
+    this.frameNo++;
     if (cam && (this.lodClock -= dt) <= 0) {
       this.lodClock = 0.25;
       this.updateLod(cam);
@@ -250,10 +268,19 @@ export class Crowd {
         this.slowLeft[i] -= dt;
         k = this.slowBy[i];
       }
-      h.update(dt * k, speed, c.stance ?? 0, (c.y ?? 0) > 0.03 ? 1 : 0, c.slide > 0 ? 1 : 0);
+      // Animation LOD: beyond the nearest few, a body is posed every `stride`
+      // frames (its time adds up meanwhile), staggered so each frame poses a
+      // share. Falls and slow motion are always smooth.
+      const fresh = Number.isNaN(this.animDt[i]);
+      this.animDt[i] = (fresh ? 0 : this.animDt[i]) + dt * k;
+      const stride = i === this.featured || h.detail === this.nearLevel || k !== 1 || (h.anim.dead >= 0 && h.anim.dead < FALL_TIME + 0.2) ? 1 : ANIM_STRIDE[this.tier];
+      if (fresh || (this.frameNo + i) % stride === 0) {
+        h.update(this.animDt[i], speed, c.stance ?? 0, (c.y ?? 0) > 0.03 ? 1 : 0, c.slide > 0 ? 1 : 0);
+        this.animDt[i] = 0;
+      }
 
       // First person: no head in front of the lens.
-      if (i === this.featured) h.bone("head").scale.setScalar(this.hideMyHead ? 0.001 : 1);
+      if (i === this.featured) h.hideHead(this.hideMyHead);
 
       // The fallen stay where they fell until the match ends (SPEC-V2 §2.6 step 10).
       const a = h.anim;

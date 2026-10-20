@@ -40,6 +40,9 @@ const SPECS: TierSpec[] = [
   { tier: 2, name: "High", shadows: true, shadowSize: 2048, particles: 1, dof: true, fancy: true, pbr: true, maxPixelRatio: 2, far: 300 },
 ];
 
+/** GPUs of the low-end class, and software rendering. */
+export const LOW_END_GPU = /Mali-(?:[34]\d\d|T\d+|G[0-5]\d(?!\d))|PowerVR|Adreno \(TM\) (?:[3-5]\d\d|60\d|61[0-2])(?!\d)|SwiftShader|llvmpipe/i;
+
 /** What Auto would pick on this device. */
 export function autoTier(gl?: WebGLRenderingContext | WebGL2RenderingContext | null): Tier {
   if (lowEnd()) return 0;
@@ -51,13 +54,16 @@ export function autoTier(gl?: WebGLRenderingContext | WebGL2RenderingContext | n
   } catch {
     /* hidden */
   }
-  // Older mobile GPUs: Medium at most.
-  if (/Adreno \(TM\) [3-5]\d\d|Mali-[TG][0-7]\d|PowerVR|SwiftShader/i.test(gpu)) return /SwiftShader/i.test(gpu) ? 0 : 1;
-  if (mobile) return /Apple GPU|Adreno \(TM\) [6-9]\d\d|Mali-G7[1-9]|Mali-G[89]\d|Immortalis|Xclipse/i.test(gpu) ? 1 : 1;
+  // The low-end class (SPEC-V2 §8: Tecno, Infinix, itel — Helio G and Unisoc
+  // chips with Mali-G52 / G57, PowerVR, older Adreno) gets Low and its 30 fps.
+  if (LOW_END_GPU.test(gpu)) return 0;
+  // Every other phone or tablet: Medium. High is for computers (or by choice).
+  if (mobile) return 1;
   return 2;
 }
 
-export function tierSpec(setting: GraphicsTier, gl?: WebGLRenderingContext | WebGL2RenderingContext | null): TierSpec {
-  const t: Tier = setting === "low" ? 0 : setting === "medium" ? 1 : setting === "high" ? 2 : autoTier(gl);
+/** `cap`: Auto only — the highest tier this phone has shown it can hold (stepped down while playing). */
+export function tierSpec(setting: GraphicsTier, gl?: WebGLRenderingContext | WebGL2RenderingContext | null, cap: Tier = 2): TierSpec {
+  const t: Tier = setting === "low" ? 0 : setting === "medium" ? 1 : setting === "high" ? 2 : (Math.min(autoTier(gl), cap) as Tier);
   return SPECS[t];
 }

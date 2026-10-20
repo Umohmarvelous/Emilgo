@@ -176,17 +176,32 @@ export class Hud {
    * The compass: `yaw` is where the camera looks (0 = north, towards Mama).
    * Mama's pin sits at her bearing from you.
    */
+  private compassW = 0;
+  private compassReads = 0;
+  private stripX = Number.NaN;
+  private pinX = Number.NaN;
+
   setCompass(yaw: number, me: { x: number; z: number }, doll: { x: number; z: number; watching: boolean }): void {
     // The camera looks along (−sin yaw, −cos yaw): north (−z) at yaw 0, east (+x) at yaw −π/2.
     const deg = (d: number) => ((d % 360) + 360) % 360;
     const heading = deg((-yaw * 180) / Math.PI);
-    const w = this.compass.clientWidth || 260;
-    this.strip.style.transform = `translateX(${w / 2 - (360 + heading) * 2}px)`;
+    // Its width, read once in a while: reading layout every frame forces a reflow.
+    if (!this.compassW || ++this.compassReads % 120 === 0) this.compassW = this.compass.clientWidth || 260;
+    const w = this.compassW;
+    const sx = Math.round((w / 2 - (360 + heading) * 2) * 2) / 2;
+    if (sx !== this.stripX) {
+      this.stripX = sx;
+      this.strip.style.transform = `translateX(${sx}px)`;
+    }
     const bearing = deg((Math.atan2(doll.x - me.x, -(doll.z - me.z)) * 180) / Math.PI);
     let rel = bearing - heading;
     rel = ((rel + 540) % 360) - 180;
     const x = w / 2 + rel * 2;
-    this.dollPin.style.transform = `translateX(${Math.max(4, Math.min(w - 4, x))}px)`;
+    const px = Math.round(Math.max(4, Math.min(w - 4, x)) * 2) / 2;
+    if (px !== this.pinX) {
+      this.pinX = px;
+      this.dollPin.style.transform = `translateX(${px}px)`;
+    }
     this.dollPin.classList.toggle("edge", Math.abs(rel * 2) > w / 2);
     this.dollPin.classList.toggle("watch", doll.watching);
   }

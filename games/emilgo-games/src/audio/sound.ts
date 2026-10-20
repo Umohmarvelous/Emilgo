@@ -77,6 +77,7 @@ export class Sound {
   /** Volumes 0…1 (SPEC-V2 §7.2, §7.5 #12–13): master, music, effects (0 when switched off). */
   private levels = { master: 0.9, music: 1, sfx: 1 };
   private hidden = false;
+  private farZapAt = -1;
 
   get unlocked(): boolean {
     return !!this.ctx;
@@ -465,6 +466,9 @@ export class Sound {
   /** The shot: the laser's zap (the crack and the drum are their own cues). */
   catch(near: boolean): void {
     const t = this.now;
+    // Several caught in one step far away: one zap stands for them all (each costs audio nodes).
+    if (!near && t - this.farZapAt < 0.08) return;
+    if (!near) this.farZapAt = t;
     this.noise(t, 0.1, { gain: near ? 0.3 : 0.16, freq: 2600 });
     this.tone(1200, t + 0.02, 0.28, { type: "sawtooth", gain: near ? 0.12 : 0.06, to: 140 });
   }

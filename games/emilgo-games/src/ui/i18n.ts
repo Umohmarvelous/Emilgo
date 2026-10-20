@@ -89,6 +89,7 @@ const PATTERNS: [RegExp, string][] = [
   [/^Removed (.+)$/, "$1 don comot for your list"],
   [/^(.+): (\d+) rounds$/, "$1: $2 rounds"],
   [/^Code (.+) copied$/, "Code $1 don copy"],
+  [/^Graphics: (.+), to keep the game smooth on this phone$/, "Graphics: $1, make the game no hang for this phone"],
   [/^Played (.+)$/, "Una play $1"],
   [/^(\d+)(st|nd|rd|th) across$/, "$1$2 to cross"],
   [/^Switch on up to (\d+)\. (.+)$/, "You fit on reach $1. Each one wey you on go use one round when round start, for Solo and free match. Boost no dey work for Lagos Life staked match at all, and e no cost money: na CP only."],
