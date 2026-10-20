@@ -1252,7 +1252,10 @@ export class Game {
       return;
     }
     this.watching = true;
-    this.rig.follow();
+    // A cut, not a flight back from wherever the last shot was (her eyes, 200 m away).
+    const lead = this.leader();
+    if (lead) this.rig.follow(true, lead);
+    else this.rig.follow();
     this.resultsBtn.classList.add("visible");
   }
 
@@ -1827,7 +1830,9 @@ export class Game {
     const b = round.get(f.ids[1]);
     if (f.t >= FINAL.seconds || !a || !b || this.my === "playing") {
       this.finalShot = null;
-      this.rig.follow();
+      const lead = this.leader();
+      if (lead) this.rig.follow(true, lead);
+      else this.rig.follow();
       this.hud.show(true);
       if (this.watching) this.resultsBtn.classList.add("visible");
       return;
