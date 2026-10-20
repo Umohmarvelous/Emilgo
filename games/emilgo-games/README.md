@@ -281,7 +281,7 @@ node server/dist/matchtest.mjs     # staked match (Ball Haunting), signatures, a
 node server/dist/shoptest.mjs      # purchases, refunds, forgeries, looks  (22 checks)
 node server/dist/fairness.mjs      # lag never decides who's caught        (7/7)
 node server/dist/ballstest.mjs     # Ball Haunting online: grab, push, drop, reconnect (16)
-node server/dist/rulestest.mjs     # the referee: moves, modes, balls, fighting, the hum (61, no server needed)
+node server/dist/rulestest.mjs     # the referee: moves, modes, balls, fighting, the hum, the final two, highlights, the pens (103, no server needed)
 npx tsx scripts/filter-test.ts     # chat filter                           (22 cases)
 MAX_PER_IP=100000 …index.mjs; node server/dist/loadtest.mjs --clients 1200 --seconds 60
 ```

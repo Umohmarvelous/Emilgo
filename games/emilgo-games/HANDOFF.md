@@ -1,11 +1,9 @@
 # EMILGO Games: session handoff
 
-> Updated 18 Oct 2026. Branch `sdk-54-temp`. Red Light, Green Light v2 is being
+> Updated 20 Oct 2026. Branch `sdk-54-temp`. Red Light, Green Light v2 is being
 > built to the owner's spec, [SPEC-V2.md](SPEC-V2.md), in **8 phases**.
-> **Phases 1–5 are done and committed. 3 phases are left (6, 7, 8). The owner
-> said go ahead with Phase 6 (18 Oct 2026), plus: a second song (a lullaby),
-> balls scattered round a wider arena with places to go in and find them, and
-> no spoken voice in the tutorial.**
+> **Phases 1–6 are done and committed. 2 phases are left (7, 8). Phase 7 waits
+> for the owner's go-ahead.**
 
 ## Start here (new session)
 
@@ -51,7 +49,7 @@ Read these in order:
 | Warning hum | A 3 s hum before every turn, plus fake hums (about 38%; never two in a row, never before the first turn). |
 | Fighting | Never automatic. Players fight only when they tap fist, slap or push. A bump just stops you. CPUs only swing at whoever holds the ball they want. |
 | Hits during red light | Only the attacker is shot. |
-| Song | The traditional Mugunghwa chant only. The song picker and the other songs are gone. |
+| Song | The traditional Mugunghwa chant, and (18 Oct 2026) our own lullaby: she takes turns with the two. No other songs, no picker. |
 | Doll | The giant schoolgirl doll: pigtails, green pinafore, about 12 m tall. |
 
 ## Phase status
@@ -64,81 +62,34 @@ Read these in order:
 | 3 | Desert Field, sky, light and dark | Done, committed `5906bd9` |
 | 4 | HUD, controls, camera (+ the new song and doll) | Done, committed `d8dfc01` |
 | 5 | Match flow | Done, committed `05910de` |
-| 6 | **Elimination and highlights** | **Next**, after the owner's go-ahead. Not started |
-| 7 | Menus, settings, social, store | Not started |
+| 6 | Elimination and highlights (+ the lullaby, the pens, the wider desert) | Done, committed `9a41722`, `2a27245`, `e71f778`, `f212177` |
+| 7 | **Menus, settings, social, store** | **Next**, after the owner's go-ahead. Not started |
 | 8 | Performance and regression | Not started |
 
 The full scope of each phase is in SPEC-V2.md under "Build phases". What 1–4 built is in its "Status" section.
 
-## Phase 5: Match flow (done)
+## Phase 6: Elimination and highlights (done)
 
-What it built, the checks and the numbers: SPEC-V2.md, Status, "Phase 5". The
-new decisions (starting a room, the 2 s loading, walkout length, the Play
-menu, the tutorial) are rows in its Decisions table.
+What it built, the checks and the numbers: SPEC-V2.md, Status, "Phase 6".
+The new decisions (the 10 steps, the kill cam, the final two, the play of
+the game, spectating, the second song, the pens and the wider desert) are
+rows in its Decisions table. **Tell the owner the pens are our reading of
+"places to go in and find them"**: the layout is easy to change.
 
-Where things are, for Phase 6:
-- `flow/` is for every game: `machine.ts` (stages), `cinema.ts` (camera
-  shots and reels: dolly, orbit, hold, follow), `walkout.ts`, `countdown.ts`,
-  `tutorial.ts` (the player), `waitingRoom.ts` (the circle).
-- `rlgl/` is this game's own: `shots.ts` (field preview), `tutorial.ts` (the
-  scripted round: Ada, Tunde, Bisi).
-- The camera has a `shot` mode (`rig.shot(pos, look, fov)`) and
-  `rig.restPose()`; the kill cam and final-two zoom can reuse both, and a
-  `Reel` of `follow` shots.
-- The referee's first phase is `walkout` (protocol 7). `prePlay(phase)` is
-  true for walkout and countdown.
-- `?server=ws://localhost:8797` with scripted players is how the online flow
-  was checked; a quick room starts at once when it fills to 20.
-
-## Phase 6: Elimination and highlights
-
-### What the spec asks for (§2.2, §2.6–§2.9)
-
-- **The 10 elimination steps (§2.6):**
-  1. the doll's head snaps with a CRACK;
-  2. the screen zooms in on the offender;
-  3. blood splatters on the ground;
-  4. a slow-motion, COD-style ragdoll fall;
-  5. a violent screen shake;
-  6. a low drum;
-  7. a red vignette;
-  8. the doll's eyes flash red;
-  9. the kill feed line;
-  10. the bodies **stay** on the field until the match ends.
-- **Kill cam (§2.7):** a 2 s replay from the doll's point of view.
-- **Final survivors (§2.8):** at 2 left, the camera zooms in, the music builds, slow motion.
-- **Play of the game (§2.9):** after the match, the best moment (closest escape, best dodge, best attack).
-- **§2.2:** the doll turns 180° when the song stops.
-
-### What exists today
-
-| Piece | Today | Where |
-| --- | --- | --- |
-| Kill feed (step 9) | Done in Phase 4 | `hud.pushFeed`; `session.ts` near "kill feed" |
-| Eye beams and eye flash | The doll's head snaps toward the runner, her eyes flash and a red beam fires. | `doll.ts` (catch, eyes), `world/fx.ts` (beams) |
-| Blood | Stylised, behind a setting: on in Lagos Life, off in EMILGO (grey dust instead) | `settings.blood`, `world/fx.ts` |
-| Fall | A "cheap ragdoll" animation | `world/human/animator.ts` ~504 |
-| Slow motion | Practice only: `loop.timeScale = 0.3` for 1.5 s, when **you** are caught | `session.ts` ~848, `core/loop.ts` |
-| Red vignette, shake | Both exist (`hud` vignette, `settings.shake`) | `ui/hud.ts`, `world/camera.ts` |
-| Sounds | `catch`, `turn`, `watch`, `hum`, `strike`, `win`, `lose`. No crack or drum yet. | `audio/sound.ts` |
-| Spectate | A spectate button after you're out | `.spectate-btn` |
-| Kill cam, final two, play of the game | Not built | — |
-
-### Decisions that apply (SPEC-V2 Decisions)
-
-- **Zoom:** 1.2 s on the nearest player caught that turn, once per turn. If it's you:
-  - the crack;
-  - a 2 s kill cam from the doll's eyes;
-  - a slow-motion fall, a hard shake and the red vignette;
-  - then you spectate.
-- **Final two, online:** the whole room slows to 0.4× for 2.5 s, because the **server slows the referee clock**. This is a referee and protocol change: bump `NET.protocol` and add tests to `rulestest`.
-- **Blood:** unchanged; still a setting.
-- **The song:** the spec's "Nigerian lullaby" was replaced by the owner's choice, the Mugunghwa chant (Phase 4). So Phase 6's "new lullaby" item is probably already covered. **Ask the owner** before building another song.
-
-### Watch out for
-
-- Bodies that stay on the field cost triangles and draw calls with 20 players. Check the Phase 8 budget (under 100 draw calls, under 100K triangles).
-- Play of the game needs the round recorded: positions and events in a ring buffer, replayed after the match. Keep it small enough for low-end phones.
+Where things are, for Phase 7 and 8:
+- Elimination: `session.ts` `onCaught` (per body) and `afterCatches` (per
+  batch: crack, drum, zoom). Blood: `world/blood.ts`. Falls:
+  `world/human/ragdoll.ts`.
+- Replays: `game/replay.ts` (recorder), `rlgl/replayView.ts` (player),
+  `ui/replay.ts` (overlay), lenses in `rlgl/shots.ts`. The sequence after
+  you're out or across: `session.ts` `sequence()`.
+- The final two: `FINAL` in `config.ts`; the referee's `timeScale`.
+- Play of the game: `game/highlights.ts` (the server runs it in `room.ts`).
+- Pens: `game/pens.ts` (shared), `world/pens.ts` (drawn),
+  `maps/registry.ts` `fieldHalfWidth`.
+- Protocol 9 (8: `fn2` and `hl` events; 9: the pens' walls).
+- Test servers: rebuild with `npm run server:build` after any change to
+  `src/game` or `server/src` (the servers run the built copy).
 
 ## Phase 7: Menus, settings, social, store
 
@@ -239,7 +190,7 @@ PORT=8797 DATA_DIR=<scratch>/data TICKET_SECRET=test-ticket-secret-0123456789abc
   MAX_PER_IP=100000 VATAR_SECRET=vtr_test_mock VATAR_RESULTS_SECRET=vtr_results_mock \
   VATAR_WEBHOOK_SECRET=vtr_whsec_test_mock VATAR_API=http://localhost:8790/api/games/v1 \
   node server/dist/index.mjs &
-node server/dist/rulestest.mjs                          # 81/81, no server needed
+node server/dist/rulestest.mjs                          # 103 checks, no server needed
 GAME=ws://localhost:8797 node server/dist/matchtest.mjs
 GAME=ws://localhost:8797 node server/dist/ballstest.mjs
 GAME=ws://localhost:8797 node server/dist/shoptest.mjs
@@ -266,7 +217,7 @@ VIEW=844x390 node dev/cdp.mjs "http://localhost:5173/" <outdir> <steps.json>   #
 
 ## Open items (not code; the owner's)
 
-- **Docker server on :8787 is still on protocol 5.** New builds (protocol 7) can't join it; the Play menu says "Update the game to play online." Rebuild it with:
+- **Docker server on :8787 is still on protocol 5.** New builds (protocol 9) can't join it; the Play menu says "Update the game to play online." Rebuild it with:
   ```bash
   cd games/emilgo-games && docker compose up -d --build
   ```
@@ -278,9 +229,9 @@ VIEW=844x390 node dev/cdp.mjs "http://localhost:5173/" <outdir> <steps.json>   #
   - audio volumes;
   - the rest of the 20 settings.
 
-## Key numbers (Phase 5)
+## Key numbers (Phase 6)
 
-- rules 81/81 · match, balls, shop all passed · fairness 7/7.
-- Load test, 600 clients: 0 failures · tick p99 6.8 ms · 6.4 KB/s.
-- Lagos Life `dist/`: 277 KB JS gzipped. EMILGO embed: 1,206 KB.
-- Walkout, 20 people: High 67 draw calls / 97K triangles at worst; Low 53 / 62K.
+- rules 103 · balls (10 runs in a row), match, shop all passed · fairness 7/7 · ground 1,638 / 0 failed.
+- Load test, 600 clients: 0 failures · tick p99 8.7 ms · 6.8 KB/s.
+- Lagos Life `dist/`: 287 KB JS gzipped. EMILGO embed: 1,236 KB.
+- Desert Field 300 m Ball Haunting, 14 bodies near you: High 68 draw calls / 92K triangles; Low 55 / 61K.

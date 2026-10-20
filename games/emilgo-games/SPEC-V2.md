@@ -31,7 +31,7 @@ Change any of these by saying so.
 | Desert field (§6.1) vs 24 maps | A new **Desert Field** replaces Desert Dunes (Wild) and is the default. The other 23 maps stay playable with the same doll, lasers, balls, baskets and potholes. | §6.1 and §7.6 together. |
 | Weather | Five states: sunny, rainy, sunset, sunrise, night. Light/dark mode switches any map between its day state and night. | §6.2, §6.4, §10. |
 | Removed (§3.6, §5.3, §10) | Heat shimmer; snow, ash, embers, storm and lightning, fog banks, dust motes, light shafts, wind sway on plants; the giant traffic lights; on-screen words (waka, freeze), song name, lyrics. A faint fade stays at the far edge only, so distant objects don't pop in. | Not approved. |
-| The song | **Changed by the owner (17 Oct 2026):** "the original Red Light, Green Light song". She sings the traditional Korean playground call "Mugunghwa kkochi pieotseumnida" (public domain words, the plain playground chant), synthesised, in her own voice, teasing the pace like a real caller. Never the show's recording, melody or score. No words or title on screen. The song picker and the other songs are gone. | The show's music is Netflix's; Lagos Life requires we own everything (Vatar Agreement §3.3, §4(i)). |
+| The song | **Changed by the owner (17 Oct 2026):** "the original Red Light, Green Light song". She sings the traditional Korean playground call "Mugunghwa kkochi pieotseumnida" (public domain words, the plain playground chant), synthesised, in her own voice, teasing the pace like a real caller. Never the show's recording, melody or score. No words or title on screen. The song picker and the other songs are gone. **Second song (owner, 18 Oct 2026, Phase 6):** a lullaby of our own (a slow three-time tune on the West African five-note scale, sung on sleep sounds, written for EMILGO). She takes turns with the two, call by call; the round's seed picks which comes first, so a room hears the same. | The show's music is Netflix's; Lagos Life requires we own everything (Vatar Agreement §3.3, §4(i)). |
 | The doll's look | **Owner's choice (17 Oct 2026): the giant schoolgirl doll.** Bob with two pigtails, big glassy eyes, rosy cheeks, a green pinafore with bib, straps and buttons over a white shirt, knee socks, black shoes; about 12 m tall. Built on the players' generator, so she's smooth. Our colours, not the show's orange and yellow. | The show's doll design is Netflix's. |
 | "Screen zooms in on the offender" | Your screen gives a 1.2 s zoom on the nearest player caught at that turn (once per turn), then comes back. If it's you: crack, a 2 s kill cam from the doll's eyes, slow-motion fall, hard shake, red vignette, then you spectate. Bodies stay until the end. | You need your view back before the song restarts. |
 | Final two, slow motion | The whole room slows (0.4× for 2.5 s): the server slows the referee clock, so it stays fair for both. | One screen can't slow down alone in multiplayer. |
@@ -52,6 +52,12 @@ Change any of these by saying so.
 | Play menu (§1.1) | Invite Friends (make a room and share its code, or join one with a code), Play with New People, Play Solo vs AI, plus Lagos Life match where the platform allows it. The old Private room and Join with code are both inside Invite Friends. Mode, distance and map are picked on the same screen. | §1.1's three choices; staked matches have their own path. |
 | Tutorial (§1.5) | Offered with a button through the walkout and countdown of your first Solo match, and always from the Play menu, the lobby's help button and Settings. A real round on the short field (100 m) in the mode you picked, with three scripted people: Ada (the model) keeps every rule, Tunde runs through her first stare and is caught, and in Ball Haunting Bisi slaps Ada's ball loose. Steps light up as they happen, with captions (no spoken voice). The old "How to play" sheet is gone. | Every step is sure to happen (tested on 30 seeds per mode). |
 | Mode of a staked match | Every staked Lagos Life match is **Ball Haunting, 200 m, 80 s**, with one ball fewer than players (1 for 2, 2 for 3, 3 for 4). The match screens say so before anyone stakes. One line to change (`STAKED` in `src/config.ts`). | Lagos Life's match API carries only stake and seats: there is no way to agree a mode, so all staked matches must play the same one. The owner's answer asked for scaled balls in staked matches. |
+| Ball Haunting arena (owner, 18 Oct 2026: "balls scattered round a wider arena with places to go in and find them") | In Ball Haunting every map gets **pens**: roofless walled enclosures (4 m square inside, chest-high walls, one 1.8 m doorway facing the middle) along both edges of the field, 4 / 6 / 8 on 100 / 200 / 300 m, the two sides staggered. Half the balls (rounded down) lie inside them, one a pen; the rest across the whole width. The walls are solid for everyone (the shared movement code), so you go in and out by the door; no roof, so Mama sees inside (no hiding from her). The **Desert Field widens from 32 m to 48 m** in Ball Haunting. The other 23 maps keep their width: their buildings and stalls line the field. A match of two has one ball, in the open. | The owner gave no layout; this works on every map, the server and phones agree on the walls with no data on the wire, and it barely moves the balance (sim, Status). Change the share in pens, the count or the width by saying so. |
+| After you're out, or across (Phase 6) | Out: the live fall in slow motion, then the kill cam, then you **spectate** (follow the leader, "Next runner", "Results"). Across: a moment to see it, then you spectate too. When the round ends: the play of the game, then the results. "Results" takes you there early (no play of the game: the round isn't over). | §2.6 "then you spectate", §2.9 "after the match". |
+| Kill cam (§2.7) | 2 s: the 1.2 s before the shot at normal speed, the shot and 0.4 s of the fall at half speed, from Mama's eyes, the lens closing in on you. Moved, caught by Mama only (not time up or no ball left). A skip button. | The spec's 2 s, from her point of view. |
+| Final two (§2.8) | When the third-last runner goes (caught or across) and two are left running, in a round that started with three or more: once a round. Not in a match of two. If you're one of them your lens narrows (0.78×) and comes back; if you're watching, a cutscene of the pair from the side, the HUD hidden. The music builds (a drone and a quickening heartbeat), then a quiet pulse until the end. | "When only 2 players remain". |
+| Play of the game (§2.9) | Scored where the round is refereed (the server online, the phone in Solo), announced as it happens (event `hl`); every phone keeps a 4.5 s clip of the best so far from its own 12 s recording and plays it after the round, slow motion at the moment. **Closest escape**: moving as she turned, stopped under half a second before she could see, and not caught. **Best dodge**: standing within 2.5 m of someone she shot, and not caught; or a swing that missed you by under a metre. **Best attack**: knocking a ball loose and taking it back before anyone else touches it. Each scored 0–100 (closer, faster, with a ball, nearer the line is better). | The spec names the three kinds, not how to judge them. |
+| The 10 elimination steps (§2.6) | Per catch: the beam, the blood (splatter, splats and a pool that stay), the fall (three COD-style falls by person: thrown back, spun onto the side, knees first), the kill feed. Per batch caught together: her head snaps to the nearest with a CRACK, her eyes flash red, one low drum, and (once a turn) your 1.2 s zoom on that one, their fall in slow motion, a shake and a red edge. Bodies lie where they fell until the round ends. Blood stays a setting (grey dust when off). | §2.6 and the zoom row above. |
 | Attack details (spec gives none) | Range 2 m. Fist: knocks you back 1 m, stuns 0.8 s, 1.6 s cooldown. Slap: 0.35 m, 0.35 s, 0.8 s. Push: 2.4 m, 0.25 s, 1.2 s. Every hit knocks a held ball loose. Sprinting into someone shoves them 1.4 m (once a second per pair). Grabbing takes 0.35 s, and counts as moving while she watches. | A fist is the big hit, a slap the quick one, a push moves people furthest. |
 | A ball's holder caught by the doll | The ball drops where they fall, free for anyone. When every ball is in a basket, everyone still on the field is out ("no ball left") and the round ends. | Nobody can win without a ball, so there's nothing left to wait for. |
 
@@ -68,6 +74,7 @@ games/emilgo-games/
     game/
       rules.ts                 CHANGED  referee v4: mode, distance, balls, attacks, pushes, safe-with-ball, end-of-time check
       balls.ts                 NEW      balls and baskets: spawn, grab, drop, 3 s cooldown, lock at the line (shared with the server)
+      pens.ts                  NEW      Ball Haunting's pens: layout, solid walls, the way through the door (shared with the server)
       combat.ts                NEW      fist, slap, push, sprint shoves: range, cooldowns, knockback, the forgiven window
       bots.ts                  CHANGED  CPUs fetch balls, attack and steal (Solo only)
       replay.ts                NEW      snapshot ring buffer: kill cam, final two, play of the game
@@ -96,6 +103,7 @@ games/emilgo-games/
       doll.ts                  CHANGED  180° turn, head snap, red eyes, close-up mount
       lasers.ts                NEW      laser gun towers round the field: aim, beam, flash
       blood.ts                 NEW      blood particles and ground splats (pooled)
+      pens.ts                  NEW      the pens' walls, as drawn
       tunnel.ts                NEW      the walkout walkway
       props.ts                 NEW      ball and basket models
       trafficLights.ts         REMOVED
@@ -125,7 +133,7 @@ games/emilgo-games/
       friends.ts               NEW      friends, invites and requests
       screens.ts               CHANGED  play menu (Invite / New People / Solo), mode and distance, the 20 settings, store tabs
     audio/
-      songs.ts                 CHANGED  one song: the traditional Mugunghwa call
+      songs.ts                 CHANGED  two songs, in turns: the traditional Mugunghwa call and our lullaby
       sound.ts                 CHANGED  crack, drum, bass drop, hits, splash; master, music and effects volumes
     shop/
       catalog.ts               CHANGED  cosmetics (Game Naira) and 10–20 boosts (CP)
@@ -211,6 +219,47 @@ Each phase ends tested and waits for the owner's go-ahead.
    - Every test, the three builds, the docs, the handoff.
 
 ## Status
+
+### Phase 6: Elimination and highlights (done 20 Oct 2026)
+
+With the owner's three extras: the second song (the lullaby), the pens and
+the wider desert arena, and no spoken voice in the tutorial (done 18 Oct).
+
+| Check | Result |
+| --- | --- |
+| Solo, start to finish, in headless Chrome (real GPU) | a catch beside you: crack, zoom, slow fall, the body stays, blood and a pool · you caught: slow-motion fall, red edge, the kill cam from her eyes, spectating (Next runner, Results) · two left: the slow motion, the cutscene · the end: the play of the game, then the results |
+| Online, the browser and 5 scripted players | the kill cam over the network, the final two from the server's `fn2`, the play of the game from the server's `hl`, the results |
+| Her turn (close up) | her head comes round first, her back still to the field; no twist showing at the neck |
+| Feet on the ground (`dev/groundtest.html`) | **1,638 checks, 0 failed**: the three falls, both ways, every look, every tier. A body lying down puts its lowest point on the ground with its fingers counted (they went 8 cm into it before) |
+| Layout, landscape 844×390 and portrait 390×844 | the kill cam and play of the game (letterbox, tag, skip), spectating (Next runner, Results), the pens |
+| Cost, Desert Field 300 m Ball Haunting (8 pens), 14 bodies down near you | High 68 draw calls, 92K triangles · Low 55, 61K. Bodies that have come to rest aren't posed again (no cost each frame) |
+| Balance, Ball Haunting, 150 rounds a distance (`scripts/sim.ts`) | the scripted player crosses 44 / 25 / 13% of rounds on 100 / 200 / 300 m (49 / 27 / 9% before the pens); rounds 5–10 s longer |
+| Tests | rules **103** (new: the final two, 8; highlights, 3; the pens, 11) · balls (new: the steal heard as the best attack, `fn2` to every phone, the server's clock at 0.40×), 10 runs in a row · match ×3, shop all passed · fairness 7/7 · load 600 clients: 0 failures, tick p99 8.7 ms, 6.8 KB/s |
+| Builds | Lagos Life `dist/` 287 KB JS gzipped; EMILGO embed 1,236 KB. **Protocol 9**: the Docker server on :8787 must be rebuilt |
+
+Built:
+- **The elimination** (`game/session.ts` `onCaught` and `afterCatches`):
+  see the Decisions row. New: `world/blood.ts` (streaked drops, blot splats
+  and pools that stay), `world/human/ragdoll.ts` (three falls on the bones,
+  a bounce and a settle, then still), the crack and the drum
+  (`audio/sound.ts`), the zoom (`world/camera.ts`), a head-first turn and a
+  red flash (`world/doll.ts`), bodies that no longer sink away
+  (`world/crowd.ts`).
+- **Replays**: `game/replay.ts` records what the phone shows, 20 times a
+  second, the last 12 s (≈ 220 KB for 20 people and 13 balls);
+  `rlgl/replayView.ts` plays a clip on the real bodies, Mama and the balls,
+  then gives them back to the live round; `ui/replay.ts` the overlay;
+  `rlgl/shots.ts` the lenses (her eyes, beside the runner, the pair).
+- **The final two**: the referee's clock slows (`FINAL` in `config.ts`,
+  event `final`, wire `fn2`); phones slow their own clock and animation with it.
+- **Play of the game**: `game/highlights.ts`, run by the server (`room.ts`)
+  and by the Solo session; wire `hl`.
+- **The lullaby**: `audio/songs.ts` (written before, now sung in turns).
+- **The pens**: `game/pens.ts` (layout, walls, collision, routing),
+  `world/pens.ts` (block walls in towns, mud in villages and the wild),
+  `maps/registry.ts` `fieldHalfWidth` (the desert's 48 m), the desert
+  recipe and its flat ground follow the width. The tutorial's model takes a
+  ball in the open when there is one, and its caption mentions the pens.
 
 ### Phase 5: Match flow (done 18 Oct 2026)
 
