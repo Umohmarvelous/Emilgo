@@ -24,7 +24,7 @@
 import { ACESFilmicToneMapping, OrthographicCamera, PCFShadowMap, PCFSoftShadowMap, SRGBColorSpace, WebGLRenderTarget, PerspectiveCamera, Scene, Vector2, Vector3, WebGLRenderer } from "three";
 
 import { Sound } from "../audio/sound";
-import { ATTACK, BALLS, DISTANCES, FIELD, FINAL, FLOW, MODES, MOVE, PRACTICE, RULES, courseFor, scoreFor, walkoutLength, type AttackKind, type Course, type Distance, type Mode, type Stance } from "../config";
+import { ATTACK, BALLS, DISTANCES, FINAL, FLOW, MODES, MOVE, PRACTICE, RULES, courseFor, scoreFor, walkoutLength, type AttackKind, type Course, type Distance, type Mode, type Stance } from "../config";
 import { SONGS, songFor, type SongId } from "../audio/songs";
 import { Loop } from "../core/loop";
 import { QualityGovernor } from "../core/quality";
@@ -42,7 +42,7 @@ import { tierSpec, type TierSpec } from "../graphics/tiers";
 import { REFLECT_LAYER } from "../maps/potholes";
 import { Controls } from "../input/controls";
 import { buildWorld, type World } from "../maps/world";
-import { DEFAULT_MAP, SKY_STATES, mapOf, withMode, type MapCategory, type SkyState } from "../maps/registry";
+import { DEFAULT_MAP, SKY_STATES, fieldHalfWidth, mapOf, withMode, type MapCategory, type SkyState } from "../maps/registry";
 import { NetClient } from "../net/client";
 import { OnlineRound } from "../net/onlineRound";
 import { ERROR_TEXT, normalizeCode, type RoomInfo, type ServerMsg, type StartInfo, type SyncInfo } from "../net/protocol";
@@ -660,7 +660,7 @@ export class Game {
     for (let i = 0; i < PRACTICE.bots; i++) people.push({ id: `cpu${i}`, name: names[i], bot: true });
 
     const info = mapOf(this.settings.map);
-    const course = courseFor(this.settings.mode, this.settings.distance, info.halfWidth ?? FIELD.halfWidth);
+    const course = courseFor(this.settings.mode, this.settings.distance, fieldHalfWidth(info, this.settings.mode));
     const round = new RedLightRound({ seed, contestants: people, featuredId: ME, course, walkout: walkoutLength(course.mode) });
     this.mode = "practice";
     this.meId = ME;
@@ -807,7 +807,7 @@ export class Game {
     this.endRound();
     const mode = this.settings.mode;
     const info = mapOf(this.settings.map);
-    const course = courseFor(mode, 100, info.halfWidth ?? FIELD.halfWidth);
+    const course = courseFor(mode, 100, fieldHalfWidth(info, mode));
     const seed = randomSeed();
     const script = new TutorialScript(mode);
     this.tut = { script, after, wrapAt: 0 };
@@ -1593,7 +1593,7 @@ export class Game {
           const map = r.map!;
           setTimeout(() => {
             if (this.room !== r || this.round) return;
-            this.ensureWorld(map, null, courseFor(r.mode, r.dist, mapOf(map).halfWidth ?? FIELD.halfWidth));
+            this.ensureWorld(map, null, courseFor(r.mode, r.dist, fieldHalfWidth(mapOf(map), r.mode)));
             this.warmUp();
           }, 60);
         }

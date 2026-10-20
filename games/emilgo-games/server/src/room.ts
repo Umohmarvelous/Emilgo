@@ -25,7 +25,7 @@
 
 import { randomInt } from "node:crypto";
 
-import { ATTACK_KINDS, FIELD, FLOW, NET, courseFor, walkoutLength, type Distance, type Mode } from "../../src/config";
+import { ATTACK_KINDS, FLOW, NET, courseFor, walkoutLength, type Distance, type Mode } from "../../src/config";
 import { ballState } from "../../src/game/balls";
 import { Highlights } from "../../src/game/highlights";
 import { actCode } from "../../src/game/combat";
@@ -44,7 +44,7 @@ import {
   type StartInfo,
   type SyncInfo,
 } from "../../src/net/protocol";
-import { MAPS } from "../../src/maps/registry";
+import { MAPS, fieldHalfWidth } from "../../src/maps/registry";
 import { filterChat } from "../../src/social/filter";
 import { EMOTE_BY_ID, type EmoteId } from "../../src/social/emotes";
 import { EMOTE_PACK } from "../../src/shop/catalog";
@@ -330,7 +330,7 @@ export class Room {
     }
     const seed = this.pending?.seed ?? randomInt(0, 2 ** 31);
     const info = MAPS[seed % MAPS.length];
-    const course = courseFor(this.mode, this.dist, info.halfWidth ?? FIELD.halfWidth);
+    const course = courseFor(this.mode, this.dist, fieldHalfWidth(info, this.mode));
     const walkout = walkoutLength(this.mode);
     this.round = new RedLightRound({ seed, contestants: roster.map((r) => ({ id: r.id, name: r.name, bot: false })), course, walkout });
     this.highlights = new Highlights();

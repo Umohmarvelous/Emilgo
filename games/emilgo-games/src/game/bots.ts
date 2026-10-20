@@ -13,6 +13,7 @@
 import { ATTACK, BALLS, MOVE, RULES, type AttackKind } from "../config";
 import { Rng } from "../core/rng";
 import { attackTarget, canAttack } from "./combat";
+import { openLane, penAt, route } from "./pens";
 import type { Contestant, Phase, RedLightRound } from "./rules";
 
 interface Personality {
@@ -128,10 +129,22 @@ export class BotBrain {
       if (this.hunt(round, me)) return;
     }
 
-    // Head for the finish, drifting toward a lane that wanders over time.
-    const sway = Math.sin(round.elapsed * 0.55 + this.wanderPhase) * this.p.wander;
-    const dx = Math.max(-0.45, Math.min(0.45, (this.laneX + sway - me.x) * 0.35));
     const mag = this.running ? 1 : MOVE.runAt * 0.95;
+    const pens = round.course.pens;
+    if (pens.length && penAt(pens, me.x, me.z, 0.3)) {
+      // In a pen (it just picked up a ball there): out by the door first.
+      const w = route(pens, me.x, me.z, 0, me.z - 8);
+      const ddx = w.x - me.x;
+      const ddz = w.z - me.z;
+      const l = Math.hypot(ddx, ddz) || 1;
+      round.setInput(this.id, (ddx / l) * mag, (ddz / l) * mag);
+      return;
+    }
+    // Head for the finish, drifting toward a lane that wanders over time (kept clear of the pens).
+    const lane = Math.min(6, openLane(pens) - 0.9);
+    const sway = Math.sin(round.elapsed * 0.55 + this.wanderPhase) * this.p.wander;
+    const want = Math.max(-lane, Math.min(lane, this.laneX + sway));
+    const dx = Math.max(-0.45, Math.min(0.45, (want - me.x) * 0.35));
     const len = Math.hypot(dx, 1);
     round.setInput(this.id, (dx / len) * mag, (-1 / len) * mag);
   }
@@ -164,13 +177,16 @@ export class BotBrain {
     const target = ball && (!holder || ball.d < hd + 8) ? ball : holder ? { x: holder.x, z: holder.z, d: hd } : null;
     if (!target) return false;
     if (holder && target.d === hd && (round.phase === "sing" || round.phase === "turningBack")) this.maybeAttack(round, me, holder, 1.4);
-    const dx = target.x - me.x;
-    const dz = target.z - me.z;
+    // In and out of the pens by the door.
+    const w = route(round.course.pens, me.x, me.z, target.x, target.z);
+    const dx = w.x - me.x;
+    const dz = w.z - me.z;
     const len = Math.hypot(dx, dz) || 1;
-    // Slow down near a free ball so it doesn't run past it.
-    const mag = target.d < 2 ? MOVE.runAt * 0.7 : this.running ? 1 : MOVE.runAt * 0.95;
+    // Slow down near a free ball (and close to a door) so it doesn't run past it.
+    const door = (w.x !== target.x || w.z !== target.z) && len < 4;
+    const mag = target.d < 2 || door ? MOVE.runAt * 0.7 : this.running ? 1 : MOVE.runAt * 0.95;
     round.setInput(this.id, (dx / len) * mag, (dz / len) * mag);
-    round.setButtons(this.id, this.running && target.d > 6 && me.stamina > 0.4, 0, me.inJump);
+    round.setButtons(this.id, this.running && !door && target.d > 6 && me.stamina > 0.4, 0, me.inJump);
     return true;
   }
 

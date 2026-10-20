@@ -8,6 +8,7 @@
 
 import { BALLS, type Course } from "../config";
 import type { Rng } from "../core/rng";
+import { PEN, inPenArea } from "./pens";
 
 export interface Ball {
   readonly index: number;
@@ -29,19 +30,32 @@ export interface Basket {
   count: number;
 }
 
-/** Scatter `n` balls across the middle of the field, never too close together. */
+/**
+ * Scatter `n` balls: some inside the pens (one a pen, somewhere in it), the
+ * rest across the whole width of the field, never in a pen's walls and never
+ * too close together.
+ */
 export function placeBalls(course: Course, n: number, rng: Rng): Ball[] {
   const out: Ball[] = [];
+  const pens = rng.shuffle(course.pens.slice());
+  const penned = n >= 2 ? Math.min(pens.length, Math.floor(n * BALLS.inPens)) : 0;
   const lim = course.halfWidth - 1.5;
   const z0 = course.finishZ * BALLS.from;
   const z1 = course.finishZ * BALLS.to;
+  const inner = PEN.size / 2 - 0.6;
   for (let i = 0; i < n; i++) {
     let x = 0;
     let z = 0;
-    for (let tries = 0; tries < 30; tries++) {
-      x = rng.range(-lim, lim);
-      z = rng.range(z1, z0);
-      if (out.every((b) => Math.hypot(b.x - x, b.z - z) > 3)) break;
+    if (i < penned) {
+      const p = pens[i];
+      x = p.x + rng.range(-inner, inner);
+      z = p.z + rng.range(-inner, inner);
+    } else {
+      for (let tries = 0; tries < 40; tries++) {
+        x = rng.range(-lim, lim);
+        z = rng.range(z1, z0);
+        if (!inPenArea(course.pens, x, z, 0.8) && out.every((b) => Math.hypot(b.x - x, b.z - z) > 3)) break;
+      }
     }
     out.push({ index: i, x, z, holder: -1, basket: -1, noGrab: -1, waitUntil: 0 });
   }

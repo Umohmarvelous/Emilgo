@@ -21,9 +21,10 @@
 import { createHash, createHmac } from "node:crypto";
 import WebSocket from "ws";
 
-import { FLOW, NET } from "../../src/config";
+import { FLOW, NET, courseFor, type Course } from "../../src/config";
 import { BALLS } from "../../src/config";
-import { SNAP_STRIDE, phaseAt, type ServerMsg } from "../../src/net/protocol";
+import { openLane, route } from "../../src/game/pens";
+import { SNAP_STRIDE, cleanDist, cleanMode, phaseAt, type ServerMsg } from "../../src/net/protocol";
 import { signResult } from "../src/vatar";
 
 const PLATFORM = process.env.PLATFORM ?? "http://localhost:8790";
@@ -73,6 +74,15 @@ function gameClient(
     let g = 0;
     let singing = false;
     let at: { x: number; z: number } | null = null;
+    let course: Course | null = null;
+    /** Push the stick towards (tx, tz) at strength k, in and out of pens by their doors. */
+    const steerTo = (tx: number, tz: number, k: number) => {
+      const w = course && at ? route(course.pens, at.x, at.z, tx, tz) : { x: tx, z: tz };
+      const dx = w.x - at!.x;
+      const dz = w.z - at!.z;
+      const d = Math.hypot(dx, dz) || 1;
+      ws.send(JSON.stringify({ t: "in", x: Math.round((dx / d) * k), z: Math.round((dz / d) * k), g }));
+    };
     const finish = () => {
       clearInterval(steer);
       ws.close();
@@ -90,11 +100,12 @@ function gameClient(
           g = (g + 1) & 255;
           ws.send(JSON.stringify({ t: "in", x: 0, z: 0, g }));
         } else {
-          const k = d < 3 ? 40 : 100;
-          ws.send(JSON.stringify({ t: "in", x: Math.round((dx / d) * k), z: Math.round((dz / d) * k), g }));
+          steerTo(ball.x, ball.z, d < 3 ? 40 : 100);
         }
       } else {
-        ws.send(JSON.stringify({ t: "in", x: 0, z: -100, g }));
+        // For the line, down the open middle (clear of the pens).
+        const lane = course ? Math.max(1, openLane(course.pens) - 0.8) : Infinity;
+        steerTo(Math.max(-lane, Math.min(lane, at.x)), at.z - 20, 100);
       }
     }, 66);
     ws.on("open", () => ws.send(JSON.stringify({ t: "hello", v: NET.protocol, name: "ignored" })));
@@ -109,6 +120,7 @@ function gameClient(
       } else if (m.t === "seat") seat = m.id;
       else if (m.t === "start") {
         me = m.start.roster.findIndex((r) => r.id === seat);
+        course = courseFor(cleanMode(m.start.mode), cleanDist(m.start.dist), m.start.hw ? m.start.hw / 100 : undefined);
         // Both skip the walkout once they're in the arena.
         if (m.start.wo) setTimeout(() => ws.readyState === 1 && ws.send(JSON.stringify({ t: "skip" })), FLOW.walk * 1000 + 400);
         const bp = m.start.bp ?? [];

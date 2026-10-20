@@ -1,11 +1,12 @@
 // End-to-end test of Ball Haunting online (protocol 4): real game server,
 // scripted players, every message checked as a phone would see it.
 //
-//   A creates a private Ball Haunting room (100 m); B and C join with the code.
+//   A creates a private Ball Haunting room (200 m: 80 s, room for every check);
+//   B and C join with the code.
 //   While she sings, A walks to the nearest ball and grabs it; B walks up to A
 //   and pushes; C stands still the whole time, then drops its connection and
 //   comes back. What must hold:
-//     - the room and the start say Ball Haunting, 100 m, with 2 balls for 3
+//     - the room and the start say Ball Haunting, 200 m, with 2 balls for 3
 //     - A's grab, B's push (landing on A, knocking A's ball loose) and the drop
 //       arrive as events, in that order
 //     - snapshots are 5 numbers a player and carry no balls
@@ -21,8 +22,9 @@ import { existsSync, readFileSync } from "node:fs";
 
 import WebSocket from "ws";
 
-import { BALLS, FLOW, NET, ballCount, walkoutLength } from "../../src/config";
-import { BALL_STRIDE, OUTCOME_STRIDE, SNAP_STRIDE, phaseAt, type ServerMsg, type SnapMsg, type StartInfo } from "../../src/net/protocol";
+import { BALLS, FLOW, NET, ballCount, courseFor, walkoutLength } from "../../src/config";
+import { penAt, route } from "../../src/game/pens";
+import { BALL_STRIDE, OUTCOME_STRIDE, SNAP_STRIDE, cleanDist, cleanMode, phaseAt, type ServerMsg, type SnapMsg, type StartInfo } from "../../src/net/protocol";
 
 const GAME = process.env.GAME ?? "ws://localhost:8787";
 const CODE_FILE = process.env.CODE_FILE;
@@ -115,20 +117,24 @@ function pos(c: Client, i: number): { x: number; z: number } | null {
   return { x: s.p[i * SNAP_STRIDE] / 100, z: s.p[i * SNAP_STRIDE + 1] / 100 };
 }
 
-/** Walk towards (tx, tz); stop within `near` metres. Returns the distance. */
+/** Walk towards (tx, tz), in and out of pens by their doors; stop within `near` metres. Returns the distance. */
 function walk(c: Client, tx: number, tz: number, near: number): number {
   const p = pos(c, c.me);
   if (!p) return Infinity;
-  const dx = tx - p.x;
-  const dz = tz - p.z;
-  const d = Math.hypot(dx, dz);
+  const d = Math.hypot(tx - p.x, tz - p.z);
   if (d <= near) {
     send(c, { t: "in", x: 0, z: 0, a: c.a, g: c.g });
     return d;
   }
-  // A walk-speed push near the target, a run further off.
-  const k = d < 3 ? 40 : 100;
-  send(c, { t: "in", x: Math.round((dx / d) * k), z: Math.round((dz / d) * k), a: c.a, g: c.g });
+  const st = c.start;
+  const course = st ? courseFor(cleanMode(st.mode), cleanDist(st.dist), st.hw ? st.hw / 100 : undefined) : null;
+  const w = course ? route(course.pens, p.x, p.z, tx, tz) : { x: tx, z: tz };
+  const dx = w.x - p.x;
+  const dz = w.z - p.z;
+  const dw = Math.hypot(dx, dz) || 1;
+  // A walk-speed push near the target (or a door), a run further off.
+  const k = d < 3 || dw < 3 ? 40 : 100;
+  send(c, { t: "in", x: Math.round((dx / dw) * k), z: Math.round((dz / dw) * k), a: c.a, g: c.g });
   return d;
 }
 
@@ -149,7 +155,7 @@ async function main(): Promise<void> {
     code = readFileSync(CODE_FILE, "utf8").trim();
     send(A, { t: "join", code });
   } else {
-    send(A, { t: "create", size: 3, mode: "balls", dist: 100 });
+    send(A, { t: "create", size: 3, mode: "balls", dist: 200 });
     for (let i = 0; i < 50 && !A.code; i++) await sleep(100);
     code = A.code ?? "";
   }
@@ -205,9 +211,9 @@ async function main(): Promise<void> {
   check(!!loadingMap && !!A.start && loadingFor > FLOW.loading - 0.4, `everyone ready: the map (${loadingMap}) announced, then ${loadingFor.toFixed(1)} s loading`);
 
   console.log("\nroom:");
-  check(!!A.room && A.room.mode === "balls" && A.room.dist === 100, `the room plays ${A.room?.mode} at ${A.room?.dist} m`);
+  check(!!A.room && A.room.mode === "balls" && A.room.dist === 200, `the room plays ${A.room?.mode} at ${A.room?.dist} m`);
   const st = A.start;
-  check(!!st && st.mode === "balls" && st.dist === 100, "the start says Ball Haunting, 100 m");
+  check(!!st && st.mode === "balls" && st.dist === 200, "the start says Ball Haunting, 200 m");
   check(!!st && (st.bp?.length ?? 0) === ballCount(3) * 2, `${ballCount(3)} balls for 3 players, positions in the start`);
   check(!!st && st.map === loadingMap, "the round is on the map announced at loading");
   if (!st) {
@@ -250,7 +256,9 @@ async function main(): Promise<void> {
   let grabbed = -1;
   let pushed = false;
   const t0 = Date.now();
-  while (Date.now() - t0 < 30_000 && !(grabbed >= 0 && pushed && A.events.some((e) => e.k === "drp"))) {
+  // The pens (Ball Haunting): A goes for a ball in the open, the quicker test.
+  const pens = A.start ? courseFor(cleanMode(A.start.mode), cleanDist(A.start.dist), A.start.hw ? A.start.hw / 100 : undefined).pens : [];
+  while (Date.now() - t0 < 45_000 && !(grabbed >= 0 && pushed && A.events.some((e) => e.k === "drp"))) {
     await sleep(1000 / NET.inputHz);
     // Safe to move: the song (the hum under it too) and her turn back to the wall.
     const singing = A.phase === "sing" || A.phase === "hum" || A.phase === "turningBack";
@@ -266,7 +274,7 @@ async function main(): Promise<void> {
         let best = -1;
         let bd = Infinity;
         A.balls.forEach((b, i) => {
-          const d = b.holder === -1 ? Math.hypot(b.x - me.x, b.z - me.z) : Infinity;
+          const d = b.holder === -1 ? Math.hypot(b.x - me.x, b.z - me.z) + (penAt(pens, b.x, b.z) ? 100 : 0) : Infinity;
           if (d < bd) {
             bd = d;
             best = i;
@@ -282,7 +290,10 @@ async function main(): Promise<void> {
       }
       const g = A.events.find((e) => e.k === "grb" && e.i === A.me);
       if (g && g.k === "grb") grabbed = g.b;
-      still(B);
+      // B shadows A, a few steps behind, ready to push.
+      const a = pos(B, A.me);
+      if (a) walk(B, a.x, a.z, 3);
+      else still(B);
     } else if (!pushed) {
       // B: up to A, then push.
       still(A);
@@ -303,7 +314,7 @@ async function main(): Promise<void> {
   still(A);
   still(B);
   await sleep(400);
-  if (process.env.DEBUG) console.log(A.events.map((e) => e.k + (e.k === "ph" ? ":" + phaseAt(e.ph) : "") + (e.k === "atk" ? JSON.stringify(e) : "")).join(" "), { grabbed, pushed, me: A.me, b: B.me });
+  if (process.env.DEBUG) console.log(A.events.map((e) => e.k + (e.k === "ph" ? ":" + phaseAt(e.ph) : "") + (e.k === "atk" ? JSON.stringify(e) : "")).join(" "), { grabbed, pushed, me: A.me, b: B.me, a: pos(A, A.me), bp: pos(A, B.me) });
 
   const grb = A.events.findIndex((e) => e.k === "grb" && e.i === A.me);
   const atk = A.events.findIndex((e) => e.k === "atk" && e.i === B.me);
@@ -365,7 +376,8 @@ async function main(): Promise<void> {
       still(A);
       still(B);
       const p = pos(C, C.me);
-      if (A.phase === "watch" && p) send(C, { t: "in", x: 0, z: -40, a: C.a, g: C.g });
+      // Down the open middle (a pen's wall would stop C dead, and a stopped runner isn't caught).
+      if (A.phase === "watch" && p) send(C, { t: "in", x: Math.max(-40, Math.min(40, Math.round(-p.x * 20))), z: -40, a: C.a, g: C.g });
       else still(C);
     }
     still(C);

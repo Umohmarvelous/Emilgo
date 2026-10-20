@@ -13,7 +13,11 @@
 //   - stance changes one step at a time (prone ↔ crouch ↔ stand)
 
 import { ATTACK, BALLS, DISTANCES, FINAL, FLOW, MOVE, RULES, TIME_LIMIT, ballCount, courseFor, walkoutLength, type Course } from "../../src/config";
+import { Rng } from "../../src/core/rng";
+import { BotBrain } from "../../src/game/bots";
 import { Highlights, type Moment } from "../../src/game/highlights";
+import { PEN, openLane, penAt } from "../../src/game/pens";
+import { fieldHalfWidth, mapOf } from "../../src/maps/registry";
 import { RedLightRound, freshMotion, isMoving, moveContestant, type Contestant, type RoundEvent } from "../../src/game/rules";
 import { TutorialScript, tutorialPeople, tutorialSteps } from "../../src/rlgl/tutorial";
 
@@ -523,6 +527,81 @@ console.log("match flow (protocol 7):");
   // Without a walkout (tests, the tutorial): straight to the countdown, as before.
   const plain = new RedLightRound({ seed: 24, contestants: people(2), course });
   check(plain.phase === "countdown" && phasesOf(plain.drain())[0] === "countdown", "a round made without a walkout opens on the countdown");
+}
+
+console.log("\nthe pens (Ball Haunting):");
+{
+  const street = courseFor("balls", 200, 9.2);
+  check(street.pens.length === 6 && courseFor("balls", 100, 9.2).pens.length === 4 && courseFor("balls", 300, 9.2).pens.length === 8 && courseFor("classic", 200, 9.2).pens.length === 0, "pens: 4 / 6 / 8 on 100 / 200 / 300 m, none in Classic Run");
+  const lane = openLane(street.pens);
+  check(street.pens.every((p) => Math.abs(p.x) + PEN.size / 2 + PEN.wall <= street.halfWidth) && lane > 4, `inside the field, both edges, an open middle ${(lane * 2).toFixed(1)} m wide`);
+  const desert = mapOf("desert-field");
+  check(fieldHalfWidth(desert, "balls") === 24 && fieldHalfWidth(desert, "classic") === 16 && fieldHalfWidth(mapOf("lagos-street"), "balls") === 9.2, "the Desert Field is 48 m wide in Ball Haunting (32 m in Classic Run); streets keep their width");
+
+  // Walls are solid: running at a pen's front beside the door stops at the wall; on the door's line you walk in.
+  const pen = street.pens.find((p) => p.side > 0)!;
+  const wallFace = pen.x - PEN.size / 2 - PEN.wall;
+  const blocked = runner();
+  blocked.x = 0;
+  blocked.z = pen.z + 1.6; // in front of the wall, beside the door
+  blocked.inX = 1;
+  for (let i = 0; i < 120; i++) moveContestant(blocked, DT, street);
+  check(blocked.x <= wallFace - MOVE.radius + 1e-6 && Math.abs(blocked.z - (pen.z + 1.6)) < 0.05, `beside the door: stopped at the wall (${(wallFace - blocked.x).toFixed(2)} m off it)`);
+  const walker = runner();
+  walker.x = 0;
+  walker.z = pen.z;
+  walker.inX = 1;
+  for (let i = 0; i < 90; i++) moveContestant(walker, DT, street);
+  check(penAt(street.pens, walker.x, walker.z) === pen, "on the door's line: in through the door");
+  walker.inX = 0;
+  walker.inZ = -1;
+  for (let i = 0; i < 90; i++) moveContestant(walker, DT, street);
+  check(penAt(street.pens, walker.x, walker.z) === pen && walker.z >= pen.z - PEN.size / 2 + MOVE.radius - 1e-6, "inside, the far wall holds you in");
+
+  // The balls: some in the pens, the rest in the open (never in a pen's walls), all reachable.
+  const r = new RedLightRound({ seed: 7, contestants: people(20), course: street });
+  const penned = r.balls.filter((b) => penAt(street.pens, b.x, b.z));
+  const open = r.balls.filter((b) => !penAt(street.pens, b.x, b.z, PEN.wall + 0.5));
+  check(r.balls.length === 13 && penned.length === 6 && open.length === 7, `20 players: 13 balls, ${penned.length} in pens, ${open.length} in the open`);
+  check(new Set(penned.map((b) => penAt(street.pens, b.x, b.z))).size === penned.length, "one ball a pen");
+  const two = new RedLightRound({ seed: 7, contestants: people(2), course: street });
+  check(two.balls.length === 1 && !penAt(street.pens, two.balls[0].x, two.balls[0].z), "a match of two: its one ball lies in the open");
+
+  // A ball knocked loose against a wall lands clear of it.
+  const { r: k } = ballRound(2, [[wallFace - 0.4, pen.z + 1.6], [wallFace - 1.9, pen.z + 1.6]], street);
+  singing(k);
+  const kb = k.balls[0];
+  kb.x = wallFace - 0.4;
+  kb.z = pen.z + 1.6;
+  k.setActions("p0", 0, 1);
+  tick(k, 0.4);
+  k.setActions("p1", (1 << 2) | 3, 0); // push p0 into the wall
+  tick(k, 0.3);
+  const w = street.walls;
+  const inWall = w.some((x) => Math.abs(kb.x - x.x) < x.hx + 0.29 && Math.abs(kb.z - x.z) < x.hz + 0.29);
+  check(k.get("p0")!.ball === -1 && kb.holder === -1 && !inWall, "pushed against a wall: the ball drops clear of it");
+
+  // CPUs find their way in and out of the pens.
+  const rr = new RedLightRound({ seed: 3, contestants: people(20).map((p) => ({ ...p, bot: true })), course: street });
+  const rng = new Rng(17);
+  const brains = rr.contestants.map((c, i) => new BotBrain(c.id, i, rng));
+  const fromPen = new Set<number>();
+  // Stuck: pushing on the stick while she sings, and not getting anywhere, for long.
+  const stuckFor = new Map<string, number>();
+  let worst = 0;
+  for (let i = 0; i < 60 * 80 && !rr.over; i++) {
+    for (const b of brains) b.think(rr, rr.get(b.id)!);
+    rr.step(DT);
+    for (const e of rr.drain()) if (e.type === "grab" && penAt(street.pens, rr.get(e.id)!.x, rr.get(e.id)!.z, PEN.wall + 0.3)) fromPen.add(e.ball);
+    const singing = rr.phase === "sing" || rr.phase === "hum";
+    for (const c of rr.contestants) {
+      const pushing = c.status === "alive" && singing && Math.hypot(c.inX, c.inZ) > 0.5 && Math.hypot(c.vx, c.vz) < 0.3;
+      const t = pushing ? (stuckFor.get(c.id) ?? 0) + DT : 0;
+      stuckFor.set(c.id, t);
+      worst = Math.max(worst, t);
+    }
+  }
+  check(fromPen.size >= 2 && worst < 1.5, `CPUs go in and out of the pens: ${fromPen.size} pen balls taken from inside, nobody stuck on a wall (longest ${worst.toFixed(1)} s)`);
 }
 
 console.log("\nthe final two (protocol 8):");

@@ -40,6 +40,7 @@ import type { TierSpec } from "../graphics/tiers";
 import type { Collider } from "../world/camera";
 import { buildArena } from "../world/arena";
 import { Lasers } from "../world/lasers";
+import { buildPens } from "../world/pens";
 import { TUNNEL, buildTunnel } from "../world/tunnel";
 import { atlasQuad, merge } from "../world/geo";
 import {
@@ -311,6 +312,8 @@ export function buildWorld(id: string, skyState: SkyState | null, spec: TierSpec
   }
 
   // ── Ground and run ──
+  // The recipe's layout follows the course (the desert's flat field follows its width).
+  useCourse(course);
   const flat = !recipe; // Lagos Street brings its own ground
   if (recipe) {
     // From well behind the start to well past Mama, whatever the distance.
@@ -487,6 +490,16 @@ export function buildWorld(id: string, skyState: SkyState | null, spec: TierSpec
   group.add(tunnel);
   casters.push({ mesh: tunnel, z: TUNNEL.mouthZ + TUNNEL.depth / 2, within: 45 });
   disposables.push({ dispose: () => (tunnel.material as Material).dispose() });
+  // Ball Haunting's pens along the edges (game/pens.ts): solid for the camera too.
+  if (course.pens.length) {
+    const pens = buildPens(course, info.category === "ng-rural" || info.category === "intl-nature" ? "mud" : "block", spec);
+    for (const p of pens.meshes) {
+      group.add(p.mesh);
+      casters.push({ mesh: p.mesh, z: p.z, within: 45 });
+    }
+    colliders.push(...pens.colliders);
+    disposables.push({ dispose: () => pens.material.dispose() });
+  }
   const potholes = DRY.has(info.id) ? null : new Potholes(course, hash(info.id), { top: L.skyTop, horizon: L.skyHorizon, sunDir: L.sunDir, sunColor: L.sunColor, night: L.night }, spec.fancy);
   if (potholes) {
     group.add(potholes.group);

@@ -35,11 +35,14 @@ const SIDES = [-1, 1] as const;
 const NEAR = 30;
 let FAR: number = FIELD.finishZ - 4;
 let CLOSE: number = DOLL_Z - 12;
+/** The field's half width (the Desert Field widens for Ball Haunting). */
+let HW: number = FIELD.halfWidth;
 
-/** Lay the next recipe out for this course (call before `build`). */
+/** Lay the next recipe out for this course (call before `build`, and before its terrain is used). */
 export function useCourse(c: Course): void {
   FAR = c.finishZ - 4;
   CLOSE = c.dollZ - 12;
+  HW = c.halfWidth;
 }
 const T = (paint: Painter, name: string, tile: number, color = "#ffffff") => ({ paint, name, tile, color });
 const course = (edge: string, line: string, plaza: string, stage: string, markings = true) => ({ edge, line, plaza, stage, markings });
@@ -47,9 +50,9 @@ const course = (edge: string, line: string, plaza: string, stage: string, markin
 const wave = (x: number, z: number) => Math.sin(x * 0.09 + z * 0.05) * 0.5 + Math.sin(x * 0.031 - z * 0.07) * 0.35 + Math.sin(x * 0.17 + z * 0.13) * 0.15;
 /** 0 on the run, rising to 1 by |x| = 26 (terrain never touches the track). */
 const away = (x: number) => Math.max(0, Math.min(1, (Math.abs(x) - 13) / 13));
-/** The Desert Field: flat across the field (|x| < 20), dunes rising beyond. */
+/** The Desert Field: flat across the field and 4 m beyond it, dunes rising further out. */
 const desertGround = (x: number, z: number) => {
-  const a = Math.max(0, Math.min(1, (Math.abs(x) - 20) / 34));
+  const a = Math.max(0, Math.min(1, (Math.abs(x) - Math.max(16, HW) - 4) / 34));
   return a * a * (2.5 + wave(x * 0.8, z * 0.8) * 3.5 + Math.abs(Math.sin(x * 0.04 + z * 0.01)) * 4);
 };
 
@@ -561,7 +564,8 @@ export const RECIPES: Record<string, Recipe> = {
   // SPEC-V2 §6.1: a large open desert field. Sand with grass patches, dunes
   // beyond the field, distant mountains, and 26 details round its edge (cacti,
   // abandoned cars, bones, tyres, drums, a signpost, rocks, a dead tree). The
-  // field itself stays open: 32 m wide, nothing to hide behind.
+  // field itself stays open: 32 m wide, nothing to hide behind (48 m in Ball
+  // Haunting, with its pens along the edges).
   "desert-field": {
     track: T(sand, "sand", 6, "#ecd2a0"),
     ground: T(sand, "sand", 8, "#e8c890"),
@@ -570,7 +574,8 @@ export const RECIPES: Record<string, Recipe> = {
     terrain: (x, z) => desertGround(x, z),
     build(k) {
       const r = k.rng;
-      const hw = 16;
+      // 16 (32 m wide); 24 in Ball Haunting, and everything round it moves out with it.
+      const hw = Math.max(16, HW);
       const y = (x: number, z: number) => desertGround(x, z);
       // Mountains on the horizon, two ranges.
       k.mountains("#b48c64", null, -250, 10, 460, 26, 64);

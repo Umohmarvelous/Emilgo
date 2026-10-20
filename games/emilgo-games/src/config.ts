@@ -2,6 +2,8 @@
 // will read the same file in Phase 2, so a tuning change cannot leave the client
 // and the referee disagreeing about what "moving" means.
 //
+import { pensFor, wallsOf, type Pen, type Wall } from "./game/pens";
+
 // World axes: the field runs along -Z. Contestants start just behind z = 0,
 // the finish line is at FIELD.finishZ, and the doll stands beyond it facing +Z.
 
@@ -56,9 +58,13 @@ export interface Course {
   /** The field's half width (the map decides: a street is narrower than a desert). */
   halfWidth: number;
   backLimitZ: number;
+  /** Ball Haunting's pens along the edges, and their walls (game/pens.ts; none in Classic Run). */
+  pens: readonly Pen[];
+  walls: readonly Wall[];
 }
 
 export function courseFor(mode: Mode, distance: Distance, halfWidth: number = FIELD.halfWidth): Course {
+  const pens = pensFor(mode, distance, halfWidth);
   return {
     mode,
     distance,
@@ -68,6 +74,8 @@ export function courseFor(mode: Mode, distance: Distance, halfWidth: number = FI
     timeLimit: TIME_LIMIT[distance],
     halfWidth,
     backLimitZ: FIELD.backLimitZ,
+    pens,
+    walls: wallsOf(pens),
   };
 }
 
@@ -87,6 +95,8 @@ export const BALLS = {
   /** Balls lie between these fractions of the course. */
   from: 0.12,
   to: 0.72,
+  /** Of the balls, this share (rounded down) lies inside the pens: go in and find them. */
+  inPens: 0.5,
   /** Baskets just past the safe line. */
   baskets: 3,
   basketBeyond: 2.4,
@@ -243,6 +253,8 @@ export const PRACTICE = {
 /** Online play. Server and client both read these. */
 export const NET = {
   /**
+   * 9: Ball Haunting's pens (solid walls in the shared movement code; the
+   * Desert Field 48 m wide in Ball Haunting).
    * 8: the final two (the referee's clock slows; event fn2), highlight
    * moments for the play of the game (event hl).
    * 7: the match flow — ready marks and a 2 s loading in the room, the
@@ -252,7 +264,7 @@ export const NET = {
    * and baskets, fist / slap / push, rooms of 20. 3: jump, crouch, prone,
    * sprint, the map, rich looks.)
    */
-  protocol: 8,
+  protocol: 9,
   tickHz: 60,
   /** Server → client state broadcasts per second. */
   snapshotHz: 15,

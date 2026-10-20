@@ -32,12 +32,14 @@
 // you are safe for good. Attacks (fist, slap, push; combat.ts) knock a ball
 // loose — only when someone taps an attack button: running into people is
 // just a bump. While she watches, an attacker is shot and the one they hit is
-// forgiven.
+// forgiven. Ball Haunting's pens (pens.ts) have solid walls: in and out by
+// the door, for everyone, in this same movement code.
 
 import { ATTACK, ATTACK_KINDS, BALLS, DEFAULT_COURSE, FIELD, FINAL, FLOW, MOVE, RULES, ballCount, type AttackKind, type Course, type SingBands, type Stance } from "../config";
 import { Rng } from "../core/rng";
 import { inPlay, nearestBasket, placeBalls, placeBaskets, type Ball, type Basket } from "./balls";
 import { attackTarget, canAttack, knock, type ActKind } from "./combat";
+import { clearOfWalls, collideWalls } from "./pens";
 
 export type Phase = "walkout" | "countdown" | "sing" | "hum" | "turning" | "watch" | "turningBack" | "ended";
 export type Status = "alive" | "finished" | "eliminated";
@@ -218,6 +220,7 @@ export function moveContestant(c: Contestant, dt: number, course: Course = DEFAU
     c.x += c.vx * dt;
     c.z += c.vz * dt;
     clampToField(c, course);
+    if (course.walls.length) collideWalls(c, course.walls, MOVE.radius);
     c.progress = Math.max(c.progress, FIELD.startZ - c.z);
     if (c.stanceT > 0) c.stanceT = Math.max(0, c.stanceT - dt);
     return;
@@ -293,6 +296,7 @@ export function moveContestant(c: Contestant, dt: number, course: Course = DEFAU
   c.x += c.vx * dt;
   c.z += c.vz * dt;
   clampToField(c, course);
+  if (course.walls.length) collideWalls(c, course.walls, MOVE.radius);
 
   // Face where you are going; keep the last facing when standing still (or knocked back).
   const sp = Math.hypot(c.vx, c.vz);
@@ -383,10 +387,12 @@ export class RedLightRound implements RoundView {
     const cols = Math.min(6, n);
     const rows = Math.ceil(n / cols);
     const slots: { x: number; z: number }[] = [];
+    // However wide the field, the start line is at most the Desert Field's 32 m.
+    const spread = Math.min(hw, 16);
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
         const t = cols === 1 ? 0.5 : c / (cols - 1);
-        const x = (t - 0.5) * 2 * (hw - 1.4) + (r % 2 ? 0.7 : -0.7);
+        const x = (t - 0.5) * 2 * (spread - 1.4) + (r % 2 ? 0.7 : -0.7);
         const z = FIELD.spawnNearZ + (rows === 1 ? 0 : (r / (rows - 1)) * (FIELD.spawnFarZ - FIELD.spawnNearZ));
         slots.push({ x, z });
       }
@@ -729,6 +735,8 @@ export class RedLightRound implements RoundView {
     const lim = this.course.halfWidth - 0.5;
     b.x = Math.max(-lim, Math.min(lim, c.x + dx * 0.9));
     b.z = Math.max(this.course.finishZ + 0.5, Math.min(this.course.backLimitZ, c.z + dz * 0.9));
+    // Never inside a pen's wall, where nobody could reach it.
+    if (this.course.walls.length) clearOfWalls(b, this.course.walls, 0.3);
     b.noGrab = by;
     b.waitUntil = by >= 0 ? this.elapsed + BALLS.attackerWait : 0;
     this.events.push({ type: "drop", ball: b.index, x: b.x, z: b.z });
@@ -779,6 +787,9 @@ export class RedLightRound implements RoundView {
         b.z += nz * push;
       }
     }
+    // A bump never puts anyone inside a wall.
+    const walls = this.course.walls;
+    if (walls.length) for (const c of list) if (c.status !== "eliminated") clearOfWalls(c, walls, MOVE.radius);
   }
 
   // ── Judging ───────────────────────────────────────────────────────────────

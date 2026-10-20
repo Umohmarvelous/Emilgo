@@ -36,6 +36,7 @@ import {
 
 import type { Course } from "../config";
 import { Rng } from "../core/rng";
+import { inPenArea } from "../game/pens";
 import { canvasTexture, glow } from "../world/tex";
 
 /** Objects on this layer are drawn into the puddles' mirror (High). */
@@ -60,7 +61,8 @@ function place(course: Course, seed: number): Puddle[] {
       const x = rng.range(-course.halfWidth + 1.5, course.halfWidth - 1.5);
       const z = rng.range(course.finishZ + 6, -8);
       const r = rng.range(0.55, 1.35);
-      if (out.every((p) => Math.hypot(p.x - x, p.z - z) > p.r + r + 2)) {
+      // Never under a pen's walls (Ball Haunting).
+      if (!inPenArea(course.pens, x, z, r + 0.3) && out.every((p) => Math.hypot(p.x - x, p.z - z) > p.r + r + 2)) {
         out.push({ x, z, r });
         break;
       }

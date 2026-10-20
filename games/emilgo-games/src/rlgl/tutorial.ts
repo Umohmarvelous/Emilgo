@@ -13,6 +13,7 @@
 //           until then, so the slap is sure to come.
 
 import { ATTACK, BALLS, MOVE, type Mode } from "../config";
+import { penAt, route } from "../game/pens";
 import type { Contestant, RedLightRound, RoundEvent } from "../game/rules";
 import type { TutorialStep } from "../flow/step";
 
@@ -38,7 +39,7 @@ export function tutorialSteps(mode: Mode): TutorialStep[] {
   ];
   if (mode === "balls") {
     steps.push(
-      { id: "grab", title: "Grab a ball", say: "In Ball Haunting you need a ball. There are fewer balls than players, so be quick." },
+      { id: "grab", title: "Grab a ball", say: "In Ball Haunting you need a ball. There are fewer balls than players, so be quick. Some lie in the pens by the sides: in by the door." },
       { id: "fight", title: "Fight for the balls", say: "Fist, slap or push someone close to knock their ball loose. Never while she's looking: the attacker is shot." },
     );
   }
@@ -70,8 +71,8 @@ export class TutorialScript {
     const thief = round.get(THIEF);
     const singing = round.phase === "sing" || round.phase === "hum" || round.phase === "turningBack";
     if (demo) this.model(round, demo, singing);
-    // Tunde never stops, and is caught at her first stare.
-    if (victim?.status === "alive") round.setInput(VICTIM, 0.08, -1);
+    // Tunde never stops, and is caught at her first stare (down the open middle, clear of any pen).
+    if (victim?.status === "alive") round.setInput(VICTIM, Math.max(-0.3, Math.min(0.3, 0.08 - victim.x * 0.12)), -1);
     if (thief) this.thiefThink(round, thief, demo, singing);
   }
 
@@ -127,13 +128,16 @@ export class TutorialScript {
     let tz = round.course.finishZ - 3;
     let near = false;
     if (this.mode === "balls" && me.ball < 0) {
+      // The nearest free ball — one in the open if there is one (a pen's door
+      // takes time, and the short field has little to spare).
       let best: { x: number; z: number; d: number } | null = null;
       for (const b of round.balls) {
         if (b.holder >= 0 || b.basket >= 0) continue;
         if (b.noGrab === me.index && round.elapsed < b.waitUntil) continue;
-        const d = Math.hypot(b.x - me.x, b.z - me.z);
+        const d = Math.hypot(b.x - me.x, b.z - me.z) + (penAt(round.course.pens, b.x, b.z) ? 40 : 0);
         if (!best || d < best.d) best = { x: b.x, z: b.z, d };
       }
+      if (best) best.d = Math.hypot(best.x - me.x, best.z - me.z);
       if (best) {
         tx = best.x;
         tz = best.z;
@@ -141,13 +145,20 @@ export class TutorialScript {
         if (best.d <= BALLS.reach * 0.85 && round.phase !== "turningBack") round.setActions(DEMO, me.inAttack, ++this.grabs & 255);
       }
     }
-    const dx = tx - me.x;
-    const dz = tz - me.z;
+    // In and out of a pen by its door.
+    const w = route(round.course.pens, me.x, me.z, tx, tz);
+    const dx = w.x - me.x;
+    const dz = w.z - me.z;
     const len = Math.hypot(dx, dz) || 1;
-    const mag = near ? MOVE.runAt * 0.7 : 1;
-    round.setInput(DEMO, (dx / len) * mag, (dz / len) * mag);
+    // Close to a door (or round a pen): steady, no sprinting.
+    const door = (w.x !== tx || w.z !== tz) && len < 4;
     const waitForSlap = this.mode === "balls" && me.ball >= 0 && !this.thiefDone;
-    round.setButtons(DEMO, !near && !waitForSlap && me.stamina > 0.35, 0, me.inJump);
+    // Ball in hand and Bisi still far behind: walk, so the slap is sure to come.
+    const thief = round.get(THIEF);
+    const lagging = waitForSlap && !!thief && thief.status === "alive" && Math.hypot(thief.x - me.x, thief.z - me.z) > 4;
+    const mag = near || door ? MOVE.runAt * 0.7 : lagging ? MOVE.runAt * 0.6 : 1;
+    round.setInput(DEMO, (dx / len) * mag, (dz / len) * mag);
+    round.setButtons(DEMO, !near && !door && !waitForSlap && me.stamina > 0.35, 0, me.inJump);
   }
 
   private thiefThink(round: RedLightRound, me: Contestant, demo: Contestant | undefined, singing: boolean): void {
@@ -157,12 +168,14 @@ export class TutorialScript {
     }
     // Keep a few steps behind Ada until she has a ball, then sprint up to her
     // (the stamina was saved for this: running alone never catches a runner).
-    const dx = demo.x - me.x;
-    const dz = demo.z - me.z;
-    const d = Math.hypot(dx, dz) || 1;
+    const d = Math.hypot(demo.x - me.x, demo.z - me.z) || 1;
+    const w = route(round.course.pens, me.x, me.z, demo.x, demo.z);
+    const dx = w.x - me.x;
+    const dz = w.z - me.z;
+    const l = Math.hypot(dx, dz) || 1;
     const chase = demo.ball >= 0;
     const mag = d > (chase ? 0 : 2.5) ? 1 : 0;
-    round.setInput(THIEF, (dx / d) * mag, (dz / d) * mag);
+    round.setInput(THIEF, (dx / l) * mag, (dz / l) * mag);
     round.setButtons(THIEF, chase && d > ATTACK.range * 0.6, 0, me.inJump);
     if (chase && d < ATTACK.range * 0.8 && round.phase === "sing" && me.cool <= 0) {
       this.attacks = (this.attacks + 1) & 63;

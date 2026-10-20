@@ -39,8 +39,12 @@ const CLOSE = 0.5;
 const NEAR_MISS = 2.5;
 /** A swing that missed you by this little. */
 const WHIFF = ATTACK.range + 1;
-/** A hit counts as a steal if the attacker picks that ball up within this long after they may. */
-const STEAL_WITHIN = BALLS.attackerWait + 3;
+/**
+ * A hit is a steal when the attacker takes back the ball it knocked loose
+ * before anyone else touches it — within this long (her stares can hold
+ * everyone still for a while).
+ */
+const STEAL_WITHIN = BALLS.attackerWait + 12;
 
 const ATTACK_SCORE: Record<AttackKind, number> = { fist: 14, push: 10, slap: 6 };
 

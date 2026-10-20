@@ -4,6 +4,8 @@
 // Every map is the same game — a 120 m run to Mama's stage — dressed as a
 // different place. Names are generic: no real business appears anywhere.
 
+import { FIELD } from "../config";
+
 export type MapCategory = "ng-urban" | "ng-rural" | "intl-urban" | "intl-nature" | "special";
 export type TimeOfDay = "sunrise" | "day" | "sunset" | "night";
 /** SPEC-V2: the only falling weather is rain (no fog banks, snow, ash or storms). */
@@ -42,6 +44,13 @@ export interface MapInfo {
   shape: Silhouette;
   /** The field's half width, metres (default: the street's, config FIELD.halfWidth). */
   halfWidth?: number;
+  /** In Ball Haunting, where there's open ground for it: a wider arena (SPEC-V2 Decisions). */
+  ballsHalfWidth?: number;
+}
+
+/** How wide the field is on this map in this mode (half width, metres): server and phones both use it. */
+export function fieldHalfWidth(info: MapInfo, mode: string): number {
+  return (mode === "balls" ? info.ballsHalfWidth : undefined) ?? info.halfWidth ?? FIELD.halfWidth;
 }
 
 export const CATEGORIES: { id: MapCategory; label: string }[] = [
@@ -99,7 +108,7 @@ export const MAPS: MapInfo[] = [
   m("paris-cafe", "Paris Café", "intl-urban", "paris", "golden", "clear", ["clear", "rain"], ["#87a9d6", "#f6d5a8", "#9b8f80", "#3a3530", "#8a1f2b"], "Cream façades, café tables and a long boulevard."),
   m("rio-favela", "Rio Favela", "intl-urban", "favela", "golden", "clear", ["clear", "rain"], ["#5ea3db", "#fbd38a", "#a07a5a", "#4a2a2a", "#2b9348"], "Painted houses stacked up the hill."),
   // International nature
-  m("desert-field", "Desert Field", "intl-nature", "dunes", "day", "clear", ["clear", "rain"], ["#6fa9dc", "#f4dcae", "#dcb27a", "#9a6a3a", "#f2a71b"], "A wide open field of sand, far from anywhere. Mama waits at the end.", { halfWidth: 16 }),
+  m("desert-field", "Desert Field", "intl-nature", "dunes", "day", "clear", ["clear", "rain"], ["#6fa9dc", "#f4dcae", "#dcb27a", "#9a6a3a", "#f2a71b"], "A wide open field of sand, far from anywhere. Mama waits at the end.", { halfWidth: 16, ballsHalfWidth: 24 }),
   m("snowy-mountains", "Snowy Mountains", "intl-nature", "snow", "day", "clear", ["clear", "rain"], ["#9cc4e8", "#eef4fa", "#e9eef3", "#5b6b80", "#35b8ff"], "Pines and deep snow."),
   m("tropical-jungle", "Tropical Jungle", "intl-nature", "jungle", "day", "rain", ["clear", "rain"], ["#5f9a7a", "#cfe8b8", "#3f6a2a", "#14240e", "#ffd60a"], "Giant leaves, vines and a lot of noise."),
   m("volcanic-island", "Volcanic Island", "intl-nature", "volcano", "dusk", "clear", ["clear", "rain"], ["#3a2a3a", "#e06a3a", "#3a302c", "#120c0c", "#ff5a1f"], "Black rock and the glow of lava."),
