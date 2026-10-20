@@ -16,7 +16,8 @@
 import { ATTACK, ATTACK_KINDS, FIELD, FINAL, MOVE, NET, RULES, courseFor, type Course } from "../config";
 import type { Stance } from "../config";
 import { placeBaskets, type Ball, type Basket } from "../game/balls";
-import { freshMotion, moveContestant, prePlay, type Contestant, type Phase, type RoundEvent, type RoundView } from "../game/rules";
+import { boostsFromWire } from "../shop/boosts";
+import { freshMotion, moveContestant, setBoosts, prePlay, type Contestant, type Phase, type RoundEvent, type RoundView } from "../game/rules";
 import type { NetClient } from "./client";
 import { BALL_STRIDE, CAUSES, MOMENT_WIRE, OUTCOME_STRIDE, SNAP_STRIDE, cleanDist, cleanMode, phaseAt, unpackFlags, type ServerMsg, type SnapMsg, type StartInfo, type SyncInfo } from "./protocol";
 
@@ -53,6 +54,9 @@ export class OnlineRound implements RoundView {
   private slowLeft = 0;
   private readonly off: () => void;
 
+  /** How far in the past others are drawn: longer with data saver on (half the snapshots). */
+  interpMs: number = NET.interpDelayMs;
+
   constructor(
     start: StartInfo,
     readonly myId: string,
@@ -85,6 +89,7 @@ export class OnlineRound implements RoundView {
         graceBonus: 0,
         ...freshMotion(),
       };
+      setBoosts(c, boostsFromWire(r.bo));
       this.byId.set(r.id, c);
       return c;
     });
@@ -203,7 +208,7 @@ export class OnlineRound implements RoundView {
       while (this.hist.length && t - this.hist[0].t > HIST_KEEP_MS) this.hist.shift();
     }
 
-    this.interpolate(this.net.serverNow() - NET.interpDelayMs);
+    this.interpolate(this.net.serverNow() - this.interpMs);
   }
 
   // ── Network ────────────────────────────────────────────────────────────────

@@ -7,6 +7,7 @@
 // Marks: you (an arrow), runners (white), the safe (white rings), the out
 // (grey), Mama (white; red while she watches), balls and baskets.
 
+import { gameSize } from "./rotate";
 import { el } from "./dom";
 
 export interface MapMark {
@@ -164,7 +165,7 @@ export class Minimap {
   private drawBig(me: { x: number; z: number; heading: number; out: boolean }, marks: readonly MapMark[], doll: { x: number; z: number; watching: boolean }): void {
     const t = this.terrain;
     const dpr = Math.min(2, window.devicePixelRatio || 1);
-    const H = Math.round(window.innerHeight * 0.86 * dpr);
+    const H = Math.round(gameSize().h * 0.86 * dpr);
     const span = t ? t.z1 - t.z0 : 140;
     const wide = t ? t.x1 - t.x0 : 60;
     const k = H / span;

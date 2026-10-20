@@ -10,6 +10,7 @@
 // This file is only the player. Each game supplies the steps and the model's
 // brain (rlgl/tutorial.ts) and tells the player when a step happens.
 
+import { t, translateTree } from "../ui/i18n";
 import { esc } from "../ui/dom";
 import { icon } from "../ui/icons";
 import type { TutorialStep } from "./step";
@@ -50,6 +51,7 @@ export class TutorialPlayer {
       <div class="tut-cap" aria-live="polite"><b></b><span></span></div>
       <button class="ibtn glass tut-close" data-tut="close" aria-label="Close tutorial">${icon("close", "", 18)}</button>
       <button class="btn primary tut-done" data-tut="done">Got it</button>`;
+    translateTree(this.root);
     this.root.classList.add("visible");
     this.root.classList.remove("finished");
   }
@@ -65,8 +67,8 @@ export class TutorialPlayer {
       li.classList.toggle("done", k !== i && this.shown.has(this.steps[k].id));
     });
     const cap = this.root.querySelector(".tut-cap")!;
-    cap.querySelector("b")!.textContent = step.title;
-    cap.querySelector("span")!.textContent = step.say;
+    cap.querySelector("b")!.textContent = t(step.title);
+    cap.querySelector("span")!.textContent = t(step.say);
     cap.classList.remove("in");
     void (cap as HTMLElement).offsetWidth;
     cap.classList.add("in");

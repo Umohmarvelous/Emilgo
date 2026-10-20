@@ -6,6 +6,7 @@
 //   GET  /reports        player reports       (Authorization: Bearer $ADMIN_TOKEN; off if unset)
 //   POST /shop/claim     { session, purchaseId } → verify with Lagos Life, give once, deliver
 //   POST /shop/owned     { session } → what this player owns + a signed ticket
+//   (friends: presence.ts, over the WebSocket; nothing stored)
 //   WS   /               the game protocol    (src/net/protocol.ts)
 //
 // Every room is stepped by ONE fixed 60 Hz loop. A round is tiny — at most a
@@ -40,6 +41,8 @@ import { cleanName, ERROR_TEXT, parseClient, type ClientMsg, type ErrorCode } fr
 import { now } from "./clock";
 import { Lobby } from "./lobby";
 import { Peer } from "./peer";
+import { Presence } from "./presence";
+import { BOOST_IDS, BOOST_SLOTS } from "../../src/shop/boosts";
 import { allowedLook } from "../../src/shop/catalog";
 import { Shop } from "./shop";
 import { SqliteStore } from "./store";
@@ -58,6 +61,7 @@ const vatarCfg = vatarConfigFromEnv(process.env);
 const vatar = vatarCfg ? new VatarApi(vatarCfg) : null;
 // Match events, without player ids or names: enough to operate, nothing to leak.
 const lobby = new Lobby(vatar, (event, info) => console.log(`match ${event} ${JSON.stringify(info)}`));
+const presence = new Presence(lobby);
 const store = vatar ? new SqliteStore(`${process.env.DATA_DIR ?? "./data"}/emilgo-games.db`) : null;
 const shop = vatar && store ? new Shop(vatar, store, process.env.TICKET_SECRET, (e, info) => console.log(`shop ${e} ${JSON.stringify(info)}`)) : null;
 /** Shop HTTP calls per address: 30 a minute is plenty for a person, tight for a script. */
@@ -174,6 +178,7 @@ wss.on("connection", (socket: WebSocket, req: IncomingMessage) => {
     if (!perIp.get(ip)) perIp.delete(ip);
     if (!peer || peer.socket !== socket) return; // replaced by a resumed socket
     peer.detach();
+    presence.forget(peer);
     const room = lobby.roomOf(peer);
     if (room) room.dropped(peer);
     if (!peer.roomId) forget(peer);
@@ -198,6 +203,7 @@ function hello(fresh: Peer, socket: WebSocket, msg: Extract<ClientMsg, { t: "hel
     old.send({ t: "welcome", id: old.id, token: old.token, s: now(), name: old.name, ...counts() });
     pingSoon(old);
     lobby.roomOf(old)?.rejoined(old);
+    if (old.fid) presence.identify(old, old.fid, [...old.friendFids]);
     return old;
   }
 
@@ -270,6 +276,26 @@ function handle(peer: Peer, msg: ClientMsg): void {
       lobby.roomOf(peer)?.broadcastRoom();
       break;
     }
+    case "prefs":
+      // Boosts count only in free rooms (room.ts leaves them out of staked matches).
+      peer.boosts = [...new Set(msg.bo.map((i) => BOOST_IDS[i]).filter(Boolean))].slice(0, BOOST_SLOTS);
+      peer.saver = msg.ds;
+      peer.acceptsReqs = msg.fr;
+      break;
+    case "me":
+      presence.identify(peer, msg.fid, msg.friends);
+      break;
+    case "freq": {
+      const note = presence.request(peer, room?.peerInSeat(msg.id) ?? peers.get(msg.id));
+      peer.send({ t: "note", text: note ?? "Friend request sent." });
+      break;
+    }
+    case "facc":
+      presence.accept(peer, peers.get(msg.id));
+      break;
+    case "inv":
+      peer.send({ t: "note", text: presence.invite(peer, msg.fid) });
+      break;
     case "vmatch":
       lobby
         .playMatch(peer, msg.id, msg.session)
@@ -436,6 +462,7 @@ setInterval(() => {
   const c = counts();
   const msg = Buffer.from(JSON.stringify({ t: "stats", ...c }));
   for (const p of peers.values()) if (p.connected && !lobby.roomOf(p)?.playing) p.sendRaw(msg);
+  presence.tellAll();
 }, 15_000).unref();
 
 setInterval(() => {

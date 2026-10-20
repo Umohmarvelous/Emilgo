@@ -38,6 +38,7 @@
 import { ATTACK, ATTACK_KINDS, BALLS, DEFAULT_COURSE, FIELD, FINAL, FLOW, MOVE, RULES, ballCount, type AttackKind, type Course, type SingBands, type Stance } from "../config";
 import { Rng } from "../core/rng";
 import { inPlay, nearestBasket, placeBalls, placeBaskets, type Ball, type Basket } from "./balls";
+import { modsOf, NO_BOOST, type BoostMods } from "../shop/boosts";
 import { attackTarget, canAttack, knock, type ActKind } from "./combat";
 import { clearOfWalls, collideWalls } from "./pens";
 
@@ -110,6 +111,10 @@ export interface Contestant {
    * exactly that time back. Always 0 offline.
    */
   graceBonus: number;
+  /** CP boosts this round (shop/boosts.ts): NO_BOOST in staked matches and for CPUs. */
+  bst: Readonly<BoostMods>;
+  /** Iron Grip: hits left this round that won't knock the ball loose. */
+  grip: number;
 }
 
 /**
@@ -155,13 +160,19 @@ export function prePlay(p: Phase): boolean {
 export const HIDDEN_LENGTH: readonly Phase[] = ["sing", "watch"];
 
 /** A fresh contestant's movement state (shared by the referee and the online client). */
-type Motion = "y" | "vy" | "stance" | "inStance" | "stanceT" | "inSprint" | "sprinting" | "stamina" | "rested" | "inJump" | "jumpSeen" | "inAttack" | "attackSeen" | "inGrab" | "grabSeen" | "ball" | "stun" | "forgive" | "act" | "cool" | "actKind" | "slide";
+type Motion = "bst" | "grip" | "y" | "vy" | "stance" | "inStance" | "stanceT" | "inSprint" | "sprinting" | "stamina" | "rested" | "inJump" | "jumpSeen" | "inAttack" | "attackSeen" | "inGrab" | "grabSeen" | "ball" | "stun" | "forgive" | "act" | "cool" | "actKind" | "slide";
 
 export function freshMotion(): Pick<Contestant, Motion> {
   return {
-    y: 0, vy: 0, stance: 0, inStance: 0, stanceT: 0, inSprint: false, sprinting: false, stamina: 1, rested: 9, inJump: 0, jumpSeen: 0,
+    bst: NO_BOOST, grip: 0, y: 0, vy: 0, stance: 0, inStance: 0, stanceT: 0, inSprint: false, sprinting: false, stamina: 1, rested: 9, inJump: 0, jumpSeen: 0,
     inAttack: 0, attackSeen: 0, inGrab: 0, grabSeen: 0, ball: -1, stun: 0, forgive: 0, act: 0, cool: 0, actKind: "", slide: 0,
   };
+}
+
+/** A contestant's CP boosts for the round (the referee's, the online client's, the replay's copy alike). */
+export function setBoosts(c: Contestant, ids: readonly string[] | undefined): void {
+  c.bst = modsOf(ids);
+  c.grip = c.bst.grip;
 }
 
 /** Moving, as Mama sees it: on the move, in the air, changing stance, swinging or picking up. */
@@ -257,21 +268,22 @@ export function moveContestant(c: Contestant, dt: number, course: Course = DEFAU
 
   // ── Speed from the stick, the stance and the sprint ──
   const m = Math.hypot(ix, iz);
-  let top: number = c.stance === 2 ? MOVE.prone : c.stance === 1 ? MOVE.crouch : m < MOVE.runAt ? MOVE.walk * (m / MOVE.runAt) : MOVE.run;
+  const bst = c.bst;
+  let top: number = c.stance === 2 ? MOVE.prone * bst.crouch : c.stance === 1 ? MOVE.crouch * bst.crouch : (m < MOVE.runAt ? MOVE.walk * (m / MOVE.runAt) : MOVE.run) * bst.speed;
   if (c.stance === 0 && m >= MOVE.runAt) {
     const can = c.sprinting ? c.stamina > 0 : c.stamina >= MOVE.sprintMin;
     c.sprinting = wantSprint && can;
-    if (c.sprinting) top = MOVE.sprint;
+    if (c.sprinting) top = MOVE.sprint * bst.sprint;
   } else {
     c.sprinting = false;
   }
   if (c.stance > 0 && m > 1e-3) top *= Math.min(1, m / MOVE.runAt + 0.3);
   if (c.sprinting) {
-    c.stamina = Math.max(0, c.stamina - dt / MOVE.sprintFor);
+    c.stamina = Math.max(0, c.stamina - dt / (MOVE.sprintFor * bst.stamina));
     c.rested = 0;
   } else {
     c.rested += dt;
-    if (c.rested >= MOVE.refillDelay) c.stamina = Math.min(1, c.stamina + dt / MOVE.refillIn);
+    if (c.rested >= MOVE.refillDelay) c.stamina = Math.min(1, c.stamina + (dt * bst.refill) / MOVE.refillIn);
   }
   const speed = m < 1e-3 ? 0 : top;
   const tx = m < 1e-3 ? 0 : (ix / m) * speed;
@@ -340,7 +352,8 @@ export type RoundEvent =
 
 export interface RoundOptions {
   seed: number;
-  contestants: { id: string; name: string; bot: boolean }[];
+  /** `boosts`: the CP boosts each brings (SPEC-V2 §7.7); left out in staked matches. */
+  contestants: { id: string; name: string; bot: boolean; boosts?: readonly string[] }[];
   /** Whose spot is front and centre (the local player in practice). */
   featuredId?: string;
   /** Mode, distance, time and width (default: Classic Run, 200 m). */
@@ -429,6 +442,7 @@ export class RedLightRound implements RoundView {
         graceBonus: 0,
         ...freshMotion(),
       };
+      setBoosts(contestant, c.boosts);
       this.byId.set(c.id, contestant);
       return contestant;
     });
@@ -678,11 +692,11 @@ export class RedLightRound implements RoundView {
 
   private attack(c: Contestant, kind: AttackKind): void {
     const k = ATTACK.kinds[kind];
-    c.cool = k.cooldown;
+    c.cool = k.cooldown * c.bst.cool;
     c.act = ATTACK.swing;
     c.actKind = kind;
     // Online, the target moved on during the attacker's lag: a little extra reach.
-    const target = attackTarget(c, this.contestants, ATTACK.range + Math.min(0.5, c.graceBonus * 2));
+    const target = attackTarget(c, this.contestants, ATTACK.range + c.bst.reach + Math.min(0.5, c.graceBonus * 2));
     let dropped = -1;
     if (target) {
       let dx = target.x - c.x;
@@ -699,6 +713,11 @@ export class RedLightRound implements RoundView {
       knock(target, dx, dz, k.knock, k.stun);
       // The hit first, then the ball it knocked loose: cause before effect on every phone.
       dropped = target.ball;
+      // Iron Grip: the first hit (or more) of the round leaves the ball in their hands.
+      if (dropped >= 0 && target.grip > 0) {
+        target.grip--;
+        dropped = -1;
+      }
       this.events.push({ type: "attack", id: c.id, kind, target: target.id, dropped });
       if (dropped >= 0) this.drop(target, dx, dz, c.index);
       return;
@@ -722,7 +741,7 @@ export class RedLightRound implements RoundView {
     best.holder = c.index;
     best.noGrab = -1;
     c.ball = best.index;
-    c.act = BALLS.grabTime;
+    c.act = BALLS.grabTime * c.bst.grab;
     c.actKind = "grab";
     this.events.push({ type: "grab", id: c.id, ball: best.index });
   }
@@ -799,7 +818,7 @@ export class RedLightRound implements RoundView {
     for (const c of this.contestants) {
       if (c.status !== "alive") continue;
       // Each contestant's own grace: the base, plus their network allowance.
-      if (this.phaseTime < RULES.grace + c.graceBonus) continue;
+      if (this.phaseTime < RULES.grace + c.graceBonus + c.bst.grace) continue;
       // Hit or shoved: the slide is the attacker's doing, not theirs.
       if (c.forgive > 0) continue;
       if (isMoving(c)) this.eliminate(c, "moved");

@@ -20,6 +20,7 @@
 // push, F grab, Tab scoreboard (hold), M map, K kill feed, Esc/P pause.
 // Nothing is hover-only (Lagos Life review checklist §03).
 
+import { gameSize, toGame } from "../ui/rotate";
 import { ATTACK_KINDS, type AttackKind, type Stance } from "../config";
 import { icon } from "../ui/icons";
 
@@ -192,10 +193,19 @@ export class Controls {
     );
     press(
       this.emoteBtn,
-      (e) => this.onWheel?.(true, e.clientX, e.clientY),
-      (e) => this.onWheel?.(false, e.clientX, e.clientY),
+      (e) => {
+        const p = toGame(e.clientX, e.clientY);
+        this.onWheel?.(true, p.x, p.y);
+      },
+      (e) => {
+        const p = toGame(e.clientX, e.clientY);
+        this.onWheel?.(false, p.x, p.y);
+      },
     );
-    this.emoteBtn.addEventListener("pointermove", (e) => this.onWheelMove?.(e.clientX, e.clientY));
+    this.emoteBtn.addEventListener("pointermove", (e) => {
+      const p = toGame(e.clientX, e.clientY);
+      this.onWheelMove?.(p.x, p.y);
+    });
     this.chatBtn.addEventListener("click", () => this.onChat?.());
 
     surface.addEventListener("pointerdown", this.down, { passive: false });
@@ -374,8 +384,9 @@ export class Controls {
     const show = this.enabled && this.lookAlways && !this.actions.hidden;
     l.el.classList.toggle("idle", show);
     if (!show) return;
-    const x = this.leftHanded ? 120 : window.innerWidth - 250;
-    const y = window.innerHeight - 110;
+    const g = gameSize();
+    const x = this.leftHanded ? 120 : g.w - 250;
+    const y = g.h - 110;
     l.el.style.transform = `translate(${x}px, ${y}px)`;
     l.knob.style.transform = "translate(-50%, -50%)";
   }
@@ -384,11 +395,13 @@ export class Controls {
     this.touched();
     if (!this.enabled) return;
     if ((e.target as HTMLElement).closest("button, a, input, .sheet, [data-ui]")) return;
-    const leftSide = e.clientX < window.innerWidth / 2;
+    // Game coordinates: the same as the screen's unless the game is turned on its side.
+    const p = toGame(e.clientX, e.clientY);
+    const leftSide = p.x < gameSize().w / 2;
     const isMove = this.leftHanded ? !leftSide : leftSide;
     // A mouse drags the camera directly, like a mouse should.
     if (e.pointerType === "mouse" && !isMove) {
-      this.mouseLook = { id: e.pointerId, x: e.clientX, y: e.clientY };
+      this.mouseLook = { id: e.pointerId, x: p.x, y: p.y };
       try {
         this.surface.setPointerCapture(e.pointerId);
       } catch {
@@ -400,8 +413,8 @@ export class Controls {
     if (s.id !== null) return;
     e.preventDefault();
     s.id = e.pointerId;
-    s.ox = e.clientX;
-    s.oy = e.clientY;
+    s.ox = p.x;
+    s.oy = p.y;
     s.x = s.y = 0;
     try {
       this.surface.setPointerCapture(e.pointerId);
@@ -420,18 +433,19 @@ export class Controls {
   };
 
   private moveEv = (e: PointerEvent): void => {
+    const p = toGame(e.clientX, e.clientY);
     if (this.mouseLook && e.pointerId === this.mouseLook.id) {
-      this.mdx += e.clientX - this.mouseLook.x;
-      this.mdy += e.clientY - this.mouseLook.y;
-      this.mouseLook.x = e.clientX;
-      this.mouseLook.y = e.clientY;
+      this.mdx += p.x - this.mouseLook.x;
+      this.mdy += p.y - this.mouseLook.y;
+      this.mouseLook.x = p.x;
+      this.mouseLook.y = p.y;
       return;
     }
     for (const s of [this.sticks.move, this.sticks.look]) {
       if (s.id !== e.pointerId) continue;
       e.preventDefault();
-      let dx = e.clientX - s.ox;
-      let dy = e.clientY - s.oy;
+      let dx = p.x - s.ox;
+      let dy = p.y - s.oy;
       const d = Math.hypot(dx, dy);
       const R = this.radius;
       if (d > R) {
@@ -439,8 +453,8 @@ export class Controls {
         const pull = d - R;
         s.ox += (dx / d) * pull;
         s.oy += (dy / d) * pull;
-        dx = e.clientX - s.ox;
-        dy = e.clientY - s.oy;
+        dx = p.x - s.ox;
+        dy = p.y - s.oy;
         s.el.style.transform = `translate(${s.ox}px, ${s.oy}px)`;
       }
       const nx = dx / R;
@@ -495,7 +509,7 @@ export class Controls {
     } else if (k === "z") this.setStance(this.stance === 2 ? 0 : 2);
     else if (k === "v") this.onFirstPerson?.();
     else if (k === "t") this.onChat?.();
-    else if (k === "g") this.onWheel?.(true, window.innerWidth / 2, window.innerHeight / 2);
+    else if (k === "g") this.onWheel?.(true, gameSize().w / 2, gameSize().h / 2);
     else if (k === "1" || k === "2" || k === "3") this.attack(ATTACK_KINDS[Number(k) - 1]);
     else if (k === "f") this.grab();
     else if (k === "y") this.onQuick?.();

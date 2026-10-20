@@ -58,6 +58,18 @@ Change any of these by saying so.
 | Final two (§2.8) | When the third-last runner goes (caught or across) and two are left running, in a round that started with three or more: once a round. Not in a match of two. If you're one of them your lens narrows (0.78×) and comes back; if you're watching, a cutscene of the pair from the side, the HUD hidden. The music builds (a drone and a quickening heartbeat), then a quiet pulse until the end. | "When only 2 players remain". |
 | Play of the game (§2.9) | Scored where the round is refereed (the server online, the phone in Solo), announced as it happens (event `hl`); every phone keeps a 4.5 s clip of the best so far from its own 12 s recording and plays it after the round, slow motion at the moment. **Closest escape**: moving as she turned, stopped under half a second before she could see, and not caught. **Best dodge**: standing within 2.5 m of someone she shot, and not caught; or a swing that missed you by under a metre. **Best attack**: knocking a ball loose and taking it back before anyone else touches it. Each scored 0–100 (closer, faster, with a ball, nearer the line is better). | The spec names the three kinds, not how to judge them. |
 | The 10 elimination steps (§2.6) | Per catch: the beam, the blood (splatter, splats and a pool that stay), the fall (three COD-style falls by person: thrown back, spun onto the side, knees first), the kill feed. Per batch caught together: her head snaps to the nearest with a CRACK, her eyes flash red, one low drum, and (once a turn) your 1.2 s zoom on that one, their fall in slow motion, a shake and a red edge. Bodies lie where they fell until the round ends. Blood stays a setting (grey dust when off). | §2.6 and the zoom row above. |
+| Pause menu (§7.1) | Resume, Settings, Controls, Audio, Graphics (each opens Settings at that tab, Back returns to the menu), Restart (Solo), Quit (to the lobby, or out of the match), Close game where the host allows. Over an opaque blur. Online the round goes on (you stand still, which is safe). | COD's list; one Settings screen behind it. |
+| Audio (§7.2, §7.5 #11–13) | Master volume; Music on/off and volume; Sound effects on/off and volume; Vibration. **Voice chat and its volume are shown greyed out** ("no microphone in Lagos Life"). Music off still leaves her warning hum (a rule of the game): only the master volume turns it down. | §7.2 asks for a voice toggle; the frame has no microphone. |
+| Camera sensitivity (§7.5 #2–4) | Three sliders: Camera sensitivity (scales both, 50–200%), Horizontal and Vertical (as before). | Three settings in the list. |
+| Language (§7.5 #16) | English and Nigerian Pidgin (our own wording). Pidgin covers every menu, the HUD, the tutorial captions, the kill feed's fixed lines and toasts; a line with no Pidgin yet shows in English. Players' names and chat are never changed. | |
+| Notifications, friend requests (§7.5 #17–18) | Notifications: invites and friend requests pop up in the lobby (never mid-round; they wait in Friends). Friend requests off: the server refuses requests to you. | |
+| Data saver (§7.5 #19) | Online, the server sends your phone every other snapshot (half the bytes); others are drawn 90 ms further back to stay smooth. | The game downloads nothing after it starts; the snapshots are its data. |
+| Reset to default (§7.5 #20) | Every setting back to how it came, after a yes. Kept: level, scores, CP, boosts, friends, your look, wheel, pose, map and mode picks, the tutorial seen. | A reset mustn't take what you earned. |
+| Rotate prompt (§6.5) | When the game starts (and a round starts) on a portrait screen, a small animated rotate-phone pill shows for 4.5 s then fades; tapping it turns the whole game 90° (the canvas, the UI, touches, layouts). The same switch is in Settings, Graphics ("Rotate the game"). | The frame forbids orientation lock (row above). |
+| Chat moderation in the roster (§7.3) | The scoreboard is the match roster online: tap a name for Add friend, Mute, Block, Report (with a reason). The same sheet as tapping a chat line. The profanity filter stays on the server, always. | |
+| Friends (protocol 10) | Each copy of the game makes a random **friend id** on the phone (Lagos Life's copy and EMILGO's differ: never linked). Add someone from your room, the scoreboard or Recent players (while they're still online): they get a request; yes adds you both. The server only says who is on (lobby, in a room, in a match) to friends who list each other, and passes on invites to a private room (with its code). Nothing is stored on the server. The lobby's Online / In match now count your friends. | Lagos Life gives games no friends list; we may not store or link players. |
+| CP and boosts (§7.7) | **CP** is earned by playing every round: 10, +15 crossing, +10 first, +5 online (the tutorial earns none); kept on the phone, like your level. **12 boosts** bought with CP (60–150 CP for a pack of 3 rounds): Quick Feet (+4% walk and run), Sprinter (+4% sprint), Second Wind (stamina lasts 25% longer), Fast Breath (refills 25% faster), Cool Head (freeze resistance: +0.1 s before her stare counts you), Iron Grip (ball grip: the first hit doesn't knock your ball loose), Quick Hands (grab 40% faster), Thick Skin (30% shorter stun), Rooted (30% less knockback), Long Arm (+0.3 m reach), Quick Fists (cooldowns 20% shorter), Low Rider (crouch and crawl 20% faster). Switch on up to **2**; each uses a round when a round starts. The referee applies them in Solo and free rooms; **never in a staked match** (the server leaves them out; tested). Online the server takes the phone's word for which it brings but never more than 2, so the most anyone can have is what anyone can buy by playing. CPUs have none. | The spec names speed, stamina, freeze resistance and ball grip, "10–20" items, and "off in staked matches". Small edges, so free rooms stay fair. |
+| Store tabs (§7.7) | Boosts · CP (first), Cosmetics (Lagos Life Game Naira through `Vatar.purchase`, as before). Outside Lagos Life, boosts can be bought (CP is ours) and cosmetics tried on. | |
 | Attack details (spec gives none) | Range 2 m. Fist: knocks you back 1 m, stuns 0.8 s, 1.6 s cooldown. Slap: 0.35 m, 0.35 s, 0.8 s. Push: 2.4 m, 0.25 s, 1.2 s. Every hit knocks a held ball loose. Sprinting into someone shoves them 1.4 m (once a second per pair). Grabbing takes 0.35 s, and counts as moving while she watches. | A fist is the big hit, a slap the quick one, a push moves people furthest. |
 | A ball's holder caught by the doll | The ball drops where they fall, free for anyone. When every ball is in a basket, everyone still on the field is out ("no ball left") and the round ends. | Nobody can win without a ball, so there's nothing left to wait for. |
 
@@ -130,7 +142,9 @@ games/emilgo-games/
       scoreboard.ts            NEW      every player's state
       pause.ts                 NEW      COD pause menu
       rotate.ts                NEW      rotate-phone prompt and 90° rotation
-      friends.ts               NEW      friends, invites and requests
+      friends.ts               NEW      friends, invites and requests  (built inside screens.ts: the Friends sheet, the lobby notice)
+      i18n.ts                  NEW      English and Pidgin: t(), translateTree()
+      rotate.ts                NEW      rotate-phone prompt and 90° rotation (replaces the line above)
       screens.ts               CHANGED  play menu (Invite / New People / Solo), mode and distance, the 20 settings, store tabs
     audio/
       songs.ts                 CHANGED  two songs, in turns: the traditional Mugunghwa call and our lullaby
@@ -145,7 +159,8 @@ games/emilgo-games/
   server/
     src/room.ts                CHANGED  20 seats, modes, balls, attacks, flow timeline, skip votes, slow motion, highlight
     src/lobby.ts               CHANGED  matchmaking (20, or 60 s with 2+), staked 2–4
-    src/presence.ts            NEW      who is online, invite and request relay; nothing stored
+    src/presence.ts            NEW      who is online, invite and request relay; nothing stored (mutual friends only)
+    scripts/socialtest.ts      NEW      friends, invites, boosts in the roster, data saver
     scripts/rulestest.ts       CHANGED  modes, balls, attacks, pushes, collisions
   dev/
     groundtest.ts              NEW      feet-on-the-ground check on every map and stage
@@ -219,6 +234,36 @@ Each phase ends tested and waits for the owner's go-ahead.
    - Every test, the three builds, the docs, the handoff.
 
 ## Status
+
+### Phase 7: Menus, settings, social, store (done 20 Oct 2026)
+
+| Check | Result |
+| --- | --- |
+| Menus in headless Chrome, 844×390 and 390×844 | the pause menu (opaque blur; two columns when short), every Settings tab, the Store's Boosts and Cosmetics, Friends (three tabs), the lobby notice, the roster's moderation sheet, Pidgin throughout |
+| Rotate | the prompt shows on a portrait screen; one tap turns the game: the lobby, a round and the pause menu lay out as landscape; a drag "up" on the turned screen runs forward (9.9 m, no drift sideways) |
+| Friends, the browser and a scripted player | in a room, the player's request pops up; Accept adds them, and they are told |
+| Tests | rules **115** (new: boosts, 12) · **social** (new, 13: mutual presence, requests, forged accepts ignored, requests off, invites, boosts in the roster capped at 2, data saver halves the snapshots) · match (new: boosts asked for, none applied in a staked match) · balls, shop all passed · fairness 7/7 |
+| Builds | Lagos Life `dist/` 299 KB JS gzipped; EMILGO embed 1,277 KB. **Protocol 10** |
+
+Built:
+- **Pause menu** (`screens.pause`), **Settings** with all 20 (`screens.settings`):
+  see the Decisions rows. Volumes: `audio/sound.ts` has master, music and
+  effects buses (`setLevels`).
+- **Language**: `ui/i18n.ts` (`t()`, and `translateTree()` on every screen,
+  the HUD, the tutorial, the replay tag, the scoreboard and the moderation
+  sheet; switching back to English restores what was there).
+- **Rotate**: `ui/rotate.ts` turns the canvas and UI, swaps the stylesheet's
+  orientation and width/height media queries, and its `--vw1` / `--vh1`
+  tokens (every `vw`/`vh` in `styles.css` now uses them); `toGame()` maps
+  touches (`input/controls.ts`, the lobby stage).
+- **Moderation in the roster**: `ui/scoreboard.ts` (names tappable online),
+  `ui/social.ts` (one sheet: Add friend, Mute, Block, Report).
+- **Friends**: `social/friends.ts` (phone), `server/src/presence.ts`
+  (server), protocol 10 messages `me`, `fr`, `freq`, `facc`, `inv`.
+- **Store**: `shop/boosts.ts` (the 12, CP per round, the wire form); the
+  referee's `setBoosts` and `bst` (`game/rules.ts`, `game/combat.ts`); the
+  server puts each player's boosts in the roster of free rooms only (`room.ts`).
+- **Data saver**: `prefs` message; `room.ts` skips every other snapshot.
 
 ### Phase 6: Elimination and highlights (done 20 Oct 2026)
 

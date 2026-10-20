@@ -68,11 +68,14 @@ export class Sound {
   private ctx: Ctx | null = null;
   private master: GainNode | null = null;
   private music: GainNode | null = null;
+  /** Sound effects (everything but the songs and her warning hum). */
+  private sfx: GainNode | null = null;
   private noiseBuf: AudioBuffer | null = null;
   private songNodes: AudioScheduledSourceNode[] = [];
   private songBus: GainNode | null = null;
   private playing: Playing | null = null;
-  private enabled = true;
+  /** Volumes 0…1 (SPEC-V2 §7.2, §7.5 #12–13): master, music, effects (0 when switched off). */
+  private levels = { master: 0.9, music: 1, sfx: 1 };
   private hidden = false;
 
   get unlocked(): boolean {
@@ -116,14 +119,17 @@ export class Sound {
     }
     this.ctx = ctx;
     this.master = this.ctx.createGain();
-    this.master.gain.value = this.enabled ? 0.9 : 0;
+    this.master.gain.value = this.levels.master;
     const comp = this.ctx.createDynamicsCompressor();
     comp.threshold.value = -14;
     comp.ratio.value = 4;
     this.master.connect(comp).connect(this.ctx.destination);
     this.music = this.ctx.createGain();
-    this.music.gain.value = this.musicOn ? 0.55 : 0;
+    this.music.gain.value = 0.55 * this.levels.music;
     this.music.connect(this.master);
+    this.sfx = this.ctx.createGain();
+    this.sfx.gain.value = this.levels.sfx;
+    this.sfx.connect(this.master);
 
     const len = this.ctx.sampleRate;
     this.noiseBuf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
@@ -132,17 +138,17 @@ export class Sound {
     return ctx;
   }
 
-  private musicOn = true;
-
-  /** Mama's singing on or off (the words still show on screen). */
-  setMusic(on: boolean): void {
-    this.musicOn = on;
-    if (this.music && this.ctx) this.music.gain.setTargetAtTime(on ? 0.55 : 0, this.ctx.currentTime, 0.02);
-  }
-
-  setEnabled(on: boolean): void {
-    this.enabled = on;
-    if (this.master && this.ctx) this.master.gain.setTargetAtTime(on ? 0.9 : 0, this.ctx.currentTime, 0.02);
+  /**
+   * Master, music and effects volumes, 0…1. Music off (0) still leaves her
+   * warning hum: it is a rule of the game, so only the master volume turns it down.
+   */
+  setLevels(master: number, music: number, sfx: number): void {
+    this.levels = { master: 0.9 * clamp01(master), music: clamp01(music), sfx: clamp01(sfx) };
+    if (!this.ctx || !this.master || !this.music || !this.sfx) return;
+    const t = this.ctx.currentTime;
+    this.master.gain.setTargetAtTime(this.levels.master, t, 0.02);
+    this.music.gain.setTargetAtTime(0.55 * this.levels.music, t, 0.02);
+    this.sfx.gain.setTargetAtTime(this.levels.sfx, t, 0.02);
   }
 
   /** The world paused us (background, pay sheet): everything stops. */
@@ -176,7 +182,7 @@ export class Sound {
     g.gain.setValueAtTime(0.0001, at);
     g.gain.exponentialRampToValueAtTime(peak, at + atk);
     g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
-    osc.connect(g).connect(opts.bus ?? this.master);
+    osc.connect(g).connect(opts.bus ?? this.sfx ?? this.master);
     osc.start(at);
     osc.stop(at + dur + 0.02);
     if (opts.track) this.songNodes.push(osc);
@@ -193,7 +199,7 @@ export class Sound {
     const g = ctx.createGain();
     g.gain.setValueAtTime(opts.gain ?? 0.3, at);
     g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
-    src.connect(f).connect(g).connect(opts.bus ?? this.master);
+    src.connect(f).connect(g).connect(opts.bus ?? this.sfx ?? this.master);
     src.start(at, Math.random() * 0.5);
     src.stop(at + dur + 0.02);
     if (opts.track) this.songNodes.push(src);
@@ -628,4 +634,8 @@ export class Sound {
     const t = this.now;
     this.tone(880, t, 0.05, { type: "sine", gain: 0.08 });
   }
+}
+
+function clamp01(v: number): number {
+  return Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 1;
 }

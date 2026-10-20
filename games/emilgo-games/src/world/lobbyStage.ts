@@ -15,6 +15,7 @@
 // the front; flow/waitingRoom.ts), podium (the
 // winner's circle: top three on numbered plinths under spotlights).
 
+import { toGame } from "../ui/rotate";
 import {
   AdditiveBlending,
   AmbientLight,
@@ -375,8 +376,8 @@ export class LobbyStage {
 
   private onDown = (e: PointerEvent): void => {
     if (!this.interactive || this.mode === "podium") return;
-    this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (this.pointers.size === 1) this.dragging = { id: e.pointerId, x: e.clientX, t: performance.now() };
+    this.pointers.set(e.pointerId, toGame(e.clientX, e.clientY));
+    if (this.pointers.size === 1) this.dragging = { id: e.pointerId, x: toGame(e.clientX, e.clientY).x, t: performance.now() };
     if (this.pointers.size === 2) {
       const [a, b] = [...this.pointers.entries()];
       this.pinch = { a: a[0], b: b[0], d: Math.hypot(a[1].x - b[1].x, a[1].y - b[1].y) };
@@ -386,7 +387,7 @@ export class LobbyStage {
 
   private onMove = (e: PointerEvent): void => {
     if (!this.pointers.has(e.pointerId)) return;
-    this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    this.pointers.set(e.pointerId, toGame(e.clientX, e.clientY));
     if (this.pinch) {
       const a = this.pointers.get(this.pinch.a);
       const b = this.pointers.get(this.pinch.b);
@@ -399,12 +400,13 @@ export class LobbyStage {
       return;
     }
     if (this.dragging && this.dragging.id === e.pointerId) {
-      const dx = e.clientX - this.dragging.x;
+      const gx = toGame(e.clientX, e.clientY).x;
+      const dx = gx - this.dragging.x;
       const now = performance.now();
       const dt = Math.max(1, now - this.dragging.t) / 1000;
       this.yaw += dx * 0.012;
       this.yawVel = (dx * 0.012) / dt;
-      this.dragging.x = e.clientX;
+      this.dragging.x = gx;
       this.dragging.t = now;
       this.idle = 0;
     }

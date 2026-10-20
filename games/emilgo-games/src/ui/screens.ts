@@ -14,11 +14,14 @@ import type { RoomInfo } from "../net/protocol";
 import type { Host, Leaderboard, MatchView } from "../platform/types";
 import { errorText } from "../platform/vatarErrors";
 import type { Settings } from "../settings";
+import { BOOSTS, BOOST_BY_ID, BOOST_ROUNDS, BOOST_SLOTS, type Boost, type BoostId } from "../shop/boosts";
 import { PRODUCTS, PRODUCT_BY_ID } from "../shop/catalog";
+import type { FriendState } from "../social/friends";
 import { EMOTES, EMOTE_BY_ID, type EmoteId } from "../social/emotes";
 import { POSES } from "../world/human/animator";
 import { EXTRAS, FREE_OUTFITS, HAIRS, HAIR_COLORS, OUTFITS, SKIN_TONES, type Look } from "../world/human/wardrobe";
 import { esc, ordinal } from "./dom";
+import { t, translateTree } from "./i18n";
 import { icon } from "./icons";
 
 export interface ResultInfo {
@@ -36,6 +39,8 @@ export interface ResultInfo {
   online: "quick" | "private" | "match" | null;
   matchNote?: string | null;
   xp: number;
+  /** CP earned this round (shop/boosts cpForRound). */
+  cp: number;
   level: number;
   levelUp: boolean;
   /** Daily challenges finished by this round. */
@@ -84,6 +89,31 @@ export interface LobbyState {
 
 type Action = (name: string, el: HTMLElement, ev: Event) => void;
 
+type RangeKey = "sensH" | "sensV" | "stickOpacity" | "sens" | "master" | "musicVol" | "sfxVol";
+
+export interface StoreState {
+  tab: "boosts" | "cosmetics";
+  owned: ReadonlySet<string>;
+  badge: boolean;
+  busy: string | null;
+  note: string | null;
+  canBuy: boolean;
+  cp: number;
+  boosts: Partial<Record<BoostId, number>>;
+  boostsOn: readonly BoostId[];
+}
+
+export interface FriendsState {
+  online: OnlineAvailability;
+  tab: "friends" | "recent" | "invite";
+  code: string | null;
+  counts: { online: number; inMatch: number };
+  friends: { name: string; state: FriendState }[];
+  requests: { name: string }[];
+  invites: { name: string }[];
+  recent: { name: string; at: number; seat?: string; friend: boolean }[];
+}
+
 const MODE_INFO: Record<PlayMode, { name: string; sub: string; icon: string }> = {
   friends: { name: "Invite Friends", sub: "Make a room and share its code, or join one", icon: "invite" },
   new: { name: "Play with New People", sub: `Matched with up to ${NET.crowdMax} players`, icon: "people" },
@@ -105,6 +135,7 @@ export class Screens {
   private current = "";
   private toastEl: HTMLDivElement;
   private toastTimer = 0;
+  private noticeTimer = 0;
 
   constructor() {
     this.root = document.createElement("div");
@@ -145,7 +176,7 @@ export class Screens {
   }
 
   toast(text: string, ms = 2400): void {
-    this.toastEl.textContent = text;
+    this.toastEl.textContent = t(text);
     this.toastEl.classList.add("visible");
     clearTimeout(this.toastTimer);
     this.toastTimer = window.setTimeout(() => this.toastEl.classList.remove("visible"), ms);
@@ -155,6 +186,7 @@ export class Screens {
     this.current = name;
     this.root.innerHTML = `<div class="screen ${variant}" data-screen="${name}">${html}</div>`;
     this.root.classList.add("visible");
+    translateTree(this.root);
     const focus = this.root.querySelector<HTMLElement>("[autofocus]");
     focus?.focus({ preventScroll: true });
     return this.root.firstElementChild as HTMLElement;
@@ -174,7 +206,7 @@ export class Screens {
         <div class="who">
           <span class="nm" data-name></span>
           <span class="lv"><b>LV ${lv.level}</b><span class="bar gold"><i style="width:${Math.round((lv.into / lv.need) * 100)}%"></i></span></span>
-          <span class="meta"><span>RANK <b>${esc(s.rank ?? "—")}</b></span><span>BEST <b>${settings.best || 0}</b></span></span>
+          <span class="meta"><span>RANK <b>${esc(s.rank ?? "—")}</b></span><span>BEST <b>${settings.best || 0}</b></span><span>CP <b>${settings.cp}</b></span></span>
         </div>
       </div>
       ${tabsHtml("lobby")}
@@ -202,7 +234,7 @@ export class Screens {
 
       <button class="lb-br glass-fill store-w" data-act="store" aria-label="Store">
         <span class="art">${icon("store", "ico-bob")}</span>
-        <span class="art-t"><span class="h" style="display:block">Store</span><span class="small">${s.shop ? "Outfits · emotes · badge" : "Browse the looks"}</span></span>
+        <span class="art-t"><span class="h" style="display:block">Store</span><span class="small">${s.shop ? "Boosts · outfits · emotes" : "Boosts · try the looks"}</span></span>
       </button>
 
       <div class="lb-name glass"><span data-name></span>${s.badge ? `<span class="badge-star">${icon("star", "", 12)}</span>` : ""}</div>
@@ -383,36 +415,59 @@ export class Screens {
       "Loadout",
       `<div class="label" style="margin-bottom:8px">Lobby pose</div>
        <div class="grid">${POSES.map((p) => `<button class="tile ${s.lobbyPose === p.id ? "on" : ""}" data-act="pose" data-id="${p.id}">${icon("pose", "", 24)}<span class="t">${esc(p.label)}</span></button>`).join("")}</div>
-       <button class="md" style="margin: auto" data-act="emotes">${icon("wheel", "", 18)}<span class="grow" ><b>Edit the wheel</b><small>${s.wheel.map((id) => EMOTE_BY_ID[id].label).join(" · ")}</small></span>${icon("next", "", 16)}</button>`,
+       <button class="md" style="margin: auto" data-act="emotes">${icon("wheel", "", 18)}<span class="grow" ><b>Edit the wheel</b><small>${s.wheel.map((id) => EMOTE_BY_ID[id].label).join(" · ")}</small></span>${icon("next", "", 16)}</button>
+       <button class="md" style="margin: 8px auto 0" data-act="boosts">${icon("bolt", "", 18)}<span class="grow"><b>Boosts</b><small>${s.boostsOn.length ? s.boostsOn.map((id) => `${BOOST_BY_ID[id].name} (${s.boosts[id] ?? 0})`).join(" · ") : `None on · ${s.cp} CP`}</small></span>${icon("next", "", 16)}</button>`,
     );
   }
 
-  store(owned: ReadonlySet<string>, badge: boolean, busy: string | null, note: string | null, canBuy: boolean): void {
+  store(st: StoreState): void {
+    const { owned, badge, busy, note, canBuy } = st;
     const prevScroll = this.current === "store" ? (this.root.querySelector<HTMLElement>(".sheet-body")?.scrollTop ?? 0) : 0;
-    const tile = (p: (typeof PRODUCTS)[number]) => {
-      const has = owned.has(p.id);
-      let action: string;
-      if (!has && canBuy) action = `<button class="btn primary" style="height:32px;width:100%" data-act="buy" data-id="${p.id}" ${busy ? "disabled" : ""}>${busy === p.id ? "Paying" : naira(p.price)}</button>`;
-      else if (!has) action = `<span class="price num">${naira(p.price)}</span>`;
-      else if (p.kind === "outfit") action = `<button class="btn secondary" style="height:32px;width:100%" data-act="wear" data-id="${p.id}">Wear</button>`;
-      else if (p.kind === "cap") action = `<button class="btn secondary" style="height:32px;width:100%" data-act="wear" data-id="${p.id}">Wear</button>`;
-      else if (p.kind === "badge") action = `<button class="btn ${badge ? "secondary on" : "secondary"}" style="height:32px;width:100%" data-act="toggle-badge">${badge ? "On" : "Off"}</button>`;
-      else action = `<span class="owned">Owned</span>`;
-      return `<div class="tile" style="min-height:150px;justify-content:space-between">
-        <button data-act="try" data-id="${p.id}" style="display:flex;flex-direction:column;align-items:center;gap:6px" aria-label="Try ${esc(p.name)}">
-          ${icon(p.icon, "", 30)}<span class="t">${esc(p.name)}</span><span class="s">${esc(p.blurb)}</span>
-        </button>${action}</div>`;
-    };
-    this.sheet(
-      "store",
-      "Store",
-      `${note ? `<p class="status" role="status">${esc(note)}</p>` : ""}
-       <p class="note">${canBuy ? "Cosmetics only: nothing here helps you win. You pay on Lagos Life's own sheet, and the price there is the price. Each item is yours for good." : "Cosmetics only. Items are bought inside Lagos Life; here you can tap any item to try it on."}</p>
-       <div class="grid wide">${PRODUCTS.map(tile).join("")}</div>`,
-      { foot: canBuy ? `<button class="btn secondary" data-act="restore" ${busy ? "disabled" : ""}>${icon("refresh", "", 16)}Restore purchases</button><span class="grow"></span>` : undefined },
-    );
-    const body = this.root.querySelector<HTMLElement>(".sheet-body");
-    if (body && prevScroll) body.scrollTop = prevScroll;
+    const tabs = `<button class="tab ${st.tab === "boosts" ? "on" : ""}" data-act="store-tab" data-tab="boosts">Boosts · CP</button><button class="tab ${st.tab === "cosmetics" ? "on" : ""}" data-act="store-tab" data-tab="cosmetics">Cosmetics</button>`;
+    let body: string;
+    if (st.tab === "boosts") {
+      const on = new Set(st.boostsOn);
+      const tile = (b: Boost) => {
+        const left = st.boosts[b.id] ?? 0;
+        const isOn = on.has(b.id);
+        const full = !isOn && on.size >= BOOST_SLOTS;
+        return `<div class="tile boost ${isOn ? "on" : ""}" style="min-height:150px;justify-content:space-between">
+          ${icon(b.icon, "", 26)}<span class="t">${esc(b.name)}</span><span class="s">${esc(b.blurb)}${b.balls ? " Ball Haunting." : ""}</span>
+          <span class="s">${left ? `${left} round${left === 1 ? "" : "s"} left` : "None yet"}</span>
+          <span style="display:flex;gap:6px;width:100%">
+            <button class="btn primary" style="height:32px;flex:1" data-act="buy-boost" data-id="${b.id}" ${st.cp < b.cp ? "disabled" : ""}>${b.cp} CP · ${BOOST_ROUNDS}</button>
+            ${left ? `<button class="btn secondary ${isOn ? "on" : ""}" style="height:32px;flex:1" data-act="boost-on" data-id="${b.id}" ${full ? "disabled" : ""}>${isOn ? "On" : "Off"}</button>` : ""}
+          </span>
+        </div>`;
+      };
+      body = `<div class="cp-bar glass"><span class="label">Your CP</span><b class="num">${st.cp}</b><span class="small grow">Earned only by playing: every round, more for crossing, more for first.</span></div>
+        <p class="note">Switch on up to ${BOOST_SLOTS}. Each one switched on uses a round when a round starts, in Solo and free matches. Boosts are always off in staked Lagos Life matches, and cost no money: CP only.</p>
+        <div class="grid wide">${BOOSTS.map(tile).join("")}</div>`;
+    } else {
+      const tile = (p: (typeof PRODUCTS)[number]) => {
+        const has = owned.has(p.id);
+        let action: string;
+        if (!has && canBuy) action = `<button class="btn primary" style="height:32px;width:100%" data-act="buy" data-id="${p.id}" ${busy ? "disabled" : ""}>${busy === p.id ? "Paying" : naira(p.price)}</button>`;
+        else if (!has) action = `<span class="price num">${naira(p.price)}</span>`;
+        else if (p.kind === "outfit") action = `<button class="btn secondary" style="height:32px;width:100%" data-act="wear" data-id="${p.id}">Wear</button>`;
+        else if (p.kind === "cap") action = `<button class="btn secondary" style="height:32px;width:100%" data-act="wear" data-id="${p.id}">Wear</button>`;
+        else if (p.kind === "badge") action = `<button class="btn ${badge ? "secondary on" : "secondary"}" style="height:32px;width:100%" data-act="toggle-badge">${badge ? "On" : "Off"}</button>`;
+        else action = `<span class="owned">Owned</span>`;
+        return `<div class="tile" style="min-height:150px;justify-content:space-between">
+          <button data-act="try" data-id="${p.id}" style="display:flex;flex-direction:column;align-items:center;gap:6px" aria-label="Try ${esc(p.name)}">
+            ${icon(p.icon, "", 30)}<span class="t">${esc(p.name)}</span><span class="s">${esc(p.blurb)}</span>
+          </button>${action}</div>`;
+      };
+      body = `${note ? `<p class="status" role="status">${esc(note)}</p>` : ""}
+        <p class="note">${canBuy ? "Cosmetics only: nothing here helps you win. You pay with Lagos Life Game Naira on Lagos Life's own sheet, and the price there is the price. Each item is yours for good." : "Cosmetics only. Items are bought inside Lagos Life; here you can tap any item to try it on."}</p>
+        <div class="grid wide">${PRODUCTS.map(tile).join("")}</div>`;
+    }
+    this.sheet("store", "Store", body, {
+      tabs,
+      foot: canBuy && st.tab === "cosmetics" ? `<button class="btn secondary" data-act="restore" ${busy ? "disabled" : ""}>${icon("refresh", "", 16)}Restore purchases</button><span class="grow"></span>` : undefined,
+    });
+    const el = this.root.querySelector<HTMLElement>(".sheet-body");
+    if (el && prevScroll) el.scrollTop = prevScroll;
   }
 
   /** Update just the note on an open store. */
@@ -421,34 +476,85 @@ export class Screens {
     if (el) el.textContent = text;
   }
 
-  friends(s: { online: OnlineAvailability; recent: { name: string; at: number }[]; counts: { online: number | null; inMatch: number | null }; tab: "friends" | "invite"; code: string | null }): void {
-    const tabs = `<button class="tab ${s.tab === "friends" ? "on" : ""}" data-act="ftab" data-tab="friends">Recent players</button><button class="tab ${s.tab === "invite" ? "on" : ""}" data-act="ftab" data-tab="invite">Invite</button>`;
+  friends(s: FriendsState): void {
+    const tabs = (["friends", "recent", "invite"] as const)
+      .map((t) => `<button class="tab ${s.tab === t ? "on" : ""}" data-act="ftab" data-tab="${t}">${t === "friends" ? `Friends${s.requests.length ? ` <i class="dot-badge">${s.requests.length}</i>` : ""}` : t === "recent" ? "Recent players" : "Room code"}</button>`)
+      .join("");
+    const offline = s.online !== "ready" ? `<div class="status">Friends need the game server. ${s.online === "offline" ? "You're offline right now." : "It isn't switched on in this build yet."}</div>` : "";
+    const inRoom = !!s.code;
     let body: string;
     if (s.tab === "invite") {
       body =
         s.online !== "ready"
-          ? `<div class="status">Invites need the game server. ${s.online === "offline" ? "You're offline right now." : "It isn't switched on in this build yet."}</div>`
+          ? offline
           : s.code
-            ? `<p class="note">Your room is open. Share this code; friends tap Play, Join with code.</p>
+            ? `<p class="note">Your room is open. Share this code, or invite a friend from the Friends tab.</p>
                <div class="code">${esc(s.code)}</div>
                <div style="display:flex;gap:8px;margin-top:10px"><button class="btn secondary" data-act="copy-code">${icon("copy", "", 16)}Copy code</button><button class="btn primary" data-act="room">Go to room</button></div>`
             : `<p class="note">Make a private room and share its six-letter code. Up to ${Math.max(...NET.privateSizes)} people; 2 to 4 matches Lagos Life's match seats.</p>
                <div class="label" style="margin:10px 0 8px">Room size</div>
                <div class="grid">${NET.privateSizes.map((n) => `<button class="tile" data-act="create" data-size="${n}">${icon("people", "", 22)}<span class="t">${n} players</span></button>`).join("")}</div>`;
-    } else {
+    } else if (s.tab === "recent") {
       const rows = s.recent.length
         ? s.recent
-            .map((r) => `<li class="li"><span class="avatar" style="width:32px;height:32px;font-size:12px">${esc(r.name.charAt(0).toUpperCase())}</span><span class="grow"><b>${esc(r.name)}</b><small>Played ${ago(r.at)}</small></span></li>`)
+            .map(
+              (r, i) => `<li class="li"><span class="avatar" style="width:32px;height:32px;font-size:12px">${esc(r.name.charAt(0).toUpperCase())}</span><span class="grow"><b>${esc(r.name)}</b><small>Played ${ago(r.at)}</small></span>${
+                r.friend ? `<span class="owned">Friend</span>` : r.seat && s.online === "ready" ? `<button class="btn secondary" style="height:30px" data-act="fadd" data-i="${i}">${icon("invite", "", 14)}Add</button>` : ""
+              }</li>`,
+            )
             .join("")
         : `<li class="li"><span class="grow"><b>No one yet</b><small>People you play online with show up here.</small></span></li>`;
-      body = `<div style="display:flex;gap:8px;margin-bottom:12px">
-          <div class="glass" style="flex:1;padding:8px 10px"><div class="label">Online now</div><div class="num" style="font-size:14px">${s.counts.online ?? "—"}</div></div>
-          <div class="glass" style="flex:1;padding:8px 10px"><div class="label">In a match</div><div class="num" style="font-size:14px">${s.counts.inMatch ?? "—"}</div></div>
+      body = `<ul class="list">${rows}</ul><p class="note" style="margin-top:10px">Add someone while they're still online: they get a friend request. Players are known by display name only.</p>`;
+    } else {
+      const req = s.requests
+        .map((r, i) => `<li class="li req"><span class="grow"><b>${esc(r.name)}</b><small>Wants to be friends</small></span><button class="btn secondary" style="height:30px" data-act="fno" data-i="${i}">No</button><button class="btn primary" style="height:30px" data-act="fyes" data-i="${i}">Accept</button></li>`)
+        .join("");
+      const inv = s.invites
+        .map((v, i) => `<li class="li req"><span class="grow"><b>${esc(v.name)}</b><small>Invites you to a room</small></span><button class="btn secondary" style="height:30px" data-act="inv-no" data-i="${i}">No</button><button class="btn primary" style="height:30px" data-act="inv-join" data-i="${i}">Join</button></li>`)
+        .join("");
+      const label: Record<FriendState, string> = { off: "Offline", on: "In the lobby", room: "In a room", playing: "In a match" };
+      const rows = s.friends.length
+        ? s.friends
+            .map(
+              (f, i) => `<li class="li"><i class="dot ${f.state === "off" ? "" : f.state === "playing" ? "busy" : "on"}"></i><span class="grow"><b>${esc(f.name)}</b><small>${label[f.state]}</small></span>${
+                inRoom && f.state !== "off" ? `<button class="btn primary" style="height:30px" data-act="finv" data-i="${i}">Invite</button>` : ""
+              }<button class="ibtn" data-act="fdel" data-i="${i}" aria-label="Remove ${esc(f.name)}">${icon("close", "", 14)}</button></li>`,
+            )
+            .join("")
+        : `<li class="li"><span class="grow"><b>No friends yet</b><small>Add people from Recent players, or tap a name in your room or on the scoreboard.</small></span></li>`;
+      body = `${offline}
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <div class="glass" style="flex:1;padding:8px 10px"><div class="label">Online</div><div class="num" style="font-size:14px">${s.online === "ready" ? s.counts.online : "—"}</div></div>
+          <div class="glass" style="flex:1;padding:8px 10px"><div class="label">In a match</div><div class="num" style="font-size:14px">${s.online === "ready" ? s.counts.inMatch : "—"}</div></div>
         </div>
+        ${req || inv ? `<ul class="list" style="margin-bottom:10px">${inv}${req}</ul>` : ""}
         <ul class="list">${rows}</ul>
-        <p class="note" style="margin-top:10px">Players are known by display name only. To play together, make a room and share its code.</p>`;
+        <p class="note" style="margin-top:10px">${inRoom ? "Invite friends who are on: they get a notification in the lobby." : "Make a room (Room code) to invite friends who are on."} Your friends list is kept on this phone.</p>`;
     }
     this.sheet("friends", "Friends", body, { tabs, side: "right" });
+  }
+
+  /** A lobby notification (§7.5 #17): an invite or a friend request, with its answers. */
+  notice(text: string, yes: string, no: string): void {
+    let el = document.querySelector<HTMLElement>(".notice");
+    if (!el) {
+      el = document.createElement("div");
+      el.className = "notice glass";
+      el.setAttribute("role", "alert");
+      el.dataset.ui = "1";
+      this.toastEl.parentElement?.append(el);
+      el.addEventListener("click", (e) => {
+        const t = (e.target as HTMLElement).closest<HTMLElement>("[data-act]");
+        if (!t) return;
+        el!.classList.remove("visible");
+        this.onAction(t.dataset.act!, t, e);
+      });
+    }
+    el.innerHTML = `<span class="grow">${esc(text)}</span><button class="btn secondary" style="height:30px" data-act="${no}">No</button><button class="btn primary" style="height:30px" data-act="${yes}">${yes.startsWith("inv") ? "Join" : "Accept"}</button>`;
+    translateTree(el);
+    el.classList.add("visible");
+    clearTimeout(this.noticeTimer);
+    this.noticeTimer = window.setTimeout(() => el!.classList.remove("visible"), 12000);
   }
 
   clan(): void {
@@ -548,14 +654,15 @@ export class Screens {
 
   // ── Settings ───────────────────────────────────────────────────────────────
 
-  settings(s: Settings, tab: string, from: "lobby" | "pause", tierNote: string): void {
+  settings(s: Settings, tab: string, from: "lobby" | "pause", tierNote: string, confirmReset = false): void {
     const sw = (key: keyof Settings, label: string, sub = "") => `
       <label class="row-set"><span class="lbl"><b>${label}</b>${sub ? `<small>${sub}</small>` : ""}</span>
         <span class="switch"><input type="checkbox" data-act="toggle" data-key="${key}" ${s[key] ? "checked" : ""} /><i></i></span></label>`;
     const seg = (key: string, cur: string, opts: [string, string][]) =>
       `<span class="seg">${opts.map(([v, l]) => `<button class="${cur === v ? "on" : ""}" data-act="set" data-key="${key}" data-val="${v}">${l}</button>`).join("")}</span>`;
-    const range = (key: "sensH" | "sensV" | "stickOpacity", label: string, sub: string) =>
-      `<div class="row-set"><span class="lbl"><b>${label}</b><small>${sub}</small></span><input class="slider" type="range" min="${key === "stickOpacity" ? 30 : 5}" max="100" step="1" value="${Math.round(s[key] * 100)}" data-act="range" data-key="${key}" aria-label="${label}" /></div>`;
+    const RANGE: Record<RangeKey, [number, number]> = { sensH: [5, 100], sensV: [5, 100], stickOpacity: [30, 100], sens: [50, 200], master: [0, 100], musicVol: [0, 100], sfxVol: [0, 100] };
+    const range = (key: RangeKey, label: string, sub: string, off = false) =>
+      `<div class="row-set${off ? " off" : ""}"><span class="lbl"><b>${label}</b><small>${sub}</small></span><input class="slider" type="range" min="${RANGE[key][0]}" max="${RANGE[key][1]}" step="1" value="${Math.round(s[key] * 100)}" data-act="range" data-key="${key}" aria-label="${label}" ${off ? "disabled" : ""} /><span class="num pct" data-pct="${key}">${Math.round(s[key] * 100)}%</span></div>`;
     const tabs = [
       ["graphics", "Graphics", "graphics"],
       ["audio", "Audio", "sound"],
@@ -569,18 +676,28 @@ export class Screens {
     if (tab === "graphics") {
       body = `<div class="row-set"><span class="lbl"><b>Quality</b><small>${esc(tierNote)}</small></span>${seg("graphics", s.graphics, [["auto", "Auto"], ["low", "Low"], ["medium", "Med"], ["high", "High"]])}</div>
         <div class="row-set"><span class="lbl"><b>Light / dark mode</b><small>Light: full daylight, street lights off. Dark: full night, street lights and neon on</small></span>${seg("lightMode", s.lightMode, [["auto", "Map"], ["light", "Light"], ["dark", "Dark"]])}</div>
+        ${sw("rotate", "Rotate the game", "Turns the game on its side, for landscape with rotation lock on")}
+        ${sw("dataSaver", "Data saver", "Half the updates from the server online. Others look a touch less smooth")}
         <p class="note" style="margin-top:10px">Low: no shadows, 2D clouds, lightest on battery, 30 fps on menus. Medium: shadows, sharper people and textures. High: full shadows, volumetric clouds, real reflections in puddles, glow and colour grading. Auto picks for your phone and adjusts the sharpness as you play.</p>`;
     } else if (tab === "audio") {
-      body = `${sw("sound", "Sound effects")}${sw("music", "The doll's song", "Her warning hum still plays when off")}${sw("haptics", "Vibration")}`;
+      body = `${range("master", "Master volume", "Everything")}
+        ${sw("music", "Music", "Her songs. Her warning hum still plays when off")}
+        ${range("musicVol", "Music volume", "Her songs", !s.music)}
+        ${sw("sound", "Sound effects")}
+        ${range("sfxVol", "Sound effects volume", "Lasers, hits, footsteps, the drum", !s.sound)}
+        ${sw("haptics", "Vibration")}
+        <label class="row-set off"><span class="lbl"><b>Voice chat</b><small>Not available: games in Lagos Life have no microphone. Use text chat and quick chat</small></span><span class="switch"><input type="checkbox" disabled /><i></i></span></label>
+        <div class="row-set off"><span class="lbl"><b>Voice chat volume</b><small>Not available</small></span><input class="slider" type="range" min="0" max="100" value="0" disabled aria-label="Voice chat volume" /></div>`;
     } else if (tab === "controls") {
-      body = `${sw("leftHanded", "Swap sticks", "Move on the right, look on the left")}
-        <div class="row-set"><span class="lbl"><b>Look stick</b><small>Always drawn, or only while touched</small></span>${seg("lookStick", s.lookStick, [["touch", "On touch"], ["always", "Always"]])}</div>
+      body = `${range("sens", "Camera sensitivity", "Both look speeds together")}
+        ${range("sensH", "Horizontal sensitivity", "Looking sideways. Lower is calmer")}
+        ${range("sensV", "Vertical sensitivity", "Looking up and down. Lower is calmer")}
+        ${sw("invertY", "Invert Y axis", "Push up to look down")}
         <div class="row-set"><span class="lbl"><b>Stick size</b></span>${seg("stickSize", s.stickSize, [["small", "Small"], ["medium", "Medium"], ["large", "Large"]])}</div>
         ${range("stickOpacity", "Stick opacity", "How solid the sticks look while you hold them")}
+        ${sw("leftHanded", "Left-handed", "Move on the right, look on the left")}
         <div class="row-set"><span class="lbl"><b>Sprint</b><small>Toggle: tap on, tap off. Hold: sprint while held. Auto: a full push sprints</small></span>${seg("sprintMode", s.sprintMode, [["toggle", "Toggle"], ["hold", "Hold"], ["auto", "Auto"]])}</div>
-        ${range("sensH", "Look sensitivity, sideways", "Lower is calmer")}
-        ${range("sensV", "Look sensitivity, up and down", "Lower is calmer")}
-        ${sw("invertY", "Invert look up and down")}
+        <div class="row-set"><span class="lbl"><b>Look stick</b><small>Always drawn, or only while touched</small></span>${seg("lookStick", s.lookStick, [["touch", "On touch"], ["always", "Always"]])}</div>
         ${sw("autoCam", "Camera drifts back behind you", "Off: the camera stays where you leave it")}
         ${sw("firstPerson", "Start in first person", "Switch any time with the eye button")}
         <div class="label" style="margin:14px 0 6px">All controls</div>
@@ -590,40 +707,59 @@ export class Screens {
         }).join("")}</ul>
         <p class="note" style="margin-top:10px">Also: WASD or the arrows to move, Q/E or a mouse drag to look, V for first person, Esc to pause.</p>`;
     } else if (tab === "game") {
-      body = `${sw("blood", "Blood effects", "Off shows dust instead")}${sw("shake", "Screen shake")}${sw("killFeed", "Kill feed", "Who was eliminated, top centre")}
-        <div class="row-set"><span class="lbl"><b>Minimap size</b><small>Tap the minimap in a round for the full map</small></span>${seg("mapSize", s.mapSize, [["small", "Small"], ["medium", "Medium"], ["large", "Large"]])}</div>
-        ${sw("chat", "Online chat", "Waiting rooms and results. Tap a message to mute, block or report")}`;
+      body = `<div class="row-set"><span class="lbl"><b>Language</b><small>Menus, the HUD and the tutorial</small></span>${seg("lang", s.lang, [["en", "English"], ["pcm", "Pidgin"]])}</div>
+        <div class="row-set"><span class="lbl"><b>Map size</b><small>The minimap. Tap it in a round for the full map</small></span>${seg("mapSize", s.mapSize, [["small", "Small"], ["medium", "Medium"], ["large", "Large"]])}</div>
+        ${sw("notify", "Notifications", "Invites and friend requests pop up in the lobby")}
+        ${sw("friendReqs", "Friend requests", "Off: nobody can send you one")}
+        ${sw("chat", "Online chat", "Waiting rooms and results. Tap a message, or a name on the scoreboard, to mute, block or report")}
+        ${sw("killFeed", "Kill feed", "Who was eliminated, top centre")}
+        ${sw("blood", "Blood effects", "Off shows dust instead")}
+        ${sw("shake", "Screen shake")}`;
     } else {
       body = `<div class="li"><span class="avatar" style="width:36px;height:36px">${icon("user", "", 18)}</span><span class="grow"><b data-name></b><small>Your name comes from the app you play in</small></span></div>
         <div class="row-set"><span class="lbl"><b>Level</b><small>Earned by playing; kept on this device</small></span><span class="num">${s.xp} XP</span></div>
+        <div class="row-set"><span class="lbl"><b>CP</b><small>Earned by playing; spent on boosts in the Store</small></span><span class="num">${s.cp} CP</span></div>
         <div class="row-set"><span class="lbl"><b>Rounds played</b></span><span class="num">${s.played}</span></div>
         <div class="row-set"><span class="lbl"><b>Lines crossed</b></span><span class="num">${s.wins}</span></div>
         <div class="row-set"><span class="lbl"><b>Best score</b></span><span class="num">${s.best}</span></div>
-        <div class="row-set"><span class="lbl"><b>Tutorial</b><small>Watch a round played, every rule explained</small></span><button class="btn secondary" style="height:30px" data-act="tutorial">Play</button></div>`;
+        <div class="row-set"><span class="lbl"><b>Tutorial</b><small>Watch a round played, every rule explained</small></span><button class="btn secondary" style="height:30px" data-act="tutorial">Play</button></div>
+        <div class="row-set"><span class="lbl"><b>Reset to default</b><small>Every setting back to how it came. Your level, CP, boosts, friends and looks stay</small></span>${
+          confirmReset
+            ? `<span style="display:flex;gap:6px"><button class="btn secondary" style="height:30px" data-act="reset-no">Cancel</button><button class="btn primary" style="height:30px" data-act="reset-yes">Reset</button></span>`
+            : `<button class="btn secondary" style="height:30px" data-act="reset">Reset</button>`
+        }</div>`;
     }
     this.sheet("settings", "Settings", body, { tabs, side: "wide", back: from === "pause" ? "pause-menu" : "back" });
+  }
+
+  /** A slider moved: its number follows without redrawing the sheet. */
+  settingPct(key: string, pct: number): void {
+    const el = this.root.querySelector<HTMLElement>(`[data-pct="${key}"]`);
+    if (el) el.textContent = `${pct}%`;
   }
 
   // ── How to play ────────────────────────────────────────────────────────────
 
   // ── Pause ──────────────────────────────────────────────────────────────────
 
+  /** The pause menu (§7.1, COD style): over an opaque blur. Online the round goes on. */
   pause(host: Host, online = false): void {
-    this.sheet(
+    this.mount(
       "pause",
-      "Paused",
-      `${online ? `<div class="status">The round goes on online. You're standing still, and standing still is safe.</div>` : ""}
-
-
-       <div class="list cb" style="margin-top: auto">
-        <button class="md" data-act="resume" autofocus>${icon("play", "", 18)}<span class="grow"><b>Resume</b></span></button>
-        ${online ? "" : `<button class="md" data-act="restart">${icon("refresh", "", 18)}<span class="grow"><b>Restart</b></span></button>`}
-        <button class="md" data-act="settings-pause">${icon("gear", "", 18)}<span class="grow"><b>Settings</b></span></button>
-        <button class="md" data-act="menu">${icon("home", "", 18)}<span class="grow"><b>${online ? "Leave match" : "Back to lobby"}</b></span></button>
-        ${host.can.exit ? `<button class="md" data-act="exit">${icon("exit", "", 18)}<span class="grow"><b>Close game</b></span></button>` : ""}
-       </div>`,
-
-      { side: "wide", back: "resume" },
+      `<div class="pause-menu" role="dialog" aria-label="Paused">
+        <div class="pause-head"><span class="h">Paused</span>${online ? `<span class="small">The round goes on online. You're standing still, and standing still is safe.</span>` : ""}</div>
+        <div class="pause-list">
+          <button class="md" data-act="resume" autofocus>${icon("play", "", 18)}<span class="grow"><b>Resume</b></span></button>
+          <button class="md" data-act="pause-tab" data-tab="game">${icon("gear", "", 18)}<span class="grow"><b>Settings</b></span></button>
+          <button class="md" data-act="pause-tab" data-tab="controls">${icon("controls", "", 18)}<span class="grow"><b>Controls</b></span></button>
+          <button class="md" data-act="pause-tab" data-tab="audio">${icon("sound", "", 18)}<span class="grow"><b>Audio</b></span></button>
+          <button class="md" data-act="pause-tab" data-tab="graphics">${icon("graphics", "", 18)}<span class="grow"><b>Graphics</b></span></button>
+          ${online ? "" : `<button class="md" data-act="restart">${icon("refresh", "", 18)}<span class="grow"><b>Restart</b></span></button>`}
+          <button class="md quit" data-act="menu">${icon("home", "", 18)}<span class="grow"><b>${online ? "Quit match" : "Quit to lobby"}</b></span></button>
+          ${host.can.exit ? `<button class="md" data-act="exit">${icon("exit", "", 18)}<span class="grow"><b>Close game</b></span></button>` : ""}
+        </div>
+      </div>`,
+      "pause-blur",
     );
   }
 
@@ -656,7 +792,7 @@ export class Screens {
            <div><b>${r.score}</b><small>${r.newBest ? `<span class="pm-best">Best</span>` : "Score"}</small></div>
            <div><b>${r.survivors}/${r.total}</b><small>Crossed</small></div>
          </div>
-         <div class="pm-xp"><span class="label">+${r.xp} XP</span><span class="bar gold"><i style="width:100%"></i></span><span class="label">LV ${r.level}${r.levelUp ? " · Level up" : ""}</span></div>
+         <div class="pm-xp"><span class="label">+${r.xp} XP · +${r.cp} CP</span><span class="bar gold"><i style="width:100%"></i></span><span class="label">LV ${r.level}${r.levelUp ? " · Level up" : ""}</span></div>
          ${r.completed.length ? `<div class="status ok">${icon("check", "", 14)} Daily done: ${r.completed.map(esc).join(", ")}</div>` : ""}
          ${r.online === "match" ? `<div class="status" data-match-outcome>${esc(r.matchNote ?? "Sending the result to Lagos Life…")}</div>` : ""}
          ${r.boardNote ? `<span class="small">${esc(r.boardNote)}</span>` : ""}

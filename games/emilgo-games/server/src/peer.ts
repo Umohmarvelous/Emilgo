@@ -10,6 +10,7 @@ import type { WebSocket } from "ws";
 
 import { NET } from "../../src/config";
 import type { ServerMsg } from "../../src/net/protocol";
+import type { BoostId } from "../../src/shop/boosts";
 import type { WireLook } from "../../src/shop/catalog";
 import { now } from "./clock";
 
@@ -38,6 +39,15 @@ export class Peer {
   /** What this player owns (from a verified ticket) and is wearing. */
   owned: ReadonlySet<string> = new Set();
   look: WireLook = {};
+  /** CP boosts this player brings to free rooms (SPEC-V2 §7.7), at most BOOST_SLOTS. */
+  boosts: BoostId[] = [];
+  /** Data saver (§7.5 #19): every other snapshot only. */
+  saver = false;
+  /** Friends (presence.ts): my friend id, theirs, whether I take requests, and who I've asked. */
+  fid = "";
+  friendFids: ReadonlySet<string> = new Set();
+  acceptsReqs = true;
+  readonly asked = new Set<string>();
   private chatTokens = 3;
   private chatRefill = now();
   private tokens = 80;

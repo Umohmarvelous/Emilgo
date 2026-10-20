@@ -6,14 +6,42 @@ import { SONG_IDS, type SongChoice } from "./audio/songs";
 import { DEFAULT_DISTANCE, DISTANCES, MODES, type Distance, type Mode } from "./config";
 import { EMOTE_IDS, type EmoteId } from "./social/emotes";
 import type { Host } from "./platform/types";
+import { BOOST_IDS, cleanBoosts, type BoostId } from "./shop/boosts";
 import { cleanLook, DEFAULT_LOOK, type Look } from "./world/human/wardrobe";
 import type { PoseId } from "./world/human/animator";
 
 export type GraphicsTier = "auto" | "low" | "medium" | "high";
 
+export type Lang = "en" | "pcm";
+
+/** A friend (SPEC-V2 Decisions, "Invite Lagos Life friends"): their friend id in this copy of the game, and the name they had. */
+export interface Friend {
+  fid: string;
+  name: string;
+  at: number;
+}
+
 export interface Settings {
+  /** Sound effects on/off; their volume. */
   sound: boolean;
+  sfxVol: number;
+  /** The songs on/off (her warning hum stays); their volume. */
   music: boolean;
+  musicVol: number;
+  /** Master volume, 0…1 (§7.2). */
+  master: number;
+  /** Camera sensitivity (§7.5 #2): scales both look speeds, 0.5…2. */
+  sens: number;
+  /** English or Nigerian Pidgin (§7.5 #16). */
+  lang: Lang;
+  /** Lobby notifications: invites, friend requests (§7.5 #17). */
+  notify: boolean;
+  /** Accept friend requests at all (§7.5 #18). */
+  friendReqs: boolean;
+  /** Data saver (§7.5 #19): the server sends this phone half the updates (others drawn a little further back). */
+  dataSaver: boolean;
+  /** The game turned 90° on screen, for landscape with rotation lock on (§6.5). */
+  rotate: boolean;
   haptics: boolean;
   /** Stylised blood on catches; off = grey dust. */
   blood: boolean;
@@ -64,8 +92,16 @@ export interface Settings {
   xp: number;
   /** Today's challenges: the day they were set and progress on each. */
   daily: { day: string; progress: number[] };
-  /** People you've played online with lately (names only), newest first. */
-  recent: { name: string; at: number }[];
+  /** People you've played online with lately, newest first. `seat` reaches them while they're still online. */
+  recent: { name: string; at: number; seat?: string }[];
+  /** Your friend id in this copy of the game: random, never sent to Lagos Life or EMILGO, unknown to the other copy. */
+  fid: string;
+  friends: Friend[];
+  /** CP (§7.7): earned only by playing, spent on boosts. */
+  cp: number;
+  /** Boost charges owned (one is used per round it's switched on), and the ones switched on (at most BOOST_SLOTS). */
+  boosts: Partial<Record<BoostId, number>>;
+  boostsOn: BoostId[];
 }
 
 const KEY = "settings.v1";
@@ -75,7 +111,16 @@ export const DEFAULT_WHEEL: EmoteId[] = ["wave", "dance", "laugh", "taunt", "res
 export function defaults(host: Host): Settings {
   return {
     sound: true,
+    sfxVol: 1,
     music: true,
+    musicVol: 0.8,
+    master: 1,
+    sens: 1,
+    lang: "en",
+    notify: true,
+    friendReqs: true,
+    dataSaver: false,
+    rotate: false,
     haptics: true,
     // Lagos Life is 18+ (Terms §2). EMILGO is not age-gated, so it starts clean.
     blood: host.kind === "lagoslife",
@@ -111,13 +156,48 @@ export function defaults(host: Host): Settings {
     sprintMode: "toggle",
     mapSize: "medium",
     killFeed: true,
+    fid: "",
+    friends: [],
+    cp: 0,
+    boosts: {},
+    boostsOn: [],
   };
 }
+
+/**
+ * "Reset to default" (§7.5 #20): every preference back to how it came. What you
+ * earned, bought, wear and know stays: level, scores, CP, boosts, friends, your
+ * look and wheel, the map and mode you picked, the tutorial seen.
+ */
+export const KEPT_ON_RESET: readonly (keyof Settings)[] = [
+  "look", "badge", "lobbyPose", "wheel", "map", "mode", "distance", "tutorialSeen", "best", "played", "wins", "xp",
+  "daily", "recent", "fid", "friends", "cp", "boosts", "boostsOn", "song",
+];
+
+export function resetPrefs(host: Host, s: Settings): Settings {
+  const base = defaults(host);
+  const out = { ...base };
+  for (const k of KEPT_ON_RESET) (out as Record<string, unknown>)[k] = s[k];
+  return out;
+}
+
+/** A fresh friend id: 16 random characters, made on this phone. */
+export function newFid(): string {
+  const a = new Uint8Array(16);
+  crypto.getRandomValues(a);
+  const abc = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+  return Array.from(a, (b) => abc[b & 63]).join("");
+}
+
+export const FID_RE = /^[A-Za-z0-9_-]{16}$/;
 
 export function loadSettings(host: Host): Settings {
   const base = defaults(host);
   const raw = host.load(KEY);
-  if (!raw) return base;
+  if (!raw) {
+    base.fid = newFid();
+    return base;
+  }
   try {
     const saved = JSON.parse(raw) as Partial<Settings> & { equipped?: { outfit?: string | null; cap?: boolean; badge?: boolean }; quality?: string };
     const out = { ...base };
@@ -137,6 +217,17 @@ export function loadSettings(host: Host): Settings {
     out.stickOpacity = clamp(out.stickOpacity, 0.3, 1);
     out.sensH = clamp(out.sensH, 0.05, 1);
     out.sensV = clamp(out.sensV, 0.05, 1);
+    out.sens = clamp(out.sens, 0.5, 2);
+    out.master = clamp(out.master, 0, 1);
+    out.musicVol = clamp(out.musicVol, 0, 1);
+    out.sfxVol = clamp(out.sfxVol, 0, 1);
+    if (out.lang !== "en" && out.lang !== "pcm") out.lang = base.lang;
+    out.cp = Math.max(0, Math.floor(clamp(out.cp, 0, 1e7)));
+    out.boosts = cleanBoosts(saved.boosts);
+    out.boostsOn = Array.isArray(saved.boostsOn) ? [...new Set(saved.boostsOn.filter((b) => BOOST_IDS.includes(b) && (out.boosts[b] ?? 0) > 0))] : [];
+    out.friends = Array.isArray(saved.friends)
+      ? saved.friends.filter((f) => f && typeof f.name === "string" && typeof f.fid === "string" && FID_RE.test(f.fid)).slice(0, 100)
+      : [];
     out.look = cleanLook(saved.look);
     // Version 1 saves: an "equipped" outfit and cap become part of the look.
     if (!saved.look && saved.equipped) {
@@ -148,8 +239,10 @@ export function loadSettings(host: Host): Settings {
     out.wheel = Array.isArray(saved.wheel) && saved.wheel.length === 8 && saved.wheel.every((e) => EMOTE_IDS.includes(e)) ? saved.wheel : base.wheel;
     out.daily = saved.daily && typeof saved.daily.day === "string" && Array.isArray(saved.daily.progress) ? saved.daily : base.daily;
     out.recent = Array.isArray(saved.recent) ? saved.recent.filter((r) => r && typeof r.name === "string").slice(0, 30) : [];
+    if (!FID_RE.test(out.fid)) out.fid = newFid();
     return out;
   } catch {
+    base.fid = newFid();
     return base;
   }
 }

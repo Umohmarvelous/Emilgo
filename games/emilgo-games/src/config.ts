@@ -253,6 +253,8 @@ export const PRACTICE = {
 /** Online play. Server and client both read these. */
 export const NET = {
   /**
+   * 10: menus and social — CP boosts in free rooms (roster bo), data saver
+   * (half the snapshots), friends: presence, requests, invites.
    * 9: Ball Haunting's pens (solid walls in the shared movement code; the
    * Desert Field 48 m wide in Ball Haunting).
    * 8: the final two (the referee's clock slows; event fn2), highlight
@@ -264,7 +266,7 @@ export const NET = {
    * and baskets, fist / slap / push, rooms of 20. 3: jump, crouch, prone,
    * sprint, the map, rich looks.)
    */
-  protocol: 9,
+  protocol: 10,
   tickHz: 60,
   /** Server → client state broadcasts per second. */
   snapshotHz: 15,
@@ -279,7 +281,8 @@ export const NET = {
    * it gains nothing — the cap just bounds the worst connections.
    */
   lagGraceCap: 0.35,
-  maxMessageBytes: 1024,
+  /** Big enough for a list of 100 friend ids ("me"). */
+  maxMessageBytes: 2560,
   nameMax: 20,
   /** Play with New People: once two are waiting, start after this long (or at once when 20). */
   quickFillMs: 60000,

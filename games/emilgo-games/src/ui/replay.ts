@@ -2,6 +2,7 @@
 // kill cam's, or the play of the game's with who and what — a thin progress
 // line, and a skip button. Nothing else on screen.
 
+import { translateTree } from "./i18n";
 import { el, esc } from "./dom";
 import { icon } from "./icons";
 
@@ -30,6 +31,7 @@ export class ReplayOverlay {
       kind === "killcam"
         ? `<b>Kill cam</b>`
         : `<b>Play of the game</b><span class="who">${esc(who)}</span><span class="what">${esc(what)}</span>`;
+    translateTree(this.tag);
     this.root.classList.add("visible");
     this.skipBtn.classList.add("visible");
     this.progress(0);

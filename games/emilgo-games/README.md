@@ -191,7 +191,7 @@ games/emilgo-games/
     src/vatar.ts         the Lagos Life API: sessions, matches, SIGNED results, purchases
     src/shop.ts          claim → verify → grant once → deliver; signed look tickets
     src/store.ts         who owns what (SQLite; swap for Postgres when running many processes)
-    scripts/             loadtest, fairness, matchtest, ballstest, shoptest, rulestest, apicheck, mockvatar
+    scripts/             loadtest, fairness, matchtest, ballstest, shoptest, socialtest, rulestest, apicheck, mockvatar
     Dockerfile           the server as a container (docker-compose.yml runs it)
   dev/                   dev-only pages and tools (never in a build): cdp.mjs (headless Chrome
                          driver for screenshots and timing), humans.html (character line-ups),
@@ -279,9 +279,10 @@ PORT=8787 VATAR_SECRET=vtr_test_mock VATAR_RESULTS_SECRET=vtr_results_mock \
   node server/dist/index.mjs &
 node server/dist/matchtest.mjs     # staked match (Ball Haunting), signatures, attacks
 node server/dist/shoptest.mjs      # purchases, refunds, forgeries, looks  (22 checks)
+node server/dist/socialtest.mjs    # friends, invites, boosts in the roster, data saver  (13 checks)
 node server/dist/fairness.mjs      # lag never decides who's caught        (7/7)
 node server/dist/ballstest.mjs     # Ball Haunting online: grab, push, drop, reconnect (16)
-node server/dist/rulestest.mjs     # the referee: moves, modes, balls, fighting, the hum, the final two, highlights, the pens (103, no server needed)
+node server/dist/rulestest.mjs     # the referee: moves, modes, balls, fighting, the hum, the final two, highlights, the pens, boosts (115, no server needed)
 npx tsx scripts/filter-test.ts     # chat filter                           (22 cases)
 MAX_PER_IP=100000 …index.mjs; node server/dist/loadtest.mjs --clients 1200 --seconds 60
 ```

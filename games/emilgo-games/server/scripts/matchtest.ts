@@ -61,11 +61,13 @@ function gameClient(
   matchId: string,
   session: string,
   run: "runner" | "statue",
-): Promise<{ errors: string[]; seat: string; vresult: { winner: string; posted: boolean } | null }> {
+): Promise<{ errors: string[]; seat: string; vresult: { winner: string; posted: boolean } | null; boosted: boolean }> {
   return new Promise((resolve) => {
     const ws = new WebSocket(GAME);
     const errors: string[] = [];
     let seat = "";
+    // Staked matches never apply boosts (SPEC-V2 §7.7): any in the roster is a failure.
+    let boosted = false;
     let vresult: { winner: string; posted: boolean } | null = null;
     let turns = 0;
     let me = -1;
@@ -86,7 +88,7 @@ function gameClient(
     const finish = () => {
       clearInterval(steer);
       ws.close();
-      resolve({ errors, seat, vresult });
+      resolve({ errors, seat, vresult, boosted });
     };
     const timer = setTimeout(finish, 150_000);
     // A careful human: while she sings, fetch the ball, then run for the line; stop the instant she turns.
@@ -111,8 +113,11 @@ function gameClient(
     ws.on("open", () => ws.send(JSON.stringify({ t: "hello", v: NET.protocol, name: "ignored" })));
     ws.on("message", (d) => {
       const m = JSON.parse(d.toString()) as ServerMsg;
-      if (m.t === "welcome") ws.send(JSON.stringify({ t: "vmatch", id: matchId, session }));
-      else if (m.t === "ping") ws.send(JSON.stringify({ t: "pong", s: m.s }));
+      if (m.t === "welcome") {
+        // Asks for two boosts first, as a phone with boosts switched on would.
+        ws.send(JSON.stringify({ t: "prefs", bo: [0, 1], ds: false, fr: true }));
+        ws.send(JSON.stringify({ t: "vmatch", id: matchId, session }));
+      } else if (m.t === "ping") ws.send(JSON.stringify({ t: "pong", s: m.s }));
       else if (m.t === "err") {
         errors.push(m.code);
         clearTimeout(timer);
@@ -120,6 +125,7 @@ function gameClient(
       } else if (m.t === "seat") seat = m.id;
       else if (m.t === "start") {
         me = m.start.roster.findIndex((r) => r.id === seat);
+        if (m.start.roster.some((r) => r.bo?.length)) boosted = true;
         course = courseFor(cleanMode(m.start.mode), cleanDist(m.start.dist), m.start.hw ? m.start.hw / 100 : undefined);
         // Both skip the walkout once they're in the arena.
         if (m.start.wo) setTimeout(() => ws.readyState === 1 && ws.send(JSON.stringify({ t: "skip" })), FLOW.walk * 1000 + 400);
@@ -195,6 +201,7 @@ async function main(): Promise<void> {
   const [ra, rb] = await Promise.all([gameClient(created.json.id, a.session, "runner"), gameClient(created.json.id, b.session, "statue")]);
   check(!ra.errors.length && !rb.errors.length, "both seated without errors");
   check(ra.seat === a.id && rb.seat === b.id, "each client controls its own Lagos Life player id");
+  check(!ra.boosted && !rb.boosted, "both asked for boosts: none applied in a staked match");
   check(ra.vresult?.posted === true, "our server posted the result");
   check(ra.vresult?.winner === a.id, "A (first across) is the winner");
 

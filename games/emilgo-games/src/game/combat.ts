@@ -12,7 +12,9 @@ import type { Contestant } from "./rules";
 
 /** Slide `dist` metres along (dx, dz) — unit vector — stunned for at least `stun`. */
 export function knock(t: Contestant, dx: number, dz: number, dist: number, stun: number): void {
-  const v0 = Math.sqrt(2 * MOVE.decel * dist);
+  // Their boosts: Rooted slides them less, Thick Skin shortens the stun.
+  const v0 = Math.sqrt(2 * MOVE.decel * dist * t.bst.knock);
+  stun *= t.bst.stun;
   t.vx = dx * v0;
   t.vz = dz * v0;
   t.sprinting = false;

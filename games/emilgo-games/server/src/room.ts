@@ -48,6 +48,7 @@ import { MAPS, fieldHalfWidth } from "../../src/maps/registry";
 import { filterChat } from "../../src/social/filter";
 import { EMOTE_BY_ID, type EmoteId } from "../../src/social/emotes";
 import { EMOTE_PACK } from "../../src/shop/catalog";
+import { boostsFromWire, boostsToWire } from "../../src/shop/boosts";
 import { now } from "./clock";
 import type { Peer } from "./peer";
 
@@ -326,13 +327,14 @@ export class Room {
         this.pending = null;
         return;
       }
-      roster = players.map((p) => ({ id: p.id, name: p.name, look: p.look }));
+      // Free rooms: each player's CP boosts (never in a staked match, SPEC-V2 §7.7). At most BOOST_SLOTS, checked on arrival.
+      roster = players.map((p) => ({ id: p.id, name: p.name, look: p.look, ...(p.boosts.length ? { bo: boostsToWire(p.boosts) } : {}) }));
     }
     const seed = this.pending?.seed ?? randomInt(0, 2 ** 31);
     const info = MAPS[seed % MAPS.length];
     const course = courseFor(this.mode, this.dist, fieldHalfWidth(info, this.mode));
     const walkout = walkoutLength(this.mode);
-    this.round = new RedLightRound({ seed, contestants: roster.map((r) => ({ id: r.id, name: r.name, bot: false })), course, walkout });
+    this.round = new RedLightRound({ seed, contestants: roster.map((r) => ({ id: r.id, name: r.name, bot: false, boosts: boostsFromWire(r.bo) })), course, walkout });
     this.highlights = new Highlights();
     this.inRound.clear();
     for (const r of roster) this.inRound.add(r.id);
@@ -373,7 +375,9 @@ export class Room {
 
     if (++this.ticks % SNAP_EVERY === 0 || round.over) {
       this.lastSnap = this.snapshot();
-      this.broadcastRaw(JSON.stringify(this.lastSnap));
+      // Data saver phones get every other one (and the last): half the bytes, a little more delay.
+      const half = (this.ticks / SNAP_EVERY) % 2 === 1 && !round.over;
+      this.broadcastRaw(JSON.stringify(this.lastSnap), half);
     }
 
     if (round.over) {
@@ -470,9 +474,9 @@ export class Room {
     this.broadcastRaw(JSON.stringify(msg));
   }
 
-  private broadcastRaw(json: string): void {
+  private broadcastRaw(json: string, skipSavers = false): void {
     const frame = Buffer.from(json);
-    for (const p of this.members) p.sendRaw(frame);
+    for (const p of this.members) if (!(skipSavers && p.saver)) p.sendRaw(frame);
   }
 
   /** The peer currently sitting in a seat, if any. */

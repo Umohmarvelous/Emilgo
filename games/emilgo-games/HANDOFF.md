@@ -2,8 +2,8 @@
 
 > Updated 20 Oct 2026. Branch `sdk-54-temp`. Red Light, Green Light v2 is being
 > built to the owner's spec, [SPEC-V2.md](SPEC-V2.md), in **8 phases**.
-> **Phases 1–6 are done and committed. 2 phases are left (7, 8). Phase 7 waits
-> for the owner's go-ahead.**
+> **Phases 1–7 are done and committed. Phase 8 is under way (the owner said,
+> 20 Oct 2026: do 7, then 8, without waiting in between).**
 
 ## Start here (new session)
 
@@ -63,8 +63,8 @@ Read these in order:
 | 4 | HUD, controls, camera (+ the new song and doll) | Done, committed `d8dfc01` |
 | 5 | Match flow | Done, committed `05910de` |
 | 6 | Elimination and highlights (+ the lullaby, the pens, the wider desert) | Done, committed `9a41722`, `2a27245`, `e71f778`, `f212177` |
-| 7 | **Menus, settings, social, store** | **Next**, after the owner's go-ahead. Not started |
-| 8 | Performance and regression | Not started |
+| 7 | Menus, settings, social, store | Done (20 Oct 2026) |
+| 8 | **Performance and regression** | **Under way** |
 
 The full scope of each phase is in SPEC-V2.md under "Build phases". What 1–4 built is in its "Status" section.
 
@@ -91,54 +91,18 @@ Where things are, for Phase 7 and 8:
 - Test servers: rebuild with `npm run server:build` after any change to
   `src/game` or `server/src` (the servers run the built copy).
 
-## Phase 7: Menus, settings, social, store
+## Phase 7: Menus, settings, social, store (done)
 
-### What the spec asks for (§6.5, §7.1–§7.7)
+What it built, the checks and the numbers: SPEC-V2.md, Status, "Phase 7".
+The new decisions (pause menu, audio, the 20 settings, language, data saver,
+reset, rotate, moderation in the roster, friends, CP and boosts) are rows in
+its Decisions table. Protocol 10.
 
-- **Pause menu (§7.1):** Settings, quit, resume, controls, audio, graphics, over a blurred, opaque background.
-- **Audio (§7.2):** music toggle, sound-effects toggle, master volume. Voice chat is not built (no microphone).
-- **The 20 settings (§7.5)**, see the next table.
-- **Rotate prompt (§6.5):**
-  - an animated rotate icon appears at the start;
-  - tapping it rotates the game 90° on screen;
-  - it fades after a few seconds;
-  - it is also in Settings.
-- **Chat moderation (§7.3):** report, block, mute and the filter, in the match roster.
-- **Friends:** invites and requests (SPEC-V2 Decisions: a friends list kept on the phone, plus lobby notifications).
-- **Store (§7.7):**
-  - 10–20 CP boosts: speed, stamina, freeze resistance, ball grip and so on;
-  - boosts are off in staked matches;
-  - cosmetics use Lagos Life Naira through `Vatar.purchase`.
-
-### The 20 settings (§7.5) against what's built
-
-| # | Setting | State |
-| --- | --- | --- |
-| 1 | Graphics quality | Built (`graphics`) |
-| 2–4 | Camera, vertical and horizontal sensitivity | Built (`sensH`, `sensV`) |
-| 5 | Invert Y | Built (`invertY`) |
-| 6–7 | Stick size and opacity | Built (Phase 4) |
-| 8 | Left/right hand | Built (`leftHanded`) |
-| 9–10 | Auto-sprint, toggle vs hold | Built as one "Sprint" setting (Phase 4) |
-| 11 | Voice chat volume | Not possible (no microphone). Show it greyed out, like the controls list. |
-| 12–13 | Music and SFX volume | Only on/off today (`music`, `sound`). Needs sliders, and `audio/sound.ts` needs gain per bus. |
-| 14 | Light/dark mode | Built (`lightMode`) |
-| 15 | Map size | Built (`mapSize`, the minimap) |
-| 16 | Language | English and Pidgin. Check it is in Settings. |
-| 17–18 | Notifications, friend requests | Not built |
-| 19 | Data saver | Not built |
-| 20 | Reset to default | Not built |
-
-### What exists today
-
-| Piece | Where |
-| --- | --- |
-| Pause sheet: resume, restart, settings, leave, close | `screens.pause()` |
-| Settings tabs | `screens.settings()`; handlers in `session.ts` (the "set" and "range" actions) |
-| Chat filter, mute, block, report | `social/filter.ts`, `ui/social.ts`; server `room.ts` (`GET /reports`) |
-| Shop | `shop/catalog.ts`, `shop/client.ts`; server `shop.ts` and `store.ts` |
-
-There are no CP boosts yet. The CP rule is: earned only by playing, boosts off in staked matches.
+Where things are: pause and settings `ui/screens.ts` (actions in
+`game/session.ts`); language `ui/i18n.ts`; rotation `ui/rotate.ts`; volumes
+`audio/sound.ts` `setLevels`; friends `social/friends.ts` and
+`server/src/presence.ts`; boosts `shop/boosts.ts` (applied by
+`game/rules.ts` `setBoosts`, left out of staked matches in `room.ts`).
 
 ## Phase 8: Performance and regression
 
@@ -190,10 +154,11 @@ PORT=8797 DATA_DIR=<scratch>/data TICKET_SECRET=test-ticket-secret-0123456789abc
   MAX_PER_IP=100000 VATAR_SECRET=vtr_test_mock VATAR_RESULTS_SECRET=vtr_results_mock \
   VATAR_WEBHOOK_SECRET=vtr_whsec_test_mock VATAR_API=http://localhost:8790/api/games/v1 \
   node server/dist/index.mjs &
-node server/dist/rulestest.mjs                          # 103 checks, no server needed
+node server/dist/rulestest.mjs                          # 115 checks, no server needed
 GAME=ws://localhost:8797 node server/dist/matchtest.mjs
 GAME=ws://localhost:8797 node server/dist/ballstest.mjs
 GAME=ws://localhost:8797 node server/dist/shoptest.mjs
+GAME=ws://localhost:8797 node server/dist/socialtest.mjs
 node server/dist/fairness.mjs ws://localhost:8797       # 7/7
 node server/dist/loadtest.mjs --clients 600 --seconds 60 --url ws://localhost:8797
 ```
@@ -217,17 +182,13 @@ VIEW=844x390 node dev/cdp.mjs "http://localhost:5173/" <outdir> <steps.json>   #
 
 ## Open items (not code; the owner's)
 
-- **Docker server on :8787 is still on protocol 5.** New builds (protocol 9) can't join it; the Play menu says "Update the game to play online." Rebuild it with:
+- **Docker server on :8787 is still on protocol 5.** New builds (protocol 10) can't join it; the Play menu says "Update the game to play online." Rebuild it with:
   ```bash
   cd games/emilgo-games && docker compose up -d --build
   ```
 - **Never tested on a real phone.** Only headless Chrome has run it, with both the software and the real GPU.
 - **Never run against real Lagos Life.** Only against the fake platform, `server/scripts/mockvatar.ts`.
 - **Hosting, domain (emilgo.app), Vatar keys, dashboard products, sandbox checklist, submission:** see README §6. All of it is paused by the owner.
-- **Moved out of Phase 4 into Phase 7:**
-  - the pause menu;
-  - audio volumes;
-  - the rest of the 20 settings.
 
 ## Key numbers (Phase 6)
 

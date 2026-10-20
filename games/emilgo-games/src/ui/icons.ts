@@ -18,6 +18,7 @@ const P: Record<string, string> = {
   copy: `<rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V5.5a1 1 0 0 0-1-1h-9a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3"/>`,
   share: `<circle cx="17.5" cy="5.5" r="2.5"/><circle cx="6.5" cy="12" r="2.5"/><circle cx="17.5" cy="18.5" r="2.5"/><path d="M8.7 10.8l6.6-4M8.7 13.2l6.6 4"/>`,
   swap: `<path d="M5 8h13l-3.5-3.5M19 16H6l3.5 3.5"/>`,
+  rotate: `<rect x="7" y="3.5" width="10" height="17" rx="2"/><path d="M11 17.5h2"/><path d="M20.5 9.5a8.5 8.5 0 0 1-1.6 8.3M19 18l-.1-3.1-3 .6" />`,
   refresh: `<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4.5v4h-4"/>`,
   pause: `<path d="M9 5.5v13M15 5.5v13"/>`,
   play: `<path d="M8 5.5v13l10.5-6.5z" fill="currentColor" stroke="none"/>`,

@@ -11,6 +11,7 @@
 // backgrounds on anything that isn't a button. No song name, no lyrics, no
 // instructions on the game screen (§3.6).
 
+import { t, translateTree } from "./i18n";
 import { DEFAULT_COURSE, MODE_NAME, type Course } from "../config";
 import { el, fmtTime } from "./dom";
 import { icon } from "./icons";
@@ -142,7 +143,7 @@ export class Hud {
 
   setConnection(state: "ok" | "reconnecting" | "lost"): void {
     this.conn.classList.toggle("visible", state !== "ok");
-    this.conn.textContent = state === "lost" ? "Connection lost" : "Reconnecting… you're standing still";
+    this.conn.textContent = t(state === "lost" ? "Connection lost" : "Reconnecting… you're standing still");
   }
 
   setTimer(seconds: number, urgent: boolean): void {
@@ -155,10 +156,10 @@ export class Hud {
   }
 
   setAlive(n: number, total: number): void {
-    const t = `${n} / ${total} in`;
-    if (t !== this.lastAlive) {
-      this.aliveLine.textContent = t;
-      this.lastAlive = t;
+    const line = t(`${n} / ${total} in`);
+    if (line !== this.lastAlive) {
+      this.aliveLine.textContent = line;
+      this.lastAlive = line;
     }
   }
 
@@ -223,7 +224,7 @@ export class Hud {
   pushFeed(text: string, kind: "out" | "safe" | "info" = "info"): void {
     if (!this.feedOn) return;
     const item = el("div", `feed-item ${kind}`);
-    item.textContent = text;
+    item.textContent = t(text);
     this.feed.prepend(item);
     while (this.feed.children.length > FEED_MAX) this.feed.lastElementChild?.remove();
     setTimeout(() => item.classList.add("gone"), FEED_MS);
@@ -232,6 +233,7 @@ export class Hud {
 
   showVerdict(kind: "out" | "safe" | "time" | "noball"): void {
     this.verdict.innerHTML = `${icon(kind === "safe" ? "flag" : kind === "time" ? "timer" : kind === "noball" ? "ball" : "close", "", 18)}<span>${kind === "safe" ? "Safe" : kind === "time" ? "Time up" : kind === "noball" ? "No ball left" : "Eliminated"}</span>`;
+    translateTree(this.verdict);
     this.verdict.className = `verdict ${kind === "safe" ? "safe" : "dead"} visible`;
     if (kind !== "safe") this.vignette.className = "vignette dead";
   }

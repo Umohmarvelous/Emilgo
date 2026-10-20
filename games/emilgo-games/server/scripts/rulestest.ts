@@ -18,7 +18,8 @@ import { BotBrain } from "../../src/game/bots";
 import { Highlights, type Moment } from "../../src/game/highlights";
 import { PEN, openLane, penAt } from "../../src/game/pens";
 import { fieldHalfWidth, mapOf } from "../../src/maps/registry";
-import { RedLightRound, freshMotion, isMoving, moveContestant, type Contestant, type RoundEvent } from "../../src/game/rules";
+import { RedLightRound, freshMotion, isMoving, moveContestant, setBoosts, type Contestant, type RoundEvent } from "../../src/game/rules";
+import { BOOSTS, BOOST_SLOTS, NO_BOOST, boostsFromWire, boostsToWire, modsOf } from "../../src/shop/boosts";
 import { TutorialScript, tutorialPeople, tutorialSteps } from "../../src/rlgl/tutorial";
 
 let failures = 0;
@@ -746,6 +747,103 @@ console.log("\nhighlights (the play of the game):");
     });
     const m = ms.find((x) => x.kind === "attack");
     check(loose && early.every((x) => x.kind !== "attack") && b.ball === ball.index && !!m && m.who === 1, `knocked loose, taken back after the wait: the best attack (${m?.score})`);
+  }
+}
+
+console.log("\nCP boosts (SPEC-V2 §7.7):");
+{
+  check(BOOSTS.length >= 10 && BOOSTS.length <= 20, `${BOOSTS.length} boosts (10–20)`);
+  check(modsOf(["quick_feet", "sprinter", "cool_head"]) === modsOf(["quick_feet", "sprinter"]) || modsOf(["quick_feet", "sprinter", "cool_head"]).grace === 0, `at most ${BOOST_SLOTS} count`);
+  check(modsOf([]) === NO_BOOST && modsOf(["nonsense"]) === NO_BOOST, "none, or unknown ids: no change");
+  check(boostsFromWire(boostsToWire(["iron_grip", "long_arm"])).join() === "iron_grip,long_arm" && boostsFromWire([0, 0, 99, "x"]).join() === "quick_feet", "on the wire: indexes, cleaned");
+
+  // Quick Feet: a full push runs 4% faster; Sprinter: sprints 4% faster.
+  const a = runner();
+  const b = runner();
+  setBoosts(b, ["quick_feet", "sprinter"]);
+  a.inZ = b.inZ = -1;
+  steps(a, 1.2);
+  steps(b, 1.2);
+  check(near(speed(b) / speed(a), 1.04, 0.002), `Quick Feet: run ${speed(a).toFixed(2)} → ${speed(b).toFixed(2)} m/s`);
+  a.inSprint = b.inSprint = true;
+  steps(a, 0.8);
+  steps(b, 0.8);
+  check(near(speed(b) / speed(a), 1.04, 0.002), `Sprinter: sprint ${speed(a).toFixed(2)} → ${speed(b).toFixed(2)} m/s`);
+
+  // Second Wind: a full bar lasts 25% longer.
+  const s1 = runner();
+  const s2 = runner();
+  setBoosts(s2, ["second_wind"]);
+  s1.inZ = s2.inZ = -1;
+  s1.inSprint = s2.inSprint = true;
+  // The first unbroken sprint, from a full bar.
+  const firstRun = (c: Contestant) => {
+    let t = 0;
+    let stopped = false;
+    steps(c, MOVE.sprintFor * 1.6, () => {
+      if (c.sprinting && !stopped) t += DT;
+      else if (t > 0) stopped = true;
+    });
+    return t;
+  };
+  const t1 = firstRun(s1);
+  const t2 = firstRun(s2);
+  check(near(t2 / t1, 1.25, 0.03), `Second Wind: sprint ${t1.toFixed(1)} s → ${t2.toFixed(1)} s`);
+
+  // Iron Grip: the first hit leaves the ball in your hands, the second knocks it loose.
+  const { r } = ballRound(2, [[0, -20], [0, -18.5]]);
+  singing(r);
+  setBoosts(r.get("p0")!, ["iron_grip"]);
+  const ball = r.balls[0];
+  ball.x = 0;
+  ball.z = -20;
+  r.setActions("p0", 0, 1);
+  tick(r, 0.05);
+  const ev: RoundEvent[] = [];
+  r.setActions("p1", (1 << 2) | 2, 0); // slap
+  tick(r, 1, ev);
+  const first = ev.find((e) => e.type === "attack");
+  check(first?.type === "attack" && first.target === "p0" && first.dropped === -1 && r.get("p0")!.ball === ball.index, "Iron Grip: the first hit doesn't knock the ball loose");
+  const p1 = r.get("p1")!;
+  p1.x = r.get("p0")!.x;
+  p1.z = r.get("p0")!.z + 1.2;
+  r.setActions("p1", (2 << 2) | 2, 0);
+  tick(r, 1, ev);
+  const second = ev.filter((e) => e.type === "attack")[1];
+  check(second?.type === "attack" && second.dropped === ball.index && ball.holder === -1, "the second does");
+
+  // Long Arm reaches 2.3 m; without it a swing from there misses.
+  const { r: r2 } = ballRound(2, [[0, -20], [0, -17.8]]);
+  singing(r2);
+  const ev2: RoundEvent[] = [];
+  r2.setActions("p1", (1 << 2) | 1, 0);
+  tick(r2, 0.1, ev2);
+  setBoosts(r2.get("p1")!, ["long_arm"]);
+  r2.get("p1")!.cool = 0;
+  r2.get("p0")!.x = 0;
+  r2.get("p0")!.z = -20;
+  r2.get("p1")!.x = 0;
+  r2.get("p1")!.z = -17.8;
+  r2.setActions("p1", (2 << 2) | 1, 0);
+  tick(r2, 0.1, ev2);
+  const sw = ev2.filter((e) => e.type === "attack");
+  check(sw.length === 2 && sw[0].type === "attack" && sw[0].target === null && sw[1].type === "attack" && sw[1].target === "p0", "Long Arm: 2.2 m misses without it, lands with it");
+
+  // Cool Head: moving just inside the usual grace + 0.1 s is caught without it, safe with it.
+  let caught = 0;
+  for (const boosted of [false, true]) {
+    const rr = new RedLightRound({ seed: 3, contestants: [...people(2)].map((p, i) => ({ ...p, boosts: boosted && i === 0 ? ["cool_head"] : [] })), course: courseFor("classic", 100) });
+    while (rr.phase !== "watch") rr.step(DT);
+    const c = rr.get("p0")!;
+    let out = false;
+    for (let i = 0; i < Math.round((RULES.grace + 0.07) / DT); i++) {
+      c.inZ = rr.phaseTime > RULES.grace + 0.02 ? -1 : 0;
+      rr.step(DT);
+      if (rr.drain().some((e) => e.type === "eliminated" && e.id === "p0")) out = true;
+    }
+    if (out) caught++;
+    if (boosted) check(!out, "Cool Head: moving just after the usual grace isn't seen yet");
+    else check(out, "without it: caught");
   }
 }
 

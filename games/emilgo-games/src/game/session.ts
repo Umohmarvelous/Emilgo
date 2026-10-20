@@ -24,7 +24,7 @@
 import { ACESFilmicToneMapping, OrthographicCamera, PCFShadowMap, PCFSoftShadowMap, SRGBColorSpace, WebGLRenderTarget, PerspectiveCamera, Scene, Vector2, Vector3, WebGLRenderer } from "three";
 
 import { Sound } from "../audio/sound";
-import { ATTACK, BALLS, DISTANCES, FINAL, FLOW, MODES, MOVE, PRACTICE, RULES, courseFor, scoreFor, walkoutLength, type AttackKind, type Course, type Distance, type Mode, type Stance } from "../config";
+import { ATTACK, BALLS, DISTANCES, FINAL, FLOW, MODES, MOVE, NET, PRACTICE, RULES, courseFor, scoreFor, walkoutLength, type AttackKind, type Course, type Distance, type Mode, type Stance } from "../config";
 import { SONGS, songFor, type SongId } from "../audio/songs";
 import { Loop } from "../core/loop";
 import { QualityGovernor } from "../core/quality";
@@ -45,11 +45,15 @@ import { buildWorld, type World } from "../maps/world";
 import { DEFAULT_MAP, SKY_STATES, fieldHalfWidth, mapOf, withMode, type MapCategory, type SkyState } from "../maps/registry";
 import { NetClient } from "../net/client";
 import { OnlineRound } from "../net/onlineRound";
-import { ERROR_TEXT, normalizeCode, type RoomInfo, type ServerMsg, type StartInfo, type SyncInfo } from "../net/protocol";
+import { ERROR_TEXT, normalizeCode, type ClientMsg, type RoomInfo, type ServerMsg, type StartInfo, type SyncInfo } from "../net/protocol";
 import { serverUrl } from "../net/serverUrl";
 import type { Host, MatchView } from "../platform/types";
 import { errorCode, errorText } from "../platform/vatarErrors";
-import { DEFAULT_WHEEL, saveSettings, type Settings } from "../settings";
+import { DEFAULT_WHEEL, resetPrefs, saveSettings, type Settings } from "../settings";
+import { BOOST_BY_ID, BOOST_ROUNDS, BOOST_SLOTS, boostsFromWire, boostsToWire, cpForRound, type BoostId } from "../shop/boosts";
+import { Friends, type Notice } from "../social/friends";
+import { getLang, setLang, t, translateTree } from "../ui/i18n";
+import { Rotator, gameSize } from "../ui/rotate";
 import { EMOTE_PACK, PRODUCT_BY_ID, fromWire, toWireLook, type WireLook } from "../shop/catalog";
 import { ShopClient } from "../shop/client";
 import { EMOTE_BY_ID, EMOTES, type EmoteId } from "../social/emotes";
@@ -164,7 +168,17 @@ export class Game {
   private emoteSel: EmoteId | null = null;
   private wheelSlot = -1;
   private settingsTab = "graphics";
-  private friendsTab: "friends" | "invite" = "friends";
+  private friendsTab: "friends" | "recent" | "invite" = "friends";
+  private storeTab: "boosts" | "cosmetics" = "boosts";
+  /** Settings, Account: "Reset to default" asked, waiting for the yes. */
+  private confirmReset = false;
+  private readonly friends: Friends;
+  /** The lobby notification showing (its answers act on it). */
+  private notice: Notice | null = null;
+  /** The round whose boosts were used (a rejoin doesn't use them twice). */
+  private boostSeed = -1;
+  private readonly rotator: Rotator;
+  private readonly uiRoot: HTMLElement;
   private mapCat: MapCategory = "ng-urban";
   /** The sky picked for practice (null: the map's own). */
   private skyPick: SkyState | null = null;
@@ -172,7 +186,6 @@ export class Game {
   private worldArgs: { mapId: string; pick: SkyState | null; course?: Course } | null = null;
   private worldMs = 0;
   private tryOn: Look | null = null;
-  private onlineCounts: { online: number | null; inMatch: number | null } = { online: null, inMatch: null };
   private rank: string | null = null;
   private returnAt = 0;
   private podiumNames: { name: string; time: number; me: boolean }[] = [];
@@ -257,6 +270,7 @@ export class Game {
     canvas: HTMLCanvasElement,
     ui: HTMLElement,
   ) {
+    this.uiRoot = ui;
     this.renderer = new WebGLRenderer({ canvas, antialias: false, alpha: false, stencil: false, powerPreference: "high-performance" });
     this.renderer.toneMapping = ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
@@ -340,8 +354,29 @@ export class Game {
     this.tutorial.onClose(() => this.endTutorial());
     this.countdown = new Countdown(this.hud, (last) => this.sound.bassDrop(last));
     this.chat.onSend((text) => this.net?.send({ t: "chat", text }));
+    this.friends = new Friends(
+      this.settings,
+      () => saveSettings(this.host, this.settings),
+      (m) => {
+        if (this.net?.state === "open") this.net.send(m as ClientMsg);
+      },
+    );
+    this.friends.onChange(() => {
+      this.showFriendCounts();
+      if (this.screens.name === "friends") this.showFriends();
+    });
+    this.friends.onNotice((n) => this.showNotice(n));
+    this.chat.canFriend = (seat, name) => (this.mode === "online" || !!this.room) && seat !== this.seatId && !this.settings.friends.some((f) => f.name === name);
+    this.board.onPick = (seat, name) => this.chat.moderate(seat, name);
+    this.rotator = new Rotator(ui, canvas, () => this.resize());
+    this.rotator.onTap = () => {
+      this.settings.rotate = !this.settings.rotate;
+      saveSettings(this.host, this.settings);
+      this.applySettings();
+    };
     this.chat.onAction((a) => {
-      if (a.kind === "block") this.net?.send({ t: "block", id: a.seat });
+      if (a.kind === "friend") this.friends.ask(a.seat);
+      else if (a.kind === "block") this.net?.send({ t: "block", id: a.seat });
       else if (a.kind === "report") this.net?.send({ t: "report", id: a.seat, reason: a.reason });
       else this.chat.add({ from: "", name: "", text: this.chat.isMuted(a.seat) ? `Muted ${a.name}.` : `Unmuted ${a.name}.`, mine: false, system: true });
     });
@@ -430,6 +465,8 @@ export class Game {
     }
     this.toLobby();
     this.loop.start();
+    // §6.5: a portrait phone is offered the turn as the game starts.
+    this.rotator.prompt();
     void this.shop?.boot();
     const idle = (window as unknown as { requestIdleCallback?: (fn: () => void, o?: object) => void }).requestIdleCallback;
     const later = (fn: () => void, t: number) => (idle ? idle(fn, { timeout: t }) : setTimeout(fn, t));
@@ -483,7 +520,7 @@ export class Game {
       shop: !!this.shop,
       level: levelOf(this.settings.xp),
       rank: this.rank,
-      friends: { ...this.onlineCounts, recent: this.settings.recent.map((r) => r.name) },
+      friends: { ...this.friendCounts(), recent: this.settings.recent.map((r) => r.name) },
       daily: daily.map((def, i) => ({ def, progress: this.settings.daily.progress[i] ?? 0 })),
       mode: this.playMode,
       badge: this.settings.badge && !!this.shop?.owned.has("badge_gold"),
@@ -537,19 +574,77 @@ export class Game {
 
   private showStore(): void {
     this.frame("left-panel");
-    this.screens.store(this.owned(), this.settings.badge, this.shopBusy, this.shopNote, !!this.shop);
+    const s = this.settings;
+    this.screens.store({ tab: this.storeTab, owned: this.owned(), badge: s.badge, busy: this.shopBusy, note: this.shopNote, canBuy: !!this.shop, cp: s.cp, boosts: s.boosts, boostsOn: s.boostsOn });
   }
 
   private showFriends(): void {
     this.frame("right-panel");
-    if (this.friendsTab === "invite" && this.onlineAvailability() === "ready") this.ensureNet()?.connect().catch(() => {});
+    if (this.onlineAvailability() === "ready") this.ensureNet()?.connect().catch(() => {});
+    const names = new Set(this.settings.friends.map((f) => f.name));
     this.screens.friends({
       online: this.onlineAvailability(),
-      recent: this.settings.recent,
-      counts: this.onlineCounts,
       tab: this.friendsTab,
       code: this.room?.kind === "private" ? this.room.code : null,
+      counts: this.friends.counts(),
+      friends: this.friends.list.map((f) => ({ name: f.name, state: this.friends.stateOf(f.fid) })),
+      requests: this.friends.requests,
+      invites: this.friends.invites,
+      recent: this.settings.recent.map((r) => ({ ...r, friend: names.has(r.name) })),
     });
+  }
+
+  /** Friends online / in a match, for the lobby (null while we can't know). */
+  private friendCounts(): { online: number | null; inMatch: number | null } {
+    return this.net?.state === "open" ? this.friends.counts() : { online: null, inMatch: null };
+  }
+
+  private showFriendCounts(): void {
+    const c = this.friendCounts();
+    this.screens.setFriendCounts(c.online, c.inMatch);
+  }
+
+  /** An invite or a friend request (notifications on): over the lobby only, never mid-round. */
+  private showNotice(n: Notice): void {
+    if (this.round || this.view !== "lobby") return;
+    this.notice = n;
+    this.sound.ui();
+    if (n.kind === "invite") this.screens.notice(t(`${n.inv.name} invites you to a room`), "ninv-join", "ninv-no");
+    else this.screens.notice(t(`${n.req.name} wants to be friends`), "nreq-yes", "nreq-no");
+  }
+
+  /** Join a room by its code (the code box, or an invite). */
+  private joinCode(code: string): void {
+    this.onlineError = null;
+    this.online((net) => {
+      net.send({ t: "join", code });
+      this.showWaiting("Joining…");
+    });
+  }
+
+  /** Boosts switched on that have a round left (at most BOOST_SLOTS). */
+  private boostsReady(): BoostId[] {
+    return this.settings.boostsOn.filter((b) => (this.settings.boosts[b] ?? 0) > 0).slice(0, BOOST_SLOTS);
+  }
+
+  /** A round started with these boosts: each uses one of its rounds. */
+  private spendBoosts(ids: readonly BoostId[]): void {
+    if (!ids.length) return;
+    for (const id of ids) {
+      const n = (this.settings.boosts[id] ?? 0) - 1;
+      if (n > 0) this.settings.boosts[id] = n;
+      else delete this.settings.boosts[id];
+    }
+    this.settings.boostsOn = this.settings.boostsOn.filter((b) => (this.settings.boosts[b] ?? 0) > 0);
+    saveSettings(this.host, this.settings);
+    this.sendPrefs();
+    this.hud.pushFeed(t(`Boosts on: ${ids.map((id) => BOOST_BY_ID[id].name).join(", ")}`), "info");
+  }
+
+  /** What the server acts on: boosts for free rooms, data saver, friend requests. */
+  private sendPrefs(): void {
+    if (!this.net || this.net.state !== "open") return;
+    this.net.send({ t: "prefs", bo: boostsToWire(this.boostsReady()), ds: this.settings.dataSaver, fr: this.settings.friendReqs });
   }
 
   private showPlay(): void {
@@ -567,7 +662,8 @@ export class Game {
 
   private showSettings(): void {
     this.frame("full");
-    this.screens.settings(this.settings, this.settingsTab, this.settingsFrom, this.tierNote());
+    this.screens.settings(this.settings, this.settingsTab, this.settingsFrom, this.tierNote(), this.confirmReset);
+    this.screens.setPlayer(null, this.host);
   }
 
   private tierNote(): string {
@@ -653,7 +749,7 @@ export class Game {
     this.flow.reset("loading");
     const seed = randomSeed();
     const rng = new Rng(seed ^ 0xa5a5a5a5);
-    const people: { id: string; name: string; bot: boolean }[] = [{ id: ME, name: "You", bot: false }];
+    const people: { id: string; name: string; bot: boolean; boosts?: BoostId[] }[] = [{ id: ME, name: "You", bot: false }];
     // No CPU shares your name: "Ada · CPU caught" must never read as you.
     const mine = this.host.player.name.trim().toLowerCase();
     const names = rng.shuffle(BOT_NAMES.filter((n) => n.toLowerCase() !== mine));
@@ -661,6 +757,8 @@ export class Game {
 
     const info = mapOf(this.settings.map);
     const course = courseFor(this.settings.mode, this.settings.distance, fieldHalfWidth(info, this.settings.mode));
+    const boosts = this.boostsReady();
+    people[0].boosts = boosts;
     const round = new RedLightRound({ seed, contestants: people, featuredId: ME, course, walkout: walkoutLength(course.mode) });
     this.mode = "practice";
     this.meId = ME;
@@ -670,6 +768,7 @@ export class Game {
     this.beginRound(round, rng, this.settings.map, this.skyPick, []);
     this.offerTutorial = first;
     this.brains = people.slice(1).map((p, i) => new BotBrain(p.id, i, rng));
+    this.spendBoosts(boosts);
   }
 
   private startOnline(info: StartInfo | SyncInfo, sync: boolean): void {
@@ -685,9 +784,16 @@ export class Game {
     const at = Date.now();
     for (const r of info.roster) {
       if (r.id === me) continue;
-      this.settings.recent = [{ name: r.name, at }, ...this.settings.recent.filter((x) => x.name !== r.name)].slice(0, 30);
+      this.settings.recent = [{ name: r.name, at, seat: r.id }, ...this.settings.recent.filter((x) => x.name !== r.name)].slice(0, 30);
     }
+    round.interpMs = this.settings.dataSaver ? NET.interpDelayMs + 90 : NET.interpDelayMs;
     this.beginRound(round, new Rng(info.seed ^ 0xa5a5a5a5), info.map ?? DEFAULT_MAP, null, info.roster.map((r) => r.look));
+    // The boosts the server applied to us (none in a staked match): used once per round, even after a rejoin.
+    const mine = boostsFromWire(info.roster.find((r) => r.id === me)?.bo);
+    if (this.boostSeed !== info.seed) {
+      this.boostSeed = info.seed;
+      this.spendBoosts(mine);
+    }
   }
 
   /** Everything both kinds of round need at their start. */
@@ -758,6 +864,7 @@ export class Game {
     this.quick.toggle(false);
 
     if (!this.tut) this.settings.played++;
+    if (!this.tut) this.rotator.prompt();
     saveSettings(this.host, this.settings);
   }
 
@@ -1347,6 +1454,8 @@ export class Game {
     const before = levelOf(this.settings.xp).level;
     const xp = xpForRound({ finished, first, watches: this.watchesSurvived, online: this.mode === "online" });
     this.settings.xp += xp;
+    const cp = cpForRound({ finished, first, online: this.mode === "online" });
+    this.settings.cp += cp;
     const after = levelOf(this.settings.xp).level;
     const d = this.settings.daily;
     const completed = [
@@ -1377,6 +1486,7 @@ export class Game {
       online: this.mode === "online" ? (this.room?.kind ?? "quick") : null,
       matchNote: this.vOutcome ?? (round.phase !== "ended" ? MATCH_STILL_ON : null),
       xp,
+      cp,
       level: after,
       levelUp: after > before,
       completed,
@@ -1551,13 +1661,15 @@ export class Game {
   }
 
   private onServer(m: ServerMsg): void {
+    if (this.friends.receive(m)) return;
     switch (m.t) {
       case "welcome":
         this.sendLook();
-        if (typeof m.on === "number") this.setCounts(m.on, m.pl ?? 0);
+        this.sendPrefs();
+        this.friends.hello();
         break;
       case "stats":
-        this.setCounts(m.on, m.pl);
+        // The whole server's numbers: the lobby shows your friends instead.
         break;
       case "seat":
         this.seatId = m.id;
@@ -1629,11 +1741,6 @@ export class Game {
     }
   }
 
-  private setCounts(on: number, pl: number): void {
-    this.onlineCounts = { online: on, inMatch: pl };
-    this.screens.setFriendCounts(on, pl);
-  }
-
   private onNetState(s: NetClient["state"]): void {
     if (this.mode === "online" && this.round) this.hud.setConnection(s === "open" ? "ok" : s === "closed" ? "lost" : "reconnecting");
     if (s === "closed" && this.room && !this.round) {
@@ -1688,8 +1795,7 @@ export class Game {
   private render(frameDt: number): void {
     const workStart = performance.now();
     this.renderer.info.reset();
-    const w = window.innerWidth;
-    const h = window.innerHeight;
+    const { w, h } = gameSize();
     if (this.view === "lobby") {
       this.stage.update(frameDt);
       this.stage.render();
@@ -1904,14 +2010,14 @@ export class Game {
     this.hud.setAlive(inPlay, list.length);
     this.hud.setDistance(me.progress / round.course.distance);
     // Fist, slap and push with someone in reach; grab with a free ball in reach.
-    if (this.my === "playing" && !this.paused && !this.tut) this.controls.setNear(canAttack(me) && !!attackTarget(me, round.contestants, ATTACK.range), this.canGrab(round, me));
+    if (this.my === "playing" && !this.paused && !this.tut) this.controls.setNear(canAttack(me) && !!attackTarget(me, round.contestants, ATTACK.range + me.bst.reach), this.canGrab(round, me));
     else this.controls.setNear(false, false);
     this.controls.setStamina(me.stamina, me.sprinting);
     const watching = round.phase === "watch" || round.phase === "turning";
     const doll = { x: 0, z: round.course.dollZ, watching };
     this.hud.setMap({ x: me.x, z: me.z, heading: me.heading, out: me.status === "eliminated" }, this.marks, doll, this.rig.yaw);
     this.hud.setCompass(this.rig.yaw, me, doll);
-    this.board.update(round.contestants, this.meId, round.course.distance, (c) => this.label(c));
+    this.board.update(round.contestants, this.meId, round.course.distance, (c) => this.label(c), this.mode === "online");
     if (this.mode === "online" && this.net) this.hud.setPing(this.net.rtt);
 
     if (round.phase === "countdown") this.countdown.update(round.phaseDuration - round.phaseTime);
@@ -2048,8 +2154,7 @@ export class Game {
       this.spectateBtn.classList.toggle("visible", spectate);
     }
     if (round && this.bubbles.active) {
-      const w = window.innerWidth;
-      const h = window.innerHeight;
+      const { w, h } = gameSize();
       this.bubbles.update((i) => {
         const c = round.contestants[i];
         if (!c) return null;
@@ -2237,6 +2342,39 @@ export class Game {
         this.shopNote = null;
         this.showStore();
         break;
+      case "store-tab":
+        this.storeTab = d.tab === "cosmetics" ? "cosmetics" : "boosts";
+        this.showStore();
+        break;
+      case "boosts":
+        this.storeTab = "boosts";
+        this.showStore();
+        break;
+      case "buy-boost": {
+        const b = BOOST_BY_ID[d.id as BoostId];
+        if (!b || this.settings.cp < b.cp) break;
+        this.settings.cp -= b.cp;
+        this.settings.boosts[b.id] = Math.min(999, (this.settings.boosts[b.id] ?? 0) + BOOST_ROUNDS);
+        // Bought with a slot free: switched on for the next round.
+        if (!this.settings.boostsOn.includes(b.id) && this.settings.boostsOn.length < BOOST_SLOTS) this.settings.boostsOn.push(b.id);
+        saveSettings(this.host, this.settings);
+        this.sendPrefs();
+        this.haptic("success");
+        this.screens.toast(t(`${b.name}: ${BOOST_ROUNDS} rounds`));
+        this.showStore();
+        break;
+      }
+      case "boost-on": {
+        const id = d.id as BoostId;
+        if (!BOOST_BY_ID[id]) break;
+        const on = this.settings.boostsOn;
+        if (on.includes(id)) this.settings.boostsOn = on.filter((b) => b !== id);
+        else if (on.length < BOOST_SLOTS && (this.settings.boosts[id] ?? 0) > 0) on.push(id);
+        saveSettings(this.host, this.settings);
+        this.sendPrefs();
+        this.showStore();
+        break;
+      }
       case "try": {
         const p = PRODUCT_BY_ID[d.id ?? ""];
         if (p?.kind === "outfit") this.setLook({ ...this.settings.look, outfit: p.id }, !this.owned().has(p.id));
@@ -2282,8 +2420,55 @@ export class Game {
         this.showFriends();
         break;
       case "ftab":
-        this.friendsTab = d.tab === "invite" ? "invite" : "friends";
+        this.friendsTab = d.tab === "invite" ? "invite" : d.tab === "recent" ? "recent" : "friends";
         this.showFriends();
+        break;
+      case "fadd": {
+        const r = this.settings.recent[Number(d.i)];
+        if (r?.seat) this.ensureNet()?.connect().then(() => this.friends.ask(r.seat!)).catch(() => this.screens.toast(t("Can't reach the game server.")));
+        break;
+      }
+      case "fyes":
+      case "fno": {
+        const r = this.friends.requests[Number(d.i)];
+        if (r && act === "fyes") this.friends.accept(r);
+        else if (r) this.friends.decline(r);
+        break;
+      }
+      case "finv": {
+        const f = this.friends.list[Number(d.i)];
+        if (f) this.friends.invite(f.fid);
+        break;
+      }
+      case "fdel": {
+        const f = this.friends.list[Number(d.i)];
+        if (f) {
+          this.friends.remove(f.fid);
+          this.screens.toast(t(`Removed ${f.name}`));
+        }
+        break;
+      }
+      case "inv-join":
+      case "inv-no": {
+        const v = this.friends.invites[Number(d.i)];
+        if (!v) break;
+        this.friends.dropInvite(v);
+        if (act === "inv-join") this.joinCode(v.code);
+        break;
+      }
+      case "nreq-yes":
+      case "nreq-no":
+        if (this.notice?.kind === "request" && act === "nreq-yes") this.friends.accept(this.notice.req);
+        else if (this.notice?.kind === "request") this.friends.decline(this.notice.req);
+        this.notice = null;
+        break;
+      case "ninv-join":
+      case "ninv-no":
+        if (this.notice?.kind === "invite") {
+          this.friends.dropInvite(this.notice.inv);
+          if (act === "ninv-join") this.joinCode(this.notice.inv.code);
+        }
+        this.notice = null;
         break;
       case "copy-code": {
         const code = this.room?.code;
@@ -2373,12 +2558,36 @@ export class Game {
         this.showSettings();
         break;
       case "stab":
+        this.confirmReset = false;
         this.settingsTab = d.tab ?? "graphics";
         this.showSettings();
         break;
       case "pause-menu":
         this.screens.pause(this.host, this.mode === "online");
         break;
+      case "pause-tab":
+        this.settingsFrom = "pause";
+        this.settingsTab = d.tab ?? "game";
+        this.confirmReset = false;
+        this.showSettings();
+        break;
+      case "reset":
+      case "reset-no":
+        this.confirmReset = act === "reset";
+        this.showSettings();
+        break;
+      case "reset-yes": {
+        const was = { lightMode: this.settings.lightMode, lang: this.settings.lang };
+        Object.assign(this.settings, resetPrefs(this.host, this.settings));
+        this.confirmReset = false;
+        if (was.lightMode !== this.settings.lightMode && this.round && this.worldArgs) this.ensureWorld(this.worldArgs.mapId, this.worldArgs.pick, this.worldArgs.course);
+        this.applySettings();
+        saveSettings(this.host, this.settings);
+        this.sendPrefs();
+        this.screens.toast(t("Settings reset"));
+        this.showSettings();
+        break;
+      }
       case "toggle": {
         const key = d.key as keyof Settings;
         const on = (node as HTMLInputElement).checked;
@@ -2387,6 +2596,9 @@ export class Game {
           this.applySettings();
           saveSettings(this.host, this.settings);
           if (key === "sound" && on) this.sound.ui();
+          if (key === "dataSaver" || key === "friendReqs") this.sendPrefs();
+          // The volume sliders follow their switches; rotating redraws everything.
+          if (key === "music" || key === "sound" || key === "rotate") this.showSettings();
         }
         break;
       }
@@ -2397,6 +2609,7 @@ export class Game {
         if (key === "stickSize" && (d.val === "small" || d.val === "medium" || d.val === "large")) this.settings.stickSize = d.val;
         if (key === "mapSize" && (d.val === "small" || d.val === "medium" || d.val === "large")) this.settings.mapSize = d.val;
         if (key === "sprintMode" && (d.val === "toggle" || d.val === "hold" || d.val === "auto")) this.settings.sprintMode = d.val;
+        if (key === "lang" && (d.val === "en" || d.val === "pcm")) this.settings.lang = d.val;
         if (key === "lightMode" && (d.val === "auto" || d.val === "light" || d.val === "dark")) {
           this.settings.lightMode = d.val;
           // Everything in the world follows at once: sky, light, lamps, neon.
@@ -2409,9 +2622,12 @@ export class Game {
         break;
       }
       case "range": {
-        const key = d.key as "sensH" | "sensV" | "stickOpacity";
-        if (key !== "sensH" && key !== "sensV" && key !== "stickOpacity") break;
-        this.settings[key] = Math.max(key === "stickOpacity" ? 0.3 : 0.05, Math.min(1, Number((node as HTMLInputElement).value) / 100));
+        const LIMITS: Record<string, [number, number]> = { sensH: [0.05, 1], sensV: [0.05, 1], stickOpacity: [0.3, 1], sens: [0.5, 2], master: [0, 1], musicVol: [0, 1], sfxVol: [0, 1] };
+        const key = d.key as "sensH" | "sensV" | "stickOpacity" | "sens" | "master" | "musicVol" | "sfxVol";
+        const lim = LIMITS[key];
+        if (!lim) break;
+        this.settings[key] = Math.max(lim[0], Math.min(lim[1], Number((node as HTMLInputElement).value) / 100));
+        this.screens.settingPct(key, Math.round(this.settings[key] * 100));
         this.applySettings();
         saveSettings(this.host, this.settings);
         break;
@@ -2470,11 +2686,7 @@ export class Game {
           this.showPlay();
           break;
         }
-        this.onlineError = null;
-        this.online((net) => {
-          net.send({ t: "join", code });
-          this.showWaiting("Joining…");
-        });
+        this.joinCode(code);
         break;
       }
       case "ready":
@@ -2595,14 +2807,19 @@ export class Game {
 
   private applySettings(): void {
     const s = this.settings;
-    this.sound.setEnabled(s.sound);
-    this.sound.setMusic(s.music);
+    this.sound.setLevels(s.master, s.music ? s.musicVol : 0, s.sound ? s.sfxVol : 0);
+    if (getLang() !== s.lang) {
+      // Whatever is already on screen (the HUD, the buttons) follows at once.
+      setLang(s.lang);
+      translateTree(this.uiRoot);
+    }
+    this.rotator?.set(s.rotate);
     this.fx.setBlood(s.blood);
     this.rig.shakeEnabled = s.shake;
     this.rig.autoCenter = s.autoCam;
     this.rig.invertY = s.invertY;
-    this.rig.sensH = s.sensH;
-    this.rig.sensV = s.sensV;
+    this.rig.sensH = s.sensH * s.sens;
+    this.rig.sensV = s.sensV * s.sens;
     this.stage?.setLightMode(s.lightMode);
     this.controls.setLayout(s.leftHanded, s.lookStick === "always");
     this.controls.setStyle(s.stickSize, s.stickOpacity, s.sprintMode);
@@ -2631,8 +2848,7 @@ export class Game {
   }
 
   private resize(): void {
-    const w = window.innerWidth || 375;
-    const h = window.innerHeight || 812;
+    const { w, h } = gameSize();
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     // The brief's 65° is a landscape lens; a portrait phone needs a wider one

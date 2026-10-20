@@ -55,7 +55,26 @@ export type ClientMsg =
    * server after it checked my purchases with Lagos Life — the server only
    * shows what the ticket allows.
    */
-  | { t: "look"; ticket?: string; look: WireLook };
+  | { t: "look"; ticket?: string; look: WireLook }
+  // ── Phase 7 (protocol 10) ──
+  /**
+   * My preferences that the server acts on: the CP boosts I bring to free rooms
+   * (bo, indexes into shop/boosts BOOSTS, at most BOOST_SLOTS), data saver (ds:
+   * half the snapshots) and whether I take friend requests (fr).
+   */
+  | { t: "prefs"; bo: number[]; ds: boolean; fr: boolean }
+  /**
+   * Who I am to my friends: my friend id (random, made on this phone) and theirs.
+   * The server keeps it in memory while I'm connected and tells me which of them
+   * are on — only those who list me back.
+   */
+  | { t: "me"; fid: string; friends: string[] }
+  /** Ask a player to be friends: a seat in my room, or someone I played with (their seat id then). */
+  | { t: "freq"; id: string }
+  /** Yes to a request (`id` is the asker's id from their freq). */
+  | { t: "facc"; id: string }
+  /** Invite a friend (both list each other) to my room. */
+  | { t: "inv"; fid: string };
 
 export type ReportReason = "abuse" | "scam" | "cheating" | "name";
 export const REPORT_REASONS: Record<ReportReason, string> = {
@@ -103,7 +122,8 @@ export interface StartInfo {
   seed: number;
   /** Server time (ms) of the round's first tick. */
   s: number;
-  roster: { id: string; name: string; look?: WireLook }[];
+  /** bo: the CP boosts the referee applies to them (indexes into shop/boosts BOOSTS; protocol 10). */
+  roster: { id: string; name: string; look?: WireLook; bo?: number[] }[];
   /** Initial [x, z, heading] per roster index, cm / mrad. */
   init: number[];
   /** Map id (maps/registry.ts). Missing: the classic Lagos street. */
@@ -195,7 +215,16 @@ export type ServerMsg =
   /** A short notice for this player only ("your message was cleaned", "reported"). */
   | { t: "note"; text: string }
   | { t: "left" }
-  | { t: "err"; code: ErrorCode; msg?: string };
+  | { t: "err"; code: ErrorCode; msg?: string }
+  // ── Phase 7 (protocol 10) ──
+  /** My friends who are on (and list me back): in the lobby (on), waiting in a room (rm), in a round (pl). */
+  | { t: "fr"; on: string[]; rm: string[]; pl: string[] }
+  /** Someone asks to be friends. `id` answers them (facc); `fid` is who they'll be on your list. */
+  | { t: "freq"; id: string; name: string; fid: string }
+  /** They said yes: add them. */
+  | { t: "facc"; name: string; fid: string }
+  /** A friend invites you to their room. */
+  | { t: "inv"; name: string; fid: string; code: string };
 
 export type ErrorCode =
   | "version" // client too old
@@ -336,6 +365,19 @@ export function parseClient(raw: string): ClientMsg | null {
       if (l.b === 1) look.b = 1;
       return { t: "look", ticket: typeof o.ticket === "string" ? o.ticket : undefined, look };
     }
+    case "prefs": {
+      if (!Array.isArray(o.bo) || o.bo.length > 8 || typeof o.ds !== "boolean" || typeof o.fr !== "boolean") return null;
+      return { t: "prefs", bo: o.bo.filter((i): i is number => Number.isInteger(i) && (i as number) >= 0 && (i as number) < 64), ds: o.ds, fr: o.fr };
+    }
+    case "me": {
+      if (typeof o.fid !== "string" || !FID.test(o.fid) || !Array.isArray(o.friends) || o.friends.length > 100) return null;
+      return { t: "me", fid: o.fid, friends: o.friends.filter((f): f is string => typeof f === "string" && FID.test(f)) };
+    }
+    case "freq":
+    case "facc":
+      return typeof o.id === "string" && o.id.length <= 64 ? { t: o.t, id: o.id } : null;
+    case "inv":
+      return typeof o.fid === "string" && FID.test(o.fid) ? { t: "inv", fid: o.fid } : null;
     case "vmatch": {
       const id = typeof o.id === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(o.id) ? o.id : null;
       const session = typeof o.session === "string" && o.session.length <= 900 ? o.session : null;
@@ -345,6 +387,9 @@ export function parseClient(raw: string): ClientMsg | null {
       return null;
   }
 }
+
+/** A friend id (settings.ts newFid). */
+const FID = /^[A-Za-z0-9_-]{16}$/;
 
 export function normalizeCode(raw: string): string {
   return raw.toUpperCase().replace(/[^A-Z]/g, "").slice(0, NET.codeLength);

@@ -99,7 +99,7 @@ export class Highlights {
       // The moment each runner starts being judged: did they stop just in time?
       for (const c of list) {
         if (c.status !== "alive" || this.seen.has(c.index)) continue;
-        if (round.phaseTime < RULES.grace + c.graceBonus) continue;
+        if (round.phaseTime < RULES.grace + c.graceBonus + c.bst.grace) continue;
         this.seen.add(c.index);
         if (isMoving(c)) continue;
         const stopped = this.lastMoving[c.index];

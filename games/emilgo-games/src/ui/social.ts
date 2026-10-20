@@ -13,6 +13,7 @@ import { EMOTE_BY_ID, type EmoteId } from "../social/emotes";
 import { CHAT_MAX } from "../social/filter";
 import { REPORT_REASONS, type ReportReason } from "../net/protocol";
 import { el } from "./dom";
+import { translateTree } from "./i18n";
 import { icon } from "./icons";
 
 export interface ChatLine {
@@ -25,7 +26,7 @@ export interface ChatLine {
   gold?: boolean;
 }
 
-export type ChatAction = { kind: "mute" | "block"; seat: string; name: string } | { kind: "report"; seat: string; name: string; reason: ReportReason };
+export type ChatAction = { kind: "mute" | "block" | "friend"; seat: string; name: string } | { kind: "report"; seat: string; name: string; reason: ReportReason };
 
 export class ChatPanel {
   private readonly badge: HTMLElement;
@@ -33,7 +34,8 @@ export class ChatPanel {
   private readonly log = el("div", "chat-log");
   private readonly form = el("form", "chat-form");
   private readonly input = el("input");
-  private readonly sheet = el("div", "chat-sheet");
+  /** Mute / block / report (and add friend): from a chat line, or a name on the scoreboard (the match roster). */
+  private readonly sheet = el("div", "chat-sheet mod-sheet");
   private unread = 0;
   private open = false;
   private available = false;
@@ -78,12 +80,14 @@ export class ChatPanel {
     this.log.setAttribute("aria-live", "polite");
     this.log.addEventListener("click", (e) => {
       const line = (e.target as HTMLElement).closest<HTMLElement>("[data-seat]");
-      if (line && line.dataset.mine !== "1") this.openSheet(line.dataset.seat!, line.dataset.name!);
+      if (line && line.dataset.mine !== "1") this.moderate(line.dataset.seat!, line.dataset.name!);
     });
 
-    this.panel.append(head, this.log, this.form, this.sheet);
+    this.panel.append(head, this.log, this.form);
     this.panel.dataset.ui = "1";
-    parent.append(this.panel);
+    this.sheet.dataset.ui = "1";
+    this.sheet.setAttribute("role", "dialog");
+    parent.append(this.panel, this.sheet);
     this.setAvailable(false);
   }
 
@@ -154,9 +158,21 @@ export class ChatPanel {
     }
   }
 
-  private openSheet(seat: string, name: string): void {
+  /** Whether "Add friend" shows (online, and they aren't one yet). */
+  canFriend: (seat: string, name: string) => boolean = () => false;
+
+  moderate(seat: string, name: string): void {
     this.sheet.replaceChildren();
     const title = el("b", "h", name);
+    const extra: HTMLElement[] = [];
+    if (this.canFriend(seat, name)) {
+      const add = el("button", "", "Add friend");
+      add.addEventListener("click", () => {
+        this.actionFn({ kind: "friend", seat, name });
+        this.sheet.classList.remove("visible");
+      });
+      extra.push(add);
+    }
     const mute = el("button", "", this.muted.has(seat) ? "Unmute" : "Mute (only you stop seeing them)");
     mute.addEventListener("click", () => {
       if (this.muted.has(seat)) this.muted.delete(seat);
@@ -182,7 +198,8 @@ export class ChatPanel {
     }
     const cancel = el("button", "ghost", "Cancel");
     cancel.addEventListener("click", () => this.sheet.classList.remove("visible"));
-    this.sheet.append(title, mute, block, reasons, cancel);
+    this.sheet.append(title, ...extra, mute, block, reasons, cancel);
+    translateTree(this.sheet);
     this.sheet.classList.add("visible");
   }
 }
