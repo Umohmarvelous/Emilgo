@@ -422,4 +422,6 @@ const PCM: Record<string, string> = {
   "That room is full.": "That room don full.",
   "No room with that code. Check it and try again.": "No room get that code. Check am again.",
   "Can't reach the game server. Check your connection and try again.": "We no fit reach the game server. Check your network and try again.",
+  "Your connection dropped for too long, so you lost your place.": "Your network cut for too long, so you don lose your place.",
+  "Lost the connection to the game server.": "Connection to the game server don cut.",
 };

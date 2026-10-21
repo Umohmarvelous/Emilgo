@@ -1680,6 +1680,7 @@ export class Game {
     if (this.friends.receive(m)) return;
     switch (m.t) {
       case "welcome":
+        if (this.net?.lostSeat) this.seatLost();
         this.sendLook();
         this.sendPrefs();
         this.friends.hello();
@@ -1766,6 +1767,22 @@ export class Game {
         this.toLobby();
       }
     }
+  }
+
+  /** Back online, but too late: the server had already let our seat go. */
+  private seatLost(): void {
+    const room = this.room;
+    const midRound = this.mode === "online" && !!this.round;
+    if (!room && !midRound) return;
+    this.room = null;
+    // Still looking for new people: just look again.
+    if (room?.kind === "quick" && !midRound) {
+      this.net?.send({ t: "quick", mode: room.mode, dist: room.dist });
+      return;
+    }
+    this.toLobby();
+    this.playError = "Your connection dropped for too long, so you lost your place.";
+    this.showPlay();
   }
 
   private showWaiting(text: string): void {

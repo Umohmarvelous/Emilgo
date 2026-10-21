@@ -3,6 +3,9 @@
 // - Reconnects by itself while you are in a room (1 s, 2 s, 4 s … 8 s), and
 //   resumes your seat with the token the server gave you — a tunnel or a
 //   lift on the bus doesn't lose you the round.
+// - Notices a dead link itself (NET.silentMs without a word from the server)
+//   instead of waiting minutes for TCP, and tries again the moment the
+//   phone's network comes back.
 // - Keeps an estimate of the server's clock (offset + round trip), so other
 //   runners can be drawn at a consistent point in the past.
 // - Sends your stick: a STOP goes out at once, other changes at most
@@ -22,6 +25,8 @@ export class NetClient {
   rtt = 0;
   /** Set by the session: keep reconnecting while this is true. */
   wantConnection = false;
+  /** The last welcome came back with a new identity: we were gone too long and the seat is gone. */
+  lostSeat = false;
 
   private ws: WebSocket | null = null;
   private token = "";
@@ -31,6 +36,8 @@ export class NetClient {
   private readonly stateHandlers = new Set<(s: NetState) => void>();
   private attempts = 0;
   private retryTimer = 0;
+  private watchTimer = 0;
+  private lastHeard = 0;
   private sentX = 0;
   private sentZ = 0;
   private wantX = 0;
@@ -51,7 +58,40 @@ export class NetClient {
   constructor(
     readonly url: string,
     private readonly displayName: string,
-  ) {}
+  ) {
+    window.addEventListener("online", this.backOnline);
+  }
+
+  /** The phone's network is back: try now, not at the end of the back-off. */
+  private readonly backOnline = (): void => {
+    if (this.state === "open") {
+      // The old socket may have died with the old network: if it's gone quiet, don't wait.
+      if (performance.now() - this.lastHeard > NET.pingEveryMs + 500) this.drop();
+      return;
+    }
+    if (this.state !== "reconnecting" || !this.retryTimer) return;
+    clearTimeout(this.retryTimer);
+    this.retryTimer = 0;
+    this.open();
+  };
+
+  /** Nothing from the server for too long: the link is dead even if the socket says open. */
+  private readonly watch = (): void => {
+    if (this.state === "open" && performance.now() - this.lastHeard > NET.silentMs) this.drop();
+  };
+
+  /** Let go of a dead socket and reconnect (resuming the seat). */
+  private drop(): void {
+    const ws = this.ws;
+    this.ws = null; // its onclose, whenever it comes, is ignored
+    try {
+      ws?.close();
+    } catch {
+      /* already closed */
+    }
+    if (this.wantConnection) this.retry();
+    else this.setState("closed");
+  }
 
   on(fn: Handler): () => void {
     this.handlers.add(fn);
@@ -79,7 +119,10 @@ export class NetClient {
 
   close(): void {
     this.wantConnection = false;
+    window.removeEventListener("online", this.backOnline);
     clearTimeout(this.retryTimer);
+    clearInterval(this.watchTimer);
+    this.watchTimer = 0;
     clearTimeout(this.inputTimer);
     this.token = "";
     this.attempts = 0;
@@ -164,6 +207,8 @@ export class NetClient {
       this.send({ t: "hello", v: NET.protocol, name: this.displayName, resume: this.token || undefined });
     };
     ws.onmessage = (e) => {
+      if (this.ws !== ws) return;
+      this.lastHeard = performance.now();
       if (typeof e.data !== "string") return;
       let m: ServerMsg;
       try {
@@ -200,12 +245,16 @@ export class NetClient {
     }
     this.setState("reconnecting");
     const delay = Math.min(8000, 1000 * 2 ** Math.min(3, this.attempts - 1));
-    this.retryTimer = window.setTimeout(() => this.open(), delay);
+    this.retryTimer = window.setTimeout(() => {
+      this.retryTimer = 0;
+      this.open();
+    }, delay);
   }
 
   private receive(m: ServerMsg): void {
     switch (m.t) {
       case "welcome":
+        this.lostSeat = !!this.token && this.token !== m.token;
         this.id = m.id;
         this.token = m.token;
         this.name = m.name;
@@ -215,6 +264,8 @@ export class NetClient {
           this.offsetSet = true;
         }
         this.sentX = this.sentZ = 0;
+        this.lastHeard = performance.now();
+        if (!this.watchTimer) this.watchTimer = window.setInterval(this.watch, 1000);
         this.setState("open");
         for (const w of this.connectWaiters.splice(0)) w.ok();
         break;

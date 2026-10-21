@@ -276,6 +276,12 @@ export const NET = {
   interpDelayMs: 120,
   pingEveryMs: 2000,
   /**
+   * The server pings every 2 s and sends 15 snapshots a second mid-round, so
+   * this long without a word means the link is dead (a tunnel, Wi-Fi to
+   * mobile data), whatever TCP thinks: drop it and resume the seat.
+   */
+  silentMs: 6500,
+  /**
    * Most detection grace a player's lag can buy (seconds). A player's allowance
    * is their own measured round trip: faking lag only delays their own view, so
    * it gains nothing — the cap just bounds the worst connections.
