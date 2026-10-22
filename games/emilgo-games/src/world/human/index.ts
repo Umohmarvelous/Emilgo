@@ -15,6 +15,7 @@ import {
   Bone,
   Matrix4,
   CanvasTexture,
+  DetachedBindMode,
   Euler,
   LinearMipmapLinearFilter,
   type Material,
@@ -201,6 +202,7 @@ const _e = new Euler(0, 0, 0, "ZYX");
 const _q = new Quaternion();
 const _q2 = new Quaternion();
 const _axis = new Vector3();
+const _m = new Matrix4();
 const Y = new Vector3(0, 1, 0);
 
 const PARENT_INDEX = BONES.map((b) => (PARENT[b] ? BONES.indexOf(PARENT[b]!) : -1));
@@ -219,10 +221,12 @@ export class Human {
   private readonly tex: CanvasTexture;
   private readonly hipsRest: Vector3;
   private readonly rootRest: Vector3;
-  /** Bone matrices in the mesh's own space (ground solver scratch). */
+  /** Bone matrices in the mesh's own space (scratch: the ground solver, the skin). */
   private readonly local: Matrix4[] = Array.from({ length: BONES.length }, () => new Matrix4());
   /** Off the ground on purpose (the referee says it is jumping). */
   private airborne = false;
+  /** Posed since the skin last read the bones. */
+  private skinDirty = true;
 
   constructor(look: Look, tier: Tier, opts: { featured?: boolean; seed?: number; lit?: "standard" | "lambert" } = {}) {
     this.look = look;
@@ -272,6 +276,12 @@ export class Human {
     const mesh = new SkinnedMesh(this.body.geometry, mat);
     mesh.add(this.bones[0]);
     mesh.bind(new Skeleton(this.bones));
+    // The skin reads its bones in the mesh's own space, not the world's, so a
+    // body that only moves keeps last frame's bone texture: three.js would
+    // redo 40 matrix products and re-upload the texture every frame for every
+    // body in view. Rebuilt only after a pose (updateSkin).
+    mesh.bindMode = DetachedBindMode;
+    mesh.skeleton.update = () => this.updateSkin();
     mesh.scale.setScalar(look.height);
     // Bound the whole reachable pose (arms up, lying down), not just the rest pose.
     mesh.boundingSphere = new Sphere(new Vector3(0, 0.9, 0), 1.6);
@@ -392,6 +402,7 @@ export class Human {
     const B = this.bones;
     B[0].updateMatrix();
     for (let i = done; i < B.length; i++) B[i].updateMatrix();
+    this.skinDirty = true;
     void _q2;
     void Y;
   }
@@ -403,6 +414,34 @@ export class Human {
     if (head.scale.x === s) return;
     head.scale.setScalar(s);
     head.updateMatrix();
+    this.skinDirty = true;
+  }
+
+  /** A bone was turned by hand (the doll's head): the skin follows at the next render. */
+  posed(): void {
+    this.skinDirty = true;
+  }
+
+  /**
+   * The skeleton's update, called by the renderer for a body in view. Bone
+   * matrices relative to the mesh (the bones hang from it, bound at identity),
+   * only when the body was posed since the last time.
+   */
+  private updateSkin(): void {
+    if (!this.skinDirty) return;
+    this.skinDirty = false;
+    const B = this.bones;
+    const L = this.local;
+    const sk = this.mesh.skeleton;
+    // Read at call time: the renderer swaps in a bigger array when it makes the texture.
+    const out = sk.boneMatrices;
+    for (let i = 0; i < B.length; i++) {
+      const p = PARENT_INDEX[i];
+      if (p < 0) L[i].copy(B[i].matrix);
+      else L[i].multiplyMatrices(L[p], B[i].matrix);
+      _m.multiplyMatrices(L[i], sk.boneInverses[i]).toArray(out, i * 16);
+    }
+    if (sk.boneTexture) sk.boneTexture.needsUpdate = true;
   }
 
   /**

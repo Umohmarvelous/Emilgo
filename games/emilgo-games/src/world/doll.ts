@@ -181,6 +181,7 @@ export class Doll {
     this.head.quaternion.multiply(_q);
     // Bones rebuild their matrix only when told (world/human: posed on demand).
     this.head.updateMatrix();
+    this.human.posed();
 
     // Eyes: a red glow while she watches; a bright red flash on a catch (SPEC-V2 §2.6 step 8).
     const want = (shown ? shown.watching : this.watching) ? 1 : 0;

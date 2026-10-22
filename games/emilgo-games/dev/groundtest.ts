@@ -27,8 +27,9 @@ function lowest(h: Human): number {
   const pos = h.mesh.geometry.attributes.position;
   let min = Infinity;
   for (let i = 0; i < pos.count; i++) {
+    // Already in world space: the skin is detached and bound at identity, and
+    // the bones hang from the mesh, so their world matrices carry its transform.
     h.mesh.getVertexPosition(i, v);
-    v.applyMatrix4(h.mesh.matrixWorld);
     if (v.y < min) min = v.y;
   }
   return min;

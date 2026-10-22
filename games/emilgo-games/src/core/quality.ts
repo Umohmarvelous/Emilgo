@@ -114,5 +114,8 @@ export function lowEnd(): boolean {
   const nav = navigator as Navigator & { deviceMemory?: number };
   const cores = nav.hardwareConcurrency || 4;
   const mem = nav.deviceMemory ?? 4;
-  return cores <= 4 || mem <= 2;
+  // WebKit (Safari, every iOS browser, the app's iOS WebView) reports 4 cores
+  // for anything under 8, so on Apple the count says nothing: an iPhone 16 reads 4.
+  const apple = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent);
+  return (!apple && cores <= 4) || mem <= 2;
 }
