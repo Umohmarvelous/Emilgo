@@ -231,15 +231,21 @@ rendering path the device is on. Not linked from navigation — open it directly
 - Discover feed with comments, replies and a composer
 - iOS kit with Liquid Glass across the control layer
 - **41 of 56 screens migrated to the kit**
-- **Game tab — EMILGO Games, Red Light, Green Light (Phase 1 of 6).** A 3D web
-  game (`games/emilgo-games/`, three.js, ~150 KB) that runs both inside Lagos Life via
-  the Vatar Games SDK and here, embedded in a WebView so it plays offline.
-  All six phases built and tested locally (14 Oct 2026): practice vs CPU,
-  friendly online rounds on our own server, Lagos Life matches with game-money
-  stakes and signed results, chat/emotes/report/block, a cosmetics shop with
-  server-verified purchases, three original songs and a hard mode. Not yet
-  deployed or run against the real Lagos Life platform. Everything:
-  `games/emilgo-games/README.md`.
+- **Game tab — EMILGO Games, Red Light, Green Light v2.** A 3D web game
+  (`games/emilgo-games/`, three.js, about 0.4 MB to download). It runs inside
+  Lagos Life through the Vatar Games SDK, and here, embedded in a WebView so it
+  plays offline. All 8 phases of the owner's spec are built and tested locally
+  (22 Oct 2026; `games/emilgo-games/SPEC-V2.md`):
+  - Classic Run and Ball Haunting, in rooms of 20 on our own server.
+  - Staked Lagos Life matches of 2–4, with signed results.
+  - A COD Mobile-style lobby, HUD and controls; Desert Field and 23 more maps.
+  - Kill cam and play of the game.
+  - Friends, chat and moderation.
+  - CP boosts and cosmetics.
+  - English and Pidgin.
+
+  Not yet tested on a real phone, deployed, or run against the real Lagos Life
+  platform. Start at `games/emilgo-games/HANDOFF.md`.
 
 ### Known gaps and debt
 - **`direct-chat`** now works, but message state is screen-local. If chat needs to

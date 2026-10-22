@@ -72,6 +72,8 @@ Change any of these by saying so.
 | Store tabs (§7.7) | Boosts · CP (first), Cosmetics (Lagos Life Game Naira through `Vatar.purchase`, as before). Outside Lagos Life, boosts can be bought (CP is ours) and cosmetics tried on. | |
 | Attack details (spec gives none) | Range 2 m. Fist: knocks you back 1 m, stuns 0.8 s, 1.6 s cooldown. Slap: 0.35 m, 0.35 s, 0.8 s. Push: 2.4 m, 0.25 s, 1.2 s. Every hit knocks a held ball loose. Sprinting into someone shoves them 1.4 m (once a second per pair). Grabbing takes 0.35 s, and counts as moving while she watches. | A fist is the big hit, a slap the quick one, a push moves people furthest. |
 | A ball's holder caught by the doll | The ball drops where they fall, free for anyone. When every ball is in a basket, everyone still on the field is out ("no ball left") and the round ends. | Nobody can win without a ball, so there's nothing left to wait for. |
+| Low-end phones (§8: Tecno, Infinix) | Auto graphics gives **Low** (30 fps) to the low-end GPU class: Mali-G52 and G57 and older Malis, PowerVR, Adreno 300–612, and software rendering. Every other phone gets **Medium** (60 fps). High is for computers, or by choice. If a phone still can't keep up at the lowest resolution, Auto drops one tier at the next round and a toast says so. The setting still reads "Auto". | The spec names phone brands, not chips. Tecno and Infinix use Helio G and Unisoc chips with those GPUs. |
+| "Works on poor connections, auto-syncs when the network returns" (§8) | **Solo** needs no network once the game has loaded. **Online:** 6.5 s with nothing from the server (it pings every 2 s) means the link is dead. The phone drops it, resumes its seat, and retries the moment the network comes back. If it's back too late and the seat has gone, the player returns to Play with a message. **Lagos Life scores** made offline wait on the phone and are sent when the network returns. | A dead mobile link can take minutes to time out by itself. |
 
 ## File structure
 
@@ -234,6 +236,46 @@ Each phase ends tested and waits for the owner's go-ahead.
    - Every test, the three builds, the docs, the handoff.
 
 ## Status
+
+### Phase 8: Performance and regression (done 22 Oct 2026)
+
+Measured in headless Chrome on this Mac's GPU, 844×390, Desert Field, Ball
+Haunting 300 m, 20 bodies. **Not on a real phone**: the owner needs to try a
+Tecno or Infinix and an iPhone.
+
+| Check | Result |
+| --- | --- |
+| Frame rate and budgets (limit: 100 draw calls, 100K triangles) | Low **30 fps** (its cap), 59 calls, 70K triangles · Medium **60 fps**, 70 / 86K · High **60 fps**, 77 / 98K · Auto (Medium on this Mac) 60 fps |
+| CPU slowed 4× and 6× (a budget phone) | Low holds **30 fps** at both. Work per frame p95: 11.7 ms and 23.1 ms, of 33 ms |
+| Auto at 6× | Medium drops to 0.6× resolution and 39 fps. The next round starts on **Low**, with the toast |
+| Boot to the lobby (limit 5 s) | Production build, slow 4G (1.6 Mbps, 150 ms) and CPU 4×: **3.9–4.6 s** over 4 runs (it was 4.5–5.2 s before Mama was moved out of boot) |
+| Download (limit 50 MB) | **About 0.4 MB** sent: 302 KB of JS gzipped, the fonts, the welcome art. 1.2 MB on disk |
+| Offline and poor connections | Solo plays with the network cut after loading. Online: an 8 s cut keeps the same seat and round, and play resumes 10 ms after the network returns. A 55 s cut returns to Play with the message |
+| Skinning | Bone texture uploads in a 20-body round: 1,889 → **1,044** per 3 s |
+| Tests | rules **115** · match 20 · balls 29 (6 runs in a row) · shop 22 · social 13 · fairness 7/7 · ground 1,638 checks, 0 failed · load, 600 clients: 0 failed, tick p99 8.3 ms, 6.8 KB/s each |
+| Builds | Lagos Life `dist/`: 302 KB JS gzipped · EMILGO embed: 1,281 KB · server. **Protocol 10**, unchanged |
+
+Built:
+- **Animation LOD** (`world/crowd.ts`): bodies beyond the nearest detail are
+  posed every 3 frames on Low and every 2 on Medium and High, staggered.
+  Your own body, falls and slow motion are posed every frame.
+- **Bones posed on demand** (`world/human/index.ts`): a bone's matrix is
+  rebuilt only when its body is posed. The skin is detached and bound at
+  identity, so a body that only moves keeps its bone texture. The doll's
+  turned head calls `posed()`.
+- **The low-end GPU class** (`graphics/tiers.ts` `LOW_END_GPU`) and
+  **Auto's step down** (`session.ts` `stepDownIfStruggling`; the governor's
+  `struggling`). See the Decisions row.
+- **Apple devices** (`core/quality.ts` `lowEnd`): WebKit reports 4 cores
+  for every Apple device, so the core count is ignored there.
+- **Mama made after boot** (`session.ts` `doll`): she is built in the
+  lobby's idle time, or by the first round if that comes sooner.
+- **Low merges the pens** into one mesh (`world/pens.ts`). The compass no
+  longer reads layout every frame (`ui/hud.ts`).
+- **Poor connections** (`net/client.ts`): the dead-link watchdog and the
+  retry when the network returns. See the Decisions row.
+- **`dev/cdp.mjs`**: CPU profiles (with `reload` for boot, and `tree`),
+  offline and network-throttle steps.
 
 ### Phase 7: Menus, settings, social, store (done 20 Oct 2026)
 

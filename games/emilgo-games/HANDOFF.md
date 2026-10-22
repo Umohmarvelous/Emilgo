@@ -1,9 +1,10 @@
 # EMILGO Games: session handoff
 
-> Updated 20 Oct 2026. Branch `sdk-54-temp`. Red Light, Green Light v2 is being
+> Updated 22 Oct 2026. Branch `sdk-54-temp`. Red Light, Green Light v2 was
 > built to the owner's spec, [SPEC-V2.md](SPEC-V2.md), in **8 phases**.
-> **Phases 1–7 are done and committed. Phase 8 is under way (the owner said,
-> 20 Oct 2026: do 7, then 8, without waiting in between).**
+> **All 8 phases are done and committed** (the owner said on 20 Oct 2026 to
+> do 7, then 8, without waiting in between). Nothing more is planned until the
+> owner says what's next. What remains is theirs: see "Open items".
 
 ## Start here (new session)
 
@@ -63,8 +64,8 @@ Read these in order:
 | 4 | HUD, controls, camera (+ the new song and doll) | Done, committed `d8dfc01` |
 | 5 | Match flow | Done, committed `05910de` |
 | 6 | Elimination and highlights (+ the lullaby, the pens, the wider desert) | Done, committed `9a41722`, `2a27245`, `e71f778`, `f212177` |
-| 7 | Menus, settings, social, store | Done (20 Oct 2026) |
-| 8 | **Performance and regression** | **Under way** |
+| 7 | Menus, settings, social, store | Done, committed `337327b` |
+| 8 | Performance and regression | Done (22 Oct 2026), committed `d8249f0`, `d64aec5`, `238b0c7`, `1feaadd` and the docs |
 
 The full scope of each phase is in SPEC-V2.md under "Build phases". What 1–4 built is in its "Status" section.
 
@@ -104,33 +105,29 @@ Where things are: pause and settings `ui/screens.ts` (actions in
 `server/src/presence.ts`; boosts `shop/boosts.ts` (applied by
 `game/rules.ts` `setBoosts`, left out of staked matches in `room.ts`).
 
-## Phase 8: Performance and regression
+## Phase 8: Performance and regression (done)
 
-### What the spec asks for (§8, §9)
+What it built, the checks and the numbers: SPEC-V2.md, Status, "Phase 8".
+Two new rows in its Decisions table: the low-end GPU class (with Auto's step
+down) and poor connections.
 
-- **Frame rate:** 30 fps or better on low-end phones (Tecno, Infinix); 60 fps on mid-range.
-- **Budgets, with 20 players:** under 100 draw calls and under 100K triangles.
-- **Size and speed:** under 5 s to the lobby; under 50 MB.
-- **Network:** offline and poor-connection play.
-- **Vatar SDK:** the §9 list. All of it is already wired, in `platform/lagoslife.ts` and the server's `vatar.ts`.
-- **Wrap-up:**
-  - every test passes;
-  - the three builds succeed: Lagos Life `dist/`, the EMILGO embed, and the server;
-  - the docs are updated;
-  - this handoff is updated.
+Where things are:
+- Animation LOD: `world/crowd.ts` (`ANIM_STRIDE`).
+- Bones and skin, posed on demand: `world/human/index.ts` (`apply`,
+  `updateSkin`, `posed`). **Any code that turns a bone by hand must call
+  `posed()`**, or the skin won't follow. The skin is detached, so three.js's
+  CPU skinning (`getVertexPosition`) already returns world positions.
+- Tiers: `graphics/tiers.ts` (`LOW_END_GPU`, `autoTier`); Auto's step down:
+  `session.ts` `stepDownIfStruggling`; the governor: `core/quality.ts`.
+- Mama is made after boot: `session.ts` `doll` (a getter; `dollObj` is null
+  until then).
+- Poor connections: `net/client.ts` (the watchdog, `online` retry).
+- Measuring: `dev/cdp.mjs`, with `CPU_RATE`, `NET_KBPS`/`NET_RTT`, and the
+  `profile` (+ `reload`, `tree`), `offline` and `net` steps.
 
-### Tools that already exist
-
-- `core/quality.ts`: an automatic quality governor.
-- `graphics/tiers.ts`: the Low, Medium and High tiers.
-- `dev/cdp.mjs`, run with `CPU_RATE=4` and `NET_KBPS` / `NET_RTT` to throttle CPU and network.
-- `npm run game:sim`.
-- The load test.
-- README §7 has the earlier measurements.
-
-### Not possible here
-
-A real phone. Only headless Chrome has run it so far. The owner needs to test on a Tecno or Infinix and an iPhone.
+The spec's limits (§8) and where they stand: 30 fps on low-end, 60 on
+mid-range, under 100 draw calls and 100K triangles, under 5 s to the lobby,
+under 50 MB. All met in headless Chrome. **None checked on a real phone.**
 
 ## Running and testing
 
@@ -190,9 +187,10 @@ VIEW=844x390 node dev/cdp.mjs "http://localhost:5173/" <outdir> <steps.json>   #
 - **Never run against real Lagos Life.** Only against the fake platform, `server/scripts/mockvatar.ts`.
 - **Hosting, domain (emilgo.app), Vatar keys, dashboard products, sandbox checklist, submission:** see README §6. All of it is paused by the owner.
 
-## Key numbers (Phase 6)
+## Key numbers (Phase 8)
 
-- rules 103 · balls (10 runs in a row), match, shop all passed · fairness 7/7 · ground 1,638 / 0 failed.
-- Load test, 600 clients: 0 failures · tick p99 8.7 ms · 6.8 KB/s.
-- Lagos Life `dist/`: 287 KB JS gzipped. EMILGO embed: 1,236 KB.
-- Desert Field 300 m Ball Haunting, 14 bodies near you: High 68 draw calls / 92K triangles; Low 55 / 61K.
+- rules 115 · match 20 · balls 29 (6 runs in a row) · shop 22 · social 13 · fairness 7/7 · ground 1,638 / 0 failed.
+- Load test, 600 clients: 0 failures · tick p99 8.3 ms · 6.8 KB/s.
+- Lagos Life `dist/`: 302 KB JS gzipped (about 0.4 MB sent in all). EMILGO embed: 1,281 KB. Protocol 10.
+- Desert Field 300 m Ball Haunting, 20 bodies: Low 30 fps, 59 calls / 70K triangles · Medium 60 fps, 70 / 86K · High 60 fps, 77 / 98K.
+- Lobby ready, production build, slow 4G + CPU 4×: 3.9–4.6 s.

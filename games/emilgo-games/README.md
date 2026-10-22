@@ -350,6 +350,18 @@ never raising it on 60 Hz phones, resolution changes stalling the GPU while she
 was watching (now deferred), a per-frame cost in the emote code, a duplicate
 WebGL context at boot, a lobby row overflowing 375 pt screens.
 
+**Performance (Phase 8, 22 Oct)**: headless Chrome on this Mac's GPU,
+Desert Field, Ball Haunting 300 m, 20 bodies, 844×390.
+
+|                                              | Result                                                        |
+| -------------------------------------------- | ------------------------------------------------------------- |
+| Low / Medium / High                          | 30 / 60 / 60 fps · 59 / 70 / 77 draw calls · 70K / 86K / 98K triangles |
+| CPU slowed 4× and 6×, Low                    | 30 fps at both (work per frame p95: 11.7 and 23.1 ms)          |
+| CPU slowed 6×, Auto                          | Medium can't keep up, so the next round starts on Low          |
+| Lobby ready, slow 4G + CPU 4×, production    | **3.9–4.6 s** (limit 5 s)                                      |
+| Download                                     | ~0.4 MB (limit 50 MB)                                          |
+| Load test, 600 clients                       | 0 failed · tick p99 8.3 ms · 6.8 KB/s per player               |
+
 **Not yet verified**: a real Android or iPhone, the real Lagos Life sandbox,
 the Docker image. Do those before submitting.
 
