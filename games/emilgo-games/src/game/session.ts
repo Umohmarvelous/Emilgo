@@ -117,7 +117,8 @@ export class Game {
   // Far enough for the mountains behind a 300 m run (the fog ends the view first).
   private readonly camera = new PerspectiveCamera(65, 1, 0.1, 900);
   private readonly rig: CameraRig;
-  private readonly doll = new Doll();
+  /** Mama: see `doll`. */
+  private dollObj: Doll | null = null;
   private readonly crowd = new Crowd(MAX_PEOPLE);
   private readonly fx = new Effects();
   private readonly props: PropsView;
@@ -291,12 +292,10 @@ export class Game {
 
     this.atlas = buildAtlas(aniso);
     this.props = new PropsView(this.spec);
-    this.scene.add(this.doll.root, this.crowd.group, this.fx.group, this.props.group);
+    this.scene.add(this.crowd.group, this.fx.group, this.props.group);
     this.crowd.tier = this.spec.tier;
     this.crowd.setShadows(this.spec.shadows);
     this.rig = new CameraRig(this.camera);
-    // Mama shows in the puddles' mirror (High).
-    this.doll.root.traverse((o) => o.layers.enable(REFLECT_LAYER));
     this.stage = new LobbyStage(this.renderer, this.spec, canvas);
 
     this.quality = new QualityGovernor((pr) => {
@@ -340,7 +339,7 @@ export class Game {
       this.showResults();
     });
     ui.append(this.resultsBtn);
-    this.replay = new ReplayView(this.crowd, this.doll, this.props, this.fx);
+    this.replay = new ReplayView(this.crowd, () => this.doll, this.props, this.fx);
     this.replayUi = new ReplayOverlay(ui);
     this.replayUi.skipBtn.addEventListener("click", () => {
       this.sound.ui();
@@ -453,6 +452,21 @@ export class Game {
     this.resize();
   }
 
+  /**
+   * Mama. She isn't in the lobby and she is the heaviest thing to make (a
+   * featured body at High detail, her textures), so she isn't made at boot:
+   * the lobby's idle time makes her, or the first round if it comes first.
+   */
+  private get doll(): Doll {
+    if (!this.dollObj) {
+      this.dollObj = new Doll();
+      this.scene.add(this.dollObj.root);
+      // She shows in the puddles' mirror (High).
+      this.dollObj.root.traverse((o) => o.layers.enable(REFLECT_LAYER));
+    }
+    return this.dollObj;
+  }
+
   /** Budgets, for testing (draw calls, triangles, memory, how long the map took to build). */
   get stats(): { worldMs: number; calls: number; triangles: number; geometries: number; textures: number; map: string } {
     const r = this.renderer.info;
@@ -472,9 +486,10 @@ export class Game {
     void this.shop?.boot();
     const idle = (window as unknown as { requestIdleCallback?: (fn: () => void, o?: object) => void }).requestIdleCallback;
     const later = (fn: () => void, t: number) => (idle ? idle(fn, { timeout: t }) : setTimeout(fn, t));
-    // Get the (silent) audio engine ready while the lobby is idle, and paint
-    // a few CPU outfits ahead so the first round starts without a stall.
+    // Get the (silent) audio engine ready while the lobby is idle, make Mama,
+    // and paint a few CPU outfits ahead so the first round starts without a stall.
     later(() => this.sound.prepare(), 2500);
+    later(() => void this.doll, 3000);
     later(() => {
       const rng = new Rng(1234);
       for (let i = 0; i < 6; i++) warmLook(randomLook(rng), this.spec.tier);
@@ -722,8 +737,8 @@ export class Game {
     this.bubbles.clear();
     this.wheel.close();
     this.spectateId = null;
-    this.doll.setSinging(false);
-    this.doll.setWatching(false);
+    this.dollObj?.setSinging(false);
+    this.dollObj?.setWatching(false);
     this.walkout = null;
     this.offerTutorial = false;
     this.flowBtns.show(false, false);

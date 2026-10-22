@@ -15,6 +15,8 @@
 //   {"key": "Space"}                     (keyDown + keyUp)
 //   {"saveEval": "canvas.toDataURL()", "file": "path"}  (write a data: URL to disk)
 //   {"profile": ms, "top": 25}           (sample the CPU for ms; print the functions with the most self time)
+//                                        add "reload": true to profile a fresh load (boot), "tree": "fnName" for
+//                                        the total time under each function called from fnName
 //   {"offline": true}                    (drop the network, or bring it back with false)
 //   {"net": [kbps, rttMs]}               (throttle the network from here on; [0, 0] lifts it)
 
@@ -180,6 +182,7 @@ async function main() {
       await send("Profiler.enable");
       await send("Profiler.setSamplingInterval", { interval: 200 });
       await send("Profiler.start");
+      if (s.reload) await send("Page.reload", {});
       await sleep(s.profile);
       const { profile } = await send("Profiler.stop");
       const dt = profile.timeDeltas;
@@ -195,6 +198,23 @@ async function main() {
       const top = [...self.entries()].sort((a, b) => b[1] - a[1]).slice(0, s.top ?? 25);
       console.log(`profile ${(total / 1000).toFixed(0)} ms sampled`);
       for (const [k, v] of top) console.log(`  ${((v / total) * 100).toFixed(1).padStart(5)}%  ${k}`);
+      if (s.tree) {
+        // Inclusive time per node, then summed per callee of every `tree` frame.
+        const own = new Map();
+        profile.samples.forEach((id, i) => own.set(id, (own.get(id) ?? 0) + (dt[i] ?? 0)));
+        const incl = (n) => (own.get(n.id) ?? 0) + (n.children ?? []).reduce((a, c) => a + incl(byId.get(c)), 0);
+        const under = new Map();
+        for (const n of profile.nodes) {
+          if (n.callFrame.functionName !== s.tree) continue;
+          for (const c of n.children ?? []) {
+            const f = byId.get(c).callFrame;
+            const key = `${f.functionName || "(anon)"} ${f.url.split("/").pop()}:${f.lineNumber + 1}`;
+            under.set(key, (under.get(key) ?? 0) + incl(byId.get(c)));
+          }
+        }
+        console.log(`under ${s.tree}:`);
+        for (const [k, v] of [...under.entries()].sort((a, b) => b[1] - a[1]).slice(0, s.top ?? 25)) console.log(`  ${(v / 1000).toFixed(0).padStart(6)} ms  ${k}`);
+      }
     }
     if (s.saveEval) {
       // Evaluate to a data: URL and write the decoded bytes to s.file.

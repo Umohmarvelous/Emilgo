@@ -59,10 +59,15 @@ export class ReplayView {
 
   constructor(
     private readonly crowd: Crowd,
-    private readonly doll: Doll,
+    /** Mama, made on first use (game/session.ts): there is always a round, so she exists, by the time a replay plays. */
+    private readonly dollOf: () => Doll,
     private readonly props: PropsView,
     private readonly fx: Effects,
   ) {}
+
+  private get doll(): Doll {
+    return this.dollOf();
+  }
 
   get active(): boolean {
     return this.clip !== null;
