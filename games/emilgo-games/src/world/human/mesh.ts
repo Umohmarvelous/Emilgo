@@ -16,6 +16,7 @@ import { BufferGeometry, Float32BufferAttribute, Sphere, Uint16BufferAttribute, 
 import { CELL, HEAD_EPS, HEAD_GRID, UV, cellUv, headElevation, headWarpU, headWarpV, type Rect } from "./layout";
 import { BONE_INDEX, FINGER_LENGTH, PROPORTIONS, restPositions, type BoneName, type Proportions, type V3 } from "./skeleton";
 import { OUTFIT_BY_ID, type HairId, type Look, type Outfit } from "./wardrobe";
+import { buildScanBody, scanReady } from "./scanbody";
 
 export type Tier = 0 | 1 | 2;
 /** Geometry detail: 0 far, 1 Low, 2 Medium, 3 High. */
@@ -26,7 +27,7 @@ export function nearDetail(tier: Tier): Detail {
   return (tier + 1) as Detail;
 }
 
-interface TierSpec {
+export interface TierSpec {
   seg: number; // vertices around a limb
   torsoSeg: number;
   ringK: number; // ring density multiplier
@@ -36,21 +37,23 @@ interface TierSpec {
   detail: boolean; // gear pouches, laces, finger segments
 }
 
-const LEVELS: TierSpec[] = [
+export const LEVELS: TierSpec[] = [
   { seg: 6, torsoSeg: 10, ringK: 0.5, head: HEAD_GRID[0], fingers: false, ears: false, detail: false },
   { seg: 8, torsoSeg: 12, ringK: 0.62, head: HEAD_GRID[1], fingers: true, ears: true, detail: false },
   { seg: 10, torsoSeg: 16, ringK: 1.2, head: HEAD_GRID[2], fingers: true, ears: true, detail: false },
   { seg: 12, torsoSeg: 18, ringK: 1.16, head: HEAD_GRID[3], fingers: true, ears: true, detail: true },
 ];
 
-type Weights = [BoneName, number][];
+export type Weights = [BoneName, number][];
 
 // ── Mesh builder ──────────────────────────────────────────────────────────────
 
-class Builder {
+export class Builder {
   readonly pos: number[] = [];
   readonly nor: number[] = [];
   readonly uv: number[] = [];
+  /** Vertex colours (linear), only once a part asks for them (scanned hands and feet). */
+  col: number[] | null = null;
   readonly si: number[] = [];
   readonly sw: number[] = [];
   readonly idx: number[] = [];
@@ -59,7 +62,9 @@ class Builder {
     return this.pos.length / 3;
   }
 
-  vert(p: Vector3, n: Vector3, u: number, v: number, w: Weights): number {
+  vert(p: Vector3, n: Vector3, u: number, v: number, w: Weights, c?: readonly [number, number, number]): number {
+    if (c && !this.col) this.col = new Array(this.pos.length).fill(1);
+    if (this.col) this.col.push(c ? c[0] : 1, c ? c[1] : 1, c ? c[2] : 1);
     this.pos.push(p.x, p.y, p.z);
     this.nor.push(n.x, n.y, n.z);
     this.uv.push(u, v);
@@ -86,6 +91,7 @@ class Builder {
     g.setAttribute("uv", new Float32BufferAttribute(this.uv, 2));
     g.setAttribute("skinIndex", new Uint16BufferAttribute(this.si, 4));
     g.setAttribute("skinWeight", new Float32BufferAttribute(this.sw, 4));
+    if (this.col) g.setAttribute("color", new Float32BufferAttribute(this.col, 3));
     g.setIndex(this.idx);
     g.boundingSphere = new Sphere(new Vector3(0, 0.9, 0), 1.25);
     return g;
@@ -131,7 +137,7 @@ const _b = new Vector3();
 const UV_INSET = 0.004;
 
 /** Sweep rings along a path. The workhorse. */
-function sweep(m: Builder, o: SweepOpts): void {
+export function sweep(m: Builder, o: SweepOpts): void {
   const rings = o.ts ?? Array.from({ length: o.rings }, (_, i) => i / (o.rings - 1));
   const R = rings.length;
   const S = o.seg;
@@ -253,16 +259,16 @@ function sweep(m: Builder, o: SweepOpts): void {
 
 // ── Small helpers ─────────────────────────────────────────────────────────────
 
-const v3 = (p: V3) => new Vector3(p.x, p.y, p.z);
+export const v3 = (p: V3) => new Vector3(p.x, p.y, p.z);
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
-const smooth = (e0: number, e1: number, x: number) => {
+export const smooth = (e0: number, e1: number, x: number) => {
   const t = clamp01((x - e0) / (e1 - e0));
   return t * t * (3 - 2 * t);
 };
 
 /** Catmull-Rom through a list of numbers at even spacing. */
-function crs(vals: readonly number[], t: number): number {
+export function crs(vals: readonly number[], t: number): number {
   const n = vals.length - 1;
   const x = clamp01(t) * n;
   const i = Math.min(n - 1, Math.floor(x));
@@ -286,7 +292,7 @@ const UP = new Vector3(0, 1, 0);
 const FWD = new Vector3(0, 0, 1);
 
 /** A straight-ish rod between points, radii along it. */
-function rod(
+export function rod(
   m: Builder,
   pts: Vector3[],
   radii: readonly number[],
@@ -334,7 +340,7 @@ function rod(
 }
 
 /** An ellipsoid (a squashed sphere), poles along `axis`. */
-function blob(
+export function blob(
   m: Builder,
   center: Vector3,
   radii: [number, number, number],
@@ -402,6 +408,7 @@ const CAP = [1500, 2400, 3600, 5000] as const;
  * the head grid never changes, so the painted face still fits.
  */
 export function buildBody(look: Look, level: Detail): BuiltBody {
+  if (!look.doll && scanReady()) return buildScanBody(look, level);
   let T = LEVELS[level];
   for (let k = 0; ; k++) {
     const b = buildWith(look, T);

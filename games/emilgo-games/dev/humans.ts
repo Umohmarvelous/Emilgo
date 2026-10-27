@@ -1,10 +1,16 @@
-// Dev only: a line-up of generated people, for screenshots. Not in any build.
+// Dev only: a line-up of people, for screenshots. Not in any build.
 //   /dev/humans.html?tier=1&set=outfits|hair|tiers|face|poses&pose=hair&cam=front|back|face
+// Players are the scanned people; &gen=1 shows the generated ones instead (Mama, and the fallback).
 import { ACESFilmicToneMapping, AmbientLight, Color, DirectionalLight, HemisphereLight, Mesh, MeshStandardMaterial, PerspectiveCamera, PlaneGeometry, Scene, SRGBColorSpace, WebGLRenderer } from "three";
-import { Human, type Tier } from "../src/world/human";
+import { Human, loadScans, type Tier } from "../src/world/human";
+import { loadScanLevel } from "../src/world/human/scanbody";
 import { DOLL_LOOK, FREE_OUTFITS, HAIRS, OUTFITS, cleanLook, uniformLook, type Look } from "../src/world/human/wardrobe";
 
 const q = new URLSearchParams(location.search);
+if (!q.get("gen")) {
+  await loadScans();
+  await Promise.all([loadScanLevel(2), loadScanLevel(3)]);
+}
 if (q.get("uvdebug")) (globalThis as { __uvDebug?: boolean }).__uvDebug = true;
 const tier = Number(q.get("tier") ?? 1) as Tier;
 const set = q.get("set") ?? "outfits";

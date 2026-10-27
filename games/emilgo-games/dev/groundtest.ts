@@ -1,6 +1,7 @@
 // Dev only: are everyone's feet on the ground? Not in any build.
 //
-// Builds people in every outfit, hair and tier, plays every state (idle, walk,
+// Builds the scanned people (both bodies, short and tall, in the street and
+// on the field with a number) at every tier, plays every state (idle, walk,
 // run, sprint, crouch, prone, emotes, lobby poses, the fall, the cheer),
 // skins every vertex on the CPU and measures the lowest point of the body.
 //   grounded states: the lowest point must sit within ±1 cm of the ground
@@ -12,9 +13,10 @@ import { Vector3 } from "three";
 
 import { MOVE } from "../src/config";
 import { EMOTE_IDS } from "../src/social/emotes";
-import { Human, nearDetail, type Tier } from "../src/world/human";
+import { Human, loadScans, nearDetail, type Tier } from "../src/world/human";
 import { POSES } from "../src/world/human/animator";
-import { HAIRS, OUTFITS, OUTFIT_BY_ID, cleanLook, uniformLook, type ExtraId, type HairId, type Look } from "../src/world/human/wardrobe";
+import { loadScanLevel } from "../src/world/human/scanbody";
+import { cleanLook, uniformLook, type Look } from "../src/world/human/wardrobe";
 
 const q = new URLSearchParams(location.search);
 const tiers: Tier[] = q.get("tier") ? [Number(q.get("tier")) as Tier] : [0, 1, 2];
@@ -67,20 +69,14 @@ const RUNS: Run[] = [
 ];
 
 function looksFor(): Look[] {
-  const hairs: HairId[] = q.get("tris") ? ["afro", "braids", "locs", "ponytail"] : ["afro", "bun", "lowcut", "braids"];
-  const own = OUTFITS.map((o, i) => cleanLook({ body: o.fits ?? (i % 2 ? "f" : "m"), skin: i % 8, hair: hairs[i % hairs.length], outfit: o.id, extras: [], height: i % 3 === 0 ? 0.95 : i % 3 === 1 ? 1 : 1.05 }));
-  return [...own, uniformLook(own[0], 7), uniformLook(own[1], 12)];
+  const own = (["m", "f"] as const).flatMap((body, i) => [0.95, 1.05].map((height, k) => cleanLook({ body, height, hoodie: i * 2 + k, design: k ? "twotone" : "plain" })));
+  return [...own, uniformLook(own[0], 7), uniformLook(own[2], 12)];
 }
 
 /** ?tris=1: triangle counts per detail level only (fast). */
 function trisOnly(): void {
   const by: Record<string, { min: number; max: number; worst: string }> = {};
-  // Every outfit × every hair, bare and with the heaviest extras.
-  const all: Look[] = [];
-  for (const o of [...OUTFITS, OUTFIT_BY_ID.uniform])
-    for (const hr of HAIRS)
-      for (const extras of [[], ["gele", "earrings", "watch", "glasses"], ["headset", "shades", "earrings", "watch"]] as ExtraId[][])
-        for (const body of ["m", "f"] as const) all.push(cleanLook({ body, skin: 1, hair: hr.id, outfit: o.id, extras, height: 1 }));
+  const all = looksFor();
   for (const look of all) {
     const h = new Human(look, 2, { seed: 1 });
     for (const lvl of [0, 1, 2, 3] as const) {
@@ -89,7 +85,7 @@ function trisOnly(): void {
       e.min = Math.min(e.min, h.triangles);
       if (h.triangles > e.max) {
         e.max = h.triangles;
-        e.worst = `${look.outfit}/${look.body}/${look.hair}/${look.extras.join("+")}`;
+        e.worst = `${look.body}/h${look.height}`;
       }
     }
     h.dispose();
@@ -99,11 +95,13 @@ function trisOnly(): void {
 }
 
 async function main(): Promise<void> {
+  await loadScans();
+  await Promise.all([loadScanLevel(2), loadScanLevel(3)]);
   if (q.get("tris")) return trisOnly();
   const t0 = performance.now();
   for (const tier of tiers) {
     for (const look of looksFor()) {
-      const name = `${look.outfit}/${look.body}/${look.hair}/h${look.height}`;
+      const name = `${look.body}/h${look.height}${look.num ? `/#${look.num}` : ""}`;
       for (const run of RUNS) {
         const h = new Human(look, tier, { seed: 1.3 });
         (tris[`t${tier}`] ??= []).push(h.triangles);

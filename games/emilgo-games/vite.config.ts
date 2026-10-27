@@ -54,6 +54,25 @@ function singleFile(): Plugin {
   };
 }
 
+/**
+ * The scanned people's base files (scanbody.ts) are needed before the lobby:
+ * fetch them alongside the script, not after it runs. On slow 4G that was over
+ * a second of the boot.
+ */
+function preloadScans(): Plugin {
+  return {
+    name: "emilgo-games-preload-scans",
+    transformIndexHtml: {
+      order: "post",
+      handler(_, ctx) {
+        return Object.keys(ctx.bundle ?? {})
+          .filter((f) => /\/scan-[mf]-base-[^/]*\.bin$/.test(f))
+          .map((f) => ({ tag: "link", attrs: { rel: "preload", as: "fetch", crossorigin: "", href: `./${f}` }, injectTo: "head" as const }));
+      },
+    },
+  };
+}
+
 function escapeRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -84,6 +103,6 @@ export default defineConfig(({ mode }) => {
           }
         : {}),
     },
-    plugins: emilgo ? [stripVatarSdk(), singleFile()] : [],
+    plugins: emilgo ? [stripVatarSdk(), singleFile()] : [preloadScans()],
   };
 });

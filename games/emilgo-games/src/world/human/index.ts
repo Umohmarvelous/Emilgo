@@ -30,24 +30,31 @@ import {
 } from "three";
 
 import { computePose, newAnimState, Pose, stepGait, type ActionId, type AnimState, type EmoteId, type PoseId } from "./animator";
+import { shadowOnly } from "../../graphics/shadowOnly";
 import { buildBody, nearDetail, type BuiltBody, type Detail, type Tier } from "./mesh";
 import { paintLook, TEX_SIZE } from "./paint";
 import { FALL_TIME } from "./ragdoll";
 import { BONES, PARENT, type BoneName } from "./skeleton";
 import { normalMapFor } from "./normals";
-import { OUTFIT_BY_ID, paintKey, shapeKey, type Look } from "./wardrobe";
+import { loadScanLevel, onScanLevel, scanReady, scanStamp } from "./scanbody";
+import { OUTFIT_BY_ID, paintKey, scanPaintKey, shapeKey, type Look } from "./wardrobe";
 
 export type { Look } from "./wardrobe";
 export type { ActionId, EmoteId, PoseId } from "./animator";
 export type { Detail, Tier } from "./mesh";
 export { nearDetail } from "./mesh";
+export { loadScans } from "./scanbody";
 
 // ── Caches ────────────────────────────────────────────────────────────────────
 
 interface Body extends BuiltBody {
   /** Ground-solver hull: [bone, x, y, z] per point, bone-local (rest pose has no rotation). */
   contacts: Float32Array;
-  /** The same with the fingers: a body lying down can have its hands flat under it. */
+  /**
+   * Lying down, with the fingers (the hands can be flat under it): four
+   * [bone, weight, x, y, z] per point, skinned as the GPU does — rigid points
+   * left a body on its back a centimetre off the ground.
+   */
   contactsAll: Float32Array;
 }
 
@@ -59,12 +66,18 @@ export function setMaxAnisotropy(n: number): void {
   maxAniso = Math.max(1, Math.min(8, n));
 }
 
+/** A player drawn as a scanned person (Mama, and everyone if the scans failed to load, is generated). */
+function scanned(look: Look): boolean {
+  return !look.doll && scanReady();
+}
+
 function bodyFor(look: Look, level: Detail): Body {
-  const key = `${level}|${shapeKey(look)}`;
+  // Scanned: one shape per body and level, and the levels loaded so far are in the key (one arriving makes new shapes).
+  const key = scanned(look) ? `${level}|scan|${look.body}|${scanStamp()}` : `${level}|${shapeKey(look)}`;
   let b = bodies.get(key);
   if (!b) {
     const built = buildBody(look, level);
-    b = { ...built, contacts: hullOf(built, MAIN_BONES, DIRS), contactsAll: hullOf(built, BONES.length, DIRS_DOWN) };
+    b = { ...built, contacts: hullOf(built, MAIN_BONES, DIRS), contactsAll: hullOf(built, BONES.length, DIRS_DOWN, true) };
     bodies.set(key, b);
     // Bodies are small (tens of KB): keep up to 128 (shape × detail).
     if (bodies.size > 128) {
@@ -77,7 +90,7 @@ function bodyFor(look: Look, level: Detail): Body {
 }
 
 function textureFor(look: Look, tier: Tier, size: number): CanvasTexture {
-  const key = `${tier}|${size}|${paintKey(look)}`;
+  const key = `${tier}|${size}|${scanned(look) ? scanPaintKey(look) : paintKey(look)}`;
   let e = textures.get(key);
   if (!e) {
     const tex = new CanvasTexture(paintLook(look, tier, size));
@@ -136,8 +149,12 @@ const DIRS = cubeDirs(1);
 /** Lying down every surface faces the ground somewhere: sample it finer (98 directions). */
 const DIRS_DOWN = cubeDirs(2);
 
-/** A few extreme points per bone (the first `bones`): whatever can touch the ground first in any pose. */
-function hullOf(b: BuiltBody, bones: number, dirs: readonly [number, number, number][]): Float32Array {
+/**
+ * A few extreme points per bone (the first `bones`): whatever can touch the
+ * ground first in any pose. `blend`: each point with its four skin weights
+ * (Body.contactsAll), else on its dominant bone alone.
+ */
+function hullOf(b: BuiltBody, bones: number, dirs: readonly [number, number, number][], blend = false): Float32Array {
   const g = b.geometry;
   const pos = g.attributes.position;
   const si = g.attributes.skinIndex;
@@ -171,11 +188,35 @@ function hullOf(b: BuiltBody, bones: number, dirs: readonly [number, number, num
     for (const { i } of best[bone]) {
       if (i < 0 || seen.has(i)) continue;
       seen.add(i);
-      const r = b.rest[BONES[bone]];
-      out.push(bone, pos.getX(i) - r.x, pos.getY(i) - r.y, pos.getZ(i) - r.z);
+      if (!blend) {
+        const r = b.rest[BONES[bone]];
+        out.push(bone, pos.getX(i) - r.x, pos.getY(i) - r.y, pos.getZ(i) - r.z);
+        continue;
+      }
+      let sum = 0;
+      for (let k = 0; k < 4; k++) sum += sw.getComponent(i, k);
+      for (let k = 0; k < 4; k++) {
+        const wk = sw.getComponent(i, k) / (sum || 1);
+        const bk = si.getComponent(i, k);
+        const r = b.rest[BONES[bk]];
+        if (wk <= 0 || !r) out.push(0, 0, 0, 0, 0);
+        else out.push(bk, wk, pos.getX(i) - r.x, pos.getY(i) - r.y, pos.getZ(i) - r.z);
+      }
     }
   }
   return new Float32Array(out);
+}
+
+/** Everyone standing: a detail level arriving (scanbody.ts) switches them up. */
+const people = new Set<Human>();
+onScanLevel(() => {
+  for (const h of people) h.refreshShape();
+});
+
+/** Fetch, in the background, the scanned detail levels this graphics tier draws (Low needs only what boot loaded). */
+export function ensureScanLevels(tier: Tier): void {
+  if (tier >= 1) loadScanLevel(2).catch(() => {});
+  if (tier >= 2) loadScanLevel(3).catch(() => {});
 }
 
 /** Build every detail level a crowd member may switch to, ahead of the round. */
@@ -199,6 +240,11 @@ export function warmLook(look: Look, tier: Tier, featured = false): void {
 // ── A person ──────────────────────────────────────────────────────────────────
 
 const _e = new Euler(0, 0, 0, "ZYX");
+/** Bodies heavier than this cast their shadow through a stand-in (castShadows). */
+const STAND_IN_ABOVE = 8000;
+const _c1 = new Vector3();
+const _c2 = new Vector3();
+const _c3 = new Vector3();
 const _q = new Quaternion();
 const _q2 = new Quaternion();
 const _axis = new Vector3();
@@ -225,6 +271,10 @@ export class Human {
   private readonly local: Matrix4[] = Array.from({ length: BONES.length }, () => new Matrix4());
   /** Off the ground on purpose (the referee says it is jumping). */
   private airborne = false;
+  /** Casting a real shadow (crowd.ts / the lobby decide who). */
+  private shadow = false;
+  /** At the High level the shadow comes from a Low stand-in that only the sun's shadow camera sees. */
+  private standIn: SkinnedMesh | null = null;
   /** Posed since the skin last read the bones. */
   private skinDirty = true;
 
@@ -268,11 +318,17 @@ export class Human {
 
     // Medium and High: a generated normal map adds weave, seams, folds and skin
     // detail without triangles (SPEC-V2 §5.2). Low: plain Lambert, cheapest.
-    const normalMap = tier > 0 ? normalMapFor(look, TEX_SIZE[Math.max(0, tier - 1)]) : null;
+    const scanned = !!this.body.geometry.attributes.color;
+    const normalMap = tier > 0 && !scanned ? normalMapFor(look, TEX_SIZE[Math.max(0, tier - 1)]) : null;
     const mat: Material =
       (opts.lit ?? (tier === 0 ? "lambert" : "standard")) === "lambert"
         ? new MeshLambertMaterial({ map: this.tex, normalMap })
         : new MeshStandardMaterial({ map: this.tex, normalMap, roughness: 0.78, metalness: 0 });
+    if (scanned) {
+      // Hands and feet carry their colour per vertex; Low and Medium are faceted on purpose.
+      (mat as MeshStandardMaterial).vertexColors = true;
+      (mat as MeshStandardMaterial).flatShading = tier < 2;
+    }
     const mesh = new SkinnedMesh(this.body.geometry, mat);
     mesh.add(this.bones[0]);
     mesh.bind(new Skeleton(this.bones));
@@ -287,8 +343,10 @@ export class Human {
     mesh.boundingSphere = new Sphere(new Vector3(0, 0.9, 0), 1.6);
     this.mesh = mesh;
     this.anim = newAnimState(opts.seed ?? Math.random() * 100);
+    people.add(this);
     const o = OUTFIT_BY_ID[look.outfit];
-    this.anim.narrow = o.bottom.kind === "skirt" && (o.bottom.flare ?? 0) < 0.1;
+    this.anim.narrow = !scanned && o.bottom.kind === "skirt" && (o.bottom.flare ?? 0) < 0.1;
+    if (scanned) this.anim.curlBias = 0.35;
   }
 
   get triangles(): number {
@@ -305,12 +363,56 @@ export class Human {
     return bodyFor(this.look, level).triangles;
   }
 
+  /** A better scanned level arrived: same bones, finer geometry. */
+  refreshShape(): void {
+    const b = bodyFor(this.look, this.level);
+    if (b === this.body) return;
+    this.body = b;
+    this.mesh.geometry = b.geometry;
+    this.restedAt = -1;
+    this.skinDirty = true;
+    this.castShadows(this.shadow);
+  }
+
+  /**
+   * Cast a real shadow, or not. A frame's triangles count every pass and the
+   * shadow pass draws its casters again (more than once on High), so at the
+   * High level (about 20K triangles) the shadow comes from the Low level: a
+   * stand-in on the same bones that draws nothing on screen.
+   */
+  get castsShadow(): boolean {
+    return this.shadow;
+  }
+
+  castShadows(on: boolean): void {
+    this.shadow = on;
+    const stand = on && this.body.triangles > STAND_IN_ABOVE;
+    this.mesh.castShadow = on && !stand;
+    if (!stand) {
+      if (this.standIn) this.standIn.visible = false;
+      return;
+    }
+    const low = bodyFor(this.look, 1);
+    if (!this.standIn) {
+      const s = shadowOnly(new SkinnedMesh(low.geometry));
+      s.castShadow = true;
+      s.bind(this.mesh.skeleton, new Matrix4());
+      s.bindMode = DetachedBindMode;
+      s.boundingSphere = this.mesh.boundingSphere?.clone() ?? null;
+      this.mesh.add(s);
+      this.standIn = s;
+    }
+    this.standIn.geometry = low.geometry;
+    this.standIn.visible = true;
+  }
+
   /** Swap to another detail level (distance LOD); same bones, same paint. */
   setDetail(level: Detail): void {
     if (level === this.level) return;
     this.level = level;
     this.body = bodyFor(this.look, level);
     this.mesh.geometry = this.body.geometry;
+    if (this.shadow) this.castShadows(true);
   }
 
   /** Bone by name (camera eye, effects). */
@@ -352,6 +454,35 @@ export class Human {
     this.anim.dead = 0;
     this.anim.fall = 0;
     this.anim.fallDir = fallDir;
+  }
+
+  /**
+   * Where a carried ball sits, in world space: between the palms when held
+   * in both hands; tucked under the right arm (in the crook of the forearm,
+   * against the ribs) on the move; part way between as it changes.
+   */
+  carryPoint(out: Vector3): Vector3 {
+    this.mesh.updateWorldMatrix(true, true);
+    const at = (b: BoneName, v: Vector3) => this.bone(b).getWorldPosition(v);
+    // Palms: a little past the wrists, towards the knuckles.
+    at("handL", _c1).lerp(at("middle1L", _c2), 0.6);
+    at("handR", _c3).lerp(at("middle1R", _c2), 0.6);
+    out.copy(_c1).add(_c3).multiplyScalar(0.5);
+    const tuck = this.anim.carryTuck;
+    if (tuck < 0.001) return out;
+    // In the crook of the right arm, nudged in against the body.
+    at("foreArmR", _c1).lerp(at("middle1R", _c2), 0.5);
+    at("chest", _c2);
+    _c1.x += (_c2.x - _c1.x) * 0.3;
+    _c1.z += (_c2.z - _c1.z) * 0.3;
+    _c1.y += 0.03 * this.look.height;
+    return out.lerp(_c1, tuck);
+  }
+
+  /** Talk for a while (quick chat): the mouth moves. */
+  talk(seconds: number): void {
+    if (this.anim.dead >= 0) return;
+    this.anim.talk = Math.max(this.anim.talk, seconds);
   }
 
   finish(): void {
@@ -462,12 +593,25 @@ export class Human {
       if (p < 0) L[i].copy(B[i].matrix);
       else L[i].multiplyMatrices(L[p], B[i].matrix);
     }
-    const c = down ? this.body.contactsAll : this.body.contacts;
     let min = Infinity;
-    for (let k = 0; k < c.length; k += 4) {
-      const e = L[c[k]].elements;
-      const y = e[1] * c[k + 1] + e[5] * c[k + 2] + e[9] * c[k + 3] + e[13];
-      if (y < min) min = y;
+    if (down) {
+      const c = this.body.contactsAll;
+      for (let k = 0; k < c.length; k += 20) {
+        let y = 0;
+        for (let j = k; j < k + 20; j += 5) {
+          if (c[j + 1] <= 0) continue;
+          const e = L[c[j]].elements;
+          y += c[j + 1] * (e[1] * c[j + 2] + e[5] * c[j + 3] + e[9] * c[j + 4] + e[13]);
+        }
+        if (y < min) min = y;
+      }
+    } else {
+      const c = this.body.contacts;
+      for (let k = 0; k < c.length; k += 4) {
+        const e = L[c[k]].elements;
+        const y = e[1] * c[k + 1] + e[5] * c[k + 2] + e[9] * c[k + 3] + e[13];
+        if (y < min) min = y;
+      }
     }
     if (!Number.isFinite(min)) return n;
     const root = B[0];
@@ -480,6 +624,7 @@ export class Human {
   }
 
   dispose(): void {
+    people.delete(this);
     releaseTexture(this.tex);
     (this.mesh.material as Material).dispose();
     this.mesh.skeleton.dispose();

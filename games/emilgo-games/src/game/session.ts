@@ -68,8 +68,8 @@ import { CameraRig } from "../world/camera";
 import { Crowd, accentOf } from "../world/crowd";
 import { Doll } from "../world/doll";
 import { Effects } from "../world/fx";
-import { setMaxAnisotropy, warmLook } from "../world/human";
-import { cleanLook, ownedOnly, randomLook, uniformLook, type ExtraId, type Look } from "../world/human/wardrobe";
+import { ensureScanLevels, setMaxAnisotropy, warmLook } from "../world/human";
+import { cleanLook, ownedOnly, randomLook, uniformLook, wearProduct, type ExtraId, type HoodieDesign, type Look } from "../world/human/wardrobe";
 import type { PoseId } from "../world/human/animator";
 import { LobbyStage, type Framing } from "../world/lobbyStage";
 import { PropsView } from "../world/props";
@@ -165,7 +165,7 @@ export class Game {
   // Lobby state
   private playMode: PlayMode = "new";
   private playError: string | null = null;
-  private customizeTab = "outfit";
+  private customizeTab = "hoodie";
   private emoteSel: EmoteId | null = null;
   private wheelSlot = -1;
   private settingsTab = "graphics";
@@ -394,7 +394,10 @@ export class Game {
     this.quick.onSend((text) => {
       if (this.mode === "online" && this.net) this.net.send({ t: "chat", text });
       const me = this.round?.get(this.meId);
-      if (me) this.bubbles.show(me.index, "ping");
+      if (me) {
+        this.bubbles.show(me.index, "ping");
+        this.crowd.talk(me.index, text);
+      }
     });
     this.controls.onScoreboard = (open) => this.board.show(open);
     this.controls.onMap = () => this.hud.map.expand(!this.hud.map.expanded);
@@ -474,6 +477,8 @@ export class Game {
   }
 
   start(): void {
+    // The scanned people's finer detail, if this tier draws it, after the lobby is up.
+    ensureScanLevels(this.spec.tier);
     if (this.host.blocked) {
       this.screens.blocked(this.host.blocked);
       this.renderOnce();
@@ -1708,6 +1713,11 @@ export class Game {
         break;
       case "chat":
         if (this.settings.chat) this.chat.add({ from: m.from, name: m.name, text: m.text, mine: m.from === this.seatId, gold: m.b === 1 });
+        // Their mouth moves with it (yours already did when you sent it).
+        if (m.from !== this.seatId && !this.chat.isMuted(m.from)) {
+          const c = this.round?.get(m.from);
+          if (c) this.crowd.talk(c.index, m.text);
+        }
         break;
       case "emote":
         if (m.from !== this.seatId && !this.chat.isMuted(m.from)) {
@@ -2131,8 +2141,8 @@ export class Game {
       this.shopNote = `${name} is yours.`;
       // Put it on straight away.
       const p = PRODUCT_BY_ID[id];
-      if (p?.kind === "outfit") this.setLook({ ...this.settings.look, outfit: id });
-      if (p?.kind === "cap") this.setLook({ ...this.settings.look, extras: [...this.settings.look.extras.filter((e) => e !== "gele" && e !== "headset"), "fila"] });
+      const worn = p?.kind === "hoodie" ? wearProduct(this.settings.look, id) : null;
+      if (worn) this.setLook(worn);
       if (p?.kind === "badge") this.settings.badge = true;
       saveSettings(this.host, this.settings);
       this.sendLook();
@@ -2321,7 +2331,7 @@ export class Game {
         this.showCustomize();
         break;
       case "ctab":
-        this.customizeTab = d.tab ?? "outfit";
+        this.customizeTab = d.tab ?? "hoodie";
         this.showCustomize();
         break;
       case "look":
@@ -2331,6 +2341,8 @@ export class Game {
         const val = act === "look-range" ? (node as HTMLInputElement).value : d.val!;
         let next: Look = { ...base };
         if (key === "body") next.body = val === "f" ? "f" : "m";
+        else if (key === "hoodie") next.hoodie = Number(val);
+        else if (key === "design") next.design = val as HoodieDesign;
         else if (key === "skin") next.skin = Number(val);
         else if (key === "hair") next.hair = val as Look["hair"];
         else if (key === "hairColor") next.hairColor = Number(val);
@@ -2425,8 +2437,8 @@ export class Game {
       }
       case "try": {
         const p = PRODUCT_BY_ID[d.id ?? ""];
-        if (p?.kind === "outfit") this.setLook({ ...this.settings.look, outfit: p.id }, !this.owned().has(p.id));
-        else if (p?.kind === "cap") this.setLook({ ...this.settings.look, extras: [...this.settings.look.extras.filter((e) => !conflicts(e, "fila")), "fila"] }, !this.owned().has(p.id));
+        const worn = p?.kind === "hoodie" ? wearProduct(this.settings.look, p.id) : null;
+        if (worn) this.setLook(worn, !this.owned().has(p!.id));
         else if (p?.kind === "emotes") this.stage.emote("zanku");
         if (p && !this.owned().has(p.id)) this.screens.toast("Trying it on.");
         break;
@@ -2437,8 +2449,8 @@ export class Game {
       case "wear": {
         const p = PRODUCT_BY_ID[d.id ?? ""];
         if (p && this.owned().has(p.id)) {
-          if (p.kind === "outfit") this.setLook({ ...this.settings.look, outfit: p.id });
-          if (p.kind === "cap") this.setLook({ ...this.settings.look, extras: [...this.settings.look.extras.filter((e) => !conflicts(e, "fila")), "fila"] });
+          const worn = p.kind === "hoodie" ? wearProduct(this.settings.look, p.id) : null;
+          if (worn) this.setLook(worn);
           this.showStore();
         }
         break;
@@ -2884,6 +2896,7 @@ export class Game {
       this.crowd.tier = spec.tier;
       this.crowd.setShadows(spec.shadows);
       this.stage?.setSpec(spec);
+      ensureScanLevels(spec.tier);
       if (changed && this.stage) this.stage.setLook(this.myLook(), this.settings.lobbyPose);
       this.worldKey = "";
     }

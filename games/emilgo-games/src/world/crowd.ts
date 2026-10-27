@@ -14,7 +14,7 @@ import type { EmoteId } from "../social/emotes";
 import { Human, lodLevels, warmBodies, type ActionId, type Look, type Tier } from "./human";
 import { FALL_TIME } from "./human/ragdoll";
 import type { AnimState } from "./human/animator";
-import { OUTFIT_BY_ID } from "./human/wardrobe";
+import { HOODIE_COLORS } from "./human/wardrobe";
 
 export type { Look } from "./human";
 
@@ -45,9 +45,9 @@ const _s = new Vector3();
 const ZERO = new Matrix4().makeScale(0, 0, 0);
 const UP = new Vector3(0, 1, 0);
 
-/** The colour that stands for a look on the HUD track and minimap. */
+/** The colour that stands for a look on the HUD track and minimap: their hoodie's. */
 export function accentOf(look: Look): string {
-  return OUTFIT_BY_ID[look.outfit]?.accent ?? "#0a8a4a";
+  return HOODIE_COLORS[look.hoodie]?.hex ?? "#0a8a4a";
 }
 
 export class Crowd {
@@ -100,7 +100,7 @@ export class Crowd {
     this.people = looks.slice(0, this.n).map((l, i) => {
       warmBodies(l, this.tier);
       const h = new Human(l, this.tier, { featured: i === featured, seed: i * 1.37 + 0.5 });
-      h.mesh.castShadow = !this.blobShadows;
+      h.castShadows(!this.blobShadows);
       this.group.add(h.mesh);
       return h;
     });
@@ -112,7 +112,7 @@ export class Crowd {
 
   setShadows(real: boolean): void {
     this.blobShadows = !real;
-    for (const p of this.people) if (p) p.mesh.castShadow = real;
+    for (const p of this.people) if (p) p.castShadows(real);
     this.shadows.count = this.n;
   }
 
@@ -159,6 +159,11 @@ export class Crowd {
     h.emote(id);
   }
 
+  /** A chat line from them: their mouth moves for about as long as it takes to say. */
+  talk(i: number, text: string): void {
+    this.people[i]?.talk(Math.min(3, 0.7 + text.length * 0.06));
+  }
+
   finish(i: number): void {
     this.people[i]?.finish();
   }
@@ -179,14 +184,11 @@ export class Crowd {
     this.people[i]?.hit(side);
   }
 
-  /** Between the hands (a carried ball). */
+  /** Where a carried ball sits (in both hands, or tucked under the arm on the move). */
   hands(i: number, out: Vector3): Vector3 | null {
     const h = this.people[i];
     if (!h || this.hidden[i]) return null;
-    h.mesh.updateWorldMatrix(true, true);
-    const l = h.bone("handL").getWorldPosition(_v);
-    h.bone("handR").getWorldPosition(out);
-    return out.add(l).multiplyScalar(0.5);
+    return h.carryPoint(out);
   }
 
   /** Where a contestant's chest is now, following the fall (effects, camera). */
@@ -242,7 +244,7 @@ export class Crowd {
       }
       h.setDetail(lvl);
       left -= h.trianglesAt(lvl);
-      if (!this.blobShadows) h.mesh.castShadow = rank < SHADOW_MAX[this.tier];
+      if (!this.blobShadows) h.castShadows(rank < SHADOW_MAX[this.tier]);
     });
   }
 
@@ -286,7 +288,7 @@ export class Crowd {
       const a = h.anim;
 
       // A blob for everyone not casting a real shadow (Low, and all but the nearest few).
-      if (this.blobShadows || !h.mesh.castShadow) {
+      if (this.blobShadows || !h.castsShadow) {
         const lie = a.dead >= 0 ? a.fall : 0;
         const dir = c.heading + a.fallDir;
         _q.setFromAxisAngle(UP, dir);

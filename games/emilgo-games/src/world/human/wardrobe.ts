@@ -1,4 +1,11 @@
-// What a person can look like: body, skin, hair, outfit, extras.
+// What a person can look like.
+//
+// Players are the scanned people (scanbody.ts): a real head, hands and feet
+// in a hoodie and joggers. The hoodie is the only clothing there is — in the
+// lobby, the waiting room and on the field (it replaced the outfits and the
+// numbered match suit) — and players choose only its colour and design, and
+// which body. The fields below the hoodie (skin, hair, outfit, extras) still
+// dress the generated people: Mama, and everyone if the scans can't load.
 //
 // Outfits and hair are drawn from the reference photos in UPGRADE.md (the
 // Ankara patch dress, the office blouse and pencil skirt, the striped bodycon,
@@ -6,9 +13,10 @@
 // tactical "hero suit" for the welcome art. Every pattern is generated — no
 // image files — and no real brand appears on any garment.
 //
-// Free items are free for everyone, everywhere. Shop items (outfit_gold,
-// outfit_ankara, outfit_midnight, the fila cap) are worn only by owners: the
-// game server strips them from anyone who can't prove ownership.
+// Free items are free for everyone, everywhere. Shop items (the Gold and
+// Midnight hoodies, the Ankara design; product ids outfit_gold, outfit_midnight,
+// outfit_ankara from when they were outfits) are worn only by owners: the game
+// server strips them from anyone who can't prove ownership.
 
 import type { Rng } from "../../core/rng";
 
@@ -320,12 +328,90 @@ export interface Look {
   num?: number;
   /** The doll's face: big round eyes, rosy cheeks, a small mouth. Never a player's. */
   doll?: boolean;
+  /** Hoodie colour (HOODIE_COLORS index) and design: the only clothes there are. */
+  hoodie: number;
+  design: HoodieDesign;
+}
+
+// ── The hoodie (the only clothes: everyone, everywhere) ─────────────────────────
+
+export interface HoodieColor {
+  id: string;
+  name: string;
+  hex: string;
+  /** Shop product that unlocks it. */
+  product?: string;
+  /** A satin sheen over the fleece (the paid colours). */
+  satin?: boolean;
+}
+
+/** The colours. Indices are saved and sent: only ever add at the end. */
+export const HOODIE_COLORS: readonly HoodieColor[] = [
+  { id: "sage", name: "Sage", hex: "#7f8f73" },
+  { id: "sand", name: "Sand", hex: "#d6c9b9" },
+  { id: "black", name: "Black", hex: "#1d1d20" },
+  { id: "grey", name: "Heather grey", hex: "#9b9da1" },
+  { id: "white", name: "Off-white", hex: "#e9e7e1" },
+  { id: "navy", name: "Navy", hex: "#23314f" },
+  { id: "green", name: "EMILGO green", hex: "#0a8a4a" },
+  { id: "maroon", name: "Maroon", hex: "#6b2533" },
+  { id: "mustard", name: "Mustard", hex: "#c79a32" },
+  { id: "sky", name: "Sky", hex: "#8db2d6" },
+  { id: "rose", name: "Rose", hex: "#d4a3ab" },
+  { id: "plum", name: "Plum", hex: "#4a3a72" },
+  { id: "gold", name: "Gold", hex: "#d9ab3c", product: "outfit_gold", satin: true },
+  { id: "midnight", name: "Midnight", hex: "#1c1733", product: "outfit_midnight", satin: true },
+];
+
+export type HoodieDesign = "plain" | "twotone" | "stripe" | "ankara" | "block";
+export const HOODIE_DESIGNS: { id: HoodieDesign; name: string; product?: string }[] = [
+  { id: "plain", name: "Plain" },
+  { id: "twotone", name: "Two-tone" },
+  { id: "stripe", name: "Chest stripe" },
+  { id: "ankara", name: "Ankara", product: "outfit_ankara" },
+  { id: "block", name: "Colour block" },
+];
+export const DESIGN_BY_ID = Object.fromEntries(HOODIE_DESIGNS.map((d) => [d.id, d])) as Record<HoodieDesign, (typeof HOODIE_DESIGNS)[number]>;
+const FREE_HOODIES = HOODIE_COLORS.map((c, i) => (c.product ? -1 : i)).filter((i) => i >= 0);
+const GREEN = HOODIE_COLORS.findIndex((c) => c.id === "green");
+
+/**
+ * The hoodie for an outfit (a look saved before the hoodie): the shop's three
+ * become their hoodies, every other outfit the nearest free colour to its own.
+ */
+export function hoodieFromOutfit(outfit: string): { hoodie: number; design: HoodieDesign } {
+  if (outfit === "outfit_gold") return { hoodie: HOODIE_COLORS.findIndex((c) => c.id === "gold"), design: "plain" };
+  if (outfit === "outfit_midnight") return { hoodie: HOODIE_COLORS.findIndex((c) => c.id === "midnight"), design: "plain" };
+  const accent = OUTFIT_BY_ID[outfit]?.accent;
+  const design: HoodieDesign = outfit === "outfit_ankara" ? "ankara" : "plain";
+  if (!accent || outfit === "uniform" || outfit === "doll_dress") return { hoodie: GREEN, design };
+  const rgb = (hex: string) => [1, 3, 5].map((k) => parseInt(hex.slice(k, k + 2), 16));
+  const a = rgb(accent);
+  let best = GREEN;
+  let bd = Infinity;
+  for (const i of FREE_HOODIES) {
+    const b = rgb(HOODIE_COLORS[i].hex);
+    const d = (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2;
+    if (d < bd) {
+      bd = d;
+      best = i;
+    }
+  }
+  return { hoodie: best, design };
+}
+
+/** A shop product put on: a hoodie colour or the design it unlocks (null: not a hoodie product). */
+export function wearProduct(look: Look, product: string): Look | null {
+  const c = HOODIE_COLORS.findIndex((x) => x.product === product);
+  if (c >= 0) return { ...look, hoodie: c };
+  const d = HOODIE_DESIGNS.find((x) => x.product === product);
+  return d ? { ...look, design: d.id } : null;
 }
 
 /** The doll: brown skin, a black bob with bangs and two pigtails, the pinafore. */
-export const DOLL_LOOK: Look = { body: "f", skin: 5, hair: "pigtails", hairColor: 0, outfit: "doll_dress", extras: [], height: 1, doll: true };
+export const DOLL_LOOK: Look = { body: "f", skin: 5, hair: "pigtails", hairColor: 0, outfit: "doll_dress", extras: [], height: 1, doll: true, hoodie: 0, design: "plain" };
 
-export const DEFAULT_LOOK: Look = { body: "m", skin: 4, hair: "lowcut", hairColor: 0, outfit: "street", extras: [], height: 1 };
+export const DEFAULT_LOOK: Look = { body: "m", skin: 4, hair: "lowcut", hairColor: 0, outfit: "street", extras: [], height: 1, hoodie: 6, design: "plain" };
 
 /** Clamp anything (saved settings, the wire) into a valid look. */
 export function cleanLook(raw: Partial<Look> | null | undefined, base: Look = DEFAULT_LOOK): Look {
@@ -348,8 +434,15 @@ export function cleanLook(raw: Partial<Look> | null | undefined, base: Look = DE
   }
   const height = typeof r.height === "number" && r.height >= 0.95 && r.height <= 1.05 ? r.height : base.height;
   const num = Number.isInteger(r.num) && (r.num as number) >= 1 && (r.num as number) <= 99 ? (r.num as number) : undefined;
+  // The hoodie: as given, else (a look from before the hoodie) from its outfit, else the base's.
+  const old = typeof r.outfit === "string" ? hoodieFromOutfit(outfit) : { hoodie: base.hoodie, design: base.design };
+  const hoodie = int(r.hoodie, HOODIE_COLORS.length, old.hoodie);
+  const design = typeof r.design === "string" && r.design in DESIGN_BY_ID ? (r.design as HoodieDesign) : old.design;
   return {
     ...(num ? { num } : {}),
+    ...(r.doll ? { doll: true } : {}),
+    hoodie,
+    design,
     body,
     skin: int(r.skin, SKIN_TONES.length, base.skin),
     hair,
@@ -363,8 +456,12 @@ export function cleanLook(raw: Partial<Look> | null | undefined, base: Look = DE
 /** Remove anything that must be bought and isn't owned. */
 export function ownedOnly(look: Look, owned: ReadonlySet<string>): Look {
   const o = OUTFIT_BY_ID[look.outfit];
+  const hc = HOODIE_COLORS[look.hoodie];
+  const d = DESIGN_BY_ID[look.design];
   return {
     ...look,
+    hoodie: hc?.product && !owned.has(hc.product) ? GREEN : look.hoodie,
+    design: d?.product && !owned.has(d.product) ? "plain" : look.design,
     outfit: o?.product && !owned.has(o.product) ? "street" : look.outfit,
     extras: look.extras.filter((e) => !EXTRA_BY_ID[e].product || owned.has(EXTRA_BY_ID[e].product!)),
   };
@@ -382,7 +479,10 @@ export function randomLook(rng: Rng): Look {
   if (body === "f" && rng.next() < 0.35) extras.push("earrings");
   if (body === "f" && rng.next() < 0.12 && !extras.includes("shades")) extras.push("gele");
   if (rng.next() < 0.25) extras.push("watch");
+  const free = HOODIE_DESIGNS.filter((d) => !d.product && d.id !== "plain");
   return cleanLook({
+    hoodie: FREE_HOODIES[Math.floor(rng.next() * FREE_HOODIES.length)],
+    design: rng.next() < 0.55 ? "plain" : rng.pick(free).id,
     body,
     skin: Math.floor(rng.next() * SKIN_TONES.length),
     hair: rng.pick(hairs),
@@ -394,18 +494,24 @@ export function randomLook(rng: Rng): Look {
 }
 
 /** The same person in the match uniform: own body, skin, hair and height; no accessories. */
+/** On the field: their own hoodie with their number on it (generated people: the numbered match suit). */
 export function uniformLook(look: Look, num: number): Look {
-  return { body: look.body, skin: look.skin, hair: look.hair, hairColor: look.hairColor, outfit: UNIFORM.id, extras: [], height: look.height, num };
+  return { body: look.body, skin: look.skin, hair: look.hair, hairColor: look.hairColor, outfit: UNIFORM.id, extras: [], height: look.height, num, hoodie: look.hoodie, design: look.design };
 }
 
-/** A stable key for caching geometry: only what changes the SHAPE. */
+/** A stable key for caching geometry: only what changes the SHAPE (generated people; index.ts keys the scanned by body and level). */
 export function shapeKey(l: Look): string {
   const o = OUTFIT_BY_ID[l.outfit];
   const shapeExtras = l.extras.filter((e) => e !== "watch").sort().join("+");
   return [l.body, l.hair, o.bottom.kind, o.bottom.length, o.bottom.flare ?? 0, o.top.bulk ?? 0, o.shoes.kind, o.gear ? 1 : 0, shapeExtras, l.extras.includes("watch") ? "w" : ""].join("|");
 }
 
-/** A stable key for caching textures: everything that changes the PAINT. */
+/** A scanned person's paint: body, hoodie, number. */
+export function scanPaintKey(l: Look): string {
+  return ["scan", l.body, l.hoodie, l.design, l.num ?? ""].join("|");
+}
+
+/** A stable key for caching textures: everything that changes the PAINT (generated people). */
 export function paintKey(l: Look): string {
   return [l.body, l.skin, l.hair, l.hairColor, l.outfit, l.extras.slice().sort().join("+"), l.num ?? "", l.doll ? "doll" : ""].join("|");
 }

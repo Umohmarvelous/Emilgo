@@ -15,9 +15,9 @@
 //    with Lagos Life (GET /purchases/{id}), given it once per purchaseId, and
 //    marked it delivered. The game's word is never enough.
 
-import { cleanLook, DEFAULT_LOOK, EXTRA_BY_ID, OUTFIT_BY_ID, type ExtraId, type Look } from "../world/human/wardrobe";
+import { cleanLook, DEFAULT_LOOK, DESIGN_BY_ID, EXTRA_BY_ID, HOODIE_COLORS, OUTFIT_BY_ID, type ExtraId, type HoodieDesign, type Look } from "../world/human/wardrobe";
 
-export type ProductKind = "outfit" | "cap" | "emotes" | "badge";
+export type ProductKind = "hoodie" | "emotes" | "badge";
 
 export interface Product {
   id: string;
@@ -31,10 +31,10 @@ export interface Product {
 }
 
 export const PRODUCTS: Product[] = [
-  { id: "outfit_gold", kind: "outfit", name: "Gold Owambe outfit", blurb: "Shine like the celebrant. Everyone on the street sees it.", price: 500, icon: "outfit" },
-  { id: "outfit_ankara", kind: "outfit", name: "Ankara Orange outfit", blurb: "Bright orange Ankara top, deep blue trousers. Loud and proud.", price: 500, icon: "outfit" },
-  { id: "outfit_midnight", kind: "outfit", name: "Midnight outfit", blurb: "All black with a purple shine. Mama barely sees you (she does).", price: 500, icon: "outfit" },
-  { id: "cap_fila", kind: "cap", name: "Fila cap", blurb: "The classic folded cap. Matches whatever you're wearing.", price: 300, icon: "cap" },
+  // The hoodies (once outfits: the ids stay, so earlier purchases still count).
+  { id: "outfit_gold", kind: "hoodie", name: "Gold hoodie", blurb: "A gold satin finish, joggers to match. Shine like the celebrant.", price: 500, icon: "outfit" },
+  { id: "outfit_ankara", kind: "hoodie", name: "Ankara hoodie design", blurb: "Ankara print on the hood and the pocket, on any colour you pick.", price: 500, icon: "outfit" },
+  { id: "outfit_midnight", kind: "hoodie", name: "Midnight hoodie", blurb: "Near black with a purple shine. Mama barely sees you (she does).", price: 500, icon: "outfit" },
   { id: "emotes_owambe", kind: "emotes", name: "Owambe emote pack", blurb: "Three dance emotes: Zanku, Shaku Shaku and Odogwu.", price: 300, icon: "emote" },
   { id: "badge_gold", kind: "badge", name: "Gold name badge", blurb: "A gold star and a gold frame on your name in every online chat.", price: 200, icon: "star" },
 ];
@@ -47,7 +47,10 @@ export const PRODUCT_BY_ID: Record<string, Product> = Object.fromEntries(PRODUCT
  * (allowedLook, on the server).
  */
 export interface WireLook {
-  /** Outfit id (free, or a shop product). */
+  /** Hoodie colour (HOODIE_COLORS index) and design: what everyone sees. */
+  hd?: number;
+  ds?: string;
+  /** Outfit id (free, or a shop product): the generated people's, and older builds'. */
   o?: string;
   /** Body: "m" | "f". */
   g?: string;
@@ -77,6 +80,10 @@ export function allowedLook(want: WireLook | null | undefined, owned: ReadonlySe
   };
   const o = OUTFIT_BY_ID[look.outfit];
   if (o && (!o.product || owned.has(o.product))) out.o = look.outfit;
+  const hc = HOODIE_COLORS[look.hoodie];
+  if (hc && (!hc.product || owned.has(hc.product))) out.hd = look.hoodie;
+  const d = DESIGN_BY_ID[look.design];
+  if (d && (!d.product || owned.has(d.product))) out.ds = look.design;
   const x = look.extras.filter((e) => !EXTRA_BY_ID[e].product || owned.has(EXTRA_BY_ID[e].product!));
   if (x.length) out.x = x;
   if (want.b && owned.has("badge_gold")) out.b = 1;
@@ -84,13 +91,15 @@ export function allowedLook(want: WireLook | null | undefined, owned: ReadonlySe
 }
 
 export function toWireLook(look: Look, badge: boolean): WireLook {
-  return { o: look.outfit, g: look.body, s: look.skin, h: look.hair, hc: look.hairColor, x: look.extras.length ? look.extras : undefined, ht: Math.round(look.height * 100), b: badge ? 1 : undefined };
+  return { hd: look.hoodie, ds: look.design, o: look.outfit, g: look.body, s: look.skin, h: look.hair, hc: look.hairColor, x: look.extras.length ? look.extras : undefined, ht: Math.round(look.height * 100), b: badge ? 1 : undefined };
 }
 
 /** A look from the wire (anything missing → the default). */
 export function fromWire(w: WireLook | undefined): Look {
   if (!w) return DEFAULT_LOOK;
   return cleanLook({
+    hoodie: w.hd,
+    design: w.ds as HoodieDesign | undefined,
     outfit: w.o,
     body: w.g as Look["body"],
     skin: w.s,

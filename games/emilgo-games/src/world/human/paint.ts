@@ -10,6 +10,8 @@
 import { HEAD_EPS, HEAD_GRID, PALETTE_COLS, PALETTE_ROWS, UV, CELL, headWarpU, headWarpV, type Rect } from "./layout";
 import { FACE, skirtSpan, type Tier } from "./mesh";
 import { PROPORTIONS, restPositions, type Proportions } from "./skeleton";
+import { scanReady } from "./scanbody";
+import { paintScanLook } from "./scanpaint";
 import { HAIR_COLORS, OUTFIT_BY_ID, SKIN_TONES, type Look, type Outfit, type Pattern } from "./wardrobe";
 
 export const TEX_SIZE = [256, 512, 1024] as const;
@@ -26,7 +28,7 @@ function rgb(r: number, g: number, b: number, a = 1): string {
   return `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},${a})`;
 }
 /** Multiply (k < 1 darker) or lift towards white (k > 1). */
-function shade(hex: string, k: number, a = 1): string {
+export function shade(hex: string, k: number, a = 1): string {
   const [r, g, b] = hexRgb(hex);
   if (k <= 1) return rgb(r * k, g * k, b * k, a);
   const t = k - 1;
@@ -45,7 +47,7 @@ function mix(a: string, b: string, t: number): string {
 }
 
 /** Tiny seeded PRNG (mulberry32). */
-function prng(seed: number): () => number {
+export function prng(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
     a = (a + 0x6d2b79f5) >>> 0;
@@ -55,7 +57,7 @@ function prng(seed: number): () => number {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-function hash(s: string): number {
+export function hash(s: string): number {
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
   return h >>> 0;
@@ -67,7 +69,7 @@ function hash(s: string): number {
  * A rectangle of the canvas with a metric coordinate system: x in metres round
  * the part (0 = back seam, circumference = full width), y in metres along it.
  */
-class Region {
+export class Region {
   readonly x0: number;
   readonly y0: number;
   readonly w: number;
@@ -216,7 +218,7 @@ function weave(g: Ctx, base: string, x: number, y: number, w: number, h: number,
   }
 }
 
-function ankara(g: Ctx, c: string[], motif: "circles" | "leaves" | "diamonds" | "waves", x: number, y: number, w: number, h: number, rnd: () => number, tile = 0.07): void {
+export function ankara(g: Ctx, c: string[], motif: "circles" | "leaves" | "diamonds" | "waves", x: number, y: number, w: number, h: number, rnd: () => number, tile = 0.07): void {
   g.fillStyle = c[0];
   g.fillRect(x, y, w, h);
   const ox = rnd() * tile;
@@ -284,6 +286,7 @@ function ankara(g: Ctx, c: string[], motif: "circles" | "leaves" | "diamonds" | 
 // ── The painter ───────────────────────────────────────────────────────────────
 
 export function paintLook(look: Look, tier: Tier, size: number = TEX_SIZE[tier]): HTMLCanvasElement {
+  if (!look.doll && scanReady()) return paintScanLook(look, tier, size);
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = size;
   const g = canvas.getContext("2d")!;

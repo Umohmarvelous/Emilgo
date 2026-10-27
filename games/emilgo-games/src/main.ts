@@ -1,6 +1,8 @@
 // Boot: find the host, load settings, build the game, drop the splash.
-// Target: playable within a few seconds on mobile data. Nothing is downloaded
-// after this script — the street, the doll, the sounds are all generated.
+// Target: playable within a few seconds on mobile data. The street, the doll
+// and the sounds are all generated; the only download is the scanned people
+// (about 150 KB for the far and Low levels, fetched while the host is found;
+// Medium and High follow after the lobby is up, only on tiers that draw them).
 
 import "./ui/styles.css";
 
@@ -8,6 +10,7 @@ import { loadFonts } from "./ui/fonts";
 import welcomeUrl from "./ui/welcome.webp?url";
 
 import { Game } from "./game/session";
+import { loadScans } from "./world/human";
 import { detectHost } from "./platform";
 import { loadSettings } from "./settings";
 
@@ -73,6 +76,9 @@ function mark(name: string): void {
 
 async function boot(): Promise<void> {
   mark("script");
+  // The people: started first, needed before the lobby is built. If it fails
+  // everyone is drawn as the generated people instead.
+  const scans = loadScans().catch((e) => console.warn("scanned people unavailable", e));
   loadFonts();
   showArt();
   progress(0.25, "Loading Lagos...");
@@ -83,6 +89,8 @@ async function boot(): Promise<void> {
 
   const canvas = document.getElementById("scene") as HTMLCanvasElement;
   const ui = document.getElementById("ui") as HTMLElement;
+  await scans;
+  mark("scans");
   let game: Game;
   try {
     game = new Game(host, settings, canvas, ui);

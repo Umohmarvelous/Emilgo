@@ -31,9 +31,14 @@ export const BONES = [
   // Fingers: thumb, index, middle, ring, pinky × 2 segments, each hand.
   "thumb1L", "thumb2L", "index1L", "index2L", "middle1L", "middle2L", "ring1L", "ring2L", "pinky1L", "pinky2L",
   "thumb1R", "thumb2R", "index1R", "index2R", "middle1R", "middle2R", "ring1R", "ring2R", "pinky1R", "pinky2R",
+  // Face (the scanned people): the jaw, the eyeballs, the upper lids. Rest is open and looking ahead.
+  "jaw", "eyeL", "eyeR", "lidL", "lidR",
 ] as const;
 
 export type BoneName = (typeof BONES)[number];
+
+/** How far an upper lid turns (radians about its eye) from open to shut (scanbody.ts builds lids to it). */
+export const LID_CLOSE = 0.85;
 export const BONE_INDEX = Object.fromEntries(BONES.map((b, i) => [b, i])) as Record<BoneName, number>;
 
 export const PARENT: Record<BoneName, BoneName | null> = {
@@ -61,6 +66,7 @@ export const PARENT: Record<BoneName, BoneName | null> = {
   ring1L: "handL", ring2L: "ring1L", pinky1L: "handL", pinky2L: "pinky1L",
   thumb1R: "handR", thumb2R: "thumb1R", index1R: "handR", index2R: "index1R", middle1R: "handR", middle2R: "middle1R",
   ring1R: "handR", ring2R: "ring1R", pinky1R: "handR", pinky2R: "pinky1R",
+  jaw: "head", eyeL: "head", eyeR: "head", lidL: "head", lidR: "head",
 };
 
 /** A torso ring: height, half-width, front depth, back depth. */
@@ -187,6 +193,8 @@ export function restPositions(p: Proportions): Record<BoneName, V3> {
   out.chest = v(0, p.chestY, 0);
   out.neck = v(0, p.neckBaseY, -0.01);
   out.head = v(0, p.headBaseY, 0);
+  // Face bones: generated heads have no weights on them; the scanned ones place them (scanbody.ts).
+  out.jaw = v(0, p.headY - 0.035, 0.02);
   for (const s of [1, -1] as const) {
     const L = s === 1 ? "L" : "R";
     out[`clav${L}`] = v(s * 0.04, p.shoulderY - 0.01, -0.01);
@@ -198,6 +206,8 @@ export function restPositions(p: Proportions): Record<BoneName, V3> {
     const a2 = a * 0.6;
     const wrist = v(elbow.x + s * Math.sin(a2) * p.foreArm, elbow.y - Math.cos(a2) * p.foreArm, elbow.z + 0.012);
     out[`hand${L}`] = wrist;
+    out[`eye${L}`] = v(s * 0.032, p.headY + 0.012, p.head[2] * 0.7);
+    out[`lid${L}`] = out[`eye${L}`];
     // Fingers: knuckles across the palm (front to back along Z), pointing down.
     const knuckleY = wrist.y - p.palm;
     const xs = wrist.x + s * 0.004;

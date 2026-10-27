@@ -355,6 +355,8 @@ export function parseClient(raw: string): ClientMsg | null {
       const look: WireLook = {};
       const str = (v: unknown, max: number) => (typeof v === "string" && v.length <= max ? v : undefined);
       const int = (v: unknown, max: number) => (Number.isInteger(v) && (v as number) >= 0 && (v as number) <= max ? (v as number) : undefined);
+      look.hd = int(l.hd, 64);
+      look.ds = str(l.ds, 16);
       look.o = str(l.o, 32);
       look.g = str(l.g, 1);
       look.s = int(l.s, 32);

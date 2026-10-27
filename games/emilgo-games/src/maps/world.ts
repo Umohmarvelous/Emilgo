@@ -62,6 +62,7 @@ import { RECIPES, useCourse } from "./recipes";
 import { mapOf, skyParts, type MapInfo, type SkyState, type TimeOfDay, type Weather } from "./registry";
 import { Birds } from "./birds";
 import { Potholes, REFLECT_LAYER } from "./potholes";
+import { shadowOnly } from "../graphics/shadowOnly";
 import { Sky } from "./sky";
 import { Air } from "./weather";
 
@@ -293,7 +294,6 @@ export function buildWorld(id: string, skyState: SkyState | null, spec: TierSpec
   group.add(hemi, sun, sun.target);
   if (spec.shadows && L.sun > 0.5) {
     sun.castShadow = true;
-    sun.shadow.camera.layers.enable(SHADOW_LAYER);
     sun.shadow.mapSize.set(spec.shadowSize, spec.shadowSize);
     const sc = sun.shadow.camera;
     sc.left = sc.bottom = -18;
@@ -387,7 +387,7 @@ export function buildWorld(id: string, skyState: SkyState | null, spec: TierSpec
    */
   const casters: { mesh: Object3D; z: number; within: number }[] = [];
   const near = spec.tier === 0 ? 40 : spec.tier === 1 ? 55 : 60;
-  const proxyMat = new MeshBasicMaterial({ colorWrite: false, depthWrite: false });
+  const proxies: Mesh[] = [];
   if (flat) {
     const arena = buildArena(atlas, course);
     for (const s of arena.solid) {
@@ -429,11 +429,11 @@ export function buildWorld(id: string, skyState: SkyState | null, spec: TierSpec
         if (ch.detail.length || ch.main.length) lod.addLevel(lvl(ch.mass), mid);
         group.add(lod);
         if (spec.shadows && ch.mass.length) {
-          const proxy = new Mesh(merge(ch.mass), proxyMat);
+          const proxy = shadowOnly(new Mesh(merge(ch.mass)));
           proxy.position.z = cz;
-          // Only the sun's shadow camera sees this layer: no cost on screen.
-          proxy.layers.set(SHADOW_LAYER);
+          // Hidden while it casts nothing.
           group.add(proxy);
+          proxies.push(proxy);
           casters.push({ mesh: proxy, z: cz, within: 90 });
           // High: the stand-in covers what the detailed piece doesn't.
           if (spec.tier === 2) casters.push({ mesh: proxy, z: cz, within: -30 });
@@ -550,6 +550,8 @@ export function buildWorld(id: string, skyState: SkyState | null, spec: TierSpec
           // within > 0: cast when closer than it; within < 0: cast when FURTHER than −within (High's stand-ins).
           if (c.within > 0 ? d < c.within : c.within < 0 && d >= -c.within && d < 90) c.mesh.castShadow = true;
         }
+        // A stand-in that casts nothing would still cost an empty draw on screen.
+        for (const p of proxies) p.visible = p.castShadow;
       }
     },
     setScale(px, fov) {
@@ -568,9 +570,6 @@ export function buildWorld(id: string, skyState: SkyState | null, spec: TierSpec
     },
   };
 }
-
-/** Shadow stand-ins live here: the sun's shadow camera sees it, the screen doesn't. */
-const SHADOW_LAYER = 2;
 
 /** No puddles on polished or covered floors. */
 const DRY = new Set(["dubai-mall", "underground-bunker", "abandoned-hospital"]);

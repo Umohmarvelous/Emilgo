@@ -274,7 +274,7 @@ export class LobbyStage {
     }
     const old = this.me;
     this.me = new Human(look, tier, { featured: true, seed: 3, lit: this.spec.pbr ? "standard" : "lambert" });
-    this.me.mesh.castShadow = this.spec.shadows;
+    this.me.castShadows(this.spec.shadows);
     this.me.setPose(pose);
     if (old) {
       // Keep the pose timing so a change of clothes doesn't jolt.
@@ -304,7 +304,7 @@ export class LobbyStage {
         continue;
       }
       const h = new Human(p.look, Math.max(0, this.spec.tier - 1) as 0 | 1, { seed: next.length + 7, lit: this.spec.pbr ? "standard" : "lambert" });
-      h.mesh.castShadow = this.spec.shadows;
+      h.castShadows(this.spec.shadows);
       h.setPose((["relaxed", "arms", "hip", "relaxed", "hero"] as const)[next.length % 5]);
       this.scene.add(h.mesh);
       next.push({ id: p.id, name: p.name, human: h });
@@ -335,7 +335,7 @@ export class LobbyStage {
     for (const h of this.podium) h.dispose();
     this.podium = looks.slice(0, 3).map((l, i) => {
       const h = new Human(l, i === 0 ? this.spec.tier : (Math.max(0, this.spec.tier - 1) as 0 | 1), { featured: i === 0, seed: 11 + i, lit: this.spec.pbr ? "standard" : "lambert" });
-      h.mesh.castShadow = this.spec.shadows;
+      h.castShadows(this.spec.shadows);
       h.setPose(i === 0 ? "hero" : i === 1 ? "arms" : "hip");
       if (i === 0) h.finish();
       this.podiumSet.add(h.mesh);

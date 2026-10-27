@@ -19,11 +19,10 @@
 // out (−Z a right one), +X leans the spine and head forward.
 
 import type { AnimState, Pose } from "./animator";
+import { clip, mirror, play, type Clip } from "./keys";
 
 /** Seconds from the shot until the body is down. */
 export const FALL_TIME = 0.95;
-/** …and until it lies still. */
-const SETTLE = 0.9;
 
 export type FallKind = "thrown" | "spin" | "crumple";
 
@@ -46,6 +45,424 @@ export function fallProgress(dead: number, kind: FallKind): number {
   return t * t;
 }
 
+// The falls as keys (seconds from the shot), mirrored for the other side.
+// Every one collapses like a person, not a plank: the knees give and the
+// hips drop first, the body goes over with the arms thrown out and the
+// head tucking, lands, and the limbs slap down and settle.
+
+/** Thrown back: snapped back by the shot, sits down into the fall, lands on the back, arms spread. */
+const BACK = clip(1.6, false, [
+  { t: 0, b: {} },
+  {
+    t: 0.06,
+    curl: [0.1, 0.12],
+    b: {
+      spine: [-0.25, 0, 0],
+      chest: [-0.42, 0, 0],
+      neck: [-0.2, 0, 0],
+      head: [-0.55, 0, 0],
+      clavL: [0, 0, 0.12],
+      clavR: [0, 0, -0.12],
+      upperArmL: [-1.4, 0, 0.35],
+      upperArmR: [-1.3, 0, -0.35],
+      foreArmL: [-0.7, 0, 0],
+      foreArmR: [-0.6, 0, 0],
+      shinL: [0.15, 0, 0],
+      shinR: [0.12, 0, 0],
+    },
+  },
+  {
+    t: 0.22,
+    hips: [0, -0.12, 0],
+    curl: [0.1, 0.12],
+    b: {
+      spine: [-0.1, 0, 0],
+      chest: [-0.2, 0, 0],
+      head: [-0.25, 0, 0],
+      thighL: [-0.55, 0, 0.1],
+      thighR: [-0.5, 0, -0.1],
+      shinL: [0.85, 0, 0],
+      shinR: [0.8, 0, 0],
+      footL: [-0.2, 0, 0],
+      footR: [-0.2, 0, 0],
+      clavL: [0, 0, 0.1],
+      clavR: [0, 0, -0.1],
+      upperArmL: [-1.9, 0, 0.6],
+      upperArmR: [-1.8, 0, -0.6],
+      foreArmL: [-0.5, 0, 0],
+      foreArmR: [-0.45, 0, 0],
+    },
+  },
+  {
+    t: 0.5,
+    hips: [0, -0.05, 0],
+    curl: [0.15, 0.15],
+    b: {
+      spine: [0.12, 0, 0],
+      chest: [0.08, 0, 0],
+      neck: [0.15, 0, 0],
+      head: [0.3, 0, 0],
+      thighL: [-0.7, 0, 0.12],
+      thighR: [-0.65, 0, -0.12],
+      shinL: [0.9, 0, 0],
+      shinR: [0.85, 0, 0],
+      footL: [0.1, 0, 0],
+      footR: [0.1, 0, 0],
+      upperArmL: [-1.2, 0, 1.0],
+      upperArmR: [-1.1, 0, -1.1],
+      foreArmL: [-0.4, 0, 0],
+      foreArmR: [-0.5, 0, 0],
+    },
+  },
+  {
+    t: 0.95,
+    curl: [0.3, 0.3],
+    b: {
+      spine: [0.02, 0, 0],
+      chest: [-0.05, 0, 0],
+      neck: [-0.1, 0, 0],
+      head: [-0.25, 0, 0],
+      thighL: [-0.35, 0, 0.12],
+      thighR: [-0.2, 0, -0.1],
+      shinL: [0.6, 0, 0],
+      shinR: [0.35, 0, 0],
+      footL: [0.35, 0, 0],
+      footR: [0.35, 0, 0],
+      upperArmL: [-0.15, 0, 1.25],
+      upperArmR: [-0.1, 0, -1.35],
+      foreArmL: [-0.2, 0, 0],
+      foreArmR: [-0.3, 0, 0],
+      handL: [0, 0, 0.2],
+      handR: [0, 0, -0.25],
+    },
+  },
+  {
+    t: 1.6,
+    curl: [0.35, 0.3],
+    b: {
+      head: [-0.15, 0.55, 0.12],
+      thighL: [-0.3, 0, 0.14],
+      thighR: [-0.05, 0, -0.08],
+      shinL: [0.65, 0, 0],
+      shinR: [0.12, 0, 0],
+      footL: [0.4, 0, 0],
+      footR: [0.35, 0, 0],
+      upperArmL: [-0.12, 0, 1.15],
+      upperArmR: [-0.08, 0, -1.3],
+      foreArmL: [-0.25, 0, 0],
+      foreArmR: [-0.35, 0, 0],
+      handL: [0, 0, 0.2],
+      handR: [0, 0, -0.25],
+    },
+  },
+]);
+
+/** Thrown forward (shot from behind): whiplash, the knees go, arms reach out to break the fall, face down, head turned. */
+const FRONT = clip(1.6, false, [
+  { t: 0, b: {} },
+  {
+    t: 0.06,
+    curl: [0.1, 0.1],
+    b: {
+      spine: [0.15, 0, 0],
+      chest: [0.2, 0, 0],
+      head: [-0.35, 0, 0],
+      upperArmL: [0.6, 0, 0.4],
+      upperArmR: [0.55, 0, -0.4],
+      foreArmL: [-0.3, 0, 0],
+      foreArmR: [-0.3, 0, 0],
+      shinL: [0.15, 0, 0],
+      shinR: [0.15, 0, 0],
+    },
+  },
+  {
+    t: 0.22,
+    hips: [0, -0.1, 0],
+    curl: [0.1, 0.1],
+    b: {
+      spine: [0.35, 0, 0],
+      chest: [0.25, 0, 0],
+      head: [0.1, 0, 0],
+      thighL: [-0.45, 0, 0.06],
+      thighR: [-0.4, 0, -0.06],
+      shinL: [0.9, 0, 0],
+      shinR: [0.85, 0, 0],
+      footL: [0.1, 0, 0],
+      footR: [0.1, 0, 0],
+      upperArmL: [-0.9, 0, 0.3],
+      upperArmR: [-1.0, 0, -0.3],
+      foreArmL: [-0.6, 0, 0],
+      foreArmR: [-0.6, 0, 0],
+    },
+  },
+  {
+    t: 0.5,
+    curl: [0.05, 0.05],
+    b: {
+      spine: [0.2, 0, 0],
+      chest: [0.15, 0, 0],
+      head: [-0.3, 0, 0],
+      thighL: [-0.3, 0, 0.08],
+      thighR: [-0.25, 0, -0.08],
+      shinL: [0.7, 0, 0],
+      shinR: [0.6, 0, 0],
+      footL: [0.3, 0, 0],
+      footR: [0.3, 0, 0],
+      upperArmL: [-1.7, 0, 0.45],
+      upperArmR: [-1.7, 0, -0.45],
+      foreArmL: [-0.3, 0, 0],
+      foreArmR: [-0.3, 0, 0],
+    },
+  },
+  {
+    t: 0.95,
+    curl: [0.05, 0.05],
+    b: {
+      spine: [-0.05, 0, 0],
+      chest: [-0.1, 0, 0],
+      head: [-0.45, 0.6, 0],
+      thighL: [0.05, 0, 0.1],
+      thighR: [0.05, 0, -0.1],
+      shinL: [0.3, 0, 0],
+      shinR: [0.15, 0, 0],
+      footL: [0.5, 0, 0],
+      footR: [0.5, 0, 0],
+      upperArmL: [-2.2, 0, 0.75],
+      upperArmR: [-1.0, 0, -0.9],
+      foreArmL: [-1.2, 0, 0],
+      foreArmR: [-1.4, 0, 0],
+    },
+  },
+  {
+    t: 1.6,
+    curl: [0.05, 0.05],
+    b: {
+      spine: [-0.05, 0, 0],
+      chest: [-0.08, 0, 0],
+      head: [-0.35, 0.8, 0.1],
+      thighL: [-0.25, 0, 0.35],
+      thighR: [0.05, 0, -0.1],
+      shinL: [0.9, 0, 0],
+      shinR: [0.12, 0, 0],
+      footL: [0.5, 0, 0],
+      footR: [0.5, 0, 0],
+      upperArmL: [-2.1, 0, 0.8],
+      upperArmR: [-0.9, 0, -0.95],
+      foreArmL: [-1.3, 0, 0],
+      foreArmR: [-1.4, 0, 0],
+    },
+  },
+]);
+
+/** Spin: the shot twists them round, the legs cross and buckle, they drop on their side, arms in front. */
+const SPIN = clip(1.6, false, [
+  { t: 0, b: {} },
+  {
+    t: 0.06,
+    curl: [0.1, 0.2],
+    b: {
+      hips: [0, 0.2, 0],
+      chest: [-0.3, 0.5, 0],
+      head: [-0.4, 0.4, 0],
+      upperArmL: [-0.6, 0, 1.0],
+      upperArmR: [-1.2, 0, -0.3],
+      foreArmL: [-0.3, 0, 0],
+      foreArmR: [-1.2, 0, 0],
+      shinL: [0.15, 0, 0],
+      shinR: [0.15, 0, 0],
+    },
+  },
+  {
+    t: 0.3,
+    hips: [0, -0.1, 0],
+    curl: [0.15, 0.25],
+    b: {
+      hips: [0, 0.7, 0],
+      spine: [0.05, 0.3, 0.1],
+      chest: [0.1, 0.35, 0.12],
+      head: [0.1, 0.3, 0.2],
+      thighL: [-0.3, 0, -0.2],
+      shinL: [0.6, 0, 0],
+      thighR: [-0.5, 0, -0.05],
+      shinR: [0.9, 0, 0],
+      upperArmL: [-1.5, 0, 1.2],
+      upperArmR: [-0.6, 0, -0.9],
+      foreArmL: [-0.3, 0, 0],
+      foreArmR: [-0.9, 0, 0],
+    },
+  },
+  {
+    t: 0.6,
+    hips: [0, -0.06, 0],
+    curl: [0.2, 0.25],
+    b: {
+      hips: [0, 1.15, 0],
+      spine: [0.1, 0.2, 0.2],
+      chest: [0.1, 0.15, 0.15],
+      head: [0.15, 0.2, 0.2],
+      thighL: [-0.6, 0, 0],
+      shinL: [0.8, 0, 0],
+      thighR: [-0.4, 0, -0.05],
+      shinR: [0.6, 0, 0],
+      upperArmL: [-1.0, 0, 0.3],
+      upperArmR: [-1.2, 0, -0.2],
+      foreArmL: [-0.5, 0, 0],
+      foreArmR: [-0.7, 0, 0],
+    },
+  },
+  {
+    t: 0.95,
+    curl: [0.35, 0.3],
+    b: {
+      hips: [0, 1.35, 0],
+      spine: [0.15, 0, 0.06],
+      chest: [0.1, 0, 0.08],
+      head: [0.15, 0.2, 0.15],
+      thighL: [-0.75, 0, 0.05],
+      shinL: [1.1, 0, 0],
+      thighR: [-0.45, 0, -0.05],
+      shinR: [0.6, 0, 0],
+      footL: [0.3, 0, 0],
+      footR: [0.3, 0, 0],
+      upperArmL: [-1.1, 0, 0.22],
+      upperArmR: [-1.3, 0, 0.15],
+      foreArmL: [-0.55, 0, 0],
+      foreArmR: [-0.75, 0, 0],
+    },
+  },
+  {
+    t: 1.6,
+    curl: [0.35, 0.3],
+    b: {
+      hips: [0, 1.35, 0],
+      spine: [0.12, 0, 0.05],
+      chest: [0.08, 0, 0.06],
+      head: [0.12, 0.35, 0.18],
+      thighL: [-0.8, 0, 0.05],
+      shinL: [1.15, 0, 0],
+      thighR: [-0.4, 0, -0.05],
+      shinR: [0.55, 0, 0],
+      footL: [0.3, 0, 0],
+      footR: [0.3, 0, 0],
+      upperArmL: [-1.05, 0, 0.2],
+      upperArmR: [-1.3, 0, 0.12],
+      foreArmL: [-0.6, 0, 0],
+      foreArmR: [-0.8, 0, 0],
+    },
+  },
+]);
+
+/** Crumple: the legs go first — down onto the knees, slumped — then they topple over sideways, limp. */
+const CRUMPLE = clip(1.6, false, [
+  { t: 0, b: {} },
+  {
+    t: 0.08,
+    hips: [0, -0.05, 0],
+    curl: [0.3, 0.3],
+    b: {
+      chest: [0.2, 0, 0],
+      head: [0.3, 0, 0],
+      upperArmL: [-0.3, 0, -0.05],
+      upperArmR: [-0.35, 0, 0.05],
+      foreArmL: [-0.8, 0, 0],
+      foreArmR: [-0.8, 0, 0],
+      shinL: [0.3, 0, 0],
+      shinR: [0.3, 0, 0],
+      thighL: [-0.12, 0, 0],
+      thighR: [-0.12, 0, 0],
+    },
+  },
+  {
+    t: 0.34,
+    hips: [0, -0.44, 0],
+    curl: [0.3, 0.3],
+    b: {
+      spine: [0.3, 0, 0],
+      chest: [0.3, 0, 0],
+      neck: [0.2, 0, 0],
+      head: [0.45, 0, 0],
+      thighL: [-0.15, 0, 0.08],
+      thighR: [-0.1, 0, -0.08],
+      shinL: [2.0, 0, 0],
+      shinR: [1.95, 0, 0],
+      footL: [0.75, 0, 0],
+      footR: [0.7, 0, 0],
+      upperArmL: [0.05, 0, 0.15],
+      upperArmR: [0.05, 0, -0.15],
+      foreArmL: [-0.3, 0, 0],
+      foreArmR: [-0.3, 0, 0],
+    },
+  },
+  {
+    t: 0.5,
+    hips: [0, -0.45, 0],
+    curl: [0.3, 0.3],
+    b: {
+      spine: [0.35, 0, 0.08],
+      chest: [0.35, 0, 0.1],
+      neck: [0.2, 0, 0],
+      head: [0.5, 0.2, 0.2],
+      thighL: [-0.15, 0, 0.08],
+      thighR: [-0.1, 0, -0.08],
+      shinL: [2.0, 0, 0],
+      shinR: [1.95, 0, 0],
+      footL: [0.75, 0, 0],
+      footR: [0.7, 0, 0],
+      upperArmL: [0.1, 0, 0.2],
+      upperArmR: [0.0, 0, -0.1],
+      foreArmL: [-0.25, 0, 0],
+      foreArmR: [-0.35, 0, 0],
+    },
+  },
+  {
+    t: 0.95,
+    hips: [0, -0.1, 0],
+    curl: [0.3, 0.3],
+    b: {
+      spine: [0.2, 0, 0],
+      chest: [0.15, 0, 0],
+      head: [0.2, 0.5, 0.2],
+      thighL: [-0.5, 0, 0.1],
+      thighR: [-0.5, 0, -0.06],
+      shinL: [1.2, 0, 0],
+      shinR: [1.0, 0, 0],
+      footL: [0.5, 0, 0],
+      footR: [0.5, 0, 0],
+      upperArmL: [-0.9, 0, 0.25],
+      upperArmR: [-1.1, 0, 0.1],
+      foreArmL: [-0.5, 0, 0],
+      foreArmR: [-0.7, 0, 0],
+    },
+  },
+  {
+    t: 1.6,
+    hips: [0, -0.08, 0],
+    curl: [0.32, 0.3],
+    b: {
+      spine: [0.18, 0, 0],
+      chest: [0.12, 0, 0],
+      head: [0.18, 0.6, 0.22],
+      thighL: [-0.55, 0, 0.12],
+      thighR: [-0.45, 0, -0.06],
+      shinL: [1.25, 0, 0],
+      shinR: [0.95, 0, 0],
+      footL: [0.5, 0, 0],
+      footR: [0.5, 0, 0],
+      upperArmL: [-0.85, 0, 0.25],
+      upperArmR: [-1.15, 0, 0.1],
+      foreArmL: [-0.5, 0, 0],
+      foreArmR: [-0.75, 0, 0],
+    },
+  },
+]);
+
+const FALLS: Record<"back" | "front" | "spin" | "crumple", [Clip, Clip]> = {
+  back: [BACK, mirror(BACK)],
+  front: [FRONT, mirror(FRONT)],
+  spin: [SPIN, mirror(SPIN)],
+  crumple: [CRUMPLE, mirror(CRUMPLE)],
+};
+
 export function ragdollPose(a: AnimState, out: Pose): void {
   const d = a.dead;
   const kind = fallKind(a.seed);
@@ -54,81 +471,32 @@ export function ragdollPose(a: AnimState, out: Pose): void {
   const vary = ((a.seed * 3.1) % 1) - 0.5;
   const f = fallProgress(d, kind);
   a.fall = f;
-
-  // The hit: a jolt that peaks in 60 ms and fades.
-  const jolt = d < 0.06 ? d / 0.06 : Math.exp(-(d - 0.06) / 0.12);
   // Down: a bounce off the ground, then the wobble dies away.
   const since = d - FALL_TIME;
   const bounce = since > 0 ? Math.sin(since * 15) * Math.exp(-since * 5.5) : 0;
-  const still = smooth(0, SETTLE, since);
-  // Arms trail the fall (they lag the body, up and out), then slap down.
-  const trail = since < 0 ? Math.sin(f * Math.PI) : 0;
 
-  // ── Whole body: how far over, which way, and the roll ──
+  // ── Whole body: how far over, which way ──
   let tilt = (Math.PI / 2) * f;
   let tiltYaw = a.fallDir;
-  let roll = 0;
-  if (kind === "spin") {
-    roll = side * 1.35 * smooth(0.05, FALL_TIME, d);
-    tiltYaw += side * 0.5 * f;
-  } else if (kind === "crumple") {
-    // Over to one side, not straight back.
-    tiltYaw += side * 1.2;
-  }
+  if (kind === "spin") tiltYaw += side * 0.5 * f;
+  // Crumple goes over to one side, not straight back.
+  else if (kind === "crumple") tiltYaw += side * 1.2;
   tilt += bounce * 0.05;
   out.tilt = tilt;
   out.tiltYaw = tiltYaw;
   out.rootY = 0.11 * f;
-  if (roll) out.set("hips", 0, roll, 0);
 
-  // ── Legs ──
-  // Knees give under the hit; crumple folds right down onto them first.
-  const buckle = kind === "crumple" ? smooth(0, 0.34, d) * (1 - 0.65 * smooth(0.45, FALL_TIME + 0.3, d)) : smooth(0.02, 0.4, d) * (1 - 0.7 * f);
-  const kneel = kind === "crumple" ? 1.4 : 0.55;
-  // Lying: one leg bent, the other out straight (which one is the person's own).
-  const restBendL = side > 0 ? 0.55 + vary * 0.3 : 0.12;
-  const restBendR = side > 0 ? 0.1 : 0.5 - vary * 0.3;
-  const lie = f * (1 - buckle);
-  out.set("thighL", -kneel * buckle * 0.75 - restBendL * 0.45 * lie, 0, 0.1 * f + 0.06);
-  out.set("thighR", -kneel * buckle * 0.7 - restBendR * 0.45 * lie, 0, -0.1 * f - 0.06);
-  out.set("shinL", kneel * buckle * 1.5 + restBendL * lie + bounce * 0.05);
-  out.set("shinR", kneel * buckle * 1.45 + restBendR * lie - bounce * 0.05);
-  out.set("footL", 0.35 * f);
-  out.set("footR", 0.3 * f);
+  // ── The body's own fall (keys), this person's side ──
+  const faceDown = kind === "thrown" && Math.cos(a.fallDir) > 0;
+  const which = kind === "thrown" ? (faceDown ? "front" : "back") : kind;
+  play(FALLS[which][side > 0 ? 0 : 1], d, out);
 
-  // ── Spine and head: snapped back by the shot, loose as they land ──
-  const back = kind === "crumple" ? 0.25 : 0.42;
-  out.set("spine", -back * jolt * 0.6 + 0.04 * f + bounce * 0.04, 0, side * 0.05 * f);
-  out.set("chest", -back * jolt + 0.02 * f - bounce * 0.05, 0, side * 0.06 * f);
-  out.set("neck", -0.2 * jolt);
-  // The head rolls to one side once down.
-  out.set("head", -0.55 * jolt - 0.15 * f + bounce * 0.12, side * 0.55 * still + vary * 0.2, side * 0.12 * f);
-
-  // ── Arms: flung up by the hit, trailing the fall, then down on the ground ──
-  // On the back they lie spread out to the sides; on the side (spin, crumple)
-  // both lie in front of the chest — spread, the top one would point at the sky.
-  // Thrown forwards (shot from behind) they land face down: arms spread, a
-  // little up off the ground, hands flat — never pushed into it.
-  const flat = kind === "thrown";
-  const faceDown = flat && Math.cos(a.fallDir) > 0;
-  const fwdL = flat ? (faceDown ? -0.12 : 0.12) : 1.05 + vary * 0.3;
-  const fwdR = flat ? (faceDown ? -0.08 : 0.05) : 1.25 - vary * 0.3;
-  const outL = flat ? 1.15 + vary * 0.35 : 0.22;
-  const outR = flat ? 1.3 - vary * 0.35 : 0.15;
-  const bendL = flat ? (faceDown ? 0.04 : 0.15 + vary * 0.2) : 0.55;
-  const bendR = flat ? (faceDown ? 0.06 : 0.25 - vary * 0.2) : 0.75;
-  const up = jolt * 0.9 + trail * 0.8;
-  const flail = Math.sin(d * 11) * 0.22 * (1 - f) * (d > 0.08 ? 1 : 0);
-  const rest = f * (1 - 0.3 * up);
-  out.set("clavL", 0, 0, 0.12 * up);
-  out.set("clavR", 0, 0, -0.12 * up);
-  out.set("upperArmL", -1.5 * up - fwdL * rest + flail - bounce * 0.15, 0, 0.35 * up + outL * rest);
-  out.set("upperArmR", -1.4 * up - fwdR * rest - flail - bounce * 0.15, 0, -0.35 * up - outR * rest);
-  out.set("foreArmL", -0.7 * up - bendL * f);
-  out.set("foreArmR", -0.6 * up - bendR * f);
-  out.set("handL", 0, 0, 0.2 * f);
-  out.set("handR", 0, 0, -0.25 * f);
-  // Hands: open on the hit, loose once down (flat, face down).
-  out.curlL = 0.1 + (faceDown ? 0.02 : 0.25) * f;
-  out.curlR = 0.12 + (faceDown ? 0.02 : 0.2) * f;
+  // Life on top: the arms flail on the way down; on landing the limbs and head slap and settle.
+  const flail = Math.sin(d * 11) * 0.18 * (1 - f) * smooth(0.06, 0.12, d);
+  out.add("upperArmL", flail - bounce * 0.15);
+  out.add("upperArmR", -flail - bounce * 0.15);
+  out.add("head", bounce * 0.12, vary * 0.2 * f);
+  out.add("chest", -bounce * 0.05);
+  out.add("shinL", bounce * 0.05);
+  out.add("shinR", -bounce * 0.05);
 }

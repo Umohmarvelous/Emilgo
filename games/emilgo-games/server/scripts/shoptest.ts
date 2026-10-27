@@ -17,6 +17,9 @@ import WebSocket from "ws";
 
 import { NET } from "../../src/config";
 import type { ServerMsg } from "../../src/net/protocol";
+import { HOODIE_COLORS } from "../../src/world/human/wardrobe";
+
+const GOLD = HOODIE_COLORS.findIndex((c) => c.id === "gold");
 
 const PLATFORM = process.env.PLATFORM ?? "http://localhost:8790";
 const GAME = process.env.GAME ?? "ws://localhost:8787";
@@ -95,7 +98,7 @@ async function main(): Promise<void> {
 
   console.log("buying and claiming:");
   const gold = await buy(a, "outfit_gold");
-  check(gold.status === 200, "A pays for the Gold outfit (test sheet)");
+  check(gold.status === 200, "A pays for the Gold hoodie (test sheet)");
   const c1 = await claim(a, gold.json.purchaseId);
   // The webhook and the phone race to grant it; whichever wins, it is granted once.
   check(c1.status === 200 && c1.json.owned?.filter((x) => x === "outfit_gold").length === 1, "claim → outfit_gold owned (exactly once)");
@@ -113,11 +116,11 @@ async function main(): Promise<void> {
   const c5 = await claim(a, fut.json.purchaseId);
   check(c5.status === 422 && c5.json.error === "unknown_product", "a product this build doesn't sell → 422");
   check((await apiGet(`/purchases/${fut.json.purchaseId}`)).status === "paid", "…and it is NOT marked delivered (stays restorable)");
-  const cap = await buy(a, "cap_fila");
-  await post(PLATFORM, "/mock/refund", { session: a.session, purchaseId: cap.json.purchaseId });
-  const c6 = await claim(a, cap.json.purchaseId);
+  const midnight = await buy(a, "outfit_midnight");
+  await post(PLATFORM, "/mock/refund", { session: a.session, purchaseId: midnight.json.purchaseId });
+  const c6 = await claim(a, midnight.json.purchaseId);
   check(c6.status === 409 && c6.json.error === "refunded", "a refunded purchase → 409, nothing given");
-  check(!(await owned(a.session)).json.owned?.includes("cap_fila"), "cap not owned after the refund");
+  check(!(await owned(a.session)).json.owned?.includes("outfit_midnight"), "Midnight hoodie not owned after the refund");
   const c7 = await post<{ error?: string }>(GAME_HTTP, "/shop/claim", { session: a.session, purchaseId: "../../etc" });
   check(c7.status === 400, "a malformed purchase id → 400");
 
@@ -135,9 +138,10 @@ async function main(): Promise<void> {
   const ca = client("Ada");
   const cb = client("Bayo");
   await Promise.all([ca.opened, cb.opened]);
-  ca.send({ t: "look", ticket: ticketA, look: { o: "outfit_gold", x: ["fila"], b: 1 } });
+  // A owns the Gold hoodie, not the Ankara design (nor the Midnight hoodie: refunded).
+  ca.send({ t: "look", ticket: ticketA, look: { hd: GOLD, ds: "ankara", o: "outfit_gold", x: ["fila"], b: 1 } });
   // B has nothing — and tries to wear gold with a forged ticket.
-  cb.send({ t: "look", ticket: ticketA.slice(0, -4) + "AAAA", look: { o: "outfit_gold", b: 1 } });
+  cb.send({ t: "look", ticket: ticketA.slice(0, -4) + "AAAA", look: { hd: GOLD, o: "outfit_gold", b: 1 } });
   ca.send({ t: "create", size: 2 });
   const room = (await ca.waitFor((m) => m.t === "room" && !!m.room.code)) as Extract<ServerMsg, { t: "room" }> | null;
   cb.send({ t: "join", code: room!.room.code });
@@ -154,9 +158,9 @@ async function main(): Promise<void> {
   const start = (await cb.waitFor((m) => m.t === "start", 15_000)) as Extract<ServerMsg, { t: "start" }> | null;
   const ra = start?.start.roster.find((r) => r.name === "Ada");
   const rb = start?.start.roster.find((r) => r.name === "Bayo");
-  check(ra?.look?.o === "outfit_gold" && ra.look.b === 1, "round roster: A in the Gold outfit, gold name");
-  check(!ra?.look?.x?.includes("fila"), "…but no cap (A's cap was refunded)");
-  check((!rb?.look?.o || rb.look.o === "street") && !rb?.look?.b, "round roster: B plain, whatever B claimed");
+  check(ra?.look?.hd === GOLD && ra.look.o === "outfit_gold" && ra.look.b === 1, "round roster: A in the Gold hoodie, gold name");
+  check(ra?.look?.ds !== "ankara" && !ra?.look?.x?.includes("fila"), "…but not the Ankara design or a cap (never bought)");
+  check(rb?.look?.hd !== GOLD && (!rb?.look?.o || rb.look.o === "street") && !rb?.look?.b, "round roster: B plain, whatever B claimed");
   await sleep(4000); // into the round
   cb.send({ t: "emote", e: "zanku" });
   await sleep(1600);

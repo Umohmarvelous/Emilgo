@@ -19,7 +19,7 @@ import { PRODUCTS, PRODUCT_BY_ID } from "../shop/catalog";
 import type { FriendState } from "../social/friends";
 import { EMOTES, EMOTE_BY_ID, type EmoteId } from "../social/emotes";
 import { POSES } from "../world/human/animator";
-import { EXTRAS, FREE_OUTFITS, HAIRS, HAIR_COLORS, OUTFITS, SKIN_TONES, type Look } from "../world/human/wardrobe";
+import { HOODIE_COLORS, HOODIE_DESIGNS, type HoodieDesign, type Look } from "../world/human/wardrobe";
 import { esc, ordinal } from "./dom";
 import { t, translateTree } from "./i18n";
 import { icon } from "./icons";
@@ -321,18 +321,17 @@ export class Screens {
     );
   }
 
-  /** Character editor: body, skin, hair, outfit, extras. Paid items show their price and a lock. */
+  /** Character editor: the hoodie (colour and design: the only clothes there are) and the body. Paid ones show their price and a lock. */
   customize(look: Look, tab: string, owned: ReadonlySet<string>, canBuy: boolean): void {
     const tabs = [
+      ["hoodie", "Hoodie"],
       ["body", "Body"],
-      ["skin", "Skin"],
-      ["hair", "Hair"],
-      ["outfit", "Outfit"],
-      ["extras", "Extras"],
     ]
       .map(([id, label]) => `<button class="tab ${tab === id ? "on" : ""}" data-act="ctab" data-tab="${id}">${label}</button>`)
       .join("");
     let body = "";
+    const lock = (product: string | undefined) => !!product && !owned.has(product);
+    const price = (product: string | undefined, locked: boolean) => (product && locked ? `<span class="price num">${naira(PRODUCT_BY_ID[product].price)}</span>` : "");
     if (tab === "body") {
       body = `<div class="label" style="margin-bottom:8px">Build</div>
         <div class="grid">${(["m", "f"] as const)
@@ -340,42 +339,25 @@ export class Screens {
           .join("")}</div>
         <div class="row-set" style="margin-top:12px"><span class="lbl"><b>Height</b><small>A little taller or shorter</small></span>
           <input class="slider" type="range" min="95" max="105" step="1" value="${Math.round(look.height * 100)}" data-act="look-range" data-key="height" aria-label="Height" /></div>`;
-    } else if (tab === "skin") {
-      body = `<div class="grid">${SKIN_TONES.map(
-        (c, i) => `<button class="tile ${look.skin === i ? "on" : ""}" data-act="look" data-key="skin" data-val="${i}" aria-label="Skin tone ${i + 1}"><span class="swatch" style="background:${c}"></span></button>`,
-      ).join("")}</div>`;
-    } else if (tab === "hair") {
-      body = `<div class="label" style="margin-bottom:8px">Style</div><div class="grid">${HAIRS.map(
-        (h) => `<button class="tile ${look.hair === h.id ? "on" : ""}" data-act="look" data-key="hair" data-val="${h.id}">${icon("hair", "", 26)}<span class="t">${esc(h.name)}</span></button>`,
-      ).join("")}</div>
-        <div class="label" style="margin:14px 0 8px">Colour</div><div class="grid">${HAIR_COLORS.map(
-          (c, i) => `<button class="tile ${look.hairColor === i ? "on" : ""}" data-act="look" data-key="hairColor" data-val="${i}" aria-label="Hair colour ${i + 1}"><span class="swatch" style="background:${c}"></span></button>`,
-        ).join("")}</div>`;
-    } else if (tab === "outfit") {
-      const tile = (o: (typeof OUTFITS)[number]) => {
-        const locked = !!o.product && !owned.has(o.product);
-        const p = o.product ? PRODUCT_BY_ID[o.product] : null;
-        return `<button class="tile ${look.outfit === o.id ? "on" : ""} ${locked ? "locked" : ""}" data-act="look" data-key="outfit" data-val="${o.id}" ${locked ? `data-locked="${o.product}"` : ""}>
-          ${locked ? `<span class="lock">${icon("lock", "", 14)}</span>` : ""}
-          <span class="swatch" style="background:linear-gradient(135deg, ${o.accent} 50%, ${(o.bottom.pattern as { color?: string }).color ?? "#333"} 50%)"></span>
-          <span class="t">${esc(o.name)}</span>
-          ${p && locked ? `<span class="price num">${naira(p.price)}</span>` : ""}
-        </button>`;
-      };
-      body = `<div class="grid wide">${FREE_OUTFITS.map(tile).join("")}${OUTFITS.filter((o) => o.product).map(tile).join("")}</div>
-        ${canBuy ? "" : `<p class="note" style="margin-top:10px">Shop outfits are bought inside Lagos Life. Here you can try them on.</p>`}`;
     } else {
-      body = `<div class="grid">${EXTRAS.map((e) => {
-        const locked = !!e.product && !owned.has(e.product);
-        const on = look.extras.includes(e.id);
-        return `<button class="tile ${on ? "on" : ""} ${locked ? "locked" : ""}" data-act="look" data-key="extra" data-val="${e.id}" ${locked ? `data-locked="${e.product}"` : ""}>
-          ${locked ? `<span class="lock">${icon("lock", "", 14)}</span>` : ""}
-          ${icon(e.id === "fila" ? "cap" : e.id === "shades" || e.id === "glasses" ? "shades" : e.id === "headset" ? "sound" : e.id === "watch" ? "timer" : e.id === "earrings" ? "medal" : "crown", "", 24)}
-          <span class="t">${esc(e.name)}</span>
-          ${locked && e.product ? `<span class="price num">${naira(PRODUCT_BY_ID[e.product].price)}</span>` : on ? `<span class="owned">On</span>` : ""}
+      const main = HOODIE_COLORS[look.hoodie]?.hex ?? HOODIE_COLORS[0].hex;
+      const alt = contrastOf(main);
+      const colours = HOODIE_COLORS.map((c, i) => {
+        const locked = lock(c.product);
+        const fill = c.satin ? `linear-gradient(135deg, ${c.hex} 20%, rgba(255,255,255,.55) 50%, ${c.hex} 80%), ${c.hex}` : c.hex;
+        return `<button class="tile ${look.hoodie === i ? "on" : ""} ${locked ? "locked" : ""}" data-act="look" data-key="hoodie" data-val="${i}" ${locked ? `data-locked="${c.product}"` : ""} aria-label="${esc(c.name)}">
+          ${locked ? `<span class="lock">${icon("lock", "", 14)}</span>` : ""}<span class="swatch" style="background:${fill}"></span><span class="t">${esc(c.name)}</span>${price(c.product, locked)}
         </button>`;
-      }).join("")}</div>
-      <p class="note" style="margin-top:10px">One thing on the head and one on the face at a time.</p>`;
+      }).join("");
+      const designs = HOODIE_DESIGNS.map((d) => {
+        const locked = lock(d.product);
+        return `<button class="tile ${look.design === d.id ? "on" : ""} ${locked ? "locked" : ""}" data-act="look" data-key="design" data-val="${d.id}" ${locked ? `data-locked="${d.product}"` : ""}>
+          ${locked ? `<span class="lock">${icon("lock", "", 14)}</span>` : ""}<span class="swatch" style="background:${designSwatch(d.id, main, alt)}"></span><span class="t">${esc(d.name)}</span>${price(d.product, locked)}
+        </button>`;
+      }).join("");
+      body = `<div class="label" style="margin-bottom:8px">Colour</div><div class="grid">${colours}</div>
+        <div class="label" style="margin:14px 0 8px">Design</div><div class="grid wide">${designs}</div>
+        ${canBuy ? "" : `<p class="note" style="margin-top:10px">Gold, Midnight and the Ankara design are bought inside Lagos Life. Here you can try them on.</p>`}`;
     }
     this.sheet("customize", "Customize", body, {
       tabs,
@@ -449,8 +431,7 @@ export class Screens {
         let action: string;
         if (!has && canBuy) action = `<button class="btn primary" style="height:32px;width:100%" data-act="buy" data-id="${p.id}" ${busy ? "disabled" : ""}>${busy === p.id ? "Paying" : naira(p.price)}</button>`;
         else if (!has) action = `<span class="price num">${naira(p.price)}</span>`;
-        else if (p.kind === "outfit") action = `<button class="btn secondary" style="height:32px;width:100%" data-act="wear" data-id="${p.id}">Wear</button>`;
-        else if (p.kind === "cap") action = `<button class="btn secondary" style="height:32px;width:100%" data-act="wear" data-id="${p.id}">Wear</button>`;
+        else if (p.kind === "hoodie") action = `<button class="btn secondary" style="height:32px;width:100%" data-act="wear" data-id="${p.id}">Wear</button>`;
         else if (p.kind === "badge") action = `<button class="btn ${badge ? "secondary on" : "secondary"}" style="height:32px;width:100%" data-act="toggle-badge">${badge ? "On" : "Off"}</button>`;
         else action = `<span class="owned">Owned</span>`;
         return `<div class="tile" style="min-height:150px;justify-content:space-between">
@@ -999,3 +980,25 @@ function ago(at: number): string {
   return `${Math.round(h / 24)} d ago`;
 }
 
+/** Trim that stands out against a hoodie colour (as the painter picks it). */
+function contrastOf(hex: string): string {
+  const n = parseInt(hex.slice(1), 16);
+  const l = 0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255);
+  return l > 140 ? "#1d1d20" : "#ece9e2";
+}
+
+/** A little picture of a design in the chosen colour. */
+function designSwatch(id: HoodieDesign, main: string, alt: string): string {
+  switch (id) {
+    case "twotone":
+      return `linear-gradient(180deg, ${alt} 0 22%, ${main} 22% 78%, ${alt} 78%)`;
+    case "stripe":
+      return `linear-gradient(180deg, ${main} 0 34%, ${alt} 34% 48%, #0a8a4a 48% 54%, ${main} 54%)`;
+    case "ankara":
+      return `radial-gradient(circle at 30% 72%, #e85d04 0 14%, #ffba08 15% 22%, transparent 23%), radial-gradient(circle at 70% 72%, #0f4c5c 0 14%, #ffba08 15% 22%, transparent 23%), ${main}`;
+    case "block":
+      return `linear-gradient(180deg, ${main} 0 52%, ${alt} 52%)`;
+    default:
+      return main;
+  }
+}

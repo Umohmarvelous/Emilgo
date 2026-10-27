@@ -1,5 +1,5 @@
 // Dev only: renders the welcome screen's hero art (src/ui/welcome.webp) from
-// the game's own characters — a squad in hero suits on a burning Lagos street
+// the game's own characters — a squad in hoodies on a burning Lagos street
 // at night, smoke and embers, a low heroic camera. Inspired by the reference
 // posters' mood (UPGRADE.md), drawn entirely with our own assets.
 //   /dev/poster.html?w=1920&h=1080
@@ -27,7 +27,8 @@ import {
   BoxGeometry,
   PCFSoftShadowMap,
 } from "three";
-import { Human } from "../src/world/human";
+import { Human, loadScans } from "../src/world/human";
+import { loadScanLevel } from "../src/world/human/scanbody";
 import { cleanLook } from "../src/world/human/wardrobe";
 import { canvasTexture, glow, paving, tiled } from "../src/world/tex";
 
@@ -136,13 +137,15 @@ const eg = new BufferGeometry();
 eg.setAttribute("position", new BufferAttribute(pos, 3));
 scene.add(new Points(eg, new PointsMaterial({ size: 0.07, map: canvasTexture("glow", 32, glow, false), color: 0xffa040, transparent: true, blending: AdditiveBlending, depthWrite: false })));
 
-// The squad.
+// The squad, in the scanned people's hoodies.
+await loadScans();
+await Promise.all([loadScanLevel(2), loadScanLevel(3)]);
 const squad = [
-  { look: { body: "m", skin: 2, hair: "fade", outfit: "hero", extras: ["headset"] }, x: 0, z: 0.4, ry: 0, pose: "hero" },
-  { look: { body: "f", skin: 4, hair: "braids", outfit: "hero", extras: ["shades"] }, x: -1.3, z: -0.5, ry: 0.3, pose: "hip" },
-  { look: { body: "m", skin: 6, hair: "lowcut", outfit: "hero", extras: [] }, x: 1.4, z: -0.5, ry: -0.3, pose: "hero" },
-  { look: { body: "f", skin: 1, hair: "afro", outfit: "hero", extras: ["earrings"] }, x: -2.6, z: -1.5, ry: 0.45, pose: "relaxed" },
-  { look: { body: "m", skin: 3, hair: "locs", outfit: "hero", extras: ["glasses"] }, x: 2.7, z: -1.6, ry: -0.42, pose: "hero" },
+  { look: { body: "m", hoodie: 2, design: "twotone" }, x: 0, z: 0.4, ry: 0, pose: "hero" },
+  { look: { body: "f", hoodie: 6, design: "plain" }, x: -1.3, z: -0.5, ry: 0.3, pose: "hip" },
+  { look: { body: "m", hoodie: 5, design: "stripe" }, x: 1.4, z: -0.5, ry: -0.3, pose: "hero" },
+  { look: { body: "f", hoodie: 1, design: "block" }, x: -2.6, z: -1.5, ry: 0.45, pose: "relaxed" },
+  { look: { body: "m", hoodie: 7, design: "plain" }, x: 2.7, z: -1.6, ry: -0.42, pose: "arms" },
 ] as const;
 const people = squad.map((p, i) => {
   const h = new Human(cleanLook(p.look as never), 2, { featured: true, seed: i * 3 + 1, lit: "standard" });
