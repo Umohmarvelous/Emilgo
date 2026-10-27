@@ -6,7 +6,7 @@
 > do 7, then 8, without waiting in between). After them, the owner's
 > **scanned people** replaced every player (asked 22 Oct, in the game and
 > committed 27 Oct). **High is over the 100K triangle budget** because of
-> them, waiting on the owner's call: see "Open items". Nothing else is
+> them; the owner picked option 1 (28 Oct) but put it **on hold**: see "Open items". Nothing else is
 > planned until the owner says what's next.
 
 ## Start here (new session)
@@ -210,6 +210,11 @@ VIEW=844x390 node dev/cdp.mjs "http://localhost:5173/" <outdir> <steps.json>   #
 
 ## Open items (not code; the owner's)
 
+- **ON HOLD — owner picked option 1 (28 Oct 2026), build it only when he says go.**
+  To do then: make the 100K-triangle limit apply to Low and Medium only
+  (High exempt); write it as a SPEC-V2 Decisions row, update the Status
+  "Scanned people" budgets row and this item, commit. No code change is
+  needed (the crowd budget stays); it is a spec and docs decision.
 - **High is over budget: 114K triangles at worst (limit 100K).** Your own
   body is 19.7K on High (the owner's LOD0); the other 19 are already at the
   lightest level. Low (76K) and Medium (92K) are under, and Auto never gives
