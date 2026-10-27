@@ -23,7 +23,10 @@ Change any of these by saying so.
 | --- | --- | --- |
 | Voice chat (waiting room, toggle, volume) | Not built | The Lagos Life frame has no microphone. |
 | Invite Lagos Life friends | A friends list kept on the phone (add from recent players or your room). Invites and friend requests reach friends who are online in EMILGO Games, as a lobby notification. | Lagos Life gives games no friends list or notifications, and we may not store or link player data. |
-| Black suit "during walkout" | The numbered black suit is worn for the **whole match**: walkout, play, bodies. Your own outfit shows in the lobby, the waiting room and after the match. Hair and skin stay yours. | One look on the field, as in the show. The number on chest and back finds you without name tags. |
+| Black suit "during walkout" (replaced by the owner, 22 Oct 2026) | **Everyone wears the scanned hoodie and joggers, everywhere**: lobby, waiting room, walkout, play, bodies. On the field your number is on the back and small on the chest. Players pick only the hoodie's colour (12 free; Gold and Midnight in the shop) and design (Plain, Two-tone, Chest stripe, Colour block free; Ankara in the shop), and the body. Mama stays generated. | The owner's call: "hoodie and joggers only". The number still finds you without name tags. |
+| Old looks and purchases (scanned people) | A saved look from before the hoodie gets the nearest free colour to its outfit; the shop's Gold, Midnight and Ankara outfits become the Gold and Midnight hoodies and the Ankara design (same product ids, so a purchase still counts). The Fila cap is gone from the shop. | Nobody loses what they had. The hoodie is the only clothing. |
+| "Mouth moving when necessary" | The mouth moves when the person says something: your quick chat or chat line, and other players' (not muted ones), for about as long as it takes to say (0.7 s + 0.06 s a letter, at most 3 s). It also opens on a laugh, the cheer's shout and hard running. Eyes look about and blink all the time. | No voice chat in the frame, so chat is the only speech. |
+| Detail of the scanned people | Far 1.6K triangles, Low 3.2K, Medium 6.1K, High 19.7K (the owner's LOD0). The base file (far, Low, the face, the build) loads at boot; Medium and High download in the background only on the tiers that draw them, and people already standing switch up. The EMILGO app's copy has them inside. | Phones on Low never download what they don't draw. |
 | Baskets near the safe line | Crossing the line with a ball drops it into the nearest basket by itself: you are safe and it can't be stolen. Crossing without a ball doesn't count; you are still in play. | Gives the baskets a job without another button. |
 | Buttons "above the move stick" (§3.2) vs "bottom-right" (§4.3) | Sprint above the move stick, with the stamina bar. Jump, crouch (hold for prone) and emote bottom-right. Fist, slap, push and grab bottom-centre ("vital controls"), shown only when they apply. Left/right hand mirrors all of it. | COD Mobile's own layout. |
 | Time per distance | 100 m in 45 s, 200 m in 80 s, 300 m in 120 s, both modes. Checked with the balance sim in Phase 2. | Keeps today's tension (about 2.2 × the running time). |
@@ -236,6 +239,50 @@ Each phase ends tested and waits for the owner's go-ahead.
    - Every test, the three builds, the docs, the handoff.
 
 ## Status
+
+### Scanned people (after Phase 8; asked 22 Oct 2026, in the game 27 Oct 2026)
+
+The owner's LOD scans replace every player (Mama stays generated). Reviewed
+in a scratch copy first (round 2), then "move it to the game now". Measured
+as in Phase 8 (headless Chrome, this Mac's GPU, 844×390, Desert Field, Ball
+Haunting 300 m, 20 bodies), worst frame over the walkout and play.
+
+| Check | Result |
+| --- | --- |
+| Budgets (limit: 100 draw calls, 100K triangles) | Low 59 calls, **76K** · Medium 68, **92K** · **High 78, 114K: over** (Phase 8: 98K). Medium and High 60 fps |
+| Why High is over | Your own body is always the tier's best: 19.7K on High (it was 5K). The other 19 are already at the far level (1.6K each), so the crowd costs 51K against its 32K budget. **The owner's call**: see HANDOFF "Open items" |
+| Boot to the lobby (limit 5 s) | Production build, slow 4G and CPU 4×: **4.0–4.25 s** over 4 runs. It was 5.1–5.5 s until the base scan files were preloaded beside the script |
+| Download | 318 KB of JS gzipped, plus 154 KB of scans at boot. Medium adds 124 KB and High 506 KB, in the background, only on those tiers |
+| Feet on the ground (`dev/groundtest.html`: 6 looks × 3 tiers × 39 states) | **702 checks, 0 failed.** A body on its back floated 1.1 cm until the solver skinned its contact points by all four weights |
+| Tests | rules 115 · match 20 · balls 29 · shop 22 (refunds now tested on the Gold hoodie) · social 13 · fairness 7/7 · load, 600 clients: 0 failed, tick p99 6.4 ms, 6.9 KB/s each |
+| Builds | Lagos Life `dist/`: 318 KB JS gzipped · EMILGO embed: **2,343 KB** (the scans are inside) · server. **Protocol 10**, unchanged: the look gains the hoodie and design; an older build's look gets its hoodie from its outfit |
+
+Built:
+- **The scanned people** (`world/human/scanbody.ts`): the real head, hands
+  and feet from the bake, in a hoodie, hood, pocket, sleeves and joggers made
+  to each scan's measured build (her bust and seat a little fuller). Five
+  fingers on both. Paint: `scanpaint.ts` (fleece, seams, ribbing, the
+  designs, Gold and Midnight's satin, the number on the field).
+- **The face** (`animator.ts` faceRig; bones jaw, eyeL, eyeR, lidL, lidR in
+  `skeleton.ts`): eyes that look about and blink, a jaw for talk, laughs and
+  the cheer. Quick chat moves the mouth (`Human.talk`, `Crowd.talk`).
+- **Keyframed clips** (`keys.ts`): the gait, carrying (both hands standing,
+  tucked under an arm on the move: `Human.carryPoint`), the stagger, four
+  falls, full-body dances. The old emote poses they replace are gone.
+- **Customise** (`ui/screens.ts`): Hoodie (colour and design) and Body. The
+  shop sells the Gold and Midnight hoodies and the Ankara design
+  (`shop/catalog.ts`); the server checks the hoodie and design like any
+  other paid look (`allowedLook`, `parseClient`).
+- **Loading** (`scanbody.ts`): three small files per body (`scan/`, made by
+  `tools/scan/bake.mjs` then `pack.mjs`). Medium and High stream in
+  (`ensureScanLevels`). The web build preloads the base files
+  (`vite.config.ts` `preloadScans`).
+- **Shadow stand-ins** (`graphics/shadowOnly.ts`): a body over 8K triangles
+  casts its shadow through its Low shape. The world's building proxies use
+  the same helper. They were on a layer of their own before, which three.js's
+  shadow pass never draws, so **the buildings cast no shadow from Phase 3 to
+  now**; they do again.
+- **`dev/scan.html`**: review sheets of every movement at every level.
 
 ### Phase 8: Performance and regression (done 22 Oct 2026)
 

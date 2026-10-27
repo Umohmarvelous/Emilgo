@@ -1,10 +1,13 @@
 # EMILGO Games: session handoff
 
-> Updated 22 Oct 2026. Branch `sdk-54-temp`. Red Light, Green Light v2 was
+> Updated 27 Oct 2026. Branch `sdk-54-temp`. Red Light, Green Light v2 was
 > built to the owner's spec, [SPEC-V2.md](SPEC-V2.md), in **8 phases**.
 > **All 8 phases are done and committed** (the owner said on 20 Oct 2026 to
-> do 7, then 8, without waiting in between). Nothing more is planned until the
-> owner says what's next. What remains is theirs: see "Open items".
+> do 7, then 8, without waiting in between). After them, the owner's
+> **scanned people** replaced every player (asked 22 Oct, in the game and
+> committed 27 Oct). **High is over the 100K triangle budget** because of
+> them, waiting on the owner's call: see "Open items". Nothing else is
+> planned until the owner says what's next.
 
 ## Start here (new session)
 
@@ -66,6 +69,7 @@ Read these in order:
 | 6 | Elimination and highlights (+ the lullaby, the pens, the wider desert) | Done, committed `9a41722`, `2a27245`, `e71f778`, `f212177` |
 | 7 | Menus, settings, social, store | Done, committed `337327b` |
 | 8 | Performance and regression | Done (22 Oct 2026), committed `d8249f0`, `d64aec5`, `238b0c7`, `1feaadd` and the docs |
+| — | Scanned people (owner's request after 8) | In the game (27 Oct 2026). High over budget: owner's call |
 
 The full scope of each phase is in SPEC-V2.md under "Build phases". What 1–4 built is in its "Status" section.
 
@@ -129,6 +133,33 @@ The spec's limits (§8) and where they stand: 30 fps on low-end, 60 on
 mid-range, under 100 draw calls and 100K triangles, under 5 s to the lobby,
 under 50 MB. All met in headless Chrome. **None checked on a real phone.**
 
+## Scanned people (after Phase 8)
+
+What it built, the checks and the numbers: SPEC-V2.md, Status, "Scanned
+people". Four new rows in its Decisions table (the hoodie replaces the suit,
+old looks, the mouth, the detail levels).
+
+Owner's rules for them (22 Oct 2026): hoodie and joggers only, colour and
+design are all players change; High is his LOD0 (19.7K), Low and Medium may
+look faceted; COD-style moves but no new COD moves; five fingers; real eyes
+that move and blink, the mouth moving "when necessary"; "I'll say what to
+change as time goes on". The source scans are in `assets/models/characters`
+(not committed) and the 300K originals in `~/Downloads` (filenames swapped:
+`3d_male_model` is the woman).
+
+Where things are:
+- Bodies: `world/human/scanbody.ts` (the clothes, the face, loading),
+  `scanpaint.ts` (texture), `keys.ts` (keyframed clips), `animator.ts`
+  (`faceRig`), `wardrobe.ts` (`HOODIE_COLORS`, `HOODIE_DESIGNS`,
+  `hoodieFromOutfit`).
+- The bake: `tools/scan/bake.mjs` then `pack.mjs` → `world/human/scan/*.bin`
+  (the header of bake.mjs says what it needs).
+- Review sheets: `dev/scan.html?body=m|f&level=0..3&set=moves|emotes|poses`.
+  `dev/humans.html?gen=1` shows the generated people (Mama).
+- Shadow stand-ins: `graphics/shadowOnly.ts`; `Human.castShadows`.
+- The ground solver lying down skins its points by all four weights
+  (`Body.contactsAll`, stride 20).
+
 ## Running and testing
 
 From the repo root:
@@ -179,6 +210,19 @@ VIEW=844x390 node dev/cdp.mjs "http://localhost:5173/" <outdir> <steps.json>   #
 
 ## Open items (not code; the owner's)
 
+- **High is over budget: 114K triangles at worst (limit 100K).** Your own
+  body is 19.7K on High (the owner's LOD0); the other 19 are already at the
+  lightest level. Low (76K) and Medium (92K) are under, and Auto never gives
+  a phone High (it's "for computers, or by choice"). Options for the owner:
+  1. **Keep it** and make the limit 100K for Low and Medium only. High still
+     runs 60 fps on this Mac. (Recommended.)
+  2. A lighter far body (1.6K → about 0.8K) for everyone: High about 98K, but
+     the other 19 look rougher at the start line on every tier.
+  3. Your body at 19.7K only in close-ups (walkout, results), 6.1K in play.
+- **The listing screenshots show the old people.** `listing/LISTING.md` says
+  they are real captures of the game, so they need taking again before
+  submission. Its product table now matches the hoodie shop.
+
 - **Docker server on :8787 is still on protocol 5.** New builds (protocol 10) can't join it; the Play menu says "Update the game to play online." Rebuild it with:
   ```bash
   cd games/emilgo-games && docker compose up -d --build
@@ -186,6 +230,14 @@ VIEW=844x390 node dev/cdp.mjs "http://localhost:5173/" <outdir> <steps.json>   #
 - **Never tested on a real phone.** Only headless Chrome has run it, with both the software and the real GPU.
 - **Never run against real Lagos Life.** Only against the fake platform, `server/scripts/mockvatar.ts`.
 - **Hosting, domain (emilgo.app), Vatar keys, dashboard products, sandbox checklist, submission:** see README §6. All of it is paused by the owner.
+
+## Key numbers (scanned people, 27 Oct 2026)
+
+- rules 115 · match 20 · balls 29 · shop 22 · social 13 · fairness 7/7 · ground 702 / 0 failed.
+- Load test, 600 clients: 0 failures · tick p99 6.4 ms · 6.9 KB/s.
+- Lagos Life `dist/`: 318 KB JS gzipped + 154 KB of scans at boot. EMILGO embed: 2,343 KB. Protocol 10.
+- Desert Field 300 m Ball Haunting, 20 bodies, worst frame: Low 59 calls / 76K · Medium 68 / 92K · **High 78 / 114K**.
+- Lobby ready, production build, slow 4G + CPU 4×: 4.0–4.25 s.
 
 ## Key numbers (Phase 8)
 

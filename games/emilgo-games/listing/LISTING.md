@@ -47,7 +47,7 @@ response with talking drum.
 • Lagos Life matches for 2–4 players, with optional stakes in Lagos Life game money. Stakes are confirmed on Lagos Life's own sheet; the winner takes the pot less the house's 5%; a draw gives every stake back. Game money only — never real money, never cashed out
 • Fair on slow connections: the game measures each player's lag and gives that time back, so a weak network doesn't get you caught
 • Chat and emotes between rounds, with a filter that hides insults and phone numbers, links and account details; tap any message to mute, block or report
-• A cosmetics shop: outfits, a fila cap, an emote pack and a gold chat name. Nothing in the shop helps you win
+• A cosmetics shop: hoodie colours and designs, an emote pack and a gold chat name. Nothing in the shop helps you win
 • Leaderboard of best scores
 • Light: under 200 KB, no other downloads, made for phones on mobile data
 
@@ -61,14 +61,14 @@ Action (or Party, if offered).
 
 Ids and prices must match `src/shop/catalog.ts` exactly. All are **one-off**
 products (bought once per player). Prices are whole naira within ₦100–₦50,000;
-6 of the 20 allowed.
+5 of the 20 allowed. (The hoodies keep their old `outfit_` ids, so earlier
+purchases still count. The Fila cap is gone: the hoodie is the only clothing.)
 
 | Product id | Name | Price | Description |
 | --- | --- | --- | --- |
-| `outfit_gold` | Gold Owambe outfit | ₦500 | Shine like the celebrant. Everyone on the street sees it. |
-| `outfit_ankara` | Ankara Orange outfit | ₦500 | Bright orange top, deep blue trousers. Loud and proud. |
-| `outfit_midnight` | Midnight outfit | ₦500 | All black with a purple shine. |
-| `cap_fila` | Fila cap | ₦300 | The classic folded cap. Matches whatever you're wearing. |
+| `outfit_gold` | Gold hoodie | ₦500 | A gold satin finish, joggers to match. Shine like the celebrant. |
+| `outfit_ankara` | Ankara hoodie design | ₦500 | Ankara print on the hood and the pocket, on any colour you pick. |
+| `outfit_midnight` | Midnight hoodie | ₦500 | Near black with a purple shine. Mama barely sees you (she does). |
 | `emotes_owambe` | Owambe emote pack | ₦300 | Three dance emotes: Zanku, Shaku Shaku and Odogwu. |
 | `badge_gold` | Gold chat name | ₦200 | Your name in gold with a ★ in every online chat. |
 
