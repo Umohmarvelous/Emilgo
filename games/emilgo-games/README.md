@@ -302,7 +302,7 @@ Everything below needs your accounts; none of it is code.
 3. **Get test keys** at `lagoslife.app/developers/keys`: Game URL = the Pages
   address; Webhook URL = `https://<server>/vatar-webhook`. Put the test secret,
    results secret and webhook secret into the server's env.
-4. **Create the 6 products** in the dashboard — ids and prices from
+4. **Create the 5 products** in the dashboard — ids and prices from
   `listing/LISTING.md`, exactly.
 5. **Tick the sandbox checklist** at `/developers/sandbox/<draft>`: open the game
   (init seen) → Shop → buy anything with *Pay (test)* (test purchase, server
