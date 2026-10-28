@@ -1,33 +1,35 @@
 # EMILGO Games: session handoff
 
-> Updated 27 Oct 2026. Branch `sdk-54-temp`. Red Light, Green Light v2 was
-> built to the owner's spec, [SPEC-V2.md](SPEC-V2.md), in **8 phases**.
-> **All 8 phases are done and committed** (the owner said on 20 Oct 2026 to
-> do 7, then 8, without waiting in between). After them, the owner's
-> **scanned people** replaced every player (asked 22 Oct, in the game and
-> committed 27 Oct). **High is over the 100K triangle budget** because of
-> them; the owner picked option 1 (28 Oct) but put it **on hold**: see "Open items". Nothing else is
-> planned until the owner says what's next.
+> **28 Oct 2026: v3 has begun.** The owner approved [SPEC-V3.md](SPEC-V3.md):
+> Dead Streets (solo zombie survival), Free For All (12 humans, melee, 10
+> modes, vehicles) and a hidden Ball Haunt, on one rank ladder kept on the
+> server. 11 phases, **each waits for the owner's go-ahead**. Phase 1
+> (foundations) is in progress; see SPEC-V3 "Status".
+>
+> Before v3: Red Light, Green Light v2 was built to [SPEC-V2.md](SPEC-V2.md)
+> in 8 phases, all done and committed, then the owner's scanned people
+> replaced every player (27 Oct). The High-budget item below is still on hold.
 
 ## Start here (new session)
 
 Read these in order:
 1. This file.
-2. [SPEC-V2.md](SPEC-V2.md):
+2. [SPEC-V3.md](SPEC-V3.md): the owner's answers, Decisions, the 11 phases and Status (v3 wins over everything below). The brief word for word: [SPEC-V3-ORIGINAL.md](SPEC-V3-ORIGINAL.md).
+3. [SPEC-V2.md](SPEC-V2.md) (still the rules for Ball Haunt until Phase 11):
    - the owner's answers, the Decisions table and the 8 phases;
    - the **Status** section for what each finished phase built.
-3. [SPEC-ORIGINAL.md](SPEC-ORIGINAL.md): the owner's own full spec (§1–§11), word for word. Every `§` in this file and in SPEC-V2 points into it. Where it disagrees with SPEC-V2's Answers and Decisions, SPEC-V2 wins.
-4. [README.md](README.md):
+4. [SPEC-ORIGINAL.md](SPEC-ORIGINAL.md): the owner's own full spec (§1–§11), word for word. Every `§` in this file and in SPEC-V2 points into it. Where it disagrees with SPEC-V2's Answers and Decisions, SPEC-V2 wins.
+5. [README.md](README.md):
    - §1, the Lagos Life rules the game must keep;
    - §4, the architecture;
    - §5, how to run it and test it.
-5. [UPGRADE.md](UPGRADE.md) only for history. Where it disagrees with SPEC-V2, SPEC-V2 wins.
+6. [UPGRADE.md](UPGRADE.md) only for history. Where it disagrees with SPEC-V2, SPEC-V2 wins.
 
 ## How the owner works (follow these)
 
 - **One phase at a time.** Finish it, test it, report it, then **stop and wait for the go-ahead**. Never start the next phase on your own.
 - **Short, plain replies.** No repetition.
-- **Build only what SPEC-V2 says.** Nothing extra. If the spec is unclear, add a row to its Decisions table and say so in the report.
+- **Build only what the spec says** (SPEC-V3 now). Nothing extra. If the spec is unclear, add a row to its Decisions table and say so in the report.
 - **Commit after every finished update, without asking** (the owner, 18 Oct 2026: "always commit every new update"). Stage only that change's files. End commit messages with the `Co-Authored-By` line. Don't push.
 - **Deploys are paused.** Don't host or upload anything.
 - **After any change under `src/`**, run `npm run game:embed` from the repo root. It writes the app's copy, `src/games/emilgo-games/redlightHtml.generated.ts`, which is committed.
