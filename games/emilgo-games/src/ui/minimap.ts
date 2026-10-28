@@ -40,6 +40,10 @@ export class Minimap {
   private px = 124;
   private at = 0;
   expanded = false;
+  /** Metres from the centre to the rim of the small map (open worlds see further). */
+  reach = REACH;
+  /** Open worlds: the places named on the full map. */
+  names: readonly { name: string; x: number; z: number }[] = [];
 
   constructor(parent: HTMLElement) {
     this.root.dataset.ui = "1";
@@ -77,13 +81,13 @@ export class Minimap {
    * Draw. `yaw` is the camera's (up on the map = where you look). Throttled to
    * 15 Hz; the full map, when open, redraws with it.
    */
-  draw(me: { x: number; z: number; heading: number; out: boolean }, marks: readonly MapMark[], doll: { x: number; z: number; watching: boolean }, yaw: number): void {
+  draw(me: { x: number; z: number; heading: number; out: boolean }, marks: readonly MapMark[], doll: { x: number; z: number; watching: boolean } | null, yaw: number): void {
     const now = performance.now();
     if (now - this.at < 66) return;
     this.at = now;
     const g = this.g;
     const W = this.canvas.width;
-    const k = W / 2 / REACH; // px per metre
+    const k = W / 2 / this.reach; // px per metre
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.clearRect(0, 0, W, W);
     g.fillStyle = "rgba(20,20,20,0.55)";
@@ -100,9 +104,9 @@ export class Minimap {
       g.drawImage(t.image, t.x0, t.z0, t.x1 - t.x0, t.z1 - t.z0);
       g.globalAlpha = 1;
     }
-    const r = 1.1; // metres (a dot ≈ 2 m across)
+    const r = 1.1 * (this.reach / REACH); // metres (a dot ≈ 2 m across on the field's map)
     for (const m of marks) this.mark(g, m, r);
-    this.dollMark(g, doll, r * 1.8);
+    if (doll) this.dollMark(g, doll, r * 1.8);
     // You: an arrow at the centre pointing where you face (relative to the view).
     g.setTransform(1, 0, 0, 1, 0, 0);
     this.arrow(g, W / 2, W / 2, me.heading + yaw, W * 0.075, me.out);
@@ -162,7 +166,7 @@ export class Minimap {
   }
 
   /** The full map: the whole field, north up (Mama at the top). */
-  private drawBig(me: { x: number; z: number; heading: number; out: boolean }, marks: readonly MapMark[], doll: { x: number; z: number; watching: boolean }): void {
+  private drawBig(me: { x: number; z: number; heading: number; out: boolean }, marks: readonly MapMark[], doll: { x: number; z: number; watching: boolean } | null): void {
     const t = this.terrain;
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const H = Math.round(gameSize().h * 0.86 * dpr);
@@ -185,8 +189,19 @@ export class Minimap {
     if (t) g.drawImage(t.image, t.x0, t.z0, t.x1 - t.x0, t.z1 - t.z0);
     const r = Math.max(1.4, 3 / k);
     for (const m of marks) this.mark(g, m, r);
-    this.dollMark(g, doll, r * 1.8);
+    if (doll) this.dollMark(g, doll, r * 1.8);
     g.setTransform(1, 0, 0, 1, 0, 0);
+    if (this.names.length) {
+      g.font = `600 ${Math.round(10 * dpr)}px Montserrat, sans-serif`;
+      g.textAlign = "center";
+      g.lineWidth = 3 * dpr;
+      g.strokeStyle = "rgba(0,0,0,0.7)";
+      g.fillStyle = "#fff4e0";
+      for (const n of this.names) {
+        g.strokeText(n.name, (n.x - x0) * k, (n.z - z0) * k);
+        g.fillText(n.name, (n.x - x0) * k, (n.z - z0) * k);
+      }
+    }
     this.arrow(g, (me.x - x0) * k, (me.z - z0) * k, me.heading, Math.max(8, r * k * 2.2), me.out);
   }
 }

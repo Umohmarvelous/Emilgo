@@ -96,6 +96,8 @@ export const SURFACE_OF: Record<GroundKind, Surface> = {
 };
 
 const HALF = 200;
+/** The wall round the city: thickness and height. */
+export const EDGE = { t: 0.4, h: 2.6 } as const;
 /** Gutters: inner width, depth, wall thickness. */
 export const GUTTER = { w: 0.8, depth: 0.9, wall: 0.16 } as const;
 
@@ -354,8 +356,11 @@ export function buildNaijaWorld(seed = 1957): OpenLayout {
       }
       // Electric poles every 28 m on this side's pavement, and the odd kiosk or generator.
       for (let p = 10; p < len - 6; p += 28) {
-        const off = r.w / 2 + (r.gutters ? GUTTER.w + GUTTER.wall * 2 + 0.5 : 0.6);
-        place("pole", r.x0 + ux * p + nx * off, r.z0 + uz * p + nz * off, rot);
+        // Between the gutter and the house fronts, clear of both (not entered as taken).
+        const off = r.w / 2 + (r.gutters ? GUTTER.w + GUTTER.wall * 2 + 0.63 : 0.9);
+        const px = r.x0 + ux * p + nx * off;
+        const pz = r.z0 + uz * p + nz * off;
+        if (nearRoadOnly(px, pz, r)) place("pole", px, pz, rot, nextV(), true);
       }
     }
   }
@@ -385,10 +390,10 @@ export function buildNaijaWorld(seed = 1957): OpenLayout {
     place(pre, x, z, rng.range(0, 6.28));
   }
   // Wrecks and generators: the city's furniture.
-  for (let i = 0; i < 26; i++) {
+  for (let i = 0, n = 0; i < 400 && n < 26; i++) {
     const x = rng.range(-80, 195);
     const z = rng.range(-195, 195);
-    place(rng.chance(0.4) ? "wreck" : rng.chance(0.5) ? "generator" : "kiosk", x, z, rng.range(0, 6.28));
+    if (place(rng.chance(0.4) ? "wreck" : rng.chance(0.5) ? "generator" : "kiosk", x, z, rng.range(0, 6.28))) n++;
   }
 
   // ── Gutters along town roads, cut at every crossing road; slabs to cross them ──
@@ -467,6 +472,11 @@ export function buildNaijaWorld(seed = 1957): OpenLayout {
     }
   }
 
+  // The city's edge: a block wall all round (the roads end at it).
+  for (const [x, z, hx, hz] of [[0, -HALF + EDGE.t / 2, HALF, EDGE.t / 2], [0, HALF - EDGE.t / 2, HALF, EDGE.t / 2], [-HALF + EDGE.t / 2, 0, EDGE.t / 2, HALF], [HALF - EDGE.t / 2, 0, EDGE.t / 2, HALF]]) {
+    solids.push({ x, z, hx, hz, rot: 0, y0: 0, y1: EDGE.h, kind: "box", surface: "concrete" });
+  }
+
   // ── Where players start: open ground, spread over the city ──
   const spawns: [number, number][] = [];
   const probe = rectOf(0, 0, 2.5, 2.5, 0);
@@ -494,6 +504,18 @@ export function buildNaijaWorld(seed = 1957): OpenLayout {
     spawns,
     groundAt: (x, z) => groundOf(x, z),
   };
+}
+
+/** True when (x, z) is clear of every road but `own` (a pole doesn't stand in a crossing road). */
+function nearRoadOnly(x: number, z: number, own: Road): boolean {
+  for (const r of ROADS) {
+    if (r === own) continue;
+    const dx = r.x1 - r.x0;
+    const dz = r.z1 - r.z0;
+    const t = Math.max(0, Math.min(1, ((x - r.x0) * dx + (z - r.z0) * dz) / (dx * dx + dz * dz)));
+    if (Math.hypot(r.x0 + dx * t - x, r.z0 + dz * t - z) < r.w / 2 + 2.5) return false;
+  }
+  return true;
 }
 
 /** Where along road `a` (0…1) road `b` crosses it, or null. */
