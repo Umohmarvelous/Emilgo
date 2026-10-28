@@ -1,0 +1,500 @@
+// The match core for the open worlds (SPEC-V3 §1.1): bodies, the clock and
+// the phases, and a list of rule modules that make it a mode. Free For All and
+// Dead Streets are this plus their modules; Red Light, Green Light moves onto
+// it in Phase 11.
+//
+// Pure, like rules.ts: no three.js, no DOM, no clock. It advances only when
+// step(dt) is called with a fixed dt, and every random choice comes from a
+// seeded stream (`rng(name)`: one per module, so adding a module never shifts
+// another's choices). The server runs it as the authority; Solo and the dev
+// pages run it locally.
+//
+//   walkout → countdown → play → ended
+//   Bodies move only in play. The match ends when its time is up (the modes
+//   that end sooner say so through their modules, from Phase 4).
+
+import { DEFAULT_COURSE, MOVE, RESPAWN, RULES, type Stance } from "../../config";
+import type { ModeDef, ModuleId } from "../../content/modes";
+import { Rng } from "../../core/rng";
+import type { BoostMods } from "../../shop/boosts";
+import { makeModules } from "../modules";
+import type { ZoneModule } from "../modules/zone";
+import { freshMotion, moveContestant, setBoosts, type Cause, type Contestant } from "./body";
+import type { MatchEvent, MatchPhase, RuleModule } from "./module";
+import { reachOf, type Reach } from "./reach";
+import type { Space } from "./space";
+
+/** The world a match is played in: its solids, its starts and the places worth finding. */
+export interface MatchWorld {
+  readonly space: Space;
+  readonly spawns: readonly (readonly [number, number])[];
+  readonly places: readonly { x: number; z: number; r: number }[];
+}
+
+/** What a mode asks of the match, after the Ranked overrides. */
+export interface MatchSettings {
+  time: number;
+  respawn: { on: boolean; delay: number };
+  modules: Partial<Record<ModuleId, Record<string, unknown>>>;
+}
+
+/** A mode's settings, Ranked or not ("module.key" overrides; "respawn.on"). */
+export function settingsOf(def: Pick<ModeDef, "time" | "respawn" | "modules" | "ranked">, ranked = false): MatchSettings {
+  const modules = JSON.parse(JSON.stringify(def.modules)) as MatchSettings["modules"];
+  const respawn = { on: def.respawn.on, delay: def.respawn.delay ?? 6 };
+  if (ranked) {
+    for (const [path, v] of Object.entries(def.ranked ?? {})) {
+      const [head, key] = path.split(".");
+      if (head === "respawn" && key === "on") respawn.on = v === true;
+      else {
+        const mod = modules[head as ModuleId];
+        if (mod) mod[key] = v;
+      }
+    }
+  }
+  return { time: def.time, respawn, modules };
+}
+
+export interface MatchOptions {
+  seed: number;
+  contestants: { id: string; name: string; bot: boolean; boosts?: readonly string[] }[];
+  world: MatchWorld;
+  settings: MatchSettings;
+  /** Seconds of walkout before the countdown; 0 or missing: none. */
+  walkout?: number;
+  /** Seconds of countdown (RULES.countdown). */
+  countdown?: number;
+}
+
+/** A name → a 32-bit salt (FNV-1a), so each stream is fixed by its name. */
+function salt(name: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < name.length; i++) {
+    h ^= name.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+
+interface Effect {
+  until: number;
+  v: number;
+}
+
+export class Match {
+  phase: MatchPhase = "countdown";
+  phaseTime = 0;
+  phaseDuration: number;
+  /** Seconds of play. */
+  elapsed = 0;
+  readonly seed: number;
+  readonly world: MatchWorld;
+  readonly settings: MatchSettings;
+  readonly contestants: Contestant[];
+  readonly modules: RuleModule[];
+  /** Modules the mode names that this build can't run (the mode shouldn't have been offered). */
+  readonly missing: ModuleId[];
+
+  private readonly byId = new Map<string, Contestant>();
+  private readonly byModule = new Map<string, RuleModule>();
+  private events: MatchEvent[] = [];
+  private reachGrid: Reach | null = null;
+  // The open-world buttons, per body: interact (a counter, and held), the backpack (a counter).
+  private readonly inInteract: number[];
+  private readonly interactSeen: number[];
+  private readonly inHold: boolean[];
+  private readonly inPack: number[];
+  private readonly packSeen: number[];
+  private readonly fx: Map<string, Effect>[];
+  private readonly base: BoostMods[];
+  private readonly fast: (BoostMods | null)[];
+  private readonly respawnAt: number[];
+  private readonly respawnRng: Rng;
+
+  constructor(opts: MatchOptions) {
+    this.seed = opts.seed;
+    this.world = opts.world;
+    this.settings = opts.settings;
+    const n = opts.contestants.length;
+    const spawnRng = this.rng("spawns");
+    this.respawnRng = this.rng("respawns");
+    const spots = spawnRng.shuffle(opts.world.spawns.map((s) => [s[0], s[1]] as [number, number]));
+    const b = opts.world.space.bounds;
+    const cx = (b.x0 + b.x1) / 2;
+    const cz = (b.z0 + b.z1) / 2;
+    this.contestants = opts.contestants.map((p, index) => {
+      // More players than starts: the extras stand a few metres round one.
+      const [sx, sz] = spots.length ? spots[index % spots.length] : [cx, cz];
+      const ring = spots.length ? Math.floor(index / spots.length) : index;
+      const x = sx + (ring ? Math.cos(ring * 2.4) * 2.5 : 0);
+      const z = sz + (ring ? Math.sin(ring * 2.4) * 2.5 : 0);
+      const c: Contestant = {
+        id: p.id,
+        name: p.name,
+        bot: p.bot,
+        index,
+        x,
+        z,
+        vx: 0,
+        vz: 0,
+        heading: Math.atan2(cx - x, cz - z),
+        status: "alive",
+        finishTime: -1,
+        place: 0,
+        eliminatedAt: -1,
+        cause: null,
+        inX: 0,
+        inZ: 0,
+        progress: 0,
+        graceBonus: 0,
+        ...freshMotion(),
+      };
+      setBoosts(c, p.boosts);
+      c.h = opts.world.space.floorAt(x, z, 0).h;
+      this.byId.set(p.id, c);
+      return c;
+    });
+    this.inInteract = new Array(n).fill(0);
+    this.interactSeen = new Array(n).fill(0);
+    this.inHold = new Array(n).fill(false);
+    this.inPack = new Array(n).fill(0);
+    this.packSeen = new Array(n).fill(0);
+    this.fx = Array.from({ length: n }, () => new Map());
+    this.base = this.contestants.map((c) => c.bst);
+    this.fast = new Array(n).fill(null);
+    this.respawnAt = new Array(n).fill(-1);
+
+    this.modules = makeModules(opts.settings.modules);
+    for (const m of this.modules) this.byModule.set(m.id, m);
+    this.missing = (Object.keys(opts.settings.modules) as ModuleId[]).filter((id) => !this.byModule.has(id));
+
+    const walkout = opts.walkout ?? 0;
+    if (walkout > 0) {
+      this.phase = "walkout";
+      this.phaseDuration = walkout;
+    } else this.phaseDuration = opts.countdown ?? RULES.countdown;
+    this.events.push({ type: "phase", phase: this.phase, duration: this.phaseDuration });
+    for (const m of this.modules) m.init?.(this);
+  }
+
+  /** A seeded stream of its own for `name` (a module, the spawns). */
+  rng(name: string): Rng {
+    return new Rng((this.seed ^ salt(name)) >>> 0);
+  }
+
+  /** Where bodies can walk (built on first use, then shared by every match on this world). */
+  get reach(): Reach {
+    if (!this.reachGrid) {
+      const s = this.world.spawns[0] ?? [0, 0];
+      this.reachGrid = reachOf(this.world.space, s);
+    }
+    return this.reachGrid;
+  }
+
+  module<T extends RuleModule>(id: ModuleId): T | null {
+    return (this.byModule.get(id) as T | undefined) ?? null;
+  }
+
+  get over(): boolean {
+    return this.phase === "ended";
+  }
+
+  get timeLeft(): number {
+    return Math.max(0, this.settings.time - this.elapsed);
+  }
+
+  get aliveCount(): number {
+    let n = 0;
+    for (const c of this.contestants) if (c.status === "alive") n++;
+    return n;
+  }
+
+  get(id: string): Contestant | undefined {
+    return this.byId.get(id);
+  }
+
+  // ── Input (the same counters as the Red Light, Green Light referee, plus the open world's) ──
+
+  setInput(id: string, x: number, z: number): void {
+    const c = this.byId.get(id);
+    if (!c) return;
+    const len = Math.hypot(x, z);
+    if (!isFinite(len)) return;
+    const k = len > 1 ? 1 / len : 1;
+    c.inX = x * k;
+    c.inZ = z * k;
+  }
+
+  setButtons(id: string, sprint: boolean, stance: Stance, jump: number): void {
+    const c = this.byId.get(id);
+    if (!c) return;
+    c.inSprint = !!sprint;
+    c.inStance = stance === 1 || stance === 2 ? stance : 0;
+    if (Number.isInteger(jump)) c.inJump = jump & 255;
+  }
+
+  setActions(id: string, attack: number, grab: number): void {
+    const c = this.byId.get(id);
+    if (!c) return;
+    if (Number.isInteger(attack)) c.inAttack = attack & 255;
+    if (Number.isInteger(grab)) c.inGrab = grab & 255;
+  }
+
+  /** Interact: `press` counts taps (pick up, loot); `hold` is the button held (open a crate). */
+  setInteract(id: string, press: number, hold: boolean): void {
+    const c = this.byId.get(id);
+    if (!c || !Number.isInteger(press)) return;
+    this.inInteract[c.index] = press & 255;
+    this.inHold[c.index] = !!hold;
+  }
+
+  /** The backpack: act = (counter << 5) | (16 to drop, 0 to use) | slot. A change is one request. */
+  setPack(id: string, act: number): void {
+    const c = this.byId.get(id);
+    if (!c || !Number.isInteger(act)) return;
+    this.inPack[c.index] = act & 0x3fff;
+  }
+
+  /** A new interact tap from c since the last call (each tap counts once). */
+  takePress(c: Contestant): boolean {
+    const i = c.index;
+    if (this.inInteract[i] === this.interactSeen[i]) return false;
+    this.interactSeen[i] = this.inInteract[i];
+    return true;
+  }
+
+  holding(c: Contestant): boolean {
+    return this.inHold[c.index];
+  }
+
+  /** A new backpack request from c (its low 5 bits), or −1. */
+  takePackAct(c: Contestant): number {
+    const i = c.index;
+    if (this.inPack[i] === this.packSeen[i]) return -1;
+    this.packSeen[i] = this.inPack[i];
+    return this.inPack[i] & 31;
+  }
+
+  // ── Effects: timed states an item or a hazard puts on a body ──
+
+  /** Seconds left of `key` on c (0: none). */
+  effect(c: Contestant, key: string): number {
+    const e = this.fx[c.index].get(key);
+    return e ? Math.max(0, e.until - this.elapsed) : 0;
+  }
+
+  effectValue(c: Contestant, key: string): number {
+    return this.fx[c.index].get(key)?.v ?? 0;
+  }
+
+  setEffect(c: Contestant, key: string, seconds: number, v = 1): void {
+    this.fx[c.index].set(key, { until: this.elapsed + seconds, v });
+    if (key === "speed") {
+      const b = this.base[c.index];
+      this.fast[c.index] = { ...b, speed: b.speed * v, sprint: b.sprint * v };
+    }
+  }
+
+  /** Every effect on c with seconds left (the HUD's chips). */
+  effects(c: Contestant): { key: string; left: number }[] {
+    const out: { key: string; left: number }[] = [];
+    for (const [key, e] of this.fx[c.index]) if (e.until > this.elapsed) out.push({ key, left: e.until - this.elapsed });
+    return out;
+  }
+
+  // ── Events ──
+
+  /** Queue an event, and let every module react to it now. */
+  emit(e: MatchEvent): void {
+    this.events.push(e);
+    for (const m of this.modules) m.onEvent?.(this, e);
+  }
+
+  drain(): MatchEvent[] {
+    const out = this.events;
+    this.events = [];
+    return out;
+  }
+
+  // ── The clock ──
+
+  step(dt: number): void {
+    if (this.phase === "ended") return;
+    this.phaseTime += dt;
+    if (this.phase === "play") {
+      this.elapsed += dt;
+      this.integrate(dt);
+      for (const m of this.modules) m.step?.(this, dt);
+      this.respawns();
+      if (this.elapsed >= this.settings.time) this.end();
+      return;
+    }
+    if (this.phaseTime >= this.phaseDuration) {
+      this.phaseTime -= this.phaseDuration;
+      if (this.phase === "walkout") this.enter("countdown", RULES.countdown);
+      else this.enter("play", this.settings.time);
+    }
+  }
+
+  private enter(phase: MatchPhase, duration: number): void {
+    this.phase = phase;
+    this.phaseDuration = duration;
+    this.emit({ type: "phase", phase, duration });
+  }
+
+  /** The time is up (or a mode's win), once. */
+  end(): void {
+    if (this.phase === "ended") return;
+    this.phase = "ended";
+    this.emit({ type: "ended" });
+  }
+
+  private integrate(dt: number): void {
+    const space = this.world.space;
+    for (const c of this.contestants) {
+      const i = c.index;
+      // Melee arrives with its module (Phase 4): until then a swing is ignored, never queued.
+      c.attackSeen = c.inAttack;
+      c.grabSeen = c.inGrab;
+      if (c.status !== "alive") continue;
+      const fast = this.fast[i];
+      c.bst = fast && this.effect(c, "speed") > 0 ? fast : this.base[i];
+      moveContestant(c, dt, DEFAULT_COURSE, space);
+    }
+    this.separate();
+  }
+
+  private readonly sepCells = new Map<number, number[]>();
+  private readonly sepPushed: boolean[] = [];
+
+  /**
+   * Keep bodies from overlapping, on a spatial hash (1 m cells): only bodies
+   * in neighbouring cells, at about the same height, are compared. As in Red
+   * Light, Green Light, a bump moves positions only, never velocities.
+   */
+  private separate(): void {
+    const list = this.contestants;
+    const min = MOVE.radius * 2;
+    const cells = this.sepCells;
+    for (const v of cells.values()) v.length = 0;
+    const key = (q: number, r: number) => (q + 2048) * 4096 + (r + 2048);
+    for (const c of list) {
+      if (c.status !== "alive") continue;
+      const k = key(Math.floor(c.x), Math.floor(c.z));
+      let b = cells.get(k);
+      if (!b) cells.set(k, (b = []));
+      b.push(c.index);
+    }
+    const pushed = this.sepPushed;
+    pushed.length = list.length;
+    pushed.fill(false);
+    for (const a of list) {
+      if (a.status !== "alive") continue;
+      const q = Math.floor(a.x);
+      const r = Math.floor(a.z);
+      for (let dq = -1; dq <= 1; dq++) {
+        for (let dr = -1; dr <= 1; dr++) {
+          const bucket = cells.get(key(q + dq, r + dr));
+          if (!bucket) continue;
+          for (const j of bucket) {
+            if (j <= a.index) continue;
+            const b = list[j];
+            if (Math.abs(a.h + a.y - (b.h + b.y)) > 1.4) continue;
+            const dx = b.x - a.x;
+            const dz = b.z - a.z;
+            const d2 = dx * dx + dz * dz;
+            if (d2 >= min * min || d2 < 1e-8) continue;
+            const d = Math.sqrt(d2);
+            const push = (min - d) / 2;
+            a.x -= (dx / d) * push;
+            a.z -= (dz / d) * push;
+            b.x += (dx / d) * push;
+            b.z += (dz / d) * push;
+            pushed[a.index] = pushed[j] = true;
+          }
+        }
+      }
+    }
+    // A bump never puts anyone inside a wall.
+    for (const c of list) if (pushed[c.index]) this.world.space.resolve(c, MOVE.radius);
+  }
+
+  // ── Death and coming back ──
+
+  eliminate(c: Contestant, cause: Cause): void {
+    if (c.status !== "alive") return;
+    c.status = "eliminated";
+    c.cause = cause;
+    c.eliminatedAt = this.elapsed;
+    c.vx = c.vz = 0;
+    c.inX = c.inZ = 0;
+    c.inSprint = c.sprinting = false;
+    this.fx[c.index].clear();
+    if (this.settings.respawn.on) this.respawnAt[c.index] = this.elapsed + this.settings.respawn.delay;
+    this.emit({ type: "eliminated", id: c.id, cause, x: c.x, z: c.z, h: c.h });
+  }
+
+  /** Seconds until c comes back (−1: not coming back, or alive). */
+  respawnIn(c: Contestant): number {
+    const at = this.respawnAt[c.index];
+    return at < 0 ? -1 : Math.max(0, at - this.elapsed);
+  }
+
+  private respawns(): void {
+    for (const c of this.contestants) {
+      const at = this.respawnAt[c.index];
+      if (at < 0 || this.elapsed < at) continue;
+      this.respawnAt[c.index] = -1;
+      this.respawn(c);
+    }
+  }
+
+  /**
+   * Back in, somewhere safe: a start or open ground inside the zone, as far
+   * from everyone else as can be found.
+   */
+  private respawn(c: Contestant): void {
+    const zone = this.module<ZoneModule>("zone");
+    const circle = zone ? zone.safe() : null;
+    const rng = this.respawnRng;
+    const reach = this.reach;
+    const cands: [number, number][] = this.world.spawns.map((s) => [s[0], s[1]]);
+    for (let t = 0; t < 24 && reach.open.length; t++) {
+      if (circle) {
+        const a = rng.range(0, Math.PI * 2);
+        const d = Math.sqrt(rng.next()) * circle.r * 0.85;
+        const cell = reach.cell(circle.x + Math.cos(a) * d, circle.z + Math.sin(a) * d);
+        if (cell >= 0 && reach.ground[cell]) cands.push(reach.centre(cell));
+      } else cands.push(reach.centre(reach.open[rng.int(0, reach.open.length - 1)]));
+    }
+    let best: [number, number] | null = null;
+    let bestScore = -Infinity;
+    for (const [x, z] of cands) {
+      const inside = !circle || Math.hypot(x - circle.x, z - circle.z) <= circle.r * 0.9;
+      let clear = RESPAWN.clear * 4;
+      for (const o of this.contestants) if (o !== c && o.status === "alive") clear = Math.min(clear, Math.hypot(o.x - x, o.z - z));
+      // Inside the zone first; then the most room, up to a point (past it, any is as good).
+      const score = (inside ? 1000 : 0) + Math.min(clear, RESPAWN.clear * 2);
+      if (score > bestScore) {
+        bestScore = score;
+        best = [x, z];
+      }
+    }
+    const [x, z] = best ?? [c.x, c.z];
+    // Fresh movement, but the input counters carry on (a repeat must not jump or swing).
+    const keep = { bst: this.base[c.index], grip: c.grip, inJump: c.inJump, inAttack: c.inAttack, inGrab: c.inGrab };
+    Object.assign(c, freshMotion(), keep, { jumpSeen: keep.inJump, attackSeen: keep.inAttack, grabSeen: keep.inGrab });
+    c.status = "alive";
+    c.cause = null;
+    c.eliminatedAt = -1;
+    c.x = x;
+    c.z = z;
+    c.vx = c.vz = 0;
+    c.h = this.world.space.floorAt(x, z, 0).h;
+    if (circle) c.heading = Math.atan2(circle.x - x, circle.z - z);
+    this.emit({ type: "respawn", id: c.id, x, z });
+  }
+}
+
+/** The modules a match can run in this build (the rest wait for their phases). */
+export { MATCH_MODULES } from "../modules";

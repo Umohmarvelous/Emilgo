@@ -260,6 +260,57 @@ export const PRACTICE = {
   bots: 19,
 } as const;
 
+// ── Shared gameplay for the open worlds (SPEC-V3 §7, Phase 3) ────────────────
+
+/**
+ * The zone (SPEC-V3 §7, §9). A mode's zone phases are [start s, radius m,
+ * close over s, exposure rate]; the rate fills the meter at rate × `fill` a
+ * second outside the circle, so 1.0 takes 10 s and 4 takes 2.5 s.
+ */
+export const ZONE = {
+  /** The next circle shows this long before it starts closing, seconds. */
+  warn: 30,
+  fill: 0.1,
+  /** Back inside, the meter drains at this a second. */
+  drain: 0.125,
+  /** The sky laser's slow descent (the warning) before it hits, seconds. */
+  laser: 1.2,
+} as const;
+
+/** Items and the backpack (SPEC-V3 §3.3, §7). */
+export const LOOT = {
+  /** Backpack slots. */
+  slots: 10,
+  /** Pick-up reach, metres, and the most height between your feet and the item. */
+  reach: 1.6,
+  reachUp: 1.0,
+  /** Items scattered per hectare of the world at density 1. */
+  perHectare: 8,
+  /** The closest two scattered items may lie, metres. */
+  spacing: 5,
+  /** The share scattered at the named places (the rest anywhere you can walk). */
+  atPlaces: 0.55,
+  /** A loot bag glows (and shows on the compass) this long, seconds. */
+  bagGlow: 60,
+} as const;
+
+/** Airfall (SPEC-V3 §10.3): at most 3 a match, a mode's gap apart. */
+export const AIRFALL = {
+  /** The flare goes up this long before the crate lands, seconds. */
+  flare: 20,
+  /** Hold to open, seconds; reach, metres. */
+  open: 3,
+  reach: 2,
+  /** No crate lands in the last this-many seconds of a match. */
+  minLeft: 45,
+  /** What a crate holds: rare items, then core items. */
+  rare: 1,
+  core: 2,
+} as const;
+
+/** Respawning in the open worlds: a start this far from everyone else when one exists, metres. */
+export const RESPAWN = { clear: 25 } as const;
+
 /** Online play. Server and client both read these. */
 export const NET = {
   /**

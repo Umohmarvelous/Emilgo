@@ -14,8 +14,12 @@ import { collideWalls } from "../pens";
 import type { Space } from "./space";
 
 export type Status = "alive" | "finished" | "eliminated";
-/** moved: caught by the doll; time: the clock ran out; noball: every ball was banked without yours. */
-export type Cause = "moved" | "time" | "noball";
+/**
+ * moved: caught by the doll; time: the clock ran out; noball: every ball was
+ * banked without yours. Open worlds (SPEC-V3): zone: the sky laser, your
+ * exposure full; hazard: a live wire, a fire.
+ */
+export type Cause = "moved" | "time" | "noball" | "zone" | "hazard";
 
 export interface Contestant {
   readonly id: string;
