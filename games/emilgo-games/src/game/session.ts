@@ -30,6 +30,8 @@ import { Loop } from "../core/loop";
 import { QualityGovernor } from "../core/quality";
 import { Rng, randomSeed } from "../core/rng";
 import { Post } from "../graphics/post";
+const NO_GRADE = import.meta.env.DEV && new URLSearchParams(location.search).has("nograde");
+import { Grade, gradeLights, LOOKS, lookForSky, vignetteCss, type GradeLook } from "../graphics/grade";
 import { frame as cinemaFrame } from "../flow/cinema";
 import { Countdown } from "../flow/countdown";
 import { MatchFlow } from "../flow/machine";
@@ -127,6 +129,10 @@ export class Game {
   private readonly props: PropsView;
   /** High only: bloom, grade, vignette. */
   private post: Post | null = null;
+  /** Medium's grade pass; Low grades through the lights, the exposure and the veil. */
+  private grade: Grade | null = null;
+  private readonly gradeVeil = document.createElement("div");
+  private veilCss = "";
   private readonly quality: QualityGovernor;
   private readonly loop: Loop;
   private readonly sound = new Sound();
@@ -308,6 +314,10 @@ export class Game {
     };
     void this.content.boot();
     this.stage = new LobbyStage(this.renderer, this.spec, canvas);
+    this.stage.gradeLights(LOOKS.lobby);
+    // The film look's vignette over the canvas (Low, and the lobby), under every other piece of UI.
+    this.gradeVeil.className = "grade-veil";
+    ui.prepend(this.gradeVeil);
 
     this.quality = new QualityGovernor((pr) => {
       this.renderer.setPixelRatio(Math.min(pr, this.spec.maxPixelRatio));
@@ -1084,6 +1094,8 @@ export class Game {
     this.worldMs = performance.now() - t0;
     this.worldKey = key;
     this.scene.add(this.world.group);
+    // Low has no grade pass: the look reaches the lights instead.
+    if (this.spec.tier === 0) gradeLights(this.world.group, this.lookNow());
     this.scene.fog = this.world.fog;
     this.renderer.setClearColor(this.world.clear);
     this.rig.colliders = this.world.colliders;
@@ -1947,7 +1959,7 @@ export class Game {
     const { w, h } = gameSize();
     if (this.view === "lobby") {
       this.stage.update(frameDt);
-      this.stage.render();
+      this.drawLobby();
       if (this.screens.name === "room" && this.net) {
         this.screens.tickRoom(this.net.serverNow());
         this.screens.placeTags(this.stage.squadTags(w, h, this.seatId ?? this.net.id));
@@ -2124,16 +2136,50 @@ export class Game {
     this.draw();
   }
 
-  /** The game view: the puddles' mirror and the post-processing on High, a plain draw otherwise. */
+  /** The film look for what's on screen (graphics/grade.ts): the map's sky, or the lobby's. */
+  private lookNow(): GradeLook {
+    if (this.view === "lobby" || !this.world) return LOOKS.lobby;
+    return LOOKS[lookForSky(this.world.time, this.world.weather)];
+  }
+
+  /** The page's vignette: on for Low's game view and the lobby, off where a pass draws its own. */
+  private setVeil(look: GradeLook | null): void {
+    const css = look ? vignetteCss(look) : "none";
+    if (css === this.veilCss) return;
+    this.veilCss = css;
+    this.gradeVeil.style.background = css;
+  }
+
+  /**
+   * The game view, graded: High the post chain (bloom, grade, grain) after the
+   * puddles' mirror; Medium one grade pass; Low a plain draw (its grade is in
+   * the lights, the exposure and the veil).
+   */
   private draw(): void {
+    const look = this.lookNow();
     if (this.spec.fancy) {
       this.world?.beforeRender(this.renderer, this.scene, this.camera);
       if (!this.post) this.post = new Post();
-      this.post.warmth = this.world ? (this.world.time === "sunset" || this.world.time === "sunrise" ? 1 : this.world.night ? -1 : 0.2) : 0;
+      this.post.setLook(look, this.renderer);
       this.post.render(this.renderer, this.scene, this.camera);
+      this.setVeil(null);
+    } else if (this.spec.tier === 1 && !NO_GRADE) {
+      if (!this.grade) this.grade = new Grade(1);
+      this.grade.set(look, this.renderer);
+      this.grade.render(this.renderer, this.scene, this.camera);
+      this.setVeil(null);
     } else {
+      this.renderer.toneMappingExposure = look.exposure;
       this.renderer.render(this.scene, this.camera);
+      this.setVeil(look);
     }
+  }
+
+  /** The lobby: its own pipeline (the blurred set), graded the Low way on every tier. */
+  private drawLobby(): void {
+    this.renderer.toneMappingExposure = LOOKS.lobby.exposure;
+    this.setVeil(LOOKS.lobby);
+    this.stage.render();
   }
 
   private updateHud(round: RoundView, me: Contestant, frameDt: number): void {
@@ -2343,7 +2389,7 @@ export class Game {
   private renderOnce(): void {
     if (this.view === "lobby") {
       this.stage.update(0.016);
-      this.stage.render();
+      this.drawLobby();
       return;
     }
     this.rig.update(0.016, null);

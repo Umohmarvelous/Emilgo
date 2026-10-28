@@ -21,6 +21,8 @@ import { Crowd } from "../src/world/crowd";
 import { loadScans } from "../src/world/human";
 import { randomLook } from "../src/world/human/wardrobe";
 import { Hud } from "../src/ui/hud";
+import { Grade, gradeLights, LOOKS, vignetteCss, type LookId } from "../src/graphics/grade";
+import { Post } from "../src/graphics/post";
 
 const q = new URLSearchParams(location.search);
 const tierQ = q.get("tier") ?? "1";
@@ -54,7 +56,7 @@ const tWorld = performance.now();
 (window as unknown as { __world: unknown }).__world = world;
 
 const canvas = document.getElementById("c") as HTMLCanvasElement;
-const r = new WebGLRenderer({ canvas, antialias: spec.tier > 0, powerPreference: "high-performance" });
+const r = new WebGLRenderer({ canvas, antialias: false, powerPreference: "high-performance" });
 r.setPixelRatio(Math.min(spec.maxPixelRatio, devicePixelRatio));
 r.setSize(innerWidth, innerHeight);
 r.outputColorSpace = SRGBColorSpace;
@@ -67,6 +69,16 @@ scene.fog = world.fog;
 scene.background = world.clear;
 scene.add(world.group);
 
+// The film look (graphics/grade.ts): Naija World's Harmattan grade on every tier.
+const look = LOOKS[(q.get("look") as LookId) ?? "naija"] ?? LOOKS.naija;
+const grade = new Grade(spec.tier);
+grade.set(look, r);
+const post = spec.fancy ? new Post() : null;
+post?.setLook(look, r);
+if (spec.tier === 0) {
+  gradeLights(world.group, look);
+  document.getElementById("veil")!.style.background = vignetteCss(look);
+}
 const camera = new PerspectiveCamera(65, innerWidth / innerHeight, 0.1, world.view + 40);
 const rig = new CameraRig(camera);
 rig.wallX = Infinity;
@@ -223,7 +235,8 @@ function frame(now: number): void {
     crowd.group.visible = true;
   }
   r.info.reset();
-  r.render(scene, camera);
+  if (post) post.render(r, scene, camera);
+  else grade.render(r, scene, camera);
   minimap.draw({ x: me.x, z: me.z, heading: me.heading, out: false }, marks, null, rig.yaw);
   hud.setCompass(rig.yaw, me, null, layout.landmarks);
   if (++statN % 15) {

@@ -15,6 +15,7 @@
 // the front; flow/waitingRoom.ts), podium (the
 // winner's circle: top three on numbered plinths under spotlights).
 
+import { gradeLights, type GradeLook } from "../graphics/grade";
 import { toGame } from "../ui/rotate";
 import {
   AdditiveBlending,
@@ -254,6 +255,13 @@ export class LobbyStage {
     if (L.halo) L.halo.visible = lampOn;
     if (L.lampBulb) (L.lampBulb.material as MeshBasicMaterial).color.set(lampOn ? 0xffe2a0 : 0x8a8a84);
     if (L.lampLight) L.lampLight.intensity = P.lamp;
+    this.backDirty = true;
+  }
+
+  /** The film look's white balance on the stage's lights (graphics/grade.ts). */
+  gradeLights(look: GradeLook): void {
+    gradeLights(this.scene, look);
+    gradeLights(this.back, look);
     this.backDirty = true;
   }
 

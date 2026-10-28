@@ -4,8 +4,9 @@
 //   1. the scene, in linear HDR, into a half-float target (4× MSAA on WebGL2)
 //   2. its bright parts (sun, lamps, lasers, neon), at a quarter size
 //   3. blurred: horizontal, then vertical
-//   4. composed to the screen: scene + glow, graded, vignetted, then tone
-//      mapped and converted to sRGB exactly as three would have done
+//   4. composed to the screen: scene + glow, graded by the place's look
+//      (graphics/grade.ts, with grain), then tone mapped and converted to sRGB
+//      exactly as three would have done
 //
 // Four small passes on a high-end phone; Low and Medium never pay for it.
 
@@ -23,6 +24,8 @@ import {
   type WebGLRenderer,
 } from "three";
 
+import { applyLook, GRADE_GLSL, gradeUniforms, type GradeLook } from "./grade";
+
 const VERT = /* glsl */ `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
 
 export class Post {
@@ -36,8 +39,7 @@ export class Post {
   private readonly blur: ShaderMaterial;
   private readonly out: ShaderMaterial;
   private readonly size = new Vector2();
-  /** Grade: warmth −1 (cool) … 1 (warm), set per sky. */
-  warmth = 0;
+  private time = 0;
 
   constructor() {
     this.full = new WebGLRenderTarget(1, 1, { type: HalfFloatType, samples: 4 });
@@ -71,21 +73,14 @@ export class Post {
       depthWrite: false,
     });
     this.out = new ShaderMaterial({
-      uniforms: { tMap: { value: null }, tGlow: { value: null }, uWarm: { value: 0 } },
+      uniforms: { tMap: { value: null }, tGlow: { value: null }, ...gradeUniforms() },
       vertexShader: VERT,
       fragmentShader: /* glsl */ `
-        uniform sampler2D tMap, tGlow; uniform float uWarm; varying vec2 vUv;
+        uniform sampler2D tMap, tGlow; varying vec2 vUv;
+        ${GRADE_GLSL}
         void main() {
           vec3 c = texture2D(tMap, vUv).rgb + texture2D(tGlow, vUv).rgb * 0.45;
-          // Grade: a touch more contrast and colour, warmed or cooled by the sky.
-          float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
-          c = mix(vec3(l), c, 1.08);
-          c = pow(max(c, 0.0), vec3(1.04));
-          c *= vec3(1.0 + uWarm * 0.04, 1.0, 1.0 - uWarm * 0.04);
-          // A soft vignette.
-          vec2 d = vUv - 0.5;
-          c *= 1.0 - dot(d, d) * 0.55;
-          gl_FragColor = vec4(c, 1.0);
+          gl_FragColor = vec4(gradeColor(c, vUv), 1.0);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
         }`,
@@ -94,6 +89,12 @@ export class Post {
     });
     this.quad.frustumCulled = false;
     this.scene.add(this.quad);
+  }
+
+  /** The place's look (graphics/grade.ts), with its grain. */
+  setLook(look: GradeLook, renderer: WebGLRenderer): void {
+    applyLook(this.out.uniforms, look, true);
+    renderer.toneMappingExposure = look.exposure;
   }
 
   private pass(renderer: WebGLRenderer, mat: ShaderMaterial, target: WebGLRenderTarget | null): void {
@@ -125,7 +126,7 @@ export class Post {
     this.pass(renderer, this.blur, this.a);
     this.out.uniforms.tMap.value = this.full.texture;
     this.out.uniforms.tGlow.value = this.a.texture;
-    this.out.uniforms.uWarm.value = this.warmth;
+    this.out.uniforms.uTime.value = this.time = (this.time + 1 / 60) % 100;
     this.pass(renderer, this.out, prev);
   }
 

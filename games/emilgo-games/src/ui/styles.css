@@ -7,20 +7,21 @@
   /* 1vw / 1vh of the GAME: swapped while the game is turned on its side (ui/rotate.ts). */
   --vw1: 1vw;
   --vh1: 1vh;
-  --white: #ffffff;
+  /* Warmed to sit with the film look (graphics/grade.ts): a warm white, warm-black glass. */
+  --white: #fff8ee;
   --black: #000000;
   --green: #008751;
   --green-hi: #00a865;
   --yellow: #ffd700;
   --red: #b71c1c;
   --gray: #808080;
-  --glass: rgba(0, 0, 0, 0.6);
-  --glass-2: rgba(0, 0, 0, 0.78);
-  --glass-hi: rgba(255, 255, 255, 0.08);
-  --line: rgba(255, 255, 255, 0.2);
-  --line-2: rgba(255, 255, 255, 0.35);
-  --dim: rgba(255, 255, 255, 0.7);
-  --faint: rgba(255, 255, 255, 0.45);
+  --glass: rgba(14, 9, 4, 0.6);
+  --glass-2: rgba(14, 9, 4, 0.78);
+  --glass-hi: rgba(255, 244, 226, 0.08);
+  --line: rgba(255, 240, 220, 0.2);
+  --line-2: rgba(255, 240, 220, 0.35);
+  --dim: rgba(255, 246, 232, 0.7);
+  --faint: rgba(255, 246, 232, 0.45);
   --radius: 8px;
   --shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
   --head: "Montserrat", "Arial Black", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -51,6 +52,7 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
+.grade-veil { position: absolute; inset: 0; pointer-events: none; }
 #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
 #ui { position: fixed; inset: 0; pointer-events: none; }
 /* The game turned 90° on screen (§6.5, ui/rotate.ts sets the swapped size in px). */
