@@ -103,9 +103,13 @@ export class FlagsModule implements RuleModule {
         this.stashes.push({ index: this.stashes.length, x, z, h: reach.h[cell] });
       }
       if (this.stashes.length) {
-        this.secret = rng.int(0, this.stashes.length - 1);
-        const s = this.stashes[this.secret];
-        this.flags.push({ index: 0, x: s.x, z: s.z, h: s.h, holder: -1, hidden: true, droppedBy: -1, droppedAt: -99 });
+        // Which one is the server's secret: the copy on a phone never knows until it's found.
+        if (m.mirror) this.flags.push({ index: 0, x: 0, z: 0, h: 0, holder: -1, hidden: true, droppedBy: -1, droppedAt: -99 });
+        else {
+          this.secret = m.secretRng("flags").int(0, this.stashes.length - 1);
+          const s = this.stashes[this.secret];
+          this.flags.push({ index: 0, x: s.x, z: s.z, h: s.h, holder: -1, hidden: true, droppedBy: -1, droppedAt: -99 });
+        }
         return;
       }
     }
@@ -205,7 +209,7 @@ export class FlagsModule implements RuleModule {
       const n = this.hinted++;
       if (!f?.hidden) continue;
       const r = FLAGS.hintR[Math.min(n, FLAGS.hintR.length - 1)];
-      const rng = m.rng(`hint.${n}`);
+      const rng = m.secretRng(`hint.${n}`);
       const a = rng.range(0, Math.PI * 2);
       const d = rng.range(0, r * 0.6);
       m.emit({ type: "hint", n, x: f.x + Math.cos(a) * d, z: f.z + Math.sin(a) * d, r });

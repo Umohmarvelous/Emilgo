@@ -72,7 +72,10 @@ const ORIGINS = (process.env.GAMES_ORIGINS ?? "")
 const vatarCfg = vatarConfigFromEnv(process.env);
 const vatar = vatarCfg ? new VatarApi(vatarCfg) : null;
 // Match events, without player ids or names: enough to operate, nothing to leak.
-const lobby = new Lobby(vatar, (event, info) => console.log(`match ${event} ${JSON.stringify(info)}`));
+const lobby = new Lobby(vatar, (event, info) => console.log(`match ${event} ${JSON.stringify(info)}`), {
+  ballHaunt: process.env.BALL_HAUNT === "1",
+  xpOf: (peer) => (peer.profile ? (profiles.get(peer.profile)?.xp ?? 0) : 0),
+});
 const presence = new Presence(lobby);
 const store = vatar ? new SqliteStore(`${process.env.DATA_DIR ?? "./data"}/emilgo-games.db`) : null;
 const shop = vatar && store ? new Shop(vatar, store, process.env.TICKET_SECRET, (e, info) => console.log(`shop ${e} ${JSON.stringify(info)}`)) : null;
@@ -266,7 +269,13 @@ function handle(peer: Peer, msg: ClientMsg): void {
   const room = lobby.roomOf(peer);
   switch (msg.t) {
     case "in":
-      room?.input(peer, msg.x, msg.z, msg.b, msg.j, msg.a, msg.g);
+      room?.input(peer, msg.x, msg.z, msg.b, msg.j, msg.a, msg.g, msg.i, msg.k);
+      break;
+    case "fq":
+      sendErr(peer, lobby.fq(peer, msg.m));
+      break;
+    case "party":
+      sendErr(peer, lobby.party(peer, msg.op, msg.op === "join" ? msg.code : ""));
       break;
     case "pong":
       peer.pong(msg.s);
@@ -275,7 +284,7 @@ function handle(peer: Peer, msg: ClientMsg): void {
       sendErr(peer, lobby.quick(peer, msg.mode, msg.dist));
       break;
     case "create":
-      sendErr(peer, lobby.create(peer, msg.size, msg.mode, msg.dist));
+      sendErr(peer, lobby.create(peer, msg.size, msg.mode, msg.dist, msg.m));
       break;
     case "join":
       sendErr(peer, lobby.join(peer, msg.code));
@@ -532,8 +541,9 @@ setInterval(() => {
       if (t - peer.lastSeen > 30_000) peer.socket!.terminate();
       else peer.ping();
     } else if (peer.droppedAt && t - peer.droppedAt > NET.rejoinMs) {
-      // Too late to rejoin: give up their seat for good.
+      // Too late to rejoin: give up their seat (and their party) for good.
       lobby.leave(peer);
+      lobby.leaveParty(peer);
       forget(peer);
     }
   }

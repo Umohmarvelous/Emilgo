@@ -43,6 +43,8 @@ export class Peer {
   boosts: BoostId[] = [];
   /** Rank profile key (profiles.ts), once the phone has proved who it is; null for guests. */
   profile: string | null = null;
+  /** The party this person is in (lobby.ts), or null. */
+  party: string | null = null;
   /** Data saver (§7.5 #19): every other snapshot only. */
   saver = false;
   /** Friends (presence.ts): my friend id, theirs, whether I take requests, and who I've asked. */

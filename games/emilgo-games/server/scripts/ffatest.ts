@@ -504,6 +504,21 @@ console.log("the Flag Duel (staked, on the market):");
 
 console.log("the phone's copy (mirror):");
 {
+  // What a player mustn't know ahead comes from the server's secret seed.
+  const srv = new Match({ seed: 5, secret: 991, world, settings: mode("find-the-flag"), contestants: Array.from({ length: 12 }, (_, i) => ({ id: `p${i}`, name: "P", bot: false })) });
+  const ph = new Match({ seed: 5, world, settings: mode("find-the-flag"), contestants: srv.contestants.map((c) => ({ id: c.id, name: c.name, bot: false })), mirror: true });
+  const sz = srv.module<ZoneModule>("zone")!;
+  const pz = ph.module<ZoneModule>("zone")!;
+  const pfl = ph.module<FlagsModule>("flags")!;
+  check(pfl.secret === -1 && pfl.flags[0].x === 0 && Math.hypot(sz.circles[1].x - pz.circles[1].x, sz.circles[1].z - pz.circles[1].z) > 1, "a phone's copy can't tell where the flag is hidden, or where the next circle will be");
+  for (let f = 0; f < 60 * 40 && !sz.shown; f++) {
+    srv.step(DT);
+    ph.elapsed = srv.elapsed;
+    for (const e of srv.drain()) ph.applyRemote(e);
+  }
+  check(sz.shown === 1 && near(pz.circles[1].x, sz.circles[1].x) && near(pz.circles[1].r, sz.circles[1].r), "… until the circle is announced, 30 s before it closes");
+}
+{
   // The server's match and a phone's copy fed only its events (and positions): the same state.
   const s = mode("steal-reposition");
   const srv = newMatch(81, s);
@@ -564,6 +579,6 @@ console.log("the phone's copy (mirror):");
   check(ms < 0.6, `a 12-player step of Find the Flag with melee costs ${(ms * 1000).toFixed(0)} µs`);
 }
 
-if (process.env.GAME) failures += await online(process.env.GAME, check);
+if (process.env.GAME) await online(process.env.GAME, check);
 console.log(failures ? `\n${failures} FAILED` : "\nall passed");
 process.exit(failures ? 1 : 0);

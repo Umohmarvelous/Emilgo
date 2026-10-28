@@ -21,6 +21,11 @@
 // circles, the scatter, the props) is already the same. It never decides
 // anything: bodies come from snapshots, and what happens arrives as the
 // server's events (`applyRemote`), which each module applies to its state.
+//
+// What a player mustn't know ahead — where Find the Flag's flag is hidden,
+// the zone's next circles, where a crate or a drop zone will come down —
+// comes from a second, SECRET seed (`secretRng`) only the server has. The
+// copy learns it from the events, when everyone does.
 
 import { DEFAULT_COURSE, MOVE, RESPAWN, RULES, type Stance } from "../../config";
 import type { ModeDef, ModuleId } from "../../content/modes";
@@ -82,6 +87,8 @@ export interface MatchOptions {
   countdown?: number;
   /** The online client's copy: decides nothing (see the header). */
   mirror?: boolean;
+  /** The server's own seed for hidden things (missing: the match seed, for tests and Solo). */
+  secret?: number;
 }
 
 /** A body's standing at the end (or now): place 1 is best; squads share theirs. */
@@ -124,6 +131,7 @@ export class Match {
   /** Each body's squad. */
   readonly squads: number[];
   readonly mirror: boolean;
+  private readonly secret: number;
   /** Who won, once someone has (squad −1: nobody, a draw or the time ran out). */
   winner: { id: string | null; squad: number } | null = null;
 
@@ -152,6 +160,7 @@ export class Match {
     this.world = opts.world;
     this.settings = opts.settings;
     this.mirror = opts.mirror === true;
+    this.secret = (opts.secret ?? opts.seed) >>> 0;
     const n = opts.contestants.length;
     const spawnRng = this.rng("spawns");
     this.respawnRng = this.rng("respawns");
@@ -221,6 +230,11 @@ export class Match {
   /** A seeded stream of its own for `name` (a module, the spawns). */
   rng(name: string): Rng {
     return new Rng((this.seed ^ salt(name)) >>> 0);
+  }
+
+  /** A stream for hidden things, from the server's secret seed (never used by the copy). */
+  secretRng(name: string): Rng {
+    return new Rng((this.secret ^ salt(name)) >>> 0);
   }
 
   /** Where bodies can walk (built on first use, then shared by every match on this world). */

@@ -206,12 +206,13 @@ PORT=8790 WEBHOOK_URL=http://localhost:8797/vatar-webhook node server/dist/mockv
 PORT=8797 DATA_DIR=<scratch>/data TICKET_SECRET=test-ticket-secret-0123456789abcdef ADMIN_TOKEN=test-admin \
   MAX_PER_IP=100000 VATAR_SECRET=vtr_test_mock VATAR_RESULTS_SECRET=vtr_results_mock \
   VATAR_WEBHOOK_SECRET=vtr_whsec_test_mock VATAR_API=http://localhost:8790/api/games/v1 \
-  SUPABASE_JWT_SECRET=test-supabase-jwt-secret-0123456789abcdef node server/dist/index.mjs &
+  SUPABASE_JWT_SECRET=test-supabase-jwt-secret-0123456789abcdef BALL_HAUNT=1 node server/dist/index.mjs &
 node server/dist/rulestest.mjs                          # 115 checks, no server needed
 node server/dist/contenttest.mjs                        # 27 checks, no server needed
 node server/dist/spacetest.mjs                          # 19 checks (Phase 2: ground and walls)
 node server/dist/worldtest.mjs                          # 15 checks (Phase 2: Naija World)
 node server/dist/sharedtest.mjs                         # 59 checks (Phase 3: the match core, zone, items, Airfall)
+GAME=ws://localhost:8797 node server/dist/ffatest.mjs   # Phase 4: melee and the five modes offline, then 12 phones online
 GAME=ws://localhost:8797 node server/dist/ranktest.mjs  # 42 checks (needs SUPABASE_JWT_SECRET on the server, as above)
 GAME=ws://localhost:8797 node server/dist/matchtest.mjs
 GAME=ws://localhost:8797 node server/dist/ballstest.mjs
@@ -221,6 +222,9 @@ node server/dist/fairness.mjs ws://localhost:8797       # 7/7
 node server/dist/loadtest.mjs --clients 600 --seconds 60 --url ws://localhost:8797
 ```
 
+- `BALL_HAUNT=1` keeps Ball Haunt's rooms open on the test server (ballstest, fairness, loadtest, socialtest
+  play it) while `FEATURES.ballHaunt` is off. Leave it off any real server.
+- matchtest plays the Flag Duel: it takes as long as the flag takes to find (30 s to 5 min).
 - macOS has no `timeout` command. Use the load test's own `--seconds` instead.
 - Kill both background servers when you're done.
 

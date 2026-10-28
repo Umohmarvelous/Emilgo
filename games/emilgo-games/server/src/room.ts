@@ -22,6 +22,13 @@
 // back to the same runner, and nobody can sit in someone else's seat.
 //
 // No bots, ever: everyone in an online room is a person.
+//
+// Free For All rooms (SPEC-V3 Phase 4) are the same room around a different
+// game: `ffa` names the mode, and an FfaGame (ffa.ts) runs the match core in
+// place of the Red Light, Green Light referee. Quick (public) Free For All
+// rooms start when full, or 60 s after the mode's fewest have arrived;
+// private ones when everyone (two or more) is ready. Parties are kept
+// together as squads.
 
 import { randomInt } from "node:crypto";
 
@@ -50,7 +57,9 @@ import { filterChat } from "../../src/social/filter";
 import { EMOTE_BY_ID, type EmoteId } from "../../src/social/emotes";
 import { EMOTE_PACK } from "../../src/shop/catalog";
 import { boostsFromWire, boostsToWire } from "../../src/shop/boosts";
+import type { ModeDef } from "../../src/content/modes";
 import { now } from "./clock";
+import { assignSquads, FfaGame } from "./ffa";
 import type { Peer } from "./peer";
 
 const SNAP_EVERY = Math.round(NET.tickHz / NET.snapshotHz);
@@ -123,9 +132,14 @@ export class Room {
     /** What this room plays (SPEC-V2 §2.1). */
     readonly mode: Mode = "classic",
     readonly dist: Distance = 200,
+    /** A Free For All room: its mode (null: Red Light, Green Light). */
+    readonly ffa: ModeDef | null = null,
   ) {
     this.owner = owner?.id ?? null;
   }
+
+  /** The Free For All match being played, if any. */
+  private game: FfaGame | null = null;
 
   get full(): boolean {
     return this.members.length >= this.size;
@@ -187,6 +201,7 @@ export class Room {
     peer.send({ t: "seat", id: playerId });
     peer.send({ t: "room", room: this.info() });
     if (this.state === "playing" && this.round) peer.send({ t: "sync", sync: this.syncInfo() });
+    if (this.state === "playing" && this.game && this.start) peer.send({ t: "msync", sync: this.game.sync(this.start.s, now()) });
     this.broadcastRoom();
     return replaced;
   }
@@ -202,6 +217,7 @@ export class Room {
     this.readySeats.delete(seat);
     if (this.bySeat.get(seat) === peer) this.bySeat.delete(seat);
     if (this.round && this.inRound.has(seat)) this.round.setInput(seat, 0, 0);
+    if (this.game && this.inRound.has(seat)) this.game.idle(seat);
     if (this.owner === peer.id) this.owner = this.members[0]?.id ?? null;
     // A match room lives until it is decided, even if everyone steps out.
     if (!this.members.length && this.kind !== "match") this.closed = true;
@@ -212,6 +228,7 @@ export class Room {
   dropped(peer: Peer): void {
     if ((this.state === "playing" && this.inRound.has(this.seatOf(peer))) || this.kind === "match") {
       this.round?.setInput(this.seatOf(peer), 0, 0);
+      this.game?.idle(this.seatOf(peer));
       this.broadcastRoom();
     } else {
       this.remove(peer);
@@ -224,6 +241,9 @@ export class Room {
     peer.send({ t: "room", room: this.info() });
     if (this.state === "playing" && this.start && this.round && this.inRound.has(this.seatOf(peer))) {
       peer.send({ t: "sync", sync: this.syncInfo() });
+    }
+    if (this.state === "playing" && this.start && this.game && this.inRound.has(this.seatOf(peer))) {
+      peer.send({ t: "msync", sync: this.game.sync(this.start.s, now()) });
     }
     this.broadcastRoom();
   }
@@ -245,10 +265,12 @@ export class Room {
     if (this.inRound.has(seat)) this.round.skip(seat);
   }
 
-  input(peer: Peer, x: number, z: number, b = 0, j = 0, a = 0, g = 0): void {
-    if (this.state !== "playing" || !this.round) return;
+  input(peer: Peer, x: number, z: number, b = 0, j = 0, a = 0, g = 0, i = 0, k = 0): void {
+    if (this.state !== "playing") return;
     const seat = this.seatOf(peer);
     if (!this.inRound.has(seat)) return;
+    if (this.game) return this.game.input(seat, x, z, b, j, a, g, i, k);
+    if (!this.round) return;
     this.round.setInput(seat, x / 100, z / 100);
     this.round.setButtons(seat, (b & 1) === 1, Math.min(2, (b >> 1) & 3) as 0 | 1 | 2, j);
     this.round.setActions(seat, a, g);
@@ -259,7 +281,10 @@ export class Room {
   tick(dt: number): void {
     const t = now();
     if (this.state === "lobby") this.tickLobby(t);
-    else if (this.state === "playing") this.tickRound(dt);
+    else if (this.state === "playing") {
+      if (this.game) this.tickMatch(dt);
+      else this.tickRound(dt);
+    }
     else if (this.state === "ended") this.tickEnded(t);
   }
 
@@ -269,8 +294,8 @@ export class Room {
     // The last LOADING_MS: pick the place now, so every phone can build it in time.
     if (this.startsAt !== null && !this.pending && t >= this.startsAt - LOADING_MS) {
       const seed = randomInt(0, 2 ** 31);
-      // A different place every round: the map comes from the seed.
-      this.pending = { seed, map: MAPS[seed % MAPS.length].id };
+      // A different place every round: the map comes from the seed (Free For All: the mode's world).
+      this.pending = { seed, map: this.ffa ? this.ffa.map : MAPS[seed % MAPS.length].id };
       this.broadcastRoom();
     }
     if (this.startsAt !== null && t >= this.startsAt) this.begin(t);
@@ -279,6 +304,16 @@ export class Room {
   /** Quick and private rooms: everyone ready (two or more), or a quick room full or out of time. */
   private tickWaiting(t: number): void {
     const n = this.connectedCount();
+    // A public Free For All queue: full now, or a minute once the mode's fewest are in (SPEC-V3 §9).
+    if (this.ffa && this.kind === "quick") {
+      if (this.pending) return;
+      const at = n >= this.size ? t + LOADING_MS : n >= this.ffa.players.min ? (this.startsAt ?? t + NET.quickFillMs) : null;
+      if (at !== this.startsAt) {
+        this.startsAt = at;
+        this.broadcastRoom();
+      }
+      return;
+    }
     if (n < 2) {
       if (this.startsAt !== null) {
         this.startsAt = null;
@@ -317,6 +352,7 @@ export class Room {
   }
 
   private begin(t: number): void {
+    if (this.ffa) return this.beginMatch(t, this.ffa);
     let roster: StartInfo["roster"];
     if (this.kind === "match") {
       // Everyone in the match runs, here or not, in the platform's order.
@@ -357,6 +393,68 @@ export class Room {
     this.lastSnap = null;
     this.broadcastRoom();
     this.broadcast({ t: "start", start: this.start });
+  }
+
+  /** A Free For All match: its roster, squads (parties together) and the match core. */
+  private beginMatch(t: number, def: ModeDef): void {
+    let roster: StartInfo["roster"];
+    let members: { seat: string; party: string | null }[];
+    if (this.kind === "match") {
+      roster = this.match!.players.map((p, i) => ({ id: p.playerId, name: cleanName(p.name, () => `Player ${i + 1}`), look: this.bySeat.get(p.playerId)?.look }));
+      members = roster.map((r) => ({ seat: r.id, party: null }));
+    } else {
+      const players = this.members.filter((p) => p.connected);
+      if (players.length < 2) {
+        this.startsAt = null;
+        this.pending = null;
+        return;
+      }
+      // No CP boosts in Free For All: they belong to Red Light, Green Light's movement.
+      roster = players.map((p) => ({ id: p.id, name: p.name, look: p.look }));
+      members = players.map((p) => ({ seat: p.id, party: p.party }));
+    }
+    const seed = this.pending?.seed ?? randomInt(0, 2 ** 31);
+    const squads = assignSquads(members, def);
+    this.game = new FfaGame(def, seed, roster.map((r) => ({ id: r.id, name: r.name, ...(r.look ? { look: r.look } : {}) })), squads);
+    this.inRound.clear();
+    for (const r of roster) this.inRound.add(r.id);
+    this.start = { seed, s: t, roster, init: [], map: def.map, ffa: this.game.start };
+    this.state = "playing";
+    this.startsAt = null;
+    this.pending = null;
+    this.readySeats.clear();
+    this.ticks = 0;
+    this.broadcastRoom();
+    this.broadcast({ t: "start", start: this.start });
+  }
+
+  private tickMatch(dt: number): void {
+    const game = this.game!;
+    const events = game.step(dt, (seat) => {
+      const peer = this.peerAt(seat);
+      if (!peer?.connected) game.idle(seat);
+      return peer?.connected ? peer.graceBonus : 0;
+    });
+    if (events.length) this.broadcast({ t: "mev", e: events });
+    if (++this.ticks % SNAP_EVERY === 0 || game.over) {
+      const half = (this.ticks / SNAP_EVERY) % 2 === 1 && !game.over;
+      // Each body's measure goes out once a second (the HUD's scores), and with the last.
+      const measures = (this.ticks / SNAP_EVERY) % NET.snapshotHz === 0 || game.over;
+      this.broadcastRaw(JSON.stringify(game.snapshot(now(), false, measures)), half);
+    }
+    if (game.over) {
+      this.state = "ended";
+      this.endedAt = now();
+      if (this.kind === "match") this.onDecided?.(this, game.winner());
+      const hook = Room.onAward;
+      if (hook && game.roster.length >= 2) {
+        const st = game.standings();
+        for (const peer of this.members) {
+          const facts = game.facts(this.seats.get(peer.id) ?? peer.id, st);
+          if (facts) hook(peer, facts);
+        }
+      }
+    }
   }
 
   private tickRound(dt: number): void {
@@ -439,6 +537,7 @@ export class Room {
       if (this.closed) return;
       this.state = "lobby";
       this.round = null;
+      this.game = null;
       this.start = null;
       this.inRound.clear();
       this.broadcastRoom();
@@ -499,6 +598,7 @@ export class Room {
       ...(this.match ? { stake: this.match.stake } : {}),
       mode: this.mode,
       dist: this.dist,
+      ...(this.ffa ? { ffa: this.ffa.id, min: this.ffa.players.min } : {}),
     };
   }
 

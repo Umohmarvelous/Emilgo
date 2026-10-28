@@ -3,8 +3,8 @@
 //
 //   1. Two test players stake ₦1,000 each in a 2-seat match on the platform.
 //   2. Both connect to our game server and ask to play it with their sessions.
-//   3. The round is played (Ball Haunting, 1 ball for 2): A fetches the ball
-//      and carries it over the line, stopping in time; B stands still.
+//   3. The round is played (the Flag Duel, SPEC-V3 §11): A searches the
+//      market's stash spots, finds the flag and holds it 10 s; B stands still.
 //   4. Our server posts the SIGNED result; the platform verifies it with the
 //      formula from the docs and settles: A wins the pot less 5%.
 // And the attacks that must fail:
@@ -21,11 +21,11 @@
 import { createHash, createHmac } from "node:crypto";
 import WebSocket from "ws";
 
-import { FLOW, NET, courseFor, type Course } from "../../src/config";
-import { BALLS } from "../../src/config";
-import { openLane, route } from "../../src/game/pens";
-import { SNAP_STRIDE, cleanDist, cleanMode, phaseAt, type ServerMsg } from "../../src/net/protocol";
+import { NET } from "../../src/config";
+import type { FlagsModule } from "../../src/game/modules/flags";
+import type { ServerMsg } from "../../src/net/protocol";
 import { signResult } from "../src/vatar";
+import { field, Phone, spotDone } from "./ffanet";
 
 const PLATFORM = process.env.PLATFORM ?? "http://localhost:8790";
 const GAME = process.env.GAME ?? "ws://localhost:8787";
@@ -56,103 +56,77 @@ async function newPlayer(name: string): Promise<TestPlayer> {
   return { id: r.json.player.id, name: r.json.player.name, session: r.json.session };
 }
 
-/** A game client that asks to play `matchId`. `run` decides how it plays. */
-function gameClient(
+/**
+ * A phone that asks to play `matchId` (it keeps a copy of the match, as ffanet's do).
+ * "runner" searches the market's stash spots, nearest first and inside the newest
+ * radio hint, then holds the flag 10 s; "statue" stands still.
+ */
+async function gameClient(
   matchId: string,
   session: string,
   run: "runner" | "statue",
 ): Promise<{ errors: string[]; seat: string; vresult: { winner: string; posted: boolean } | null; boosted: boolean }> {
-  return new Promise((resolve) => {
-    const ws = new WebSocket(GAME);
-    const errors: string[] = [];
-    let seat = "";
-    // Staked matches never apply boosts (SPEC-V2 §7.7): any in the roster is a failure.
-    let boosted = false;
-    let vresult: { winner: string; posted: boolean } | null = null;
-    let turns = 0;
-    let me = -1;
-    let ball: { x: number; z: number } | null = null;
-    let holding = false;
-    let g = 0;
-    let singing = false;
-    let at: { x: number; z: number } | null = null;
-    let course: Course | null = null;
-    /** Push the stick towards (tx, tz) at strength k, in and out of pens by their doors. */
-    const steerTo = (tx: number, tz: number, k: number) => {
-      const w = course && at ? route(course.pens, at.x, at.z, tx, tz) : { x: tx, z: tz };
-      const dx = w.x - at!.x;
-      const dz = w.z - at!.z;
-      const d = Math.hypot(dx, dz) || 1;
-      ws.send(JSON.stringify({ t: "in", x: Math.round((dx / d) * k), z: Math.round((dz / d) * k), g }));
-    };
-    const finish = () => {
-      clearInterval(steer);
-      ws.close();
-      resolve({ errors, seat, vresult, boosted });
-    };
-    const timer = setTimeout(finish, 150_000);
-    // A careful human: while she sings, fetch the ball, then run for the line; stop the instant she turns.
-    const steer = setInterval(() => {
-      if (run !== "runner" || !singing || !at) return;
-      if (!holding && ball) {
-        const dx = ball.x - at.x;
-        const dz = ball.z - at.z;
-        const d = Math.hypot(dx, dz);
-        if (d <= BALLS.reach * 0.8) {
-          g = (g + 1) & 255;
-          ws.send(JSON.stringify({ t: "in", x: 0, z: 0, g }));
-        } else {
-          steerTo(ball.x, ball.z, d < 3 ? 40 : 100);
-        }
-      } else {
-        // For the line, down the open middle (clear of the pens).
-        const lane = course ? Math.max(1, openLane(course.pens) - 0.8) : Infinity;
-        steerTo(Math.max(-lane, Math.min(lane, at.x)), at.z - 20, 100);
-      }
-    }, 66);
-    ws.on("open", () => ws.send(JSON.stringify({ t: "hello", v: NET.protocol, name: "ignored" })));
-    ws.on("message", (d) => {
-      const m = JSON.parse(d.toString()) as ServerMsg;
-      if (m.t === "welcome") {
-        // Asks for two boosts first, as a phone with boosts switched on would.
-        ws.send(JSON.stringify({ t: "prefs", bo: [0, 1], ds: false, fr: true }));
-        ws.send(JSON.stringify({ t: "vmatch", id: matchId, session }));
-      } else if (m.t === "ping") ws.send(JSON.stringify({ t: "pong", s: m.s }));
-      else if (m.t === "err") {
-        errors.push(m.code);
-        clearTimeout(timer);
-        finish();
-      } else if (m.t === "seat") seat = m.id;
-      else if (m.t === "start") {
-        me = m.start.roster.findIndex((r) => r.id === seat);
-        if (m.start.roster.some((r) => r.bo?.length)) boosted = true;
-        course = courseFor(cleanMode(m.start.mode), cleanDist(m.start.dist), m.start.hw ? m.start.hw / 100 : undefined);
-        // Both skip the walkout once they're in the arena.
-        if (m.start.wo) setTimeout(() => ws.readyState === 1 && ws.send(JSON.stringify({ t: "skip" })), FLOW.walk * 1000 + 400);
-        const bp = m.start.bp ?? [];
-        if (bp.length >= 2) ball = { x: bp[0] / 100, z: bp[1] / 100 };
-      } else if (m.t === "snap" && me >= 0) {
-        at = { x: m.p[me * SNAP_STRIDE] / 100, z: m.p[me * SNAP_STRIDE + 1] / 100 };
-      } else if (m.t === "ev" && m.k === "grb" && m.i === me) {
-        holding = true;
-      } else if (m.t === "ev" && m.k === "drp") {
-        holding = false;
-        ball = { x: m.x / 100, z: m.z / 100 };
-      } else if (m.t === "ev" && m.k === "ph" && run === "runner") {
-        const ph = phaseAt(m.ph);
-        singing = ph === "sing" || ph === "hum";
-        if (ph === "turning") {
-          turns++;
-          ws.send(JSON.stringify({ t: "in", x: 0, z: 0, g }));
-        }
-      } else if (m.t === "vresult") {
-        vresult = { winner: m.winner, posted: m.posted };
-        clearTimeout(timer);
-        setTimeout(finish, 300);
-      }
-    });
-    void turns;
+  const p = new Phone("ignored", GAME);
+  let vresult: { winner: string; posted: boolean } | null = null;
+  const result = () => ({ errors: p.errors, seat: p.seat, vresult, boosted: !!p.start?.roster.some((r) => r.bo?.length) });
+  await p.open();
+  // Asks for two boosts first, as a phone with boosts switched on would.
+  p.send({ t: "prefs", bo: [0, 1], ds: false, fr: true });
+  p.send({ t: "vmatch", id: matchId, session });
+  const first = await p.wait((m) => m.t === "seat" || m.t === "err", 10_000).catch(() => null);
+  if (!first || first.t === "err") {
+    p.close();
+    return result();
+  }
+  const t0 = Date.now();
+  const done = p.wait((m) => m.t === "vresult", 400_000).then((m) => {
+    if (m.t === "vresult") vresult = { winner: m.winner, posted: m.posted };
+    if (run === "runner") console.log(`    (${((Date.now() - t0) / 1000).toFixed(0)} s seated to result, ${(p.playMs / 1000).toFixed(0)} s of play)`);
   });
+  const fields = new Map<number, Int32Array>();
+  let target = -1;
+  const steer = setInterval(() => {
+    const m = p.match;
+    const c = p.me();
+    if (run !== "runner" || !m || !c || m.phase !== "play") return;
+    const flags = m.module<FlagsModule>("flags")!;
+    if (flags.flags[0].holder === c.index || c.status !== "alive") {
+      p.stick(0, 0);
+      return p.sendInput();
+    }
+    if (target < 0 || spotDone(p, target)) {
+      // Nearest spot not yet searched, inside the newest hint when there is one.
+      const h = p.hint;
+      let best = Infinity;
+      target = -1;
+      for (const s of flags.stashes) {
+        if (spotDone(p, s.index)) continue;
+        const d = Math.hypot(s.x - c.x, s.z - c.z) + (h && Math.hypot(s.x - h.x, s.z - h.z) > h.r ? 1000 : 0);
+        if (d < best) {
+          best = d;
+          target = s.index;
+        }
+      }
+    }
+    if (target < 0) p.stick(0, 0);
+    else {
+      const s = flags.stashes[target];
+      if (Math.hypot(s.x - c.x, s.z - c.z) < 1.4) {
+        p.stick(0, 0);
+        p.tap();
+      } else {
+        let f = fields.get(target);
+        if (!f) fields.set(target, (f = field(m.reach, s.x, s.z)));
+        p.steer(f);
+      }
+    }
+    p.sendInput();
+  }, 50);
+  await done.catch(() => null);
+  clearInterval(steer);
+  await new Promise((r) => setTimeout(r, 300));
+  p.close();
+  return result();
 }
 
 /** Just the first answer to a vmatch request (for the attack cases). */
@@ -197,13 +171,13 @@ async function main(): Promise<void> {
   check((await askOnce(created.json.id, outsider.session)) === "not_in_match", "a real player not in the match → not_in_match");
   check((await askOnce("m_doesnotexist", a.session)) === "not_found", "an unknown match id → not_found");
 
-  console.log("\nplaying the round (Ball Haunting: A fetches the ball and carries it over, B stands still)…");
+  console.log("\nplaying the round (the Flag Duel: A finds the flag and holds it, B stands still)…");
   const [ra, rb] = await Promise.all([gameClient(created.json.id, a.session, "runner"), gameClient(created.json.id, b.session, "statue")]);
   check(!ra.errors.length && !rb.errors.length, "both seated without errors");
   check(ra.seat === a.id && rb.seat === b.id, "each client controls its own Lagos Life player id");
   check(!ra.boosted && !rb.boosted, "both asked for boosts: none applied in a staked match");
   check(ra.vresult?.posted === true, "our server posted the result");
-  check(ra.vresult?.winner === a.id, "A (first across) is the winner");
+  check(ra.vresult?.winner === a.id, "A (found the flag, held it 10 s) is the winner");
 
   const results = await platform<{ matchId: string; winner: string; ok: boolean; why?: string }[]>("/mock/results");
   const mine = results.json.filter((r) => r.matchId === created.json.id);

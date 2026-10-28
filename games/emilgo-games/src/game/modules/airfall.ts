@@ -36,6 +36,7 @@ export class AirfallModule implements RuleModule {
   private readonly max: number;
   private readonly gap: [number, number];
   private rng!: Rng;
+  private places!: Rng;
   private progress = new Float64Array(0);
   private on = new Int32Array(0);
 
@@ -47,6 +48,7 @@ export class AirfallModule implements RuleModule {
 
   init(m: Match): void {
     this.rng = m.rng("airfall");
+    this.places = m.secretRng("airfall.places");
     let t = 0;
     for (let k = 0; k < this.max; k++) {
       t += this.rng.range(this.gap[0], this.gap[1]);
@@ -91,13 +93,13 @@ export class AirfallModule implements RuleModule {
     let cell = -1;
     if (circle) {
       for (let t = 0; t < 80 && cell < 0; t++) {
-        const a = this.rng.range(0, Math.PI * 2);
-        const d = Math.sqrt(this.rng.next()) * circle.r * 0.7;
+        const a = this.places.range(0, Math.PI * 2);
+        const d = Math.sqrt(this.places.next()) * circle.r * 0.7;
         const k = reach.cell(circle.x + Math.cos(a) * d, circle.z + Math.sin(a) * d);
         if (k >= 0 && reach.ground[k]) cell = k;
       }
     }
-    if (cell < 0 && reach.open.length) cell = reach.open[this.rng.int(0, reach.open.length - 1)];
+    if (cell < 0 && reach.open.length) cell = reach.open[this.places.int(0, reach.open.length - 1)];
     const [x, z] = cell >= 0 ? reach.centre(cell) : [0, 0];
     const h = cell >= 0 ? reach.h[cell] : 0;
     const crate: Crate = { index: this.crates.length, x, z, h, land, landed: false, opened: false };

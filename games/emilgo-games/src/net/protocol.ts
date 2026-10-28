@@ -17,6 +17,7 @@ import { filterChat } from "../social/filter";
 import type { WireLook } from "../shop/catalog";
 import type { Cause, Phase } from "../game/rules";
 import { PHASES } from "../game/rules";
+import type { FfaStart, MatchEvents, MatchSnap, MatchSync } from "./matchWire";
 
 // ── Client → server ──────────────────────────────────────────────────────────
 
@@ -24,7 +25,13 @@ export type ClientMsg =
   | { t: "hello"; v: number; name: string; resume?: string }
   /** Play with New People: matched with others who chose the same mode and distance. */
   | { t: "quick"; mode?: Mode; dist?: Distance }
-  | { t: "create"; size: number; mode?: Mode; dist?: Distance }
+  /** A private room. m: a Free For All mode id (protocol 12); missing, Red Light, Green Light. */
+  | { t: "create"; size: number; mode?: Mode; dist?: Distance; m?: string }
+  /** Free For All's public queue for a featured mode (protocol 12). A party's leader brings the party. */
+  | { t: "fq"; m: string }
+  /** A party (up to 4, kept together as a squad): make one, join one by its code, leave it. */
+  | { t: "party"; op: "make" | "leave" }
+  | { t: "party"; op: "join"; code: string }
   | { t: "join"; code: string }
   /** Waiting room: I'm ready (or not any more). Everyone ready starts the 2 s loading. */
   | { t: "ready"; on: boolean }
@@ -32,10 +39,12 @@ export type ClientMsg =
   | { t: "skip" }
   | { t: "leave" }
   /**
-   * Stick in WORLD space, each axis −100…100; buttons b = sprint | stance << 1;
-   * j = jump counter; a = attack (counter << 2 | kind 1 fist 2 slap 3 push); g = grab counter.
+   * Stick in WORLD space, each axis −100…100; buttons b = sprint | stance << 1
+   * | brace << 3 (Free For All); j = jump counter; a = attack (counter << 2 |
+   * kind 1 fist 2 slap 3 push); g = grab counter. Open worlds (protocol 12):
+   * i = interact counter | held << 8; k = the backpack (Match.setPack).
    */
-  | { t: "in"; x: number; z: number; b?: number; j?: number; a?: number; g?: number }
+  | { t: "in"; x: number; z: number; b?: number; j?: number; a?: number; g?: number; i?: number; k?: number }
   | { t: "pong"; s: number }
   /**
    * Play my Lagos Life match. `session` is a fresh Vatar.session() token; the
@@ -122,6 +131,9 @@ export interface RoomInfo {
   /** What this room plays. */
   mode: Mode;
   dist: Distance;
+  /** Free For All (protocol 12): the mode id, and the fewest people it starts with. */
+  ffa?: string;
+  min?: number;
 }
 
 export interface StartInfo {
@@ -142,6 +154,8 @@ export interface StartInfo {
   bp?: number[];
   /** The walkout's length, ms (missing: none, the round opens on the countdown). */
   wo?: number;
+  /** Free For All (protocol 12): the mode, the map and the squads (net/matchWire.ts). */
+  ffa?: FfaStart;
 }
 
 /** Round state for (re)joining mid-round: a full snapshot (balls included), plus outcomes. */
@@ -207,6 +221,13 @@ export type ServerMsg =
   | { t: "sync"; sync: SyncInfo }
   | SnapMsg
   | EventMsg
+  // ── Free For All (protocol 12, net/matchWire.ts) ──
+  | MatchSnap
+  | MatchEvents
+  | { t: "msync"; sync: MatchSync }
+  /** Your party: its code, who's in it, who leads (picks the game); off: you're in none. */
+  | { t: "party"; code: string; members: { id: string; name: string }[]; lead: string }
+  | { t: "party"; off: 1 }
   | { t: "ping"; s: number; rtt: number }
   /** Your contestant id in this room (Lagos Life matches use your per-game player id). */
   | { t: "seat"; id: string }
@@ -251,7 +272,9 @@ export type ErrorCode =
   | "verify" // Lagos Life didn't accept the session
   | "not_in_match" // the session's player isn't in that match
   | "match_state" // the match isn't being played (not started, or over)
-  | "mode_off"; // the developer has that mode switched off (SPEC-V3: Ball Haunt's switch)
+  | "mode_off" // the developer has that mode switched off (SPEC-V3: Ball Haunt's switch)
+  | "locked" // your rank hasn't opened that mode yet
+  | "lead"; // only your party's leader picks the game
 
 export const ERROR_TEXT: Record<ErrorCode, string> = {
   version: "Update the game to play online.",
@@ -266,6 +289,8 @@ export const ERROR_TEXT: Record<ErrorCode, string> = {
   not_in_match: "You're not in that match.",
   match_state: "That match isn't being played right now.",
   mode_off: "That game isn't on right now.",
+  locked: "Your rank hasn't opened that mode yet.",
+  lead: "Your party leader picks the game.",
 };
 
 export const SNAP_STRIDE = 5;
@@ -336,18 +361,27 @@ export function parseClient(raw: string): ClientMsg | null {
       return typeof o.on === "boolean" ? { t: "ready", on: o.on } : null;
     case "create": {
       const size = int(o.size, 0, 99);
-      return size !== null && NET.privateSizes.includes(size) ? { t: "create", size, mode: cleanMode(o.mode), dist: cleanDist(o.dist) } : null;
+      if (size === null || !NET.privateSizes.includes(size)) return null;
+      const m = typeof o.m === "string" && MODE_ID.test(o.m) ? o.m : undefined;
+      return { t: "create", size, mode: cleanMode(o.mode), dist: cleanDist(o.dist), ...(m ? { m } : {}) };
     }
+    case "fq":
+      return typeof o.m === "string" && MODE_ID.test(o.m) ? { t: "fq", m: o.m } : null;
+    case "party":
+      if (o.op === "make" || o.op === "leave") return { t: "party", op: o.op };
+      return o.op === "join" && typeof o.code === "string" ? { t: "party", op: "join", code: normalizeCode(o.code) } : null;
     case "join":
       return typeof o.code === "string" ? { t: "join", code: normalizeCode(o.code) } : null;
     case "in": {
       const x = int(o.x, -100, 100);
       const z = int(o.z, -100, 100);
-      const b = o.b === undefined ? 0 : int(o.b, 0, 5);
+      const b = o.b === undefined ? 0 : int(o.b, 0, 13);
       const j = o.j === undefined ? 0 : int(o.j, 0, 255);
       const a = o.a === undefined ? 0 : int(o.a, 0, 255);
       const g = o.g === undefined ? 0 : int(o.g, 0, 255);
-      return x === null || z === null || b === null || j === null || a === null || g === null ? null : { t: "in", x, z, b, j, a, g };
+      const i = o.i === undefined ? 0 : int(o.i, 0, 511);
+      const k = o.k === undefined ? 0 : int(o.k, 0, 16383);
+      return x === null || z === null || b === null || j === null || a === null || g === null || i === null || k === null ? null : { t: "in", x, z, b, j, a, g, i, k };
     }
     case "pong": {
       const s = typeof o.s === "number" && Number.isFinite(o.s) ? o.s : null;
@@ -406,6 +440,9 @@ export function parseClient(raw: string): ClientMsg | null {
       return null;
   }
 }
+
+/** A mode id (content/modes.ts). */
+const MODE_ID = /^[a-z0-9-]{1,32}$/;
 
 /** A friend id (settings.ts newFid). */
 const FID = /^[A-Za-z0-9_-]{16}$/;

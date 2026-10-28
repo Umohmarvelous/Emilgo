@@ -62,7 +62,13 @@ export class ZoneModule implements RuleModule {
     const ar = m.world.arena;
     this.arena = ar ? { x: ar.x, z: ar.z, r: ar.r } : null;
     this.circles.push(this.arena ?? { x: cx, z: cz, r: half * Math.SQRT2 + 1 });
-    const rng = m.rng("zone");
+    // The circles to come are hidden (the secret stream); the copy learns each when it's announced.
+    if (m.mirror) {
+      for (let k = 0; k < this.phases.length; k++) this.circles.push({ ...this.circles[0], r: this.phases[k].r });
+      Object.assign(this.now, this.circles[0]);
+      return;
+    }
+    const rng = m.secretRng("zone");
     const reach = m.reach;
     for (const p of this.phases) {
       const prev = this.circles[this.circles.length - 1];
@@ -187,7 +193,12 @@ export class ZoneModule implements RuleModule {
   }
 
   apply(m: Match, e: MatchEvent): void {
-    if (e.type === "zone") this.shown = Math.max(this.shown, e.phase + 1);
+    if (e.type === "zone") {
+      this.shown = Math.max(this.shown, e.phase + 1);
+      this.circles[e.phase + 1] = { x: e.x, z: e.z, r: e.r };
+      // Until it's announced a phase's circle stands in as the one before (never drawn as news).
+      for (let k = e.phase + 2; k < this.circles.length; k++) if (k > this.shown) this.circles[k] = { ...this.circles[e.phase + 1], r: this.phases[k - 1].r };
+    }
     else if (e.type === "laser") {
       const c = m.get(e.id);
       if (c) this.doom[c.index] = e.hitAt;

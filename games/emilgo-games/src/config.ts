@@ -421,6 +421,10 @@ export const SQUAD_COLORS = ["#f5b82e", "#38b6ff", "#ff5a5f", "#59d98e"] as cons
 /** Online play. Server and client both read these. */
 export const NET = {
   /**
+   * 12 (SPEC-V3 Phase 4): Free For All — the public queue (fq), private rooms
+   * by mode (create m), parties; the match's start (ffa), snapshots (msnap),
+   * events (mev) and rejoin (msync), net/matchWire.ts; brace, interact and the
+   * backpack in "in"; errors locked and lead.
    * 11 (SPEC-V3 Phase 1): rank — "id" (who I am: a Lagos Life session or an
    * EMILGO account's token) and "rank" (total XP, what a round earned); the
    * error mode_off (Ball Haunt switched off).
@@ -437,7 +441,7 @@ export const NET = {
    * and baskets, fist / slap / push, rooms of 20. 3: jump, crouch, prone,
    * sprint, the map, rich looks.)
    */
-  protocol: 11,
+  protocol: 12,
   tickHz: 60,
   /** Server → client state broadcasts per second. */
   snapshotHz: 15,

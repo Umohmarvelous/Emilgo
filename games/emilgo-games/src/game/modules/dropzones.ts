@@ -35,9 +35,11 @@ export class DropzonesModule implements RuleModule {
   }
 
   init(m: Match): void {
-    this.rng = m.rng("dropzones");
-    // Staggered, so they don't all move at once.
+    // Where they go next is hidden (the secret stream): the copy hears each move.
+    this.rng = m.secretRng("dropzones");
     for (let k = 0; k < this.live; k++) this.zones.push({ k, x: 0, z: 0, until: 0 });
+    if (m.mirror) return;
+    // Staggered, so they don't all move at once.
     for (const z of this.zones) this.move(m, z, (this.life * (z.k + 1)) / this.live);
   }
 
