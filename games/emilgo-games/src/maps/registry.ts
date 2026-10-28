@@ -120,6 +120,19 @@ export const MAPS: MapInfo[] = [
 ];
 
 export const MAP_BY_ID: Record<string, MapInfo> = Object.fromEntries(MAPS.map((x) => [x.id, x]));
+
+/** What a footstep lands on (SPEC-V3 audio): the ground's own, unless something on it says otherwise (a puddle, a car roof). */
+export type Surface = "sand" | "concrete" | "grass" | "metal" | "puddle";
+
+const GRASSY = new Set(["farmland", "forest-path", "tropical-jungle", "dark-forest", "university-campus", "riverside"]);
+const SANDY = new Set(["desert-field", "beach-road", "village-square", "snowy-mountains"]);
+
+/** The open ground of a map underfoot. */
+export function groundSurface(info: MapInfo): Surface {
+  if (SANDY.has(info.id)) return "sand";
+  if (GRASSY.has(info.id)) return "grass";
+  return "concrete";
+}
 export const DEFAULT_MAP = "desert-field";
 
 export function mapOf(id: string | undefined): MapInfo {

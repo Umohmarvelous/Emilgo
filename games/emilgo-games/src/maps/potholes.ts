@@ -258,6 +258,16 @@ export class Potholes {
     (this.drops.material as ShaderMaterial).uniforms.uScale.value = px / (2 * Math.tan((fovDeg * Math.PI) / 360));
   }
 
+  /** Is (x, z) in a puddle? (No splash: footsteps ask this.) */
+  wet(x: number, z: number): boolean {
+    for (const p of this.puddles) {
+      const dx = x - p.x;
+      const dz = (z - p.z) / 0.8;
+      if (dx * dx + dz * dz <= p.r * p.r * 0.8) return true;
+    }
+    return false;
+  }
+
   /**
    * Someone at (x, z), moving at `speed`: if they're in a puddle and haven't
    * splashed in the last third of a second, splash. Returns true on a splash.

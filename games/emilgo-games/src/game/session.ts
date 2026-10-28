@@ -42,7 +42,7 @@ import { tierSpec, type Tier, type TierSpec } from "../graphics/tiers";
 import { REFLECT_LAYER } from "../maps/potholes";
 import { Controls } from "../input/controls";
 import { buildWorld, type World } from "../maps/world";
-import { DEFAULT_MAP, SKY_STATES, fieldHalfWidth, mapOf, withMode, type MapCategory, type SkyState } from "../maps/registry";
+import { DEFAULT_MAP, SKY_STATES, fieldHalfWidth, groundSurface, mapOf, withMode, type MapCategory, type SkyState, type Surface } from "../maps/registry";
 import { NetClient } from "../net/client";
 import { OnlineRound } from "../net/onlineRound";
 import { ERROR_TEXT, normalizeCode, type ClientMsg, type RoomInfo, type ServerMsg, type StartInfo, type SyncInfo } from "../net/protocol";
@@ -183,6 +183,8 @@ export class Game {
   /** Auto graphics: the highest tier this phone held (lowered when it struggles at the lowest resolution). */
   private autoCap: Tier = 2;
   private mapCat: MapCategory = "ng-urban";
+  /** What your feet land on in this round's map (SPEC-V3 footsteps). */
+  private surface: Surface = "concrete";
   /** The sky picked for practice (null: the map's own). */
   private skyPick: SkyState | null = null;
   /** What the current world was built from (rebuilt when light / dark mode changes mid-round). */
@@ -994,6 +996,7 @@ export class Game {
 
   /** Build the map's world (kept if the next round is on the same map). */
   private ensureWorld(mapId: string, pick: SkyState | null, course?: Course): void {
+    this.surface = groundSurface(mapOf(mapId));
     // Light / dark mode decides over the pick (SPEC-V2 §6.4).
     const sky = withMode(pick ?? mapOf(mapId).sky, this.settings.lightMode);
     this.worldArgs = { mapId, pick, course };
@@ -2096,7 +2099,7 @@ export class Game {
       if (speed > 0.6 && me.y <= 0) {
         this.stepClock -= frameDt;
         if (this.stepClock <= 0) {
-          this.sound.step();
+          this.sound.step(this.world?.potholes?.wet(me.x, me.z) ? "puddle" : this.surface, Math.min(1, speed / MOVE.sprint));
           this.stepClock = speed > MOVE.run + 0.5 ? 0.2 : speed > 3 ? 0.26 : 0.4;
         }
       }

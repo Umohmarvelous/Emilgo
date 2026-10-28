@@ -11,11 +11,18 @@
 // Notes are scheduled a little ahead of time (a look-ahead window), so a cut
 // silences only what was already queued.
 
+import type { Surface } from "../maps/registry";
 import { SONGS, type Hit, type Song, type SongId, type SungNote, type VoiceKind } from "./songs";
 
 type Ctx = AudioContext;
 
 const LOOKAHEAD_S = 0.25;
+/**
+ * Most one-shot voices at once (SPEC-V3 audio pooling). A budget phone's audio
+ * thread chokes long before the ear can tell 30 sounds apart; past this,
+ * the least important (footsteps first) are simply not started.
+ */
+const VOICE_CAP = 32;
 const TICK_MS = 50;
 
 const hz = (midi: number) => 440 * Math.pow(2, (midi - 69) / 12);
@@ -177,6 +184,17 @@ export class Sound {
 
   // ── Building blocks ────────────────────────────────────────────────────────
 
+  /** One-shot voices playing now (tones and noise bursts). */
+  private voices = 0;
+  private readonly voiceEnded = (): void => {
+    this.voices = Math.max(0, this.voices - 1);
+  };
+
+  /** True when this many voices or more are already playing: skip a sound that can be spared. */
+  private busy(limit: number = VOICE_CAP): boolean {
+    return this.voices >= limit;
+  }
+
   private tone(
     freq: number,
     at: number,
@@ -196,6 +214,8 @@ export class Sound {
     g.gain.exponentialRampToValueAtTime(peak, at + atk);
     g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
     osc.connect(g).connect(opts.bus ?? this.sfx ?? this.master);
+    this.voices++;
+    osc.onended = this.voiceEnded;
     osc.start(at);
     osc.stop(at + dur + 0.02);
     if (opts.track) this.songNodes.push(osc);
@@ -213,6 +233,8 @@ export class Sound {
     g.gain.setValueAtTime(opts.gain ?? 0.3, at);
     g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
     src.connect(f).connect(g).connect(opts.bus ?? this.sfx ?? this.master);
+    this.voices++;
+    src.onended = this.voiceEnded;
     src.start(at, Math.random() * 0.5);
     src.stop(at + dur + 0.02);
     if (opts.track) this.songNodes.push(src);
@@ -596,9 +618,39 @@ export class Sound {
     this.tone(last ? 2640 : 1760, t, last ? 0.2 : 0.08, { type: "sine", gain: 0.05, attack: 0.003 });
   }
 
-  step(): void {
+  /**
+   * Your footstep, by what it lands on (SPEC-V3): sand a soft hiss, concrete a
+   * short hard tap, grass a brushed rustle, a car roof a hollow metal knock,
+   * a puddle a wet slap. `pace` 0 walk … 1 sprint: harder and brighter.
+   * Steps are the first sounds dropped when too many are playing.
+   */
+  step(surface: Surface = "concrete", pace = 0.5): void {
+    if (this.busy(VOICE_CAP - 6)) return;
     const t = this.now;
-    this.noise(t, 0.035, { gain: 0.05, freq: 900, type: "lowpass" });
+    const k = 0.75 + 0.5 * pace;
+    const v = 0.92 + Math.random() * 0.16; // no two steps alike
+    switch (surface) {
+      case "sand":
+        this.noise(t, 0.07 * v, { gain: 0.045 * k, freq: 2400 * v, type: "bandpass" });
+        this.noise(t, 0.04, { gain: 0.03 * k, freq: 500, type: "lowpass" });
+        break;
+      case "grass":
+        this.noise(t, 0.09 * v, { gain: 0.04 * k, freq: 3800 * v, type: "highpass" });
+        this.noise(t + 0.01, 0.05, { gain: 0.028 * k, freq: 700, type: "lowpass" });
+        break;
+      case "metal":
+        this.tone(320 * v, t, 0.12, { type: "triangle", gain: 0.07 * k, to: 260 });
+        this.tone(1240 * v, t, 0.06, { type: "sine", gain: 0.025 * k });
+        this.noise(t, 0.02, { gain: 0.04 * k, freq: 1800, type: "bandpass" });
+        break;
+      case "puddle":
+        this.noise(t, 0.08 * v, { gain: 0.06 * k, freq: 1500 * v, type: "bandpass" });
+        this.tone(900 * v, t + 0.015, 0.05, { type: "sine", gain: 0.02 * k, to: 1400 });
+        break;
+      default:
+        this.noise(t, 0.03 * v, { gain: 0.06 * k, freq: 1100 * v, type: "lowpass" });
+        this.tone(120 * v, t, 0.04, { type: "sine", gain: 0.035 * k, to: 70 });
+    }
   }
 
   /** A swing: a whoosh, and if it landed, the hit — a thud (fist), a crack (slap), a shove (push). */
