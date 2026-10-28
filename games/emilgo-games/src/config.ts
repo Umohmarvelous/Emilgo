@@ -25,6 +25,16 @@ export const FIELD = {
 
 export const DOLL_Z = -131;
 
+/**
+ * Switches the developer flips in code (SPEC-V3). Ball Haunt (Red Light,
+ * Green Light) is hidden by default once a flagship mode can be played; until
+ * then it stays on, or the game would have nothing to play (SPEC-V3 Decisions).
+ * Off: not in any menu, refused by the server, and Mama is never built.
+ */
+export const FEATURES = {
+  ballHaunt: true,
+} as const;
+
 // ── Modes and distances (SPEC-V2 §2.1) ───────────────────────────────────────
 
 /** Classic Run: just reach the line. Ball Haunting: reach it holding a ball. */
@@ -253,6 +263,9 @@ export const PRACTICE = {
 /** Online play. Server and client both read these. */
 export const NET = {
   /**
+   * 11 (SPEC-V3 Phase 1): rank — "id" (who I am: a Lagos Life session or an
+   * EMILGO account's token) and "rank" (total XP, what a round earned); the
+   * error mode_off (Ball Haunt switched off).
    * 10: menus and social — CP boosts in free rooms (roster bo), data saver
    * (half the snapshots), friends: presence, requests, invites.
    * 9: Ball Haunting's pens (solid walls in the shared movement code; the
@@ -266,7 +279,7 @@ export const NET = {
    * and baskets, fist / slap / push, rooms of 20. 3: jump, crouch, prone,
    * sprint, the map, rich looks.)
    */
-  protocol: 10,
+  protocol: 11,
   tickHz: 60,
   /** Server → client state broadcasts per second. */
   snapshotHz: 15,

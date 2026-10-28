@@ -259,7 +259,9 @@ restart on change, port 8787) · `server:build` · `server:start`.
 | `VATAR_API`                              | default `https://lagoslife.app/api/games/v1`                                               |
 | `DATA_DIR`                               | where the purchases database lives (default `./data`) — keep it on a persistent disk       |
 | `TICKET_SECRET`                          | 32+ random chars; signs ownership tickets. **Required when running more than one process** |
-| `ADMIN_TOKEN`                            | 24+ random chars; unlocks `GET /reports` for moderators                                    |
+| `ADMIN_TOKEN`                            | 24+ random chars; unlocks `GET /reports` for moderators, and `DELETE /profiles/<key>`      |
+| `SUPABASE_URL` / `SUPABASE_JWT_SECRET`   | the EMILGO app's Supabase project: checks EMILGO players' tokens for rank (SPEC-V3). Unset = EMILGO players unranked |
+| `CONTENT_FILE`, `CONTENT_SIGNING_KEY`    | this week's mode manifest and its Ed25519 signing key (`server/src/content.ts`). Unset = the built-in manifest, not served |
 
 
 

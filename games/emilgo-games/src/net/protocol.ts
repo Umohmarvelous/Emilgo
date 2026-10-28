@@ -250,7 +250,8 @@ export type ErrorCode =
   | "vatar_off" // Lagos Life matches aren't set up on this server
   | "verify" // Lagos Life didn't accept the session
   | "not_in_match" // the session's player isn't in that match
-  | "match_state"; // the match isn't being played (not started, or over)
+  | "match_state" // the match isn't being played (not started, or over)
+  | "mode_off"; // the developer has that mode switched off (SPEC-V3: Ball Haunt's switch)
 
 export const ERROR_TEXT: Record<ErrorCode, string> = {
   version: "Update the game to play online.",
@@ -264,6 +265,7 @@ export const ERROR_TEXT: Record<ErrorCode, string> = {
   verify: "Lagos Life couldn't confirm who you are. Try again.",
   not_in_match: "You're not in that match.",
   match_state: "That match isn't being played right now.",
+  mode_off: "That game isn't on right now.",
 };
 
 export const SNAP_STRIDE = 5;

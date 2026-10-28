@@ -12,7 +12,7 @@
 
 import { randomInt } from "node:crypto";
 
-import { NET, STAKED, type Distance, type Mode } from "../../src/config";
+import { FEATURES, NET, STAKED, type Distance, type Mode } from "../../src/config";
 import { cleanName, type ErrorCode } from "../../src/net/protocol";
 import type { Peer } from "./peer";
 import { Room, type MatchSpec, type Winner } from "./room";
@@ -39,6 +39,8 @@ export class Lobby {
   }
 
   quick(peer: Peer, mode: Mode = "classic", dist: Distance = 200): ErrorCode | null {
+    // Every room this server makes today is Red Light, Green Light (Ball Haunt): refused while it's switched off.
+    if (!FEATURES.ballHaunt) return "mode_off";
     this.leave(peer);
     // The first open quick room for this mode and distance with nobody this
     // player has blocked (or been blocked by). Usually that is the only one.
@@ -56,6 +58,7 @@ export class Lobby {
   }
 
   create(peer: Peer, size: number, mode: Mode = "classic", dist: Distance = 200): ErrorCode | null {
+    if (!FEATURES.ballHaunt) return "mode_off";
     this.leave(peer);
     const room = new Room("private", size, this.newCode(), peer, null, mode, dist);
     this.rooms.set(room.id, room);
@@ -79,6 +82,8 @@ export class Lobby {
   async playMatch(peer: Peer, matchId: string, session: string): Promise<ErrorCode | null> {
     const api = this.vatar;
     if (!api) return "vatar_off";
+    // Staked matches play STAKED (Ball Haunting) until the Flag Duel is built (SPEC-V3 Phase 4).
+    if (!FEATURES.ballHaunt) return "mode_off";
     let playerId: string;
     try {
       playerId = (await api.verifySession(session)).playerId;

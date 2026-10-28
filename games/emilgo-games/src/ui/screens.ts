@@ -10,6 +10,7 @@ import { DISTANCES, FLOW, MODES, MODE_NAME, NET, PRACTICE, STAKED, TIME_LIMIT, b
 import { CONTROLS, RLGL_CONTROLS, unusedReason } from "../input/actions";
 import type { ChallengeDef } from "../game/progress";
 import { CATEGORIES, MAPS, SKY_LABEL, SKY_STATES, mapOf, thumbSvg, type MapCategory, type SkyState } from "../maps/registry";
+import type { GameEntry } from "../content/catalog";
 import type { RoomInfo } from "../net/protocol";
 import type { Rank } from "../rank/ladder";
 import type { Host, Leaderboard, MatchView } from "../platform/types";
@@ -137,12 +138,6 @@ const MODE_INFO: Record<PlayMode, { name: string; sub: string; icon: string }> =
   lagos: { name: "Lagos Life match", sub: "2–4 players · optional stakes", icon: "trophy" },
 };
 
-const GAMES = [
-  { id: "redlight", name: "Red Light, Green Light", ready: true },
-  { id: "ayo", name: "Ayo", ready: false },
-  { id: "ludo", name: "Naija Ludo", ready: false },
-  { id: "suwe", name: "Suwe", ready: false },
-];
 
 
 export class Screens {
@@ -273,7 +268,7 @@ export class Screens {
     return `<button class="modecard glass" data-act="mode" aria-label="Change mode and map">
       <span class="thumb">${thumbSvg(map)}</span>
       ${icon("swap", "", 18)}
-      <span class="txt art-t"><span class="label">Red Light</span>
+      <span class="txt art-t"><span class="label">Ball Haunt</span>
       <b>${mode.name}</b>
       <span class="small">${esc(map.name)}</span></span>
     </button>`;
@@ -580,7 +575,7 @@ export class Screens {
 
   // ── Play: game and mode select ─────────────────────────────────────────────
 
-  play(s: { mode: PlayMode; settings: Settings; online: OnlineAvailability; lagosLife: boolean; error: string | null; connecting: boolean; sky: SkyState }): void {
+  play(s: { mode: PlayMode; settings: Settings; online: OnlineAvailability; lagosLife: boolean; error: string | null; connecting: boolean; sky: SkyState; games: GameEntry[] }): void {
     const map = mapOf(s.settings.map);
     const off = (m: PlayMode) => (m === "solo" ? false : m === "lagos" ? !s.lagosLife || s.online !== "ready" : s.online !== "ready");
     const modes = (Object.keys(MODE_INFO) as PlayMode[])
@@ -603,7 +598,7 @@ export class Screens {
       "play",
       `<div class="playscreen">
         <div class="head"><button class="ibtn glass" data-act="back" aria-label="Back">${icon("back")}</button><span class="h">Play</span><span class="grow"></span></div>
-        <div class="games">${GAMES.map((g) => `<button class="gm ${g.id === "redlight" ? "on" : ""}" ${g.ready ? "" : "disabled"}>${esc(g.name)}${g.ready ? "" : `<span class="soon">Soon</span>`}</button>`).join("")}</div>
+        <div class="games">${s.games.map((g) => `<button class="gm ${g.id === "rlgl" ? "on" : ""}" ${g.state === "play" ? "" : "disabled"}>${esc(g.name)}${g.state === "play" ? "" : `<span class="soon">Soon</span>`}</button>`).join("")}</div>
         <div class="modes">${modes}${join}
           ${s.error ? `<div class="status error" role="alert">${esc(s.error)}</div>` : ""}
           ${s.connecting ? `<div class="status">Connecting…</div>` : ""}

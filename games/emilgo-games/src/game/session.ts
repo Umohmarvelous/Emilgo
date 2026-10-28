@@ -24,7 +24,7 @@
 import { ACESFilmicToneMapping, OrthographicCamera, PCFShadowMap, PCFSoftShadowMap, SRGBColorSpace, WebGLRenderTarget, PerspectiveCamera, Scene, Vector2, Vector3, WebGLRenderer } from "three";
 
 import { Sound } from "../audio/sound";
-import { ATTACK, BALLS, DISTANCES, FINAL, FLOW, MODES, MOVE, NET, PRACTICE, RULES, courseFor, scoreFor, walkoutLength, type AttackKind, type Course, type Distance, type Mode, type Stance } from "../config";
+import { ATTACK, BALLS, DISTANCES, FEATURES, FINAL, FLOW, MODES, MOVE, NET, PRACTICE, RULES, courseFor, scoreFor, walkoutLength, type AttackKind, type Course, type Distance, type Mode, type Stance } from "../config";
 import { SONGS, songFor, type SongId } from "../audio/songs";
 import { Loop } from "../core/loop";
 import { QualityGovernor } from "../core/quality";
@@ -78,6 +78,8 @@ import { buildAtlas } from "../world/textures";
 import { BOT_NAMES, BotBrain } from "./bots";
 import { addProgress, ensureDaily } from "./progress";
 import { rankOf, rankUp } from "../rank/ladder";
+import { games } from "../content/catalog";
+import { Content } from "../content/load";
 import { attackTarget, canAttack } from "./combat";
 import { CLIP, Highlights, type Moment, type MomentKind } from "./highlights";
 import { Recorder, type Clip, type DollPose } from "./replay";
@@ -299,6 +301,12 @@ export class Game {
     this.crowd.tier = this.spec.tier;
     this.crowd.setShadows(this.spec.shadows);
     this.rig = new CameraRig(this.camera);
+    // This week's modes: the copy kept on the phone now, the server's when online.
+    this.content = new Content(this.host);
+    this.content.onChange = () => {
+      if (this.screens.name === "play") this.showPlay();
+    };
+    void this.content.boot();
     this.stage = new LobbyStage(this.renderer, this.spec, canvas);
 
     this.quality = new QualityGovernor((pr) => {
@@ -505,7 +513,8 @@ export class Game {
     // Get the (silent) audio engine ready while the lobby is idle, make Mama,
     // and paint a few CPU outfits ahead so the first round starts without a stall.
     later(() => this.sound.prepare(), 2500);
-    later(() => void this.doll, 3000);
+    // Ball Haunt switched off (SPEC-V3): Mama is never made.
+    if (FEATURES.ballHaunt) later(() => void this.doll, 3000);
     later(() => {
       const rng = new Rng(1234);
       for (let i = 0; i < 6; i++) warmLook(randomLook(rng), this.spec.tier);
@@ -573,6 +582,9 @@ export class Game {
   private frame(f: Framing): void {
     this.stage.setFraming(f);
   }
+
+  /** The modes this game offers (SPEC-V3 §1.3): built in, or a newer verified manifest. */
+  private readonly content: Content;
 
   /** Your rank's XP: the server's total once known, else this phone's own count (a guest). */
   private get rankXp(): number {
@@ -642,7 +654,13 @@ export class Game {
     if (this.onlineAvailability() !== "ready") return;
     const net = this.ensureNet();
     net?.connect().catch(() => {});
+    // At most once a session: this week's modes (signed; kept on the phone).
+    if (!this.contentAsked) {
+      this.contentAsked = true;
+      void this.content.refresh(this.server);
+    }
   }
+  private contentAsked = false;
 
   private showCustomize(): void {
     this.frame("left-panel");
@@ -744,6 +762,7 @@ export class Game {
       error: this.playError,
       connecting: this.connecting,
       sky: withMode(this.skyPick ?? mapOf(this.settings.map).sky, this.settings.lightMode),
+      games: games(this.content.manifest, { xp: this.rankXp }),
     });
   }
 
@@ -2894,6 +2913,11 @@ export class Game {
 
   /** START on the play screen. */
   private go(): void {
+    // Nothing playable to start while Ball Haunt is off and no flagship mode is built yet.
+    if (!FEATURES.ballHaunt) {
+      this.screens.toast("That game isn't on right now.");
+      return;
+    }
     switch (this.playMode) {
       case "solo":
         this.practice();

@@ -3,8 +3,9 @@
 > **28 Oct 2026: v3 has begun.** The owner approved [SPEC-V3.md](SPEC-V3.md):
 > Dead Streets (solo zombie survival), Free For All (12 humans, melee, 10
 > modes, vehicles) and a hidden Ball Haunt, on one rank ladder kept on the
-> server. 11 phases, **each waits for the owner's go-ahead**. Phase 1
-> (foundations) is in progress; see SPEC-V3 "Status".
+> server. 11 phases, **each waits for the owner's go-ahead**. **Phase 1
+> (foundations) is done and committed (28 Oct 2026)**; Phase 2 (the open-world
+> engine and Naija World) waits for the go-ahead. See SPEC-V3 "Status".
 >
 > Before v3: Red Light, Green Light v2 was built to [SPEC-V2.md](SPEC-V2.md)
 > in 8 phases, all done and committed, then the owner's scanned people
@@ -162,6 +163,15 @@ Where things are:
 - The ground solver lying down skins its points by all four weights
   (`Body.contactsAll`, stride 20).
 
+## v3 Phase 1: where things are
+
+- Rank: `src/rank/ladder.ts`, `src/rank/xp.ts`; server `server/src/profiles.ts` (DATA_DIR/profiles.db), `Room.onAward` in `room.ts`, the `id`/`rank` messages (protocol 11); session `onRank`, `sendIdentity`.
+- Modes as data: `src/content/` (`modes.ts` the launch manifest and `BUILT`, `validate.ts`, `catalog.ts`, `load.ts`); server `server/src/content.ts`. **Add a module to `BUILT` when its phase ships**, or its modes stay "Soon".
+- Ball Haunt's switch: `FEATURES` in `src/config.ts`. Flip it to `false` in Phase 4.
+- The movement kernel: `src/game/core/body.ts`.
+- Mouse look: `input/controls.ts` (`lockPointer`, `mouseMode`). Pause hush: `sound.hush`.
+- New tests: `ranktest` (set `RANK_SECRET` to the server's `SUPABASE_JWT_SECRET` for the online part) and `contenttest`. The test server now also takes `SUPABASE_JWT_SECRET=test-supabase-jwt-secret-0123456789abcdef`.
+
 ## Running and testing
 
 From the repo root:
@@ -183,8 +193,10 @@ PORT=8790 WEBHOOK_URL=http://localhost:8797/vatar-webhook node server/dist/mockv
 PORT=8797 DATA_DIR=<scratch>/data TICKET_SECRET=test-ticket-secret-0123456789abcdef ADMIN_TOKEN=test-admin \
   MAX_PER_IP=100000 VATAR_SECRET=vtr_test_mock VATAR_RESULTS_SECRET=vtr_results_mock \
   VATAR_WEBHOOK_SECRET=vtr_whsec_test_mock VATAR_API=http://localhost:8790/api/games/v1 \
-  node server/dist/index.mjs &
+  SUPABASE_JWT_SECRET=test-supabase-jwt-secret-0123456789abcdef node server/dist/index.mjs &
 node server/dist/rulestest.mjs                          # 115 checks, no server needed
+node server/dist/contenttest.mjs                        # 27 checks, no server needed
+GAME=ws://localhost:8797 node server/dist/ranktest.mjs  # 42 checks (needs SUPABASE_JWT_SECRET on the server, as above)
 GAME=ws://localhost:8797 node server/dist/matchtest.mjs
 GAME=ws://localhost:8797 node server/dist/ballstest.mjs
 GAME=ws://localhost:8797 node server/dist/shoptest.mjs
@@ -230,7 +242,7 @@ VIEW=844x390 node dev/cdp.mjs "http://localhost:5173/" <outdir> <steps.json>   #
   they are real captures of the game, so they need taking again before
   submission. Its product table now matches the hoodie shop.
 
-- **Docker server on :8787 is still on protocol 5.** New builds (protocol 10) can't join it; the Play menu says "Update the game to play online." Rebuild it with:
+- **Docker server on :8787 is still on protocol 5.** New builds (protocol 11) can't join it; the Play menu says "Update the game to play online." Rebuild it with:
   ```bash
   cd games/emilgo-games && docker compose up -d --build
   ```

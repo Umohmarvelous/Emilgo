@@ -12,6 +12,18 @@ Green Light build (Ball Haunt), SPEC-V2 still applies until Phase 11.
 |---|---|---|
 | Rules this brief overrides | SPEC-ORIGINAL §10 and SPEC-V2's "Removed" row no longer apply to the new modes: a sandstorm (FFA), footprint trails (your own), lightning and storms (Spooky World) are back. The countdown's bass drops are gone everywhere (real ticks instead). The pause menu has no blur. Hoodie-only is lifted (rank outfits). | The v3 brief asks for each. |
 | Ball Haunt hidden "by default" | `FEATURES.ballHaunt` exists from Phase 1, but **stays on until the first flagship mode can be played** (Phase 4). It flips to off in that phase. | With it off before then, the game would have nothing to play. |
+| Splitting the referee (Phase 1) | Phase 1 moves only the **movement kernel** (the body, `moveContestant`, stance, stamina, walls) into `src/game/core/body.ts`, unchanged; `rules.ts` re-exports it. The module-based match core is built in **Phase 3** with its first modules (zone, items), and Red Light, Green Light moves onto it in **Phase 11**. | The owner: don't spend time on Ball Haunt up front. A core with no module to run would be untested guesswork. |
+| The `GameMode` seam in `session.ts` | Built in **Phase 4**, with Free For All, the first second mode, so its shape comes from a real one. Phase 1 adds what menus need now: the mode catalog (`content/catalog.ts`) feeds the Play menu's strip. | Same reason. |
+| Practice vs CPUs and rank | **No rank XP** in Solo vs AI; CP as before. The results say "Practice earns CP, not rank XP". | Ranks are earned against people or the Dead Streets run, which the server can check. |
+| Red Light, Green Light online rounds and rank | They pay the Free For All formula **in proportion to their length** (`FULL_MATCH_S`, 8 min): a 1-minute round pays an eighth. | A string of short rounds can't out-earn real matches. |
+| Lagos Life's leaderboard | Now **total rank XP** (it was the best round score). Vatar keeps each player's highest number, and XP only grows. Per-mode boards (Dead Streets) will be ours. | One board per game; the rank is the progress worth showing. |
+| The old levels | Not carried onto the ladder (they live on the phone and could be edited). Level 5 or more on the old ladder shows a **FOUNDER** tag in the lobby. | The plan (§1.4). |
+| Content signing key | No key is built into the game yet (`CONTENT_PUBLIC_KEY = null`), so phones play the **built-in manifest** only. The owner makes the key pair when hosting starts (`server/src/content.ts` says how). | Deploys are paused; a key nobody holds is useless. |
+| The Play menu's strip of games | Ayo, Naija Ludo and Suwe ("Soon") are gone. It now shows **Ball Haunt** (playable, first), **Dead Streets** and **Free For All** ("Soon" until built), from the mode catalog. The lobby's mode card says Ball Haunt. | The v3 brief is what EMILGO Games is now. |
+| Audio pooling | Phase 1 caps one-shot voices at 32 (footsteps dropped first). **Spatial voices** (car engines, zombies) get their own pool when they arrive (Phases 5 and 7). | Nothing spatial exists yet. |
+| Mouse look "identical to the joystick" | The mouse goes through the camera's same path, sensitivity settings and smoothing, with no OS acceleration. **Joystick** in Settings makes a mouse drag an actual virtual stick, which is the touch stick exactly. | A mouse moves by distance and a stick by rate, so only the stick option can be literally identical. |
+| Nothing plays during pause | Solo already stopped everything. **Online** (the round goes on), the whole mix fades out while paused, menu clicks included, and comes back on resume. | The brief. |
+| EMILGO rank identity | The game asks the app for the signed-in account's token over the bridge (`auth`); the game server checks it itself (`SUPABASE_URL`, or `SUPABASE_JWT_SECRET`) and keeps a hash of the user id, nothing else. Without either setting, EMILGO players play unranked (the phone keeps its own count). | Agreement §8: Lagos Life and EMILGO are never linked. |
 
 
 ## Context (from the plan)
@@ -868,5 +880,28 @@ HANDOFF.md and the project memory are updated to point to it.
 
 ## Status
 
-### Phase 1: Foundations (in progress)
+### Phase 1: Foundations (done 28 Oct 2026)
+
+| Check | Result |
+| --- | --- |
+| Tests | rules **115** (unchanged after the body moved out) · **content 27** (new: the built-in manifest is clean, 9 kinds of bad mode dropped alone, the menu by rank 5 / 8 / 10, Ball Haunt off hides it, signed manifests open only unchanged and with the right key) · **rank 42** (new: the ladder against §2.1's table, the XP formulas, profiles, EMILGO tokens: forged, expired and anonymous refused; online: a ranked and a guest player in a real round) · match 20 · balls 29 · shop 22 · social 13 · fairness 7/7 · chat filter |
+| Ball Haunt off | Switched off by hand: the server refused a quick room and a private room (`mode_off`); the menu leaves it out (content test). Switched back on. |
+| Load, 600 clients | 0 failed · tick p99 8.1 ms · 7.2 KB/s each |
+| In headless Chrome | A click takes the mouse; 100 px turns the camera 0.386 rad (the drag's gain); Esc pauses and gives it back; the pause menu has no blur. The lobby shows ROOKIE I (a fake Lagos Life player, checked by the server). The Play strip, both orientations: Ball Haunt, Dead Streets (Soon), Free For All (Soon). Solo results: "+0 XP · +10 CP · Rookie I · Practice earns CP, not rank XP". 300 footsteps at once: never more than 26 voices. |
+| Boot to the lobby | Production build, slow 4G, CPU 4×, real GPU: **no change from before v3**, measured side by side (before 4.7–6.3 s, after 5.2–6.4 s) on a Mac under heavy load from other apps (load average 16). The 4.0–4.25 s record was on a quiet machine; it must be re-measured when the Mac is quiet. |
+| Builds | Lagos Life `dist/`: 326 KB JS gzipped (was 318) · EMILGO embed: 2,363 KB (was 2,343) · server. **Protocol 11**: the Docker server (protocol 5) needs rebuilding |
+
+Built:
+- **Docs**: [SPEC-V3-ORIGINAL.md](SPEC-V3-ORIGINAL.md) (the brief word for word), this file, HANDOFF.
+- **Mouse look** (`input/controls.ts`): pointer lock on a click (raw movement), Esc or pause gives it back, a first-time toast; Settings → Controls → Mouse: Mouse look or Joystick.
+- **Pause**: no blur (`styles.css`); online the mix fades out (`sound.hush`).
+- **Countdown**: timer ticks (`sound.countTick`), no bass drops.
+- **Footsteps by surface** (`sound.step`): sand, concrete, grass, metal, puddle; `groundSurface(map)`, `Potholes.wet`. **Voice cap** of 32.
+- **Rank** (`src/rank/`): the ladder and XP formulas; server profiles and identity (`server/src/profiles.ts`), the `id` and `rank` messages, awards at every round's end (`Room.onAward`), `DELETE /profiles/<key>`; host identities (Lagos Life session, EMILGO token over the bridge, none on the web); the lobby's rank and bar, FOUNDER, the results' XP line; Lagos Life's board takes total XP.
+- **Modes as data** (`src/content/`): `ModeDef` and the launch manifest (10 Free For All modes, the Flag Duel, Dead Streets, Classic Run and Ball Haunting), the validator, the catalog (play / locked / soon / hidden), signed delivery (`GET /content/v1/manifest`, `server/src/content.ts`; the phone verifies Ed25519 and keeps the newest good copy); the Play strip comes from it. The EMILGO bridge may store `content.v1`.
+- **Ball Haunt's switch**: `FEATURES.ballHaunt` (on until Phase 4); off, the server refuses its rooms and staked matches, Mama is never built, the menus leave it out.
+- **The body** (`src/game/core/body.ts`): the movement kernel, moved out of `rules.ts` unchanged.
+- **Fixed**: three daily challenges a day again (all seven were showing).
+
+Not done in Phase 1 (see Decisions): the module-based match core (Phase 3), the `GameMode` seam (Phase 4), spatial voices (Phases 5, 7), a content key (at hosting). The online results line updating from the server is covered by the rank test over the network, not yet seen in a browser round.
 

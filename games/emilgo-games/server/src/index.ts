@@ -7,6 +7,7 @@
 //   POST /shop/claim     { session, purchaseId } → verify with Lagos Life, give once, deliver
 //   POST /shop/owned     { session } → what this player owns + a signed ticket
 //   (friends: presence.ts, over the WebSocket; nothing stored)
+//   GET  /content/v1/manifest   this week's modes, signed (content.ts; 404 until CONTENT_SIGNING_KEY is set)
 //   WS   /               the game protocol    (src/net/protocol.ts)
 //
 // Every room is stepped by ONE fixed 60 Hz loop. A round is tiny — at most a
@@ -48,6 +49,7 @@ import { cleanName, ERROR_TEXT, parseClient, type ClientMsg, type ErrorCode } fr
 import { now } from "./clock";
 import { Lobby } from "./lobby";
 import { Peer } from "./peer";
+import { loadContent } from "./content";
 import { Presence } from "./presence";
 import { Identity, SqliteProfiles, utcDay, type ProfileStore } from "./profiles";
 import { Room } from "./room";
@@ -74,6 +76,8 @@ const lobby = new Lobby(vatar, (event, info) => console.log(`match ${event} ${JS
 const presence = new Presence(lobby);
 const store = vatar ? new SqliteStore(`${process.env.DATA_DIR ?? "./data"}/emilgo-games.db`) : null;
 const shop = vatar && store ? new Shop(vatar, store, process.env.TICKET_SECRET, (e, info) => console.log(`shop ${e} ${JSON.stringify(info)}`)) : null;
+/** The modes this server referees, and the signed copy it hands phones (content.ts). */
+const content = loadContent(process.env);
 const profiles: ProfileStore = new SqliteProfiles(`${process.env.DATA_DIR ?? "./data"}/profiles.db`);
 const identity = new Identity(vatar, { url: process.env.SUPABASE_URL?.trim() || null, secret: process.env.SUPABASE_JWT_SECRET?.trim() || null });
 
@@ -132,6 +136,13 @@ const http = createServer((req, res) => {
     const got = String(req.headers.authorization ?? "");
     if (!token || token.length < 24 || got !== `Bearer ${token}`) return void res.writeHead(404).end();
     res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" }).end(JSON.stringify(reports));
+    return;
+  }
+  if (req.url === "/content/v1/manifest" && req.method === "GET") {
+    if (!content.signed) return void res.writeHead(404).end();
+    res
+      .writeHead(200, { "Content-Type": "application/json", "Cache-Control": "public, max-age=300", "Access-Control-Allow-Origin": "*" })
+      .end(content.signed);
     return;
   }
   if (req.url?.startsWith("/profiles/") && req.method === "DELETE") {

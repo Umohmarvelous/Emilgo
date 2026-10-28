@@ -242,6 +242,18 @@ WebView; `ws://` is blocked). Needs the EMILGO Games server deployed somewhere
 public with TLS — see `games/emilgo-games/README.md` §4. For device testing on your
 Wi-Fi: `cloudflared tunnel --url http://localhost:8787`.
 
+### 2.5b EMILGO Games rank and Dead Streets (SPEC-V3)
+
+- **Rank for EMILGO players**: the games server needs this project's
+  `SUPABASE_URL` (or, for an HS256 project, `SUPABASE_JWT_SECRET`) in its own
+  environment (`games/emilgo-games/server/.env`). Without it, the Game tab
+  works but its players play unranked (each phone keeps its own count). The
+  server keeps only a hash of the user id, never linked to Lagos Life.
+- **Store age rating**: Dead Streets (zombies, guns, horror) ships inside this
+  app too (owner's answer, 28 Oct 2026). **Update the App Store and Play Store
+  age-rating questionnaires before the release that carries it.** Blood stays
+  off by default in the app.
+
 ### 2.5 `EXPO_PUBLIC_DOMAIN` — remote testers
 
 Set, but note the constraint already in CLAUDE.md: a LAN-only value works only on

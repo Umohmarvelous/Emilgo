@@ -24,7 +24,9 @@
 export const GAMES_STORAGE_PREFIX = "emilgo-games:redlight:";
 
 /** Keys the game is allowed to persist through the bridge. Anything else is dropped. */
-export const GAMES_KEYS = ["settings.v1"] as const;
+export const GAMES_KEYS = ["settings.v1", "content.v1"] as const;
+/** Most a saved value may be: settings are small; the content manifest (signed, SPEC-V3) is bigger. */
+const MAX_VALUE: Record<string, number> = { "settings.v1": 8192, "content.v1": 131072 };
 
 export type GameHaptic = "tap" | "select" | "warning" | "success" | "heavy" | "error";
 
@@ -50,7 +52,7 @@ export interface GameBoot {
 export function parseGameMessage(raw: unknown): GameMessage | null {
   let m: unknown = raw;
   if (typeof raw === "string") {
-    if (raw.length > 16_384) return null;
+    if (raw.length > 140_000) return null;
     try {
       m = JSON.parse(raw);
     } catch {
@@ -69,7 +71,7 @@ export function parseGameMessage(raw: unknown): GameMessage | null {
       return typeof o.kind === "string" ? { emilgo: 1, type: "haptic", kind: o.kind as GameHaptic } : null;
     case "save":
       if (typeof o.key !== "string" || typeof o.value !== "string") return null;
-      if (!(GAMES_KEYS as readonly string[]).includes(o.key) || o.value.length > 8192) return null;
+      if (!(GAMES_KEYS as readonly string[]).includes(o.key) || o.value.length > (MAX_VALUE[o.key] ?? 8192)) return null;
       return { emilgo: 1, type: "save", key: o.key, value: o.value };
     default:
       return null;
