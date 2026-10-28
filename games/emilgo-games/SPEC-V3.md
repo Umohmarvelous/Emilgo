@@ -56,6 +56,7 @@ These go into `SPEC-V3.md` as its Answers table in Phase 1.
 | Looks and moves | **The hoodie-only and no-new-moves rules are lifted.** Add grapple, climb, crawl, aim/reload, drive and the zombie clips. Outfits: urban streetwear (hoodies, joggers) for the lower ranks; **tactical gear, armour and agbadas** as hero outfits at the higher ranks. |
 | Dead Streets in the EMILGO app | **Everywhere**: Lagos Life, web and the app. Blood off by default in the app (as today). The app's store age rating must be updated (the owner's task). |
 | Modes 7, 9, 10 | **Compound Wars**, **Riddles of the Elders**, **Lights Out**. |
+| Cinematic look (owner, 28 Oct 2026, before Phase 2) | **Every mode's environments and the interface look like a film scene, graded like COD:** a warm look, with each environment's colour adjustments designed for it. Built as one shared colour-grade system (`graphics/grade.ts`) with a look per environment, on every graphics tier (Low through lights, fog, tone mapping and a vignette overlay, no extra pass; Medium one grade pass; High bloom, grade and grain), applied to Naija World, Spooky World, the Red Light, Green Light maps and the lobby; the interface's colours warmed to match. |
 | Riddle languages | I draft every riddle in Yoruba, Igbo, Hausa, Pidgin and English. Yoruba, Igbo and Hausa are marked "needs review" and **stay hidden until a fluent speaker approves them** (a `reviewed` flag in the content manifest). |
 
 ---

@@ -11,6 +11,7 @@ import { DEFAULT_COURSE, FIELD, MOVE, RULES, type Course, type Stance } from "..
 import { modsOf, NO_BOOST, type BoostMods } from "../../shop/boosts";
 import type { ActKind } from "../combat";
 import { collideWalls } from "../pens";
+import type { Space } from "./space";
 
 export type Status = "alive" | "finished" | "eliminated";
 /** moved: caught by the doll; time: the clock ran out; noball: every ball was banked without yours. */
@@ -37,9 +38,14 @@ export interface Contestant {
   /** Requested movement in WORLD space, length 0..1 (1 = full run). */
   inX: number;
   inZ: number;
-  /** Height above the street (jumping) and vertical speed. */
+  /** Height above the floor under you (a jump, a fall) and vertical speed. */
   y: number;
   vy: number;
+  /**
+   * The floor's own height under you (SPEC-V3 open worlds: a roof, the
+   * stairs, a gutter). Always 0 on the flat Red Light, Green Light field.
+   */
+  h: number;
   /** Current stance (0 stand, 1 crouch, 2 prone) and the one asked for. */
   stance: Stance;
   inStance: Stance;
@@ -87,11 +93,11 @@ export interface Contestant {
 }
 
 /** A fresh contestant's movement state (shared by the referee and the online client). */
-type Motion = "bst" | "grip" | "y" | "vy" | "stance" | "inStance" | "stanceT" | "inSprint" | "sprinting" | "stamina" | "rested" | "inJump" | "jumpSeen" | "inAttack" | "attackSeen" | "inGrab" | "grabSeen" | "ball" | "stun" | "forgive" | "act" | "cool" | "actKind" | "slide";
+type Motion = "bst" | "grip" | "y" | "vy" | "h" | "stance" | "inStance" | "stanceT" | "inSprint" | "sprinting" | "stamina" | "rested" | "inJump" | "jumpSeen" | "inAttack" | "attackSeen" | "inGrab" | "grabSeen" | "ball" | "stun" | "forgive" | "act" | "cool" | "actKind" | "slide";
 
 export function freshMotion(): Pick<Contestant, Motion> {
   return {
-    bst: NO_BOOST, grip: 0, y: 0, vy: 0, stance: 0, inStance: 0, stanceT: 0, inSprint: false, sprinting: false, stamina: 1, rested: 9, inJump: 0, jumpSeen: 0,
+    bst: NO_BOOST, grip: 0, y: 0, vy: 0, h: 0, stance: 0, inStance: 0, stanceT: 0, inSprint: false, sprinting: false, stamina: 1, rested: 9, inJump: 0, jumpSeen: 0,
     inAttack: 0, attackSeen: 0, inGrab: 0, grabSeen: 0, ball: -1, stun: 0, forgive: 0, act: 0, cool: 0, actKind: "", slide: 0,
   };
 }
@@ -114,7 +120,7 @@ export function isMoving(c: Contestant): boolean {
  * identically. Finishing, collisions and judging are NOT here — only the
  * referee does those.
  */
-export function moveContestant(c: Contestant, dt: number, course: Course = DEFAULT_COURSE): void {
+export function moveContestant(c: Contestant, dt: number, course: Course = DEFAULT_COURSE, space: Space | null = null): void {
   if (c.status === "eliminated") return;
 
   if (c.stun > 0) c.stun = Math.max(0, c.stun - dt);
@@ -157,8 +163,7 @@ export function moveContestant(c: Contestant, dt: number, course: Course = DEFAU
     }
     c.x += c.vx * dt;
     c.z += c.vz * dt;
-    clampToField(c, course);
-    if (course.walls.length) collideWalls(c, course.walls, MOVE.radius);
+    bound(c, course, space);
     c.progress = Math.max(c.progress, FIELD.startZ - c.z);
     if (c.stanceT > 0) c.stanceT = Math.max(0, c.stanceT - dt);
     return;
@@ -234,8 +239,7 @@ export function moveContestant(c: Contestant, dt: number, course: Course = DEFAU
 
   c.x += c.vx * dt;
   c.z += c.vz * dt;
-  clampToField(c, course);
-  if (course.walls.length) collideWalls(c, course.walls, MOVE.radius);
+  bound(c, course, space);
 
   // Face where you are going; keep the last facing when standing still (or knocked back).
   const sp = Math.hypot(c.vx, c.vz);
@@ -248,6 +252,20 @@ export function moveContestant(c: Contestant, dt: number, course: Course = DEFAU
   }
 
   c.progress = Math.max(c.progress, FIELD.startZ - c.z);
+}
+
+/**
+ * Keep a body where it may be: on the Red Light, Green Light field, its
+ * corridor and the pens' walls; in an open world, its Space (walls, floors,
+ * stairs, ledges, water, the edge of the world).
+ */
+function bound(c: Contestant, course: Course, space: Space | null): void {
+  if (space) {
+    space.resolve(c, MOVE.radius);
+    return;
+  }
+  clampToField(c, course);
+  if (course.walls.length) collideWalls(c, course.walls, MOVE.radius);
 }
 
 export function clampToField(c: Contestant, course: Course = DEFAULT_COURSE): void {

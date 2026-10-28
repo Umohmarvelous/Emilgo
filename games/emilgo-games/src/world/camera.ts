@@ -25,15 +25,18 @@ export interface Follow {
   y?: number;
   /** 0 stand, 1 crouch, 2 prone (eye height drops). */
   stance?: number;
+  /** The floor's height under them (open worlds: a roof, the stairs). */
+  ground?: number;
 }
 
-/** A box the camera must not pass through (x, z centre and half-sizes, height). */
+/** A box the camera must not pass through (x, z centre and half-sizes, height; y0 its bottom, 0 if on the ground). */
 export interface Collider {
   x: number;
   z: number;
   hx: number;
   hz: number;
   h: number;
+  y0?: number;
 }
 
 const MAX_RATE = Math.PI; // 180°/s
@@ -67,6 +70,10 @@ export class CameraRig {
   /** Set from the screen's shape: wider on tall portrait phones. */
   baseFov = 65;
   colliders: Collider[] = [];
+  /** Open worlds: the boxes near a point (a grid lookup), instead of walking every collider. */
+  near: ((x: number, z: number, r: number) => readonly Collider[]) | null = null;
+  /** The floor under the followed body (the arm never dips below it). */
+  private floor = 0;
   /** Where Mama stands this round, and the side walls the camera mustn't pass (Infinity: open ground). */
   dollZ = DOLL_Z;
   wallX = FIELD.halfWidth + 1.4;
@@ -314,14 +321,15 @@ export class CameraRig {
   private computeFollow(t: Follow, dt: number): void {
     const stance = t.stance ?? 0;
     const eye = stance >= 1.5 ? 0.45 : stance >= 0.5 ? 1.05 : EYE;
-    this.pivot.set(t.x, eye + (t.y ?? 0) * 0.85, t.z);
+    this.floor = t.ground ?? 0;
+    this.pivot.set(t.x, this.floor + eye + (t.y ?? 0) * 0.85, t.z);
     const d = this.lookDir(this.wantLook);
     const rx = Math.cos(this.viewYaw);
     const rz = -Math.sin(this.viewYaw);
     // Collision: shorten the arm if a wall or box is in the way.
     const want = this.clearance(this.pivot, -d.x, -d.y, -d.z, rx, rz);
     this.dist += (want - this.dist) * (want < this.dist ? 1 : 1 - Math.exp(-dt * 4));
-    this.wantPos.set(this.pivot.x - d.x * this.dist + rx * SHOULDER, Math.max(0.25, this.pivot.y - d.y * this.dist), this.pivot.z - d.z * this.dist + rz * SHOULDER);
+    this.wantPos.set(this.pivot.x - d.x * this.dist + rx * SHOULDER, Math.max(this.floor + 0.25, this.pivot.y - d.y * this.dist), this.pivot.z - d.z * this.dist + rz * SHOULDER);
     // Aim straight ahead from the shoulder, so the player sits left of centre.
     this.wantLook.set(this.wantPos.x + d.x * 10, this.wantPos.y + d.y * 10, this.wantPos.z + d.z * 10);
   }
@@ -341,14 +349,15 @@ export class CameraRig {
       const t = (wall - p.x * side) / vx;
       if (t >= 0 && t < 1) best = Math.min(best, Math.max(0.6, t * DIST - 0.25));
     }
-    // Under the ground.
+    // Under the ground (or the floor you stand on).
     if (ey < 0) {
-      const t = (0.2 - p.y) / ey;
+      const t = (this.floor + 0.2 - p.y) / ey;
       if (t >= 0 && t < 1) best = Math.min(best, Math.max(0.6, t * DIST));
     }
-    // Boxes (slab test in x/z).
-    for (const c of this.colliders) {
+    // Boxes (slab test in x/z): the open worlds hand over only the ones nearby.
+    for (const c of this.near ? this.near(p.x, p.z, DIST + SHOULDER + 1) : this.colliders) {
       if (p.y + ey > c.h && p.y > c.h) continue;
+      if (c.y0 !== undefined && p.y + ey < c.y0 && p.y < c.y0) continue;
       let t0 = 0;
       let t1 = 1;
       for (const [o, v, lo, hi] of [

@@ -262,7 +262,9 @@ export class Crowd {
 
       // Speed from actual travel (the referee's velocity can lag a frame).
       const speed = Math.hypot(c.vx, c.vz);
-      h.mesh.position.set(c.x, c.y ?? 0, c.z);
+      // Standing on its floor (a roof, the stairs, a gutter in the open worlds; 0 on the field).
+      const floor = c.h ?? 0;
+      h.mesh.position.set(c.x, floor + (c.y ?? 0), c.z);
       h.mesh.quaternion.setFromAxisAngle(UP, c.heading);
       // A fall in slow motion runs on its own, slower clock (the zoom, the kill cam).
       let k = 1;
@@ -296,7 +298,7 @@ export class Crowd {
         const off = lie * 0.8;
         const lift = Math.max(0, c.y ?? 0);
         _s.multiplyScalar(1 / (1 + lift * 1.5));
-        _v.set(c.x + Math.sin(dir) * off, 0.018, c.z + Math.cos(dir) * off);
+        _v.set(c.x + Math.sin(dir) * off, floor + 0.018, c.z + Math.cos(dir) * off);
         _m.compose(_v, _q, _s);
         this.shadows.setMatrixAt(i, _m);
       } else {
