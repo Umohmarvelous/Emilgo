@@ -52,6 +52,8 @@ export interface Settings {
   leftHanded: boolean;
   /** Right stick: always drawn, or only while touched. */
   lookStick: "always" | "touch";
+  /** Desktop mouse: pointer lock (default) or a virtual look stick (SPEC-V3). */
+  mouseLook: "lock" | "stick";
   /** Camera sensitivity, fraction of the maximum (180°/s). */
   sensH: number;
   sensV: number;
@@ -128,6 +130,7 @@ export function defaults(host: Host): Settings {
     autoCam: false,
     leftHanded: false,
     lookStick: "touch",
+    mouseLook: "lock",
     // Reduced sensitivity: 0.3 of the maximum (SPEC-V2 §4.2).
     sensH: 0.3,
     sensV: 0.3,
@@ -208,6 +211,7 @@ export function loadSettings(host: Host): Settings {
     out.song = SONG_IDS[0];
     if (!["auto", "low", "medium", "high"].includes(out.graphics)) out.graphics = base.graphics;
     if (out.lookStick !== "always" && out.lookStick !== "touch") out.lookStick = base.lookStick;
+    if (out.mouseLook !== "lock" && out.mouseLook !== "stick") out.mouseLook = base.mouseLook;
     if (!MODES.includes(out.mode)) out.mode = base.mode;
     if (!DISTANCES.includes(out.distance)) out.distance = base.distance;
     if (!["auto", "light", "dark"].includes(out.lightMode)) out.lightMode = base.lightMode;

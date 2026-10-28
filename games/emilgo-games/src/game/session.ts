@@ -353,7 +353,7 @@ export class Game {
     });
     this.tutorial = new TutorialPlayer(ui);
     this.tutorial.onClose(() => this.endTutorial());
-    this.countdown = new Countdown(this.hud, (last) => this.sound.bassDrop(last));
+    this.countdown = new Countdown(this.hud, (last) => this.sound.countTick(last));
     this.chat.onSend((text) => this.net?.send({ t: "chat", text }));
     this.friends = new Friends(
       this.settings,
@@ -424,6 +424,14 @@ export class Game {
     };
     window.addEventListener("pointerdown", unlock, true);
     this.controls.onPauseKey = () => (this.paused ? this.resume() : this.pause());
+    // The first time the mouse is taken, say how to get it back (SPEC-V3: discoverability).
+    let toldLock = false;
+    this.controls.onPointerLock = (locked) => {
+      if (locked && !toldLock) {
+        toldLock = true;
+        this.screens.toast("The mouse turns the camera. Esc gives it back.");
+      }
+    };
     this.hud.pauseBtn.addEventListener("click", () => this.pause());
     this.screens.handle((act, node) => this.action(act, node));
 
@@ -515,6 +523,7 @@ export class Game {
     this.endRound();
     this.flow.reset("lobby");
     this.paused = false;
+    this.sound.hush(false);
     this.tryOn = null;
     this.returnAt = 0;
     this.view = "lobby";
@@ -862,6 +871,7 @@ export class Game {
 
     this.my = "playing";
     this.paused = false;
+    this.sound.hush(false);
     this.recorded = null;
     this.rec = new Recorder(round.contestants.length, round.balls.length);
     // Solo scores its own highlights; online the server does (the tutorial has none).
@@ -2265,12 +2275,14 @@ export class Game {
     if (!this.round || this.paused || this.screens.name === "results" || this.view !== "game") return;
     this.paused = true;
     this.controls.reset();
+    this.controls.releasePointer();
     this.wheel.close();
     if (this.mode === "practice") {
       this.loop.stop();
       this.sound.suspend();
     } else {
       this.net?.resetInput();
+      this.sound.hush(true);
     }
     this.screens.pause(this.host, this.mode === "online");
   }
@@ -2280,6 +2292,7 @@ export class Game {
     this.paused = false;
     this.screens.hide();
     this.controls.enabled = this.my === "playing" && !this.tut && !this.walkout;
+    this.sound.hush(false);
     if (!this.hostPaused) {
       this.sound.resume();
       this.loop.start();
@@ -2597,6 +2610,7 @@ export class Game {
       case "restart":
         if (this.tut) this.closeTutorial();
         this.paused = false;
+        this.sound.hush(false);
         this.sound.resume();
         this.startPractice();
         break;
@@ -2666,6 +2680,7 @@ export class Game {
         const key = d.key;
         if (key === "graphics" && ["auto", "low", "medium", "high"].includes(d.val ?? "")) this.settings.graphics = d.val as Settings["graphics"];
         if (key === "lookStick" && (d.val === "always" || d.val === "touch")) this.settings.lookStick = d.val;
+        if (key === "mouseLook" && (d.val === "lock" || d.val === "stick")) this.settings.mouseLook = d.val;
         if (key === "stickSize" && (d.val === "small" || d.val === "medium" || d.val === "large")) this.settings.stickSize = d.val;
         if (key === "mapSize" && (d.val === "small" || d.val === "medium" || d.val === "large")) this.settings.mapSize = d.val;
         if (key === "sprintMode" && (d.val === "toggle" || d.val === "hold" || d.val === "auto")) this.settings.sprintMode = d.val;
@@ -2882,6 +2897,7 @@ export class Game {
     this.rig.sensV = s.sensV * s.sens;
     this.stage?.setLightMode(s.lightMode);
     this.controls.setLayout(s.leftHanded, s.lookStick === "always");
+    this.controls.mouseMode = s.mouseLook;
     this.controls.setStyle(s.stickSize, s.stickOpacity, s.sprintMode);
     this.hud.map.setSize(s.mapSize);
     this.hud.setFeedOn(s.killFeed);

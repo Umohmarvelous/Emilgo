@@ -679,6 +679,7 @@ export class Screens {
         ${sw("leftHanded", "Left-handed", "Move on the right, look on the left")}
         <div class="row-set"><span class="lbl"><b>Sprint</b><small>Toggle: tap on, tap off. Hold: sprint while held. Auto: a full push sprints</small></span>${seg("sprintMode", s.sprintMode, [["toggle", "Toggle"], ["hold", "Hold"], ["auto", "Auto"]])}</div>
         <div class="row-set"><span class="lbl"><b>Look stick</b><small>Always drawn, or only while touched</small></span>${seg("lookStick", s.lookStick, [["touch", "On touch"], ["always", "Always"]])}</div>
+        <div class="row-set"><span class="lbl"><b>Mouse</b><small>Computer: click to take the mouse (Esc gives it back), or drag as a stick</small></span>${seg("mouseLook", s.mouseLook, [["lock", "Mouse look"], ["stick", "Joystick"]])}</div>
         ${sw("autoCam", "Camera drifts back behind you", "Off: the camera stays where you leave it")}
         ${sw("firstPerson", "Start in first person", "Switch any time with the eye button")}
         <div class="label" style="margin:14px 0 6px">All controls</div>

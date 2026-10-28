@@ -179,7 +179,7 @@ export interface SingBands {
 // rule that keeps it fair: nobody is ever caught until she has visibly turned
 // to face them, plus a short grace.
 export const RULES = {
-  /** 5 → 1 in the centre, each number a bass drop (SPEC-V2 §1.3). */
+  /** 5 → 1 in the centre, each number a timer tick (SPEC-V3: no bass drops). */
   countdown: 5,
   timeLimit: 45,
   /** The opening song: long enough to get going, never the same length twice. */

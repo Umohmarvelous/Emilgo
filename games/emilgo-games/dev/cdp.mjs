@@ -13,6 +13,9 @@
 //   {"tapSel": "css"}                    {"tap": [x, y]}
 //   {"hold": [[x0,y0],[x1,y1]]}          {"release": true}
 //   {"key": "Space"}                     (keyDown + keyUp)
+//   {"click": [x, y]}                    (a left mouse click)
+//   {"focus": true}                      (emulate a focused page: pointer lock needs one)
+//   {"mouse": [[x0,y0],[x1,y1]]}         (the mouse moves from one point to the other, no button)
 //   {"saveEval": "canvas.toDataURL()", "file": "path"}  (write a data: URL to disk)
 //   {"profile": ms, "top": 25}           (sample the CPU for ms; print the functions with the most self time)
 //                                        add "reload": true to profile a fresh load (boot), "tree": "fnName" for
@@ -160,6 +163,22 @@ async function main() {
     if (s.release && held) {
       await touch("touchEnd", held[0], held[1]);
       held = null;
+    }
+    if (s.focus) {
+      await send("Emulation.setFocusEmulationEnabled", { enabled: true });
+      await send("Page.bringToFront");
+    }
+    if (s.click) {
+      const [x, y] = s.click;
+      await send("Input.dispatchMouseEvent", { type: "mousePressed", x, y, button: "left", clickCount: 1 });
+      await send("Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button: "left", clickCount: 1 });
+    }
+    if (s.mouse) {
+      const [[x0, y0], [x1, y1]] = s.mouse;
+      for (let i = 0; i <= 8; i++) {
+        await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: x0 + ((x1 - x0) * i) / 8, y: y0 + ((y1 - y0) * i) / 8 });
+        await sleep(16);
+      }
     }
     if (s.key) {
       await send("Input.dispatchKeyEvent", { type: "keyDown", key: s.key === "Space" ? " " : s.key, code: s.key });

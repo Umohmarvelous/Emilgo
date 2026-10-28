@@ -56,7 +56,7 @@ export function dailyFor(day: string): ChallengeDef[] {
     const j = h % (i + 1);
     [idx[i], idx[j]] = [idx[j], idx[i]];
   }
-  return idx.slice(0, 13).map((i) => POOL[i]);
+  return idx.slice(0, 3).map((i) => POOL[i]);
 }
 
 /** Make sure `daily` is today's (resetting progress on a new day) and return the defs. */

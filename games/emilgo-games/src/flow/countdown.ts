@@ -1,5 +1,6 @@
 // The countdown (SPEC-V2 §1.3): big numbers 5 → 1 in the centre of the
-// screen, no words, each one pulsing in on a bass drop. Then the game begins.
+// screen, no words, each one pulsing in on a timer tick (SPEC-V3: no bass
+// drops). Then the game begins.
 // Driven by the referee's own countdown phase, so it matches on every phone.
 
 export interface CountdownView {
@@ -10,7 +11,7 @@ export interface CountdownView {
 export class Countdown {
   constructor(
     private readonly view: CountdownView,
-    /** The bass drop; `last` for the final number. */
+    /** The tick; `last` for the final number. */
     private readonly drop: (last: boolean) => void,
   ) {}
 

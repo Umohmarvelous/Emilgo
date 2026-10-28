@@ -60,8 +60,8 @@ html.rot90 #scene, html.rot90 #ui { inset: auto; top: 0; left: 0; transform-orig
 .rotate-hint.visible { opacity: 1; pointer-events: auto; }
 .rot-anim { animation: rot-tilt 1.6s ease-in-out infinite; transform-origin: 50% 50%; }
 @keyframes rot-tilt { 0%, 20% { transform: rotate(0deg); } 55%, 80% { transform: rotate(90deg); } 100% { transform: rotate(0deg); } }
-/* The pause menu (§7.1): opaque blur over the game. */
-.screen.pause-blur { background: rgba(6, 8, 10, 0.82); -webkit-backdrop-filter: blur(18px) saturate(0.8); backdrop-filter: blur(18px) saturate(0.8); pointer-events: auto; display: grid; place-items: center; }
+/* The pause menu (§7.1): a plain dark overlay over the game, no blur (SPEC-V3). */
+.screen.pause-blur { background: rgba(6, 8, 10, 0.88); pointer-events: auto; display: grid; place-items: center; }
 .pause-menu { width: min(360px, calc(100% - 32px)); display: flex; flex-direction: column; gap: 10px; }
 .pause-head { display: flex; flex-direction: column; gap: 4px; padding: 0 4px; }
 .pause-head .h { font: 800 16px var(--head); letter-spacing: 0.12em; text-transform: uppercase; }

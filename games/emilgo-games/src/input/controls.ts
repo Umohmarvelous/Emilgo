@@ -45,7 +45,23 @@ interface StickState {
 }
 
 export class Controls {
-  enabled = false;
+  private on = false;
+  /** Controls answer only in play; turning them off also gives the mouse back. */
+  get enabled(): boolean {
+    return this.on;
+  }
+  set enabled(on: boolean) {
+    this.on = on;
+    if (!on) this.unlockPointer();
+  }
+  /**
+   * Desktop mouse (SPEC-V3): "lock" takes the pointer on a click (the cursor
+   * hides, the mouse turns the camera, Esc gives it back); "stick" makes a
+   * mouse drag on the look side a virtual right stick, exactly as a thumb.
+   */
+  mouseMode: "lock" | "stick" = "lock";
+  /** Called when the pointer is taken or given back. */
+  onPointerLock: ((locked: boolean) => void) | null = null;
   leftHanded = false;
   /** Right stick drawn when idle ("always") or only while touched. */
   lookAlways = false;
@@ -217,7 +233,62 @@ export class Controls {
     window.addEventListener("keyup", this.keyUp);
     window.addEventListener("blur", () => this.reset());
     surface.addEventListener("contextmenu", (e) => e.preventDefault());
+    document.addEventListener("mousemove", this.lockedMove);
+    document.addEventListener("pointerlockchange", () => this.onPointerLock?.(this.locked));
   }
+
+  /** The mouse is ours (pointer lock on the game surface). */
+  get locked(): boolean {
+    return typeof document !== "undefined" && document.pointerLockElement === this.surface;
+  }
+
+  /**
+   * Take the pointer. Raw movement where the browser offers it, so the OS's
+   * acceleration never changes how the camera feels; otherwise plain lock.
+   */
+  private lockPointer(): void {
+    const el = this.surface as HTMLElement & { requestPointerLock(o?: { unadjustedMovement?: boolean }): Promise<void> | void };
+    if (!el.requestPointerLock || this.locked) return;
+    const plain = (): void => {
+      try {
+        const r = el.requestPointerLock();
+        if (r && typeof r.catch === "function") r.catch(() => {});
+      } catch {
+        /* the host forbids it: the mouse stays a drag */
+      }
+    };
+    try {
+      const r = el.requestPointerLock({ unadjustedMovement: true });
+      if (r && typeof r.catch === "function") r.catch(plain);
+    } catch {
+      plain();
+    }
+  }
+
+  /** Give the mouse back (the pause menu needs a cursor). */
+  releasePointer(): void {
+    this.unlockPointer();
+  }
+
+  private unlockPointer(): void {
+    if (this.locked) {
+      try {
+        document.exitPointerLock();
+      } catch {
+        /* fine */
+      }
+    }
+  }
+
+  /** While locked, every mouse movement turns the camera (same path, sensitivity and smoothing as a drag). */
+  private lockedMove = (e: MouseEvent): void => {
+    if (!this.locked || !this.on) return;
+    // Turn a screen delta into the game's own axes when the game is turned on its side.
+    const a = toGame(0, 0);
+    const b = toGame(e.movementX, e.movementY);
+    this.mdx += b.x - a.x;
+    this.mdy += b.y - a.y;
+  };
 
   /** Called once, on the very first touch/key — used to unlock audio. */
   onFirstInput(fn: () => void): void {
@@ -395,12 +466,20 @@ export class Controls {
     this.touched();
     if (!this.enabled) return;
     if ((e.target as HTMLElement).closest("button, a, input, .sheet, [data-ui]")) return;
+    // Locked: the mouse is the camera, and its buttons don't make sticks.
+    if (e.pointerType === "mouse" && this.locked) return;
     // Game coordinates: the same as the screen's unless the game is turned on its side.
     const p = toGame(e.clientX, e.clientY);
     const leftSide = p.x < gameSize().w / 2;
     const isMove = this.leftHanded ? !leftSide : leftSide;
-    // A mouse drags the camera directly, like a mouse should.
-    if (e.pointerType === "mouse" && !isMove) {
+    // Pointer lock (the default on a computer): a click on the game takes the mouse.
+    if (e.pointerType === "mouse" && this.mouseMode === "lock") {
+      e.preventDefault();
+      this.lockPointer();
+      return;
+    }
+    // "stick": a mouse drag on the look side is a virtual stick, like a thumb (below).
+    if (e.pointerType === "mouse" && !isMove && this.mouseMode !== "stick") {
       this.mouseLook = { id: e.pointerId, x: p.x, y: p.y };
       try {
         this.surface.setPointerCapture(e.pointerId);

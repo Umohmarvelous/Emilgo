@@ -147,9 +147,21 @@ export class Sound {
     this.levels = { master: 0.9 * clamp01(master), music: clamp01(music), sfx: clamp01(sfx) };
     if (!this.ctx || !this.master || !this.music || !this.sfx) return;
     const t = this.ctx.currentTime;
-    this.master.gain.setTargetAtTime(this.levels.master, t, 0.02);
+    this.master.gain.setTargetAtTime(this.hushed ? 0 : this.levels.master, t, 0.02);
     this.music.gain.setTargetAtTime(0.55 * this.levels.music, t, 0.02);
     this.sfx.gain.setTargetAtTime(this.levels.sfx, t, 0.02);
+  }
+
+  private hushed = false;
+
+  /**
+   * Paused online (SPEC-V3: nothing plays during pause): the round goes on
+   * underneath, so the clock can't stop — the whole mix fades out instead,
+   * and back in on resume.
+   */
+  hush(on: boolean): void {
+    this.hushed = on;
+    if (this.ctx && this.master) this.master.gain.setTargetAtTime(on ? 0 : this.levels.master, this.ctx.currentTime, 0.03);
   }
 
   /** The world paused us (background, pay sheet): everything stops. */
@@ -573,15 +585,15 @@ export class Sound {
 
 
   /**
-   * The countdown's bass drop, one per number (SPEC-V2 §1.3): a sub that
-   * falls away under a soft thump. The last number (1) drops deepest.
+   * The countdown, one per number (SPEC-V3: real countdown sounds, no bass
+   * drops): a clean timer beep with a click, like a stopwatch's. The last
+   * number (1) is higher and held a little longer: the go.
    */
-  bassDrop(last: boolean): void {
+  countTick(last: boolean): void {
     const t = this.now;
-    const len = last ? 1.3 : 0.85;
-    this.tone(last ? 110 : 130, t, len, { type: "sine", gain: 0.75, to: last ? 30 : 40, attack: 0.008 });
-    this.tone(last ? 55 : 65, t, len * 0.9, { type: "triangle", gain: 0.3, to: 28, attack: 0.01 });
-    this.noise(t, 0.09, { gain: 0.32, freq: 220, type: "lowpass" });
+    this.noise(t, 0.012, { gain: 0.12, freq: 3200, type: "highpass" });
+    this.tone(last ? 1320 : 880, t, last ? 0.42 : 0.16, { type: "sine", gain: last ? 0.3 : 0.24, attack: 0.003 });
+    this.tone(last ? 2640 : 1760, t, last ? 0.2 : 0.08, { type: "sine", gain: 0.05, attack: 0.003 });
   }
 
   step(): void {
