@@ -621,7 +621,7 @@ export class Sound {
   /**
    * Your footstep, by what it lands on (SPEC-V3): sand a soft hiss, concrete a
    * short hard tap, grass a brushed rustle, a car roof a hollow metal knock,
-   * a puddle a wet slap. `pace` 0 walk … 1 sprint: harder and brighter.
+   * a puddle a wet slap, planks a hollow knock. `pace` 0 walk … 1 sprint: harder and brighter.
    * Steps are the first sounds dropped when too many are playing.
    */
   step(surface: Surface = "concrete", pace = 0.5): void {
@@ -642,6 +642,10 @@ export class Sound {
         this.tone(320 * v, t, 0.12, { type: "triangle", gain: 0.07 * k, to: 260 });
         this.tone(1240 * v, t, 0.06, { type: "sine", gain: 0.025 * k });
         this.noise(t, 0.02, { gain: 0.04 * k, freq: 1800, type: "bandpass" });
+        break;
+      case "wood":
+        this.tone(210 * v, t, 0.07, { type: "triangle", gain: 0.06 * k, to: 150 });
+        this.noise(t, 0.03, { gain: 0.035 * k, freq: 900 * v, type: "bandpass" });
         break;
       case "puddle":
         this.noise(t, 0.08 * v, { gain: 0.06 * k, freq: 1500 * v, type: "bandpass" });
