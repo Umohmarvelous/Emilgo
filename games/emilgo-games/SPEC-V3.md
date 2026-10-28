@@ -25,6 +25,13 @@ Green Light build (Ball Haunt), SPEC-V2 still applies until Phase 11.
 | Nothing plays during pause | Solo already stopped everything. **Online** (the round goes on), the whole mix fades out while paused, menu clicks included, and comes back on resume. | The brief. |
 | EMILGO rank identity | The game asks the app for the signed-in account's token over the bridge (`auth`); the game server checks it itself (`SUPABASE_URL`, or `SUPABASE_JWT_SECRET`) and keeps a hash of the user id, nothing else. Without either setting, EMILGO players play unranked (the phone keeps its own count). | Agreement §8: Lagos Life and EMILGO are never linked. |
 | Naija World's layout (Phase 2) | Not a hand-written `naija-world.json`: the **plan** (roads, river, the 12 landmarks, the 18 places) is written by hand in `maps/open/naija.ts`, and the streets are **filled in from it by a seeded generator** (about 490 placements, 1,600 solids, built in ~25 ms). Server and phones build the same city from the same seed, so nothing goes on the wire. A weekly map can still ship as data: a plan plus a seed. | Hundreds of hand-placed houses would be slow to change and easy to get wrong; a seed keeps the "same colliders everywhere" rule for free. |
+| Naija World's ground (Phase 2) | **Flat**, not a heightfield: the city is level, so the ground is one painted plane (2048² on Medium and High, 1024² on Low) with a fine grain over it. Height comes from the solids: gutters and the river are pits (holes cut in the ground's picture), roofs and stairs are boxes and ramps. | A heightfield on level ground is 8K triangles of nothing. Spooky World can still use one. |
+| The edge of Naija World | A **2.6 m block wall** all round (a shared solid), with bush beyond it to the haze. The roads end at it. | Free For All needs an edge; the world's bounds already stop bodies, and the wall shows where it is. |
+| The PVS in a low city | Built and baked per cell (rays at 3 m eye height against building masses), but in a 1–4 floor city with long straight roads it **hides 0–1 cells**; it switches off above 3 m (rooftops). The **view distance does the work**: 64 cells → 23 drawn on Low, 36 on Medium. | Honest numbers; the plan's "6–14 visible" assumed taller blocks. Spooky World's walls and trees may give it more to do. |
+| The film look, per tier | One system (`graphics/grade.ts`), a look per place. **High**: the post chain, now graded by the look, plus grain. **Medium**: one grade pass (a half-float target). **Low**: no pass: the look's white balance goes into the lights once per build, its exposure into tone mapping, and the vignette is a CSS gradient over the canvas. | The owner's answer, as written. |
+| The lobby's film look | The lobby keeps its own pipeline (the blurred set behind you) and is graded **the Low way on every tier** (lights, exposure, the CSS vignette). | A grade pass there would retune its look and add a full-screen pass to the 4 s boot. |
+| The interface's warmth | `--white` is a warm white (#fff8ee); the glass panels are warm black; lines and dim text are warm. Accent colours unchanged. | "The interface's colours warmed to match." |
+| Naija World in the game | Not yet in the menus: it is walked on `dev/open.html` until a mode uses it (the match core in Phase 3, Free For All in Phase 4). The builder runs in slices between frames (`buildOpenWorldIdle`) so it can build behind the lobby. | Phase 2 is the engine and the city; there is no open-world mode to play yet. |
 
 
 ## Context (from the plan)
@@ -907,3 +914,25 @@ Built:
 
 Not done in Phase 1 (see Decisions): the module-based match core (Phase 3), the `GameMode` seam (Phase 4), spatial voices (Phases 5, 7), a content key (at hosting). The online results line updating from the server is covered by the rank test over the network, not yet seen in a browser round.
 
+### Phase 2: Open-world engine and Naija World (built 28 Oct 2026; perf gate to re-run)
+
+| Check | Result |
+| --- | --- |
+| Tests | **space 19** (walls, kerbs, stairs, roofs, ledges, gutters, slabs, wading, the edge) · **world 15** (new: the same seed builds the same city solid for solid; 12 landmarks and 18 places; no building over 5 floors; 99.3% of open ground reachable on foot and every landmark and place walkable to; 24 starts on open ground, 40 m apart; a minute of 24 bodies running, jumping and crawling about: never inside a wall, never off the world; 1.7 µs a body step) · rules 115 · content 27 · rank 42 · match · balls · shop · social · fairness 7/7: all passed |
+| The city | 659 placements · 1,870 solids · 88 gutter runs · 274 slabs · built in ~20 ms (server and phones, same seed) |
+| Draws and triangles (tour of the city, 12 people, shadows counted) | Low ≤ 33 calls, ≤ 40K triangles · Medium ≤ 52 calls, ≤ 67K. Both under 100 / 100K |
+| Frame rate (headless Chrome, real GPU, CPU 4× and 6×, 844×390 and 390×844) | Low: lowest 32–42 fps (holds 30). Medium: lowest 56, mean 59 at CPU 4× landscape when the Mac was quiet. **Other runs swung from 10 to 60 fps on both arms of an A/B** while other apps held the load average at 20–80, so the gate must be re-run on a quiet machine: Medium with the new grade pass is not yet measured cleanly. |
+| Building it | 0.55–0.9 s of work at full speed. Sliced: no slice over ~0.2 s at full speed (the rest are GC pauses); the first frame's uploads and shader compiles take up to 1 s and are for the mode to hide (Phase 4) |
+| Load test, 600 clients | 0 failed; tick p99 25 ms with the Mac under heavy load (no server code changed this phase; Phase 1 was 8.1 ms) |
+| Builds | EMILGO embed 2,370 KB (was 2,363); Naija World isn't in it yet (nothing in the game imports it) |
+
+Built:
+- **Ground and walls** (`game/core/space.ts`): solids on a grid, shared by server and phones; bodies keep the floor's height.
+- **The prefabs** (`maps/open/prefabs.ts`): 42, with seeded variants and solid parts. **The art** (`maps/open/art.ts`): each drawn from its own parts, so what you see is what stops you; windows and doors as flat quads; trees drop to one stand-in far away.
+- **Naija World** (`maps/open/naija.ts`): the plan by hand, the streets from a seed; footsteps on wood added.
+- **The builder** (`maps/open/build.ts`): 50 m cells (8 × 8), each a three-level LOD plus one atlas draw for all its textured walls; the painted ground; gutters and the river; the Harmattan haze at Low 110 / Medium 160 / High 220 m (cells past it are not drawn); the PVS; the wall and the bush beyond; shadows from the cells near you; sliced building and async shader warm-up.
+- **Compass and map for open worlds** (`ui/hud.ts`, `ui/minimap.ts`): landmark pins and the name you face; the full map with place names.
+- **The film look** (`graphics/grade.ts`): see Decisions.
+- **Dev**: `dev/open.html?tier=0|1|2` walks the city (WASD, drag to look; `&auto=1` tours it; `&sky=x,z,h` looks down; `&idle=1` builds in slices). `?nograde=1` on the game skips Medium's grade pass, for A/B.
+
+Not done in Phase 2: a clean perf gate for Medium with the grade (machine load); Naija World in a playable mode (Phases 3–4); a real Tecno or Infinix (Phase 10).

@@ -4,8 +4,10 @@
 > Dead Streets (solo zombie survival), Free For All (12 humans, melee, 10
 > modes, vehicles) and a hidden Ball Haunt, on one rank ladder kept on the
 > server. 11 phases, **each waits for the owner's go-ahead**. **Phase 1
-> (foundations) is done and committed (28 Oct 2026)**; Phase 2 (the open-world
-> engine and Naija World) waits for the go-ahead. See SPEC-V3 "Status".
+> (foundations) is done and committed (28 Oct 2026)**. **Phase 2 (the
+> open-world engine, Naija World, the film look) is built and committed (28 Oct
+> 2026)**; its perf gate for Medium must be re-run on a quiet Mac. Phase 3
+> waits for the go-ahead. See SPEC-V3 "Status".
 >
 > Before v3: Red Light, Green Light v2 was built to [SPEC-V2.md](SPEC-V2.md)
 > in 8 phases, all done and committed, then the owner's scanned people
