@@ -21,12 +21,14 @@ import { REDLIGHT_HTML } from "@/src/games/emilgo-games/redlightHtml.generated";
 import {
   GAMES_KEYS,
   GAMES_STORAGE_PREFIX,
+  authMessage,
   hostMessage,
   parseGameMessage,
   withBoot,
   type GameMessage,
   type GameBoot,
 } from "@/src/games/emilgo-games/bridge";
+import { supabase } from "@/src/services/supabase";
 import { useAuthStore } from "@/src/store/useStore";
 import { haptics } from "@/src/utils/haptics";
 
@@ -69,11 +71,11 @@ export default function RedLightScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [saved]);
 
-  const send = useCallback((type: "pause" | "resume" | "back") => {
-    const msg = hostMessage(type);
+  const post = useCallback((msg: string) => {
     if (Platform.OS === "web") frame.current?.contentWindow?.postMessage(msg, "*");
     else web.current?.postMessage(msg);
   }, []);
+  const send = useCallback((type: "pause" | "resume" | "back") => post(hostMessage(type)), [post]);
 
   const onGameMessage = useCallback((m: GameMessage) => {
     switch (m.type) {
@@ -96,10 +98,19 @@ export default function RedLightScreen() {
         if (router.canGoBack()) router.back();
         else router.replace("/(main)");
         break;
+      case "auth":
+        // The game's rank: hand it the current access token (refreshed by the
+        // client as needed). The game server verifies it itself and stores only
+        // a hash of the user id; this account is never linked to Lagos Life.
+        supabase.auth
+          .getSession()
+          .then(({ data }) => post(authMessage(data.session?.access_token ?? "")))
+          .catch(() => post(authMessage("")));
+        break;
       case "ready":
         break;
     }
-  }, []);
+  }, [post]);
 
   // App to background → the game pauses (and stops its sound); back → resumes.
   useEffect(() => {

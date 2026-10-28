@@ -29,7 +29,14 @@
 //   VATAR_API             default https://lagoslife.app/api/games/v1
 // Without VATAR_SECRET + VATAR_RESULTS_SECRET, match requests get "vatar_off".
 //
-//   ADMIN_TOKEN           long random string; unlocks GET /reports for moderators
+//   ADMIN_TOKEN           long random string; unlocks GET /reports for moderators,
+//                         and DELETE /profiles/<key> (a player's rank, on request: Agreement §8.2(e))
+//
+// Rank profiles (SPEC-V3 §1.4), in DATA_DIR/profiles.db. Lagos Life players are
+// checked with Lagos Life (VATAR_SECRET); EMILGO accounts with the app's Supabase:
+//   SUPABASE_URL          the EMILGO project's URL (its public signing keys)
+//   SUPABASE_JWT_SECRET   or the project's JWT secret, for HS256 projects
+// Without either, EMILGO players play unranked (their phone keeps its own count).
 //   DATA_DIR              where the ownership database lives (default ./data)
 //   TICKET_SECRET         32+ chars; signs ownership tickets. Required when running several processes
 
@@ -42,6 +49,9 @@ import { now } from "./clock";
 import { Lobby } from "./lobby";
 import { Peer } from "./peer";
 import { Presence } from "./presence";
+import { Identity, SqliteProfiles, utcDay, type ProfileStore } from "./profiles";
+import { Room } from "./room";
+import { matchXp } from "../../src/rank/xp";
 import { BOOST_IDS, BOOST_SLOTS } from "../../src/shop/boosts";
 import { allowedLook } from "../../src/shop/catalog";
 import { Shop } from "./shop";
@@ -64,6 +74,23 @@ const lobby = new Lobby(vatar, (event, info) => console.log(`match ${event} ${JS
 const presence = new Presence(lobby);
 const store = vatar ? new SqliteStore(`${process.env.DATA_DIR ?? "./data"}/emilgo-games.db`) : null;
 const shop = vatar && store ? new Shop(vatar, store, process.env.TICKET_SECRET, (e, info) => console.log(`shop ${e} ${JSON.stringify(info)}`)) : null;
+const profiles: ProfileStore = new SqliteProfiles(`${process.env.DATA_DIR ?? "./data"}/profiles.db`);
+const identity = new Identity(vatar, { url: process.env.SUPABASE_URL?.trim() || null, secret: process.env.SUPABASE_JWT_SECRET?.trim() || null });
+
+// Rank XP: the referee's facts in, the profile's total out. A guest still hears
+// what the match earned (their phone keeps a count for that device only).
+Room.onAward = (peer, facts) => {
+  const day = utcDay();
+  const had = peer.profile ? profiles.get(peer.profile) : null;
+  const gain = matchXp({ ...facts, firstToday: !!peer.profile && had?.lastDay !== day });
+  if (peer.profile) {
+    const p = profiles.award(peer.profile, gain, facts.won, day);
+    peer.send({ t: "rank", xp: p.xp, gain });
+  } else {
+    peer.send({ t: "rank", gain, off: 1 });
+  }
+};
+
 /** Shop HTTP calls per address: 30 a minute is plenty for a person, tight for a script. */
 const shopCalls = new Map<string, number[]>();
 
@@ -105,6 +132,14 @@ const http = createServer((req, res) => {
     const got = String(req.headers.authorization ?? "");
     if (!token || token.length < 24 || got !== `Bearer ${token}`) return void res.writeHead(404).end();
     res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" }).end(JSON.stringify(reports));
+    return;
+  }
+  if (req.url?.startsWith("/profiles/") && req.method === "DELETE") {
+    const token = process.env.ADMIN_TOKEN;
+    const got = String(req.headers.authorization ?? "");
+    if (!token || token.length < 24 || got !== `Bearer ${token}`) return void res.writeHead(404).end();
+    const key = decodeURIComponent(req.url.slice("/profiles/".length));
+    res.writeHead(profiles.remove(key) ? 204 : 404).end();
     return;
   }
   if (req.url === "/health") {
@@ -301,6 +336,19 @@ function handle(peer: Peer, msg: ClientMsg): void {
         .playMatch(peer, msg.id, msg.session)
         .then((code) => sendErr(peer, code))
         .catch(() => sendErr(peer, "verify"));
+      break;
+    case "id":
+      // Who am I, for my rank: checked with Lagos Life or against the EMILGO project's keys.
+      identity
+        .verify(msg.k, msg.tok)
+        .then((key) => {
+          peer.profile = key;
+          peer.send({ t: "rank", xp: profiles.get(key)?.xp ?? 0 });
+        })
+        .catch(() => {
+          peer.profile = null;
+          peer.send({ t: "rank", off: 1 });
+        });
       break;
     case "hello":
       break;

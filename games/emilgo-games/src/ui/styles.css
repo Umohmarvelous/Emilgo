@@ -263,7 +263,8 @@ input { font: inherit; color: inherit; }
 .profile .who { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
 .profile .nm { font: 700 14px var(--head); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px; }
 .profile .lv { display: flex; align-items: center; gap: 6px; }
-.profile .lv b { font: 700 10px var(--head); background: var(--yellow); color: var(--black); padding: 1px 5px; border-radius: 3px; }
+.profile .lv b { font: 700 10px var(--head); background: var(--yellow); color: var(--black); padding: 1px 5px; border-radius: 3px; white-space: nowrap; }
+.profile .lv .founder { font: 700 8px var(--head); letter-spacing: 0.1em; color: var(--yellow); border: 1px solid currentColor; padding: 0 4px; border-radius: 3px; }
 .profile .lv .bar { width: 90px; }
 .profile .meta { display: flex; gap: 10px; font-size: 10px; color: var(--dim); }
 .profile .meta b { color: var(--white); font: 500 10px var(--num); }

@@ -42,6 +42,12 @@ export type ClientMsg =
    * server checks it with Lagos Life — never trusting the phone about who it is.
    */
   | { t: "vmatch"; id: string; session: string }
+  /**
+   * Rank (SPEC-V3 §1.4): who I am, for my rank profile. k "ll" = a Lagos Life
+   * session token (checked with Lagos Life), "em" = an EMILGO account's access
+   * token (checked by the server). Never both, never linked.
+   */
+  | { t: "id"; k: "ll" | "em"; tok: string }
   // ── Social (Phase 4) ──
   | { t: "chat"; text: string }
   | { t: "emote"; e: EmoteId }
@@ -224,7 +230,14 @@ export type ServerMsg =
   /** They said yes: add them. */
   | { t: "facc"; name: string; fid: string }
   /** A friend invites you to their room. */
-  | { t: "inv"; name: string; fid: string; code: string };
+  | { t: "inv"; name: string; fid: string; code: string }
+  // ── v3 (protocol 11) ──
+  /**
+   * Rank: your total XP on this server's profile (xp), what the last match
+   * earned (gain), or off: no profile (a guest, or the identity didn't check
+   * out: the phone keeps its own count for this device only).
+   */
+  | { t: "rank"; xp?: number; gain?: number; off?: 1 };
 
 export type ErrorCode =
   | "version" // client too old
@@ -380,6 +393,8 @@ export function parseClient(raw: string): ClientMsg | null {
       return typeof o.id === "string" && o.id.length <= 64 ? { t: o.t, id: o.id } : null;
     case "inv":
       return typeof o.fid === "string" && FID.test(o.fid) ? { t: "inv", fid: o.fid } : null;
+    case "id":
+      return (o.k === "ll" || o.k === "em") && typeof o.tok === "string" && o.tok.length >= 8 && o.tok.length <= 2400 ? { t: "id", k: o.k, tok: o.tok } : null;
     case "vmatch": {
       const id = typeof o.id === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(o.id) ? o.id : null;
       const session = typeof o.session === "string" && o.session.length <= 900 ? o.session : null;

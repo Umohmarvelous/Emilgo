@@ -45,6 +45,7 @@ import {
   type SyncInfo,
 } from "../../src/net/protocol";
 import { MAPS, fieldHalfWidth } from "../../src/maps/registry";
+import type { MatchFacts } from "../../src/rank/xp";
 import { filterChat } from "../../src/social/filter";
 import { EMOTE_BY_ID, type EmoteId } from "../../src/social/emotes";
 import { EMOTE_PACK } from "../../src/shop/catalog";
@@ -88,6 +89,11 @@ export class Room {
   closed = false;
   /** Match rooms: called once, when the round has a winner (or a draw). */
   onDecided: ((room: Room, winner: Winner) => void) | null = null;
+  /**
+   * Rank XP (SPEC-V3 §2.2): every room calls this once a round, for each
+   * player still in it, with what the referee saw. Set once by the server.
+   */
+  static onAward: ((peer: Peer, facts: MatchFacts) => void) | null = null;
 
   private round: RedLightRound | null = null;
   /** The play of the game: the round's best moment, scored here so every phone shows the same one. */
@@ -383,7 +389,37 @@ export class Room {
     if (round.over) {
       this.state = "ended";
       this.endedAt = now();
-      if (this.kind === "match") this.onDecided?.(this, decide(round.contestants));
+      const winner = decide(round.contestants);
+      if (this.kind === "match") this.onDecided?.(this, winner);
+      this.award(round, winner);
+    }
+  }
+
+  /**
+   * Rank XP for everyone still here (SPEC-V3 §2.2). A round needs two people
+   * or more to count; a dropped player inside the rejoin window still counts
+   * (a blip shouldn't cost a match). Red Light, Green Light rounds are short,
+   * so they pay in proportion to their length (FULL_MATCH_S).
+   */
+  private award(round: RedLightRound, winner: Winner): void {
+    const hook = Room.onAward;
+    const list = round.contestants;
+    if (!hook || list.length < 2) return;
+    const place = places(list);
+    const top = Math.max(0, ...list.map((c) => c.progress));
+    for (const peer of this.members) {
+      const seat = this.seats.get(peer.id) ?? peer.id;
+      const c = round.get(seat);
+      if (!c) continue;
+      hook(peer, {
+        players: list.length,
+        place: place.get(seat) ?? list.length,
+        won: winner === seat,
+        stayed: true,
+        objective: c.status === "finished" ? top : c.progress,
+        objectiveTop: top,
+        seconds: round.elapsed,
+      });
     }
   }
 
@@ -576,6 +612,26 @@ export class Room {
     }
     return { ...this.start!, snap: this.snapshot(true), outcomes };
   }
+}
+
+/**
+ * Places for XP: those across, by when; then the rest, furthest first. Ties
+ * share the better place.
+ */
+export function places(list: readonly Contestant[]): Map<string, number> {
+  const order = [...list].sort((a, b) => {
+    const fa = a.status === "finished" ? 0 : 1;
+    const fb = b.status === "finished" ? 0 : 1;
+    if (fa !== fb) return fa - fb;
+    return fa === 0 ? a.finishTime - b.finishTime : b.progress - a.progress;
+  });
+  const out = new Map<string, number>();
+  order.forEach((c, i) => {
+    const prev = order[i - 1];
+    const tie = prev && (c.status === "finished" ? Math.abs(c.finishTime - prev.finishTime) < 1e-9 && prev.status === "finished" : prev.status !== "finished" && Math.abs(c.progress - prev.progress) < 1e-3);
+    out.set(c.id, tie ? out.get(prev.id)! : i + 1);
+  });
+  return out;
 }
 
 /**

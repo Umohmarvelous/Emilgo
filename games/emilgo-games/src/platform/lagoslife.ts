@@ -25,6 +25,7 @@ import {
   Signal,
   safeStorage,
   vibrate,
+  type RankIdentity,
 } from "./types";
 
 export type VatarMatch = MatchView;
@@ -112,6 +113,15 @@ class LagosLifeHost implements Host {
       onPurchase: (fn) => sdk.onPurchase(fn),
       session: async () => (await sdk.session()).session,
     };
+  }
+
+  async rankIdentity(): Promise<RankIdentity | null> {
+    if (!this.identified || !this.player.id) return null;
+    try {
+      return { k: "ll", tok: (await this.sdk.session()).session };
+    } catch {
+      return null;
+    }
   }
 
   identify(r: Awaited<ReturnType<VatarSDK["init"]>>): void {

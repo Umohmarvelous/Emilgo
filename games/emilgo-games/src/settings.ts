@@ -4,6 +4,7 @@
 
 import { SONG_IDS, type SongChoice } from "./audio/songs";
 import { DEFAULT_DISTANCE, DISTANCES, MODES, type Distance, type Mode } from "./config";
+import { levelOf } from "./game/progress";
 import { EMOTE_IDS, type EmoteId } from "./social/emotes";
 import type { Host } from "./platform/types";
 import { BOOST_IDS, cleanBoosts, type BoostId } from "./shop/boosts";
@@ -91,7 +92,17 @@ export interface Settings {
   best: number;
   played: number;
   wins: number;
+  /** The old per-phone level's XP (before SPEC-V3). Kept, no longer shown: the rank ladder replaced it. */
   xp: number;
+  /**
+   * Rank (SPEC-V3 §1.4): the total XP our server last told us (rankKnown), or,
+   * for a guest with no profile, the count this phone keeps for itself.
+   */
+  rankXp: number;
+  rankKnown: boolean;
+  deviceXp: number;
+  /** Reached level 5 on the old ladder: the Founder tag (cosmetic, on this phone). */
+  founder: boolean;
   /** Today's challenges: the day they were set and progress on each. */
   daily: { day: string; progress: number[] };
   /** People you've played online with lately, newest first. `seat` reaches them while they're still online. */
@@ -149,6 +160,10 @@ export function defaults(host: Host): Settings {
     played: 0,
     wins: 0,
     xp: 0,
+    rankXp: 0,
+    rankKnown: false,
+    deviceXp: 0,
+    founder: false,
     daily: { day: "", progress: [] },
     recent: [],
     mode: "classic",
@@ -174,6 +189,7 @@ export function defaults(host: Host): Settings {
  */
 export const KEPT_ON_RESET: readonly (keyof Settings)[] = [
   "look", "badge", "lobbyPose", "wheel", "map", "mode", "distance", "tutorialSeen", "best", "played", "wins", "xp",
+  "rankXp", "rankKnown", "deviceXp", "founder",
   "daily", "recent", "fid", "friends", "cp", "boosts", "boostsOn", "song",
 ];
 
@@ -227,6 +243,10 @@ export function loadSettings(host: Host): Settings {
     out.sfxVol = clamp(out.sfxVol, 0, 1);
     if (out.lang !== "en" && out.lang !== "pcm") out.lang = base.lang;
     out.cp = Math.max(0, Math.floor(clamp(out.cp, 0, 1e7)));
+    out.rankXp = Math.max(0, Math.floor(clamp(out.rankXp, 0, 1e10)));
+    out.deviceXp = Math.max(0, Math.floor(clamp(out.deviceXp, 0, 1e10)));
+    // The old levels aren't carried onto the ladder (they could be edited on the phone): level 5 or more earns the Founder tag.
+    if (!out.founder && levelOf(out.xp).level >= 5) out.founder = true;
     out.boosts = cleanBoosts(saved.boosts);
     out.boostsOn = Array.isArray(saved.boostsOn) ? [...new Set(saved.boostsOn.filter((b) => BOOST_IDS.includes(b) && (out.boosts[b] ?? 0) > 0))] : [];
     out.friends = Array.isArray(saved.friends)

@@ -41,6 +41,8 @@ export class Peer {
   look: WireLook = {};
   /** CP boosts this player brings to free rooms (SPEC-V2 §7.7), at most BOOST_SLOTS. */
   boosts: BoostId[] = [];
+  /** Rank profile key (profiles.ts), once the phone has proved who it is; null for guests. */
+  profile: string | null = null;
   /** Data saver (§7.5 #19): every other snapshot only. */
   saver = false;
   /** Friends (presence.ts): my friend id, theirs, whether I take requests, and who I've asked. */

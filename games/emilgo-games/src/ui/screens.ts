@@ -11,6 +11,7 @@ import { CONTROLS, RLGL_CONTROLS, unusedReason } from "../input/actions";
 import type { ChallengeDef } from "../game/progress";
 import { CATEGORIES, MAPS, SKY_LABEL, SKY_STATES, mapOf, thumbSvg, type MapCategory, type SkyState } from "../maps/registry";
 import type { RoomInfo } from "../net/protocol";
+import type { Rank } from "../rank/ladder";
 import type { Host, Leaderboard, MatchView } from "../platform/types";
 import { errorText } from "../platform/vatarErrors";
 import type { Settings } from "../settings";
@@ -38,13 +39,25 @@ export interface ResultInfo {
   boardNote: string | null;
   online: "quick" | "private" | "match" | null;
   matchNote?: string | null;
-  xp: number;
+  /** Rank XP this round earned: null while the server hasn't said (online), 0 for practice. */
+  xp: number | null;
+  /** A line under the XP: why there's none, or that it wasn't saved. */
+  xpNote: string | null;
   /** CP earned this round (shop/boosts cpForRound). */
   cp: number;
-  level: number;
-  levelUp: boolean;
+  rank: Rank;
+  rankUp: boolean;
   /** Daily challenges finished by this round. */
   completed: string[];
+}
+
+/** The results' XP line: what the round earned toward your rank, and where the rank stands. */
+function rankLine(r: ResultInfo): string {
+  const k = r.rank;
+  const xp = r.xp === null ? `<span class="label">Counting XP…</span>` : `<span class="label">+${r.xp} XP · +${r.cp} CP</span>`;
+  const bar = `<span class="bar gold"><i style="width:${k.top ? 100 : Math.round((k.into / k.need) * 100)}%"></i></span>`;
+  const name = `<span class="label">${esc(k.name)}${r.rankUp ? " · Rank up" : ""}</span>`;
+  return `${xp}${bar}${name}${r.xpNote ? `<span class="small">${esc(r.xpNote)}</span>` : ""}`;
 }
 
 /** Stake chips (whole naira of the world's game money) and their street names. */
@@ -79,8 +92,11 @@ export interface LobbyState {
   settings: Settings;
   online: OnlineAvailability;
   shop: boolean;
-  level: { level: number; into: number; need: number };
-  rank: string | null;
+  /** Your rank on the ladder (SPEC-V3 §2), and whether it is the server's (else this phone's own count). */
+  rank: Rank;
+  rankSaved: boolean;
+  /** Your place on Lagos Life's board ("#12"), when there is one. */
+  board: string | null;
   friends: { online: number | null; inMatch: number | null; recent: string[] };
   daily: { def: ChallengeDef; progress: number }[];
   mode: PlayMode;
@@ -197,7 +213,7 @@ export class Screens {
   lobby(s: LobbyState): void {
     const { host, settings } = s;
     const exit = host.can.exit ? `<button class="ibtn glass" data-act="exit" aria-label="Close game">${icon("close")}</button>` : "";
-    const lv = s.level;
+    const rk = s.rank;
     const node = this.mount(
       "lobby",
       `<div class="vignette-lobby"></div>
@@ -205,8 +221,8 @@ export class Screens {
         <div class="avatar" data-avatar></div>
         <div class="who">
           <span class="nm" data-name></span>
-          <span class="lv"><b>LV ${lv.level}</b><span class="bar gold"><i style="width:${Math.round((lv.into / lv.need) * 100)}%"></i></span></span>
-          <span class="meta"><span>RANK <b>${esc(s.rank ?? "—")}</b></span><span>BEST <b>${settings.best || 0}</b></span><span>CP <b>${settings.cp}</b></span></span>
+          <span class="lv" title="${rk.into.toLocaleString()} / ${rk.need.toLocaleString()} XP${s.rankSaved ? "" : " (this device)"}"><b>${esc(rk.name.toUpperCase())}</b><span class="bar gold"><i style="width:${rk.top ? 100 : Math.round((rk.into / rk.need) * 100)}%"></i></span>${settings.founder ? `<span class="founder">FOUNDER</span>` : ""}</span>
+          <span class="meta">${s.board ? `<span>BOARD <b>${esc(s.board)}</b></span>` : ""}<span>BEST <b>${settings.best || 0}</b></span><span>CP <b>${settings.cp}</b></span></span>
         </div>
       </div>
       ${tabsHtml("lobby")}
@@ -774,7 +790,7 @@ export class Screens {
            <div><b>${r.score}</b><small>${r.newBest ? `<span class="pm-best">Best</span>` : "Score"}</small></div>
            <div><b>${r.survivors}/${r.total}</b><small>Crossed</small></div>
          </div>
-         <div class="pm-xp"><span class="label">+${r.xp} XP · +${r.cp} CP</span><span class="bar gold"><i style="width:100%"></i></span><span class="label">LV ${r.level}${r.levelUp ? " · Level up" : ""}</span></div>
+         <div class="pm-xp" data-rank-line>${rankLine(r)}</div>
          ${r.completed.length ? `<div class="status ok">${icon("check", "", 14)} Daily done: ${r.completed.map(esc).join(", ")}</div>` : ""}
          ${r.online === "match" ? `<div class="status" data-match-outcome>${esc(r.matchNote ?? "Sending the result to Lagos Life…")}</div>` : ""}
          ${r.boardNote ? `<span class="small">${esc(r.boardNote)}</span>` : ""}
@@ -785,6 +801,14 @@ export class Screens {
          </div>
        </div>`,
     );
+  }
+
+  /** The server's word on this round's XP arrived after the results went up: redraw that line. */
+  updateRankLine(r: ResultInfo): void {
+    const el = this.root.querySelector<HTMLElement>("[data-rank-line]");
+    if (!el) return;
+    el.innerHTML = rankLine(r);
+    translateTree(el);
   }
 
   /** Move the podium name plates under their characters (screen px), and the countdown. */

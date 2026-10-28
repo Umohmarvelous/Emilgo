@@ -79,6 +79,11 @@ export interface MatchHost {
   session(): Promise<string>;
 }
 
+export interface RankIdentity {
+  k: "ll" | "em";
+  tok: string;
+}
+
 export interface Host {
   readonly kind: HostKind;
   /** "live"/"test" in Lagos Life; "local" elsewhere. */
@@ -104,6 +109,13 @@ export interface Host {
   onBack(fn: () => void): () => void;
   /** Fires when the player's identity arrives late (slow init). */
   onIdentity(fn: (p: Player) => void): () => void;
+
+  /**
+   * Who this player is, for a rank profile on our server (SPEC-V3 §1.4): a
+   * Lagos Life session ("ll") or an EMILGO account's token ("em"). Null for a
+   * guest. The server checks it; the two are never linked.
+   */
+  rankIdentity(): Promise<RankIdentity | null>;
 
   /** Fire and forget. The host throttles to its platform's limits. */
   submitScore(score: number): void;

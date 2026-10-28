@@ -76,7 +76,8 @@ import { PropsView } from "../world/props";
 import { setTextureAnisotropy } from "../world/tex";
 import { buildAtlas } from "../world/textures";
 import { BOT_NAMES, BotBrain } from "./bots";
-import { addProgress, ensureDaily, levelOf, xpForRound } from "./progress";
+import { addProgress, ensureDaily } from "./progress";
+import { rankOf, rankUp } from "../rank/ladder";
 import { attackTarget, canAttack } from "./combat";
 import { CLIP, Highlights, type Moment, type MomentKind } from "./highlights";
 import { Recorder, type Clip, type DollPose } from "./replay";
@@ -551,8 +552,9 @@ export class Game {
       settings: this.settings,
       online: this.onlineAvailability(),
       shop: !!this.shop,
-      level: levelOf(this.settings.xp),
-      rank: this.rank,
+      rank: rankOf(this.rankXp),
+      rankSaved: this.settings.rankKnown,
+      board: this.rank,
       friends: { ...this.friendCounts(), recent: this.settings.recent.map((r) => r.name) },
       daily: daily.map((def, i) => ({ def, progress: this.settings.daily.progress[i] ?? 0 })),
       mode: this.playMode,
@@ -570,6 +572,58 @@ export class Game {
 
   private frame(f: Framing): void {
     this.stage.setFraming(f);
+  }
+
+  /** Your rank's XP: the server's total once known, else this phone's own count (a guest). */
+  private get rankXp(): number {
+    return this.settings.rankKnown ? this.settings.rankXp : this.settings.deviceXp;
+  }
+
+  /** This session proved who it is to the server (a rank profile), so a guest's count mustn't grow. */
+  private ranked = false;
+  /** A round's XP that arrived before the results were made (rare; the results pick it up). */
+  private pendingGain: number | null = null;
+
+  /** Tell the server who we are, for a rank profile (SPEC-V3 §1.4). Guests send nothing. */
+  private sendIdentity(): void {
+    const net = this.net;
+    this.host
+      .rankIdentity()
+      .then((id) => {
+        this.ranked = !!id;
+        if (id && net === this.net) net?.send({ t: "id", k: id.k, tok: id.tok });
+      })
+      .catch(() => {});
+  }
+
+  private onRank(m: Extract<ServerMsg, { t: "rank" }>): void {
+    const before = this.rankXp;
+    if (m.xp !== undefined) {
+      this.settings.rankXp = m.xp;
+      this.settings.rankKnown = true;
+      // Lagos Life's board keeps each player's highest number: total XP only ever grows.
+      if (this.host.kind === "lagoslife") this.host.submitScore(m.xp);
+    } else if (m.off && m.gain && !this.ranked) {
+      this.settings.deviceXp += m.gain;
+    }
+    if (m.gain === undefined) {
+      saveSettings(this.host, this.settings);
+      if (this.screens.name === "lobby") this.showLobby();
+      return;
+    }
+    saveSettings(this.host, this.settings);
+    const up = rankUp(before, this.rankXp);
+    if (up) this.screens.toast(`Rank up: ${up.name}`);
+    const r = this.recorded;
+    if (r && r.online && r.xp === null) {
+      r.xp = m.gain;
+      r.rank = rankOf(this.rankXp);
+      r.rankUp = !!up;
+      r.xpNote = m.off && this.ranked ? "Not saved: couldn't confirm who you are. Reopen the game to rank." : m.off ? "Counted on this device only" : null;
+      this.screens.updateRankLine(r);
+    } else if (!r) {
+      this.pendingGain = m.gain;
+    }
   }
 
   private refreshRank(): void {
@@ -1500,12 +1554,11 @@ export class Game {
     const newBest = score > this.settings.best;
     if (newBest) this.settings.best = score;
     if (finished) this.settings.wins++;
-    const before = levelOf(this.settings.xp).level;
-    const xp = xpForRound({ finished, first, watches: this.watchesSurvived, online: this.mode === "online" });
-    this.settings.xp += xp;
-    const cp = cpForRound({ finished, first, online: this.mode === "online" });
+    // Rank XP is the server's to give (SPEC-V3 §1.4): online it arrives as a
+    // "rank" message when the round ends; a practice round against CPUs earns none.
+    const online = this.mode === "online";
+    const cp = cpForRound({ finished, first, online });
     this.settings.cp += cp;
-    const after = levelOf(this.settings.xp).level;
     const d = this.settings.daily;
     const completed = [
       ...addProgress(d, "rounds", 1),
@@ -1516,10 +1569,10 @@ export class Game {
       ...addProgress(d, "sprint", Math.round(this.sprintMetres)),
     ];
     saveSettings(this.host, this.settings);
-    if (score > 0) this.host.submitScore(score);
 
+    // Lagos Life's board is the rank board now: your total XP goes up when the server says (onRank).
     let boardNote: string | null = null;
-    if (this.host.kind === "lagoslife") boardNote = this.host.can.leaderboard ? "Score sent to the board" : "Sign in to Lagos Life to rank";
+    if (this.host.kind === "lagoslife" && !this.host.can.leaderboard) boardNote = "Sign in to Lagos Life to rank";
     this.recorded = {
       outcome,
       place: me.place,
@@ -1534,12 +1587,14 @@ export class Game {
       boardNote,
       online: this.mode === "online" ? (this.room?.kind ?? "quick") : null,
       matchNote: this.vOutcome ?? (round.phase !== "ended" ? MATCH_STILL_ON : null),
-      xp,
+      xp: online ? (this.pendingGain ?? null) : 0,
+      xpNote: online ? null : "Practice earns CP, not rank XP",
       cp,
-      level: after,
-      levelUp: after > before,
+      rank: rankOf(this.rankXp),
+      rankUp: false,
       completed,
     };
+    this.pendingGain = null;
   }
 
   /** The winner's circle: top three (by place, or by distance if nobody crossed). */
@@ -1714,9 +1769,13 @@ export class Game {
     switch (m.t) {
       case "welcome":
         if (this.net?.lostSeat) this.seatLost();
+        this.sendIdentity();
         this.sendLook();
         this.sendPrefs();
         this.friends.hello();
+        break;
+      case "rank":
+        this.onRank(m);
         break;
       case "stats":
         // The whole server's numbers: the lobby shows your friends instead.

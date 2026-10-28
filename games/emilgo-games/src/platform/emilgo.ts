@@ -17,6 +17,7 @@ import {
   type Leaderboard,
   type Player,
   Signal,
+  type RankIdentity,
 } from "./types";
 
 export interface EmilgoBoot {
@@ -35,7 +36,7 @@ declare global {
   }
 }
 
-type Incoming = { emilgo: 1; type: "pause" | "resume" | "back" };
+type Incoming = { emilgo: 1; type: "pause" | "resume" | "back" } | { emilgo: 1; type: "auth"; token?: unknown };
 
 class EmilgoHost implements Host {
   readonly kind = "emilgo" as const;
@@ -81,6 +82,12 @@ class EmilgoHost implements Host {
       return;
     }
     if (!m || m.emilgo !== 1) return;
+    if (m.type === "auth") {
+      const tok = typeof m.token === "string" && m.token.length <= 4096 ? m.token : "";
+      const waiting = this.authWaiters.splice(0);
+      for (const w of waiting) w(tok);
+      return;
+    }
     if (m.type === "pause") this.pause.emit();
     else if (m.type === "resume") this.resume.emit();
     else if (m.type === "back") this.back.emit();
@@ -107,6 +114,25 @@ class EmilgoHost implements Host {
   }
   onIdentity(fn: (p: Player) => void) {
     return this.identity.on(fn);
+  }
+
+  private readonly authWaiters: ((tok: string) => void)[] = [];
+
+  /** The signed-in EMILGO account's token, asked of the app each time (it refreshes it). */
+  rankIdentity(): Promise<RankIdentity | null> {
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        const i = this.authWaiters.indexOf(done);
+        if (i >= 0) this.authWaiters.splice(i, 1);
+        resolve(null);
+      }, 3000);
+      const done = (tok: string) => {
+        clearTimeout(timer);
+        resolve(tok ? { k: "em", tok } : null);
+      };
+      this.authWaiters.push(done);
+      this.post({ type: "auth" });
+    });
   }
 
   submitScore(): void {

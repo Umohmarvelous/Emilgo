@@ -9,6 +9,7 @@ import {
   Signal,
   safeStorage,
   vibrate,
+  type RankIdentity,
 } from "./types";
 
 class WebHost implements Host {
@@ -43,6 +44,10 @@ class WebHost implements Host {
   }
   onIdentity() {
     return () => {};
+  }
+  /** A guest on the web: no rank profile (the phone keeps its own count). */
+  rankIdentity(): Promise<RankIdentity | null> {
+    return Promise.resolve(null);
   }
   submitScore(): void {}
   leaderboard(): Promise<Leaderboard> {

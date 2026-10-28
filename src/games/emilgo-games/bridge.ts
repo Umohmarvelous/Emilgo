@@ -5,7 +5,11 @@
 // change both together.
 //
 //   app → game   { emilgo: 1, type: "pause" | "resume" | "back" }
+//                { emilgo: 1, type: "auth", token }   (answer to the game's "auth": the account's
+//                                                      current access token, or "" when signed out)
 //   game → app   { emilgo: 1, type: "ready" }
+//                { emilgo: 1, type: "auth" }          (rank, SPEC-V3: the game server checks the token
+//                                                      itself and keeps only a hash of the user id)
 //                { emilgo: 1, type: "haptic", kind }
 //                { emilgo: 1, type: "save", key, value }
 //                { emilgo: 1, type: "exit" }
@@ -28,9 +32,10 @@ export type GameMessage =
   | { emilgo: 1; type: "ready" }
   | { emilgo: 1; type: "haptic"; kind: GameHaptic }
   | { emilgo: 1; type: "save"; key: string; value: string }
-  | { emilgo: 1; type: "exit" };
+  | { emilgo: 1; type: "exit" }
+  | { emilgo: 1; type: "auth" };
 
-export type HostMessage = { emilgo: 1; type: "pause" | "resume" | "back" };
+export type HostMessage = { emilgo: 1; type: "pause" | "resume" | "back" } | { emilgo: 1; type: "auth"; token: string };
 
 export interface GameBoot {
   host: "emilgo";
@@ -58,6 +63,7 @@ export function parseGameMessage(raw: unknown): GameMessage | null {
   switch (o.type) {
     case "ready":
     case "exit":
+    case "auth":
       return { emilgo: 1, type: o.type };
     case "haptic":
       return typeof o.kind === "string" ? { emilgo: 1, type: "haptic", kind: o.kind as GameHaptic } : null;
@@ -70,8 +76,13 @@ export function parseGameMessage(raw: unknown): GameMessage | null {
   }
 }
 
-export function hostMessage(type: HostMessage["type"]): string {
+export function hostMessage(type: "pause" | "resume" | "back"): string {
   return JSON.stringify({ emilgo: 1, type } satisfies HostMessage);
+}
+
+/** The account's access token for the game's rank (empty when signed out). */
+export function authMessage(token: string): string {
+  return JSON.stringify({ emilgo: 1, type: "auth", token } satisfies HostMessage);
 }
 
 /**
