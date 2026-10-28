@@ -10,8 +10,17 @@
 // pages run it locally.
 //
 //   walkout → countdown → play → ended
-//   Bodies move only in play. The match ends when its time is up (the modes
-//   that end sooner say so through their modules, from Phase 4).
+//   Bodies move only in play. The match ends when its time is up, or when a
+//   module says someone won (`win`).
+//
+// Squads (Phase 4): every body has a squad; in a solo mode each is its own.
+// Places and the winner go by squad, and squadmates can't hit each other.
+//
+// The online client keeps a MIRROR of the match (`mirror: true`): built from
+// the same seed and world, so everything the seed decides (the zone's
+// circles, the scatter, the props) is already the same. It never decides
+// anything: bodies come from snapshots, and what happens arrives as the
+// server's events (`applyRemote`), which each module applies to its state.
 
 import { DEFAULT_COURSE, MOVE, RESPAWN, RULES, type Stance } from "../../config";
 import type { ModeDef, ModuleId } from "../../content/modes";
@@ -29,6 +38,12 @@ export interface MatchWorld {
   readonly space: Space;
   readonly spawns: readonly (readonly [number, number])[];
   readonly places: readonly { x: number; z: number; r: number }[];
+  /** Find the Flag's stash spots: inside a danfo, a water tank, under a stall … */
+  readonly stash?: readonly { x: number; z: number; h: number }[];
+  /** Squad Rally's route: down the middle of the main roads, a loop. */
+  readonly route?: readonly (readonly [number, number])[];
+  /** A mode played on part of the world (the Flag Duel): that circle is the zone's first. */
+  readonly arena?: { x: number; z: number; r: number };
 }
 
 /** What a mode asks of the match, after the Ranked overrides. */
@@ -57,13 +72,25 @@ export function settingsOf(def: Pick<ModeDef, "time" | "respawn" | "modules" | "
 
 export interface MatchOptions {
   seed: number;
-  contestants: { id: string; name: string; bot: boolean; boosts?: readonly string[] }[];
+  /** squad: a squad number (squadmates share it); missing, each body is its own squad. */
+  contestants: { id: string; name: string; bot: boolean; boosts?: readonly string[]; squad?: number }[];
   world: MatchWorld;
   settings: MatchSettings;
   /** Seconds of walkout before the countdown; 0 or missing: none. */
   walkout?: number;
   /** Seconds of countdown (RULES.countdown). */
   countdown?: number;
+  /** The online client's copy: decides nothing (see the header). */
+  mirror?: boolean;
+}
+
+/** A body's standing at the end (or now): place 1 is best; squads share theirs. */
+export interface Standing {
+  id: string;
+  squad: number;
+  place: number;
+  objective: number;
+  won: boolean;
 }
 
 /** A name → a 32-bit salt (FNV-1a), so each stream is fixed by its name. */
@@ -94,6 +121,11 @@ export class Match {
   readonly modules: RuleModule[];
   /** Modules the mode names that this build can't run (the mode shouldn't have been offered). */
   readonly missing: ModuleId[];
+  /** Each body's squad. */
+  readonly squads: number[];
+  readonly mirror: boolean;
+  /** Who won, once someone has (squad −1: nobody, a draw or the time ran out). */
+  winner: { id: string | null; squad: number } | null = null;
 
   private readonly byId = new Map<string, Contestant>();
   private readonly byModule = new Map<string, RuleModule>();
@@ -105,6 +137,10 @@ export class Match {
   private readonly inHold: boolean[];
   private readonly inPack: number[];
   private readonly packSeen: number[];
+  private readonly inBrace: boolean[];
+  /** This step's speed share from the modules (a brace, a flag), reset every step. */
+  private readonly mul: number[];
+  private readonly slowed: BoostMods[];
   private readonly fx: Map<string, Effect>[];
   private readonly base: BoostMods[];
   private readonly fast: (BoostMods | null)[];
@@ -115,6 +151,7 @@ export class Match {
     this.seed = opts.seed;
     this.world = opts.world;
     this.settings = opts.settings;
+    this.mirror = opts.mirror === true;
     const n = opts.contestants.length;
     const spawnRng = this.rng("spawns");
     this.respawnRng = this.rng("respawns");
@@ -159,6 +196,10 @@ export class Match {
     this.inHold = new Array(n).fill(false);
     this.inPack = new Array(n).fill(0);
     this.packSeen = new Array(n).fill(0);
+    this.inBrace = new Array(n).fill(false);
+    this.mul = new Array(n).fill(1);
+    this.slowed = this.contestants.map((c) => ({ ...c.bst }));
+    this.squads = opts.contestants.map((p, i) => (Number.isInteger(p.squad) && (p.squad as number) >= 0 ? (p.squad as number) : 1000 + i));
     this.fx = Array.from({ length: n }, () => new Map());
     this.base = this.contestants.map((c) => c.bst);
     this.fast = new Array(n).fill(null);
@@ -211,6 +252,18 @@ export class Match {
 
   get(id: string): Contestant | undefined {
     return this.byId.get(id);
+  }
+
+  /** Two different bodies on the same squad. */
+  sameSquad(a: Contestant, b: Contestant): boolean {
+    return a !== b && this.squads[a.index] === this.squads[b.index];
+  }
+
+  /** Bodies per squad number. */
+  squadSizes(): Map<number, number> {
+    const out = new Map<number, number>();
+    for (const q of this.squads) out.set(q, (out.get(q) ?? 0) + 1);
+    return out;
   }
 
   // ── Input (the same counters as the Red Light, Green Light referee, plus the open world's) ──
@@ -267,6 +320,21 @@ export class Match {
     return this.inHold[c.index];
   }
 
+  /** Brace (melee): held. */
+  setBrace(id: string, on: boolean): void {
+    const c = this.byId.get(id);
+    if (c) this.inBrace[c.index] = !!on;
+  }
+
+  braced(c: Contestant): boolean {
+    return this.inBrace[c.index];
+  }
+
+  /** A module slows c this step (×k on run and sprint): a brace, a flag carried, a clinch. */
+  slow(c: Contestant, k: number): void {
+    this.mul[c.index] *= k;
+  }
+
   /** A new backpack request from c (its low 5 bits), or −1. */
   takePackAct(c: Contestant): number {
     const i = c.index;
@@ -321,12 +389,23 @@ export class Match {
   step(dt: number): void {
     if (this.phase === "ended") return;
     this.phaseTime += dt;
+    if (this.mirror) {
+      // The copy: the clock runs (the server's snapshots keep it true); what can be worked out locally is.
+      if (this.phase === "play") this.elapsed += dt;
+      for (const m of this.modules) m.view?.(this, dt);
+      return;
+    }
     if (this.phase === "play") {
       this.elapsed += dt;
+      for (const m of this.modules) m.pre?.(this, dt);
       this.integrate(dt);
+      this.interacts();
       for (const m of this.modules) m.step?.(this, dt);
       this.respawns();
-      if (this.elapsed >= this.settings.time) this.end();
+      if (this.elapsed >= this.settings.time && this.phase === "play") {
+        for (const m of this.modules) if (!this.winner) m.timeUp?.(this);
+        this.end();
+      }
       return;
     }
     if (this.phaseTime >= this.phaseDuration) {
@@ -349,16 +428,135 @@ export class Match {
     this.emit({ type: "ended" });
   }
 
+  /** A module's win: someone (and their squad) won; the match ends. Once. */
+  win(c: Contestant | null, squad = c ? this.squads[c.index] : -1): void {
+    if (this.phase === "ended" || this.winner) return;
+    this.winner = { id: c?.id ?? null, squad };
+    this.emit({ type: "won", id: c?.id ?? null, squad });
+    this.end();
+  }
+
+  /** The mode's measure for body i (0 when the mode has none). */
+  objective(i: number): number {
+    let v = 0;
+    for (const m of this.modules) if (m.objective) v += m.objective(this, i);
+    return v;
+  }
+
+  /**
+   * Places: the winner's squad first; then by the mode's measure (squads
+   * pooled), then by time alive. Ties share the better place.
+   */
+  standings(): Standing[] {
+    const bySquad = new Map<number, { obj: number; alive: number; members: Contestant[] }>();
+    for (const c of this.contestants) {
+      const q = this.squads[c.index];
+      let e = bySquad.get(q);
+      if (!e) bySquad.set(q, (e = { obj: 0, alive: 0, members: [] }));
+      e.obj += this.objective(c.index);
+      e.alive = Math.max(e.alive, c.status === "alive" ? this.elapsed + 1 : c.eliminatedAt);
+      e.members.push(c);
+    }
+    const wq = this.winner?.squad ?? -1;
+    const order = [...bySquad.entries()].sort((a, b) => (a[0] === wq ? -1 : b[0] === wq ? 1 : 0) || b[1].obj - a[1].obj || b[1].alive - a[1].alive);
+    const out: Standing[] = [];
+    let place = 0;
+    order.forEach(([q, e], k) => {
+      const prev = order[k - 1];
+      const tie = prev && q !== wq && prev[0] !== wq && Math.abs(prev[1].obj - e.obj) < 1e-6 && Math.abs(prev[1].alive - e.alive) < 1e-6;
+      if (!tie) place = k + 1;
+      for (const c of e.members) out.push({ id: c.id, squad: q, place, objective: this.objective(c.index), won: q === wq });
+    });
+    return out;
+  }
+
+  // ── Interact: one tap, to the nearest thing any module offers ──
+
+  private interacts(): void {
+    for (const c of this.contestants) {
+      if (!this.takePress(c) || c.status !== "alive") continue;
+      let best: { d: number; take: () => void } | null = null;
+      for (const m of this.modules) {
+        const r = m.reachFor?.(this, c);
+        if (r && (!best || r.d < best.d)) best = r;
+      }
+      best?.take();
+    }
+  }
+
+  // ── The online client's copy ──
+
+  /**
+   * One of the server's events (Match.mirror): the bodies' part here (phases,
+   * deaths, comebacks, the end), the rest by each module; then queued for the
+   * screen like a local event.
+   */
+  applyRemote(e: MatchEvent): void {
+    switch (e.type) {
+      case "phase":
+        this.phase = e.phase;
+        this.phaseTime = 0;
+        this.phaseDuration = e.duration;
+        break;
+      case "eliminated": {
+        const c = this.byId.get(e.id);
+        if (c && c.status === "alive") {
+          c.status = "eliminated";
+          c.cause = e.cause;
+          c.eliminatedAt = this.elapsed;
+          c.vx = c.vz = 0;
+          this.fx[c.index].clear();
+          if (this.settings.respawn.on) this.respawnAt[c.index] = this.elapsed + this.settings.respawn.delay;
+        }
+        break;
+      }
+      case "respawn": {
+        const c = this.byId.get(e.id);
+        if (c) {
+          Object.assign(c, freshMotion(), { bst: this.base[c.index], inJump: c.inJump, jumpSeen: c.inJump, inAttack: c.inAttack, attackSeen: c.inAttack, inGrab: c.inGrab, grabSeen: c.inGrab });
+          c.status = "alive";
+          c.cause = null;
+          c.eliminatedAt = -1;
+          c.x = e.x;
+          c.z = e.z;
+          c.vx = c.vz = 0;
+          c.h = this.world.space.floorAt(e.x, e.z, 0).h;
+          this.respawnAt[c.index] = -1;
+        }
+        break;
+      }
+      case "won":
+        this.winner = { id: e.id, squad: e.squad };
+        break;
+      case "ended":
+        this.phase = "ended";
+        break;
+    }
+    for (const m of this.modules) m.apply?.(this, e);
+    this.events.push(e);
+  }
+
   private integrate(dt: number): void {
     const space = this.world.space;
+    const melee = this.byModule.has("melee");
     for (const c of this.contestants) {
       const i = c.index;
-      // Melee arrives with its module (Phase 4): until then a swing is ignored, never queued.
-      c.attackSeen = c.inAttack;
-      c.grabSeen = c.inGrab;
+      // Without melee a swing is ignored, never queued.
+      if (!melee) {
+        c.attackSeen = c.inAttack;
+        c.grabSeen = c.inGrab;
+      }
+      const k = this.mul[i];
+      this.mul[i] = 1;
       if (c.status !== "alive") continue;
       const fast = this.fast[i];
-      c.bst = fast && this.effect(c, "speed") > 0 ? fast : this.base[i];
+      const src = fast && this.effect(c, "speed") > 0 ? fast : this.base[i];
+      if (k !== 1) {
+        const s = Object.assign(this.slowed[i], src);
+        s.speed = src.speed * k;
+        s.sprint = src.sprint * k;
+        c.bst = s;
+      } else c.bst = src;
       moveContestant(c, dt, DEFAULT_COURSE, space);
     }
     this.separate();
@@ -482,6 +680,7 @@ export class Match {
     }
     const [x, z] = best ?? [c.x, c.z];
     // Fresh movement, but the input counters carry on (a repeat must not jump or swing).
+    this.inBrace[c.index] = false;
     const keep = { bst: this.base[c.index], grip: c.grip, inJump: c.inJump, inAttack: c.inAttack, inGrab: c.inGrab };
     Object.assign(c, freshMotion(), keep, { jumpSeen: keep.inJump, attackSeen: keep.inAttack, grabSeen: keep.inGrab });
     c.status = "alive";

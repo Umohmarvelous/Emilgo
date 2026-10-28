@@ -59,7 +59,11 @@ check(ffaPlay(divisionStart(6)) === 10, "Legendary I unlocks the last 2 (10)");
 const lockedAt = catalog(BUILTIN_MANIFEST, { xp: 0, built: all }).find((e) => e.def.id === "lights-out");
 check(lockedAt?.state === "locked" && lockedAt.unlocksAt === "Legendary I", "a locked mode says what opens it");
 const now = catalog(BUILTIN_MANIFEST, { xp: 0, ballHaunt: true });
-check(now.filter((e) => e.def.family === "ffa").every((e) => e.state === "soon"), "this build: Free For All shows as coming (its modules aren't built yet)");
+const stateOf = (id: string) => now.find((e) => e.def.id === id)?.state;
+check(
+  ["find-the-flag", "hold-the-flag", "steal-reposition", "squad-rally"].every((id) => stateOf(id) === "play") && stateOf("scarcity") === "locked" && stateOf("hustle") === "soon" && stateOf("chase-reverse") !== "play",
+  "this build (Phase 4): Free For All's modes 1–4 to play, Scarcity at Pro, Hustle and the rest coming",
+);
 check(now.some((e) => e.def.id === "ball-haunting" && e.state === "play"), "Ball Haunt on: playable");
 check(!catalog(BUILTIN_MANIFEST, { xp: 0, ballHaunt: false }).some((e) => e.def.family === "rlgl"), "Ball Haunt off: not in the menu at all");
 check(!now.some((e) => e.def.tags?.includes("staked")), "the staked duel stays off the normal menu");

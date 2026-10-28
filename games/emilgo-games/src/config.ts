@@ -311,6 +311,113 @@ export const AIRFALL = {
 /** Respawning in the open worlds: a start this far from everyone else when one exists, metres. */
 export const RESPAWN = { clear: 25 } as const;
 
+/**
+ * Gidigbo, Free For All's melee (SPEC-V3 §4). Wobble is a 0–1 meter: full is
+ * Dazed. Times in seconds, distances in metres.
+ */
+export const MELEE = {
+  /** Strikes land within this, in a frontal cone of ±cone radians (120° in all). */
+  range: 2,
+  cone: Math.PI / 3,
+  /** Before a swing you turn to the nearest rival this close. */
+  autoFace: 2,
+  /** A press during a cooldown or a wind-up is kept this long, then dropped. */
+  buffer: 0.15,
+  /** Online: the target is judged where it was this long ago at most (the attacker's lag). */
+  rewind: 0.15,
+  histTicks: 12,
+  /** The cooldown after a grab, a trip, a charge or a throw. */
+  coolOther: 1.0,
+  kinds: {
+    slap: { windup: 0.08, cool: 0.6, wobble: 0.12, knock: 0.35, stun: 0.3 },
+    fist: { windup: 0.35, cool: 1.2, wobble: 0.34, knock: 1.0, stun: 0.6 },
+    push: { windup: 0.12, cool: 1.0, wobble: 0.06, knock: 2.4, stun: 0.35 },
+  } satisfies Record<AttackKind, { windup: number; cool: number; wobble: number; knock: number; stun: number }>,
+  wobble: {
+    /** It drains this fast once nobody has hit you for drainAfter. */
+    drainAfter: 1.5,
+    drain: 0.5,
+    /** Each OTHER attacker within crowdWindow cuts a hit's wobble by this share (no 3-on-1 stun-locks). */
+    crowd: 0.35,
+    crowdWindow: 1,
+  },
+  /** Dazed: down this long. Then no hit lands for `immune`. */
+  daze: 1.6,
+  immune: 1.5,
+  brace: {
+    /** Bracing: this much of your speed (Iron Wrapper: no slow). */
+    slow: 0.6,
+    /** Knockback and wobble × cut. */
+    cut: 0.5,
+    /** Brace pressed this soon before a strike lands: a parry. */
+    parry: 0.25,
+    /** A parried attacker staggers this long, and takes this much wobble. */
+    stagger: 0.6,
+    parryWobble: 0.15,
+  },
+  grab: {
+    windup: 0.3,
+    range: 1.4,
+    /** The finishers unlock after this long holding; the clinch breaks after max. */
+    min: 1.2,
+    max: 3,
+    /** The held body this far in front of the grabber; both move at this share of speed. */
+    hold: 0.7,
+    drag: 0.6,
+    dragFor: 3,
+    throw: 3,
+    throwStun: 0.9,
+    throwWobble: 0.25,
+    throwDown: 1.2,
+    /** The held player's stick against the finisher's direction below this (a cosine): a reversal. */
+    escape: -0.5,
+  },
+  trip: { windup: 0.15, range: 1.8, down: 1.2 },
+  /** A slide into someone within this is a tackle. */
+  tackle: 0.9,
+  charge: { windup: 0.1, dash: 0.35, speed: 9, reach: 1.1, stamina: 0.4, wobble: 0.3, knock: 2.8, stun: 0.6, miss: 0.4, sidestep: 3 },
+  ringOut: { gutter: 3, gutterDrop: 0.4, roof: 1, roofDrop: 1.5 },
+  /** Pepper Soup: knockback and wobble × this. */
+  pepper: 1.2,
+  /** Street props: how many, and how close to take one. */
+  props: { count: 36, reach: 1.6 },
+  prop: {
+    chair: { uses: 3, windup: 0.3, cool: 1.1, reach: 0.2, wobble: 0.45, knock: 1.4, stun: 0.7, sweep: false, blind: 0, thrown: false },
+    bucket: { uses: 1, windup: 0.15, cool: 0.8, reach: 0, wobble: 0.1, knock: 0.4, stun: 0.5, sweep: false, blind: 1, thrown: false },
+    broom: { uses: 4, windup: 0.2, cool: 0.8, reach: 1.0, wobble: 0.12, knock: 1.2, stun: 0.4, sweep: false, blind: 0, thrown: false },
+    pestle: { uses: 3, windup: 0.55, cool: 1.5, reach: 0.3, wobble: 0.55, knock: 1.2, stun: 0.8, sweep: false, blind: 0, thrown: false },
+    bench: { uses: 2, windup: 0.5, cool: 1.6, reach: 0.4, wobble: 0.2, knock: 1.8, stun: 0.6, sweep: true, blind: 0, thrown: false },
+    slipper: { uses: 2, windup: 0.1, cool: 0.8, reach: 0, wobble: 0.15, knock: 0.5, stun: 0.8, sweep: false, blind: 0, thrown: true },
+  },
+  /** A thrown slipper: m/s, how far, how close to hit. */
+  slipper: { speed: 16, range: 14, radius: 0.6, knock: 0.5, stun: 0.8, wobble: 0.15 },
+} as const;
+
+/** Flags (SPEC-V3 §9: Find the Flag, Hold the Flag, Steal & Reposition, Scarcity, the Flag Duel). */
+export const FLAGS = {
+  /** Walk within this of a loose flag to take it; a dropped flag can't be retaken by its dropper for noRetake. */
+  touch: 1.1,
+  noRetake: 1.5,
+  /** Find the Flag: search a stash spot (an interact tap) within this. */
+  search: 2,
+  stashes: 40,
+  /** The hints' circles, radius by hint (the last is the district). */
+  hintR: [90, 55, 30],
+  /** Hold the Flag: a second flag from this many players. */
+  extraAt: 9,
+  /** Scarcity: the extraction gate's radius. */
+  gate: 4,
+} as const;
+
+/** Steal & Reposition's drop zones. */
+export const DROPZONES = { radius: 5, minApart: 60 } as const;
+
+/** Squad Rally's moving point. */
+export const RALLY = { speed: 1.4, radius: 9 } as const;
+
+/** Squads in Free For All (SPEC-V3 §7: a squad-coloured trim and a small diamond, no names). */
+export const SQUAD_COLORS = ["#f5b82e", "#38b6ff", "#ff5a5f", "#59d98e"] as const;
+
 /** Online play. Server and client both read these. */
 export const NET = {
   /**

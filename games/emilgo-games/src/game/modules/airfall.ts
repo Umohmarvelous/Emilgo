@@ -9,10 +9,11 @@
 
 import { AIRFALL } from "../../config";
 import { builtLoot, type ItemId } from "../../content/items";
+import type { ModuleId } from "../../content/modes";
 import type { Rng } from "../../core/rng";
 import type { Contestant } from "../core/body";
 import type { Match } from "../core/match";
-import type { RuleModule } from "../core/module";
+import type { MatchEvent, RuleModule } from "../core/module";
 import { pick, type ItemsModule } from "./items";
 import type { ZoneModule } from "./zone";
 
@@ -123,8 +124,9 @@ export class AirfallModule implements RuleModule {
   private open(m: Match, c: Contestant, crate: Crate): void {
     crate.opened = true;
     const items = m.module<ItemsModule>("items");
-    const rare = builtLoot("airfall");
-    const core = builtLoot(items?.table ?? "ffa-core");
+    const has = (id: ModuleId) => m.module(id) !== null;
+    const rare = builtLoot("airfall", has);
+    const core = builtLoot(items?.table ?? "ffa-core", has);
     const kinds: ItemId[] = [];
     for (let k = 0; k < AIRFALL.rare && rare.length; k++) kinds.push(pick(rare, this.rng.next()));
     for (let k = 0; k < AIRFALL.core && core.length; k++) kinds.push(pick(core, this.rng.next()));
@@ -135,5 +137,24 @@ export class AirfallModule implements RuleModule {
   /** 0 … 1: how far body i is through opening a crate. */
   opening(i: number): number {
     return Math.min(1, (this.progress[i] ?? 0) / AIRFALL.open);
+  }
+
+  /** The online client's copy: your own hold's progress (the HUD's ring); the opening is the server's. */
+  view(m: Match, dt: number): void {
+    for (const c of m.contestants) {
+      const i = c.index;
+      const crate = c.status === "alive" && c.stun <= 0 && m.holding(c) ? this.nearest(c) : null;
+      if (!crate || this.on[i] !== crate.index) {
+        this.progress[i] = 0;
+        this.on[i] = crate ? crate.index : -1;
+      }
+      if (crate) this.progress[i] = Math.min(AIRFALL.open, this.progress[i] + dt);
+    }
+  }
+
+  apply(_m: Match, e: MatchEvent): void {
+    if (e.type === "flare") this.crates[e.crate] = { index: e.crate, x: e.x, z: e.z, h: e.h, land: e.land, landed: false, opened: false };
+    else if (e.type === "landed" && this.crates[e.crate]) this.crates[e.crate].landed = true;
+    else if (e.type === "open" && this.crates[e.crate]) this.crates[e.crate].opened = true;
   }
 }

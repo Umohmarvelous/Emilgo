@@ -65,7 +65,7 @@ export class ItemsModule implements RuleModule {
   }
 
   private scatter(m: Match): void {
-    const loot = builtLoot(this.table);
+    const loot = builtLoot(this.table, (id) => m.module(id) !== null);
     if (!loot.length || this.density <= 0) return;
     const rng = m.rng("items");
     const reach = m.reach;
@@ -99,12 +99,18 @@ export class ItemsModule implements RuleModule {
 
   step(m: Match): void {
     for (const c of m.contestants) {
-      const press = m.takePress(c);
       const act = m.takePackAct(c);
       if (c.status !== "alive") continue;
-      if (press) this.interact(m, c);
       if (act >= 0) this.packAct(m, c, act);
     }
+  }
+
+  /** An interact tap's candidate: the nearest item or loot bag (the core picks between modules). */
+  reachFor(m: Match, c: Contestant): { d: number; take: () => void } | null {
+    const t = this.target(c);
+    if (!t) return null;
+    const p = t.item ?? t.bag;
+    return { d: Math.hypot(p.x - c.x, p.z - c.z), take: () => this.interact(m, c) };
   }
 
   onEvent(m: Match, e: MatchEvent): void {
@@ -188,7 +194,7 @@ export class ItemsModule implements RuleModule {
         x = c.x;
         z = c.z;
       }
-      this.add(m, kind, x, z, c.h, c.id);
+      this.add(m, kind, x, z, c.h, c.id, slot);
       return;
     }
     const fx = ITEM_DEFS[kind].effect;
@@ -208,17 +214,70 @@ export class ItemsModule implements RuleModule {
       case "exposure":
         // The zone takes it off the meter when it hears the "use".
         break;
+      case "pepper":
+      case "iron":
+        m.setEffect(c, fx.kind, fx.s);
+        break;
+      case "throw":
+        // Melee throws it when it hears the "use"; not while knocked down or held.
+        if (c.stun > 0) return;
+        break;
     }
     pack[slot] = null;
     m.emit({ type: "use", id: c.id, kind, slot });
   }
 
-  /** Put an item on the ground (a drop, a crate's overflow). */
-  add(m: Match, kind: ItemId, x: number, z: number, h: number, by: string | null): GroundItem {
+  /** Put an item on the ground (a drop from slot `slot`, a crate's overflow). */
+  add(m: Match, kind: ItemId, x: number, z: number, h: number, by: string | null, slot = -1): GroundItem {
     const it: GroundItem = { index: this.items.length, kind, x, z, h, taken: false };
     this.items.push(it);
-    m.emit({ type: "drop", id: by, item: it.index, kind, x, z, h });
+    m.emit({ type: "drop", id: by, item: it.index, kind, x, z, h, ...(slot >= 0 ? { slot } : {}) });
     return it;
+  }
+
+  /** The online client's copy: the server's events, applied. */
+  apply(m: Match, e: MatchEvent): void {
+    const c = "id" in e && e.id ? m.get(e.id) : undefined;
+    const pack = c ? this.packs[c.index] : null;
+    switch (e.type) {
+      case "take":
+        if (e.item >= 0 && this.items[e.item]) this.items[e.item].taken = true;
+        if (pack) {
+          while (pack.length <= e.slot) pack.push(null);
+          pack[e.slot] = e.kind;
+        }
+        break;
+      case "drop":
+        if (!this.items[e.item]) this.items[e.item] = { index: e.item, kind: e.kind, x: e.x, z: e.z, h: e.h, taken: false };
+        if (pack && e.slot !== undefined && pack[e.slot] === e.kind) pack[e.slot] = null;
+        break;
+      case "use": {
+        if (!pack || !c) break;
+        pack[e.slot] = null;
+        const fx = ITEM_DEFS[e.kind].effect;
+        if (fx?.kind === "slots") for (let i = 0; i < fx.add; i++) pack.push(null);
+        else if (fx?.kind === "speed") m.setEffect(c, "speed", fx.s, fx.mult);
+        else if (fx?.kind === "shield" || fx?.kind === "pepper" || fx?.kind === "iron") m.setEffect(c, fx.kind, fx.s);
+        break;
+      }
+      case "bag":
+        this.bags[e.bag] = { index: e.bag, id: e.id, x: e.x, z: e.z, h: e.h, at: m.elapsed, kinds: e.kinds.slice() };
+        if (pack) pack.fill(null);
+        break;
+      case "loot": {
+        const bag = this.bags[e.bag];
+        if (bag) for (const k of e.kinds) bag.kinds.splice(bag.kinds.indexOf(k), 1);
+        if (pack) for (const k of e.kinds) {
+          const slot = pack.indexOf(null);
+          if (slot >= 0) pack[slot] = k;
+        }
+        break;
+      }
+      case "eliminated":
+      case "respawn":
+        if (c && e.type === "respawn") this.packs[c.index] = new Array<ItemId | null>(LOOT.slots).fill(null);
+        break;
+    }
   }
 
   /** Straight into c's backpack (a crate): what doesn't fit lands round them. */

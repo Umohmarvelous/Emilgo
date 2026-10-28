@@ -16,7 +16,7 @@ export const MODULE_IDS = [
 export type ModuleId = (typeof MODULE_IDS)[number];
 
 /** The modules this build can play. Grows phase by phase (SPEC-V3 §13). */
-export const BUILT: ReadonlySet<ModuleId> = new Set<ModuleId>(["doll", "balls", "zone", "items", "airfall"]);
+export const BUILT: ReadonlySet<ModuleId> = new Set<ModuleId>(["doll", "balls", "zone", "items", "airfall", "melee", "flags", "dropzones", "capture"]);
 
 export type Family = "ffa" | "survival" | "rlgl";
 export type Text = { en: string; pcm?: string };
@@ -72,6 +72,7 @@ const ZONE_TIGHT = { phases: [[45, 150, 35, 1.5], [150, 80, 35, 2.5], [270, 35, 
 const ITEMS = { table: "ffa-core", density: 0.8 };
 const AIRFALL = { max: 3, gap: [180, 240] };
 const CARS = { count: [1, 2], kinds: ["danfo", "keke", "tokunbo"] };
+// Modes 1–5 (Find the Flag … Scarcity) are played without vehicles until Phase 5 adds them back (v2).
 const MELEE = { set: "gidigbo" };
 const SOLO_OR_SQUAD = { min: 6, max: 12, squad: [1, 4] as [number, number] };
 const RANKED = { "zone.scale": 0.85, "items.density": 0.6 };
@@ -83,7 +84,8 @@ const RANKED = { "zone.scale": 0.85, "items.density": 0.6 };
 export const BUILTIN_MANIFEST: Manifest = {
   format: 1,
   issued: "2026-10-28",
-  rotation: ["find-the-flag", "hold-the-flag", "hustle", "squad-rally"],
+  // Hustle joins the rotation with its module (economy, Phase 6).
+  rotation: ["find-the-flag", "hold-the-flag", "steal-reposition", "squad-rally"],
   modes: [
     // ── Free For All (Naija World) ──
     {
@@ -91,7 +93,7 @@ export const BUILTIN_MANIFEST: Manifest = {
       name: { en: "Find the Flag", pcm: "Find Di Flag" },
       blurb: { en: "Find the one hidden flag and hold it for 10 s.", pcm: "Find the one flag wey dem hide, hold am for 10 seconds." },
       respawn: { on: true, delay: 6 },
-      modules: { zone: ZONE_FFA, items: ITEMS, airfall: AIRFALL, vehicles: CARS, melee: MELEE, flags: { count: 1, spots: "stash", claimHold: 10, hints: [90, 180, 270] } },
+      modules: { zone: ZONE_FFA, items: ITEMS, airfall: AIRFALL, melee: MELEE, flags: { count: 1, spots: "stash", claimHold: 10, hints: [90, 180, 270] } },
       win: { kind: "first", event: "flags.claimed" },
       ranked: { ...RANKED, "respawn.on": false, "flags.claimHold": 20, "flags.hints": [180] },
     },
@@ -100,7 +102,7 @@ export const BUILTIN_MANIFEST: Manifest = {
       name: { en: "Hold the Flag", pcm: "Hold Di Flag" },
       blurb: { en: "Most seconds holding the flag, all match long.", pcm: "Who hold the flag pass for the whole match, win." },
       respawn: { on: true, delay: 6 },
-      modules: { zone: ZONE_FFA, items: ITEMS, airfall: AIRFALL, vehicles: CARS, melee: MELEE, flags: { count: 1, extraAt: 9, holderSlow: 0.1, ping: 10 } },
+      modules: { zone: ZONE_FFA, items: ITEMS, airfall: AIRFALL, melee: MELEE, flags: { count: 1, extraAt: 9, holderSlow: 0.1, ping: 10 } },
       win: { kind: "most", measure: "flags.held" },
       ranked: { ...RANKED, "respawn.on": false, "flags.ping": 5 },
     },
@@ -109,7 +111,7 @@ export const BUILTIN_MANIFEST: Manifest = {
       name: { en: "Steal & Reposition", pcm: "Thief Am, Move Am" },
       blurb: { en: "Deliver flags to the drop zones. First to 5.", pcm: "Carry flag reach the drop zone. First to reach 5." },
       respawn: { on: true, delay: 6 },
-      modules: { zone: ZONE_FFA, items: ITEMS, airfall: AIRFALL, vehicles: CARS, melee: MELEE, flags: { count: 4 }, dropzones: { live: 3, life: 60, target: 5 } },
+      modules: { zone: ZONE_FFA, items: ITEMS, airfall: AIRFALL, melee: MELEE, flags: { count: 4 }, dropzones: { live: 3, life: 60, target: 5 } },
       win: { kind: "first", event: "dropzones.target" },
       ranked: { ...RANKED, "respawn.on": false, "dropzones.life": 45 },
     },
@@ -118,7 +120,7 @@ export const BUILTIN_MANIFEST: Manifest = {
       name: { en: "Squad Rally", pcm: "Squad Rally" },
       blurb: { en: "Most of your squad inside the moving point at the end.", pcm: "Squad wey get pass people inside the moving point for end, win." },
       respawn: { on: true, delay: 8 },
-      modules: { zone: ZONE_FFA, items: ITEMS, airfall: AIRFALL, vehicles: CARS, melee: MELEE, capture: { moving: true, speed: 1.4, radius: 9, doubleLast: 60 } },
+      modules: { zone: ZONE_FFA, items: ITEMS, airfall: AIRFALL, melee: MELEE, capture: { moving: true, speed: 1.4, radius: 9, doubleLast: 60 } },
       win: { kind: "squad-most", measure: "capture.inside" },
       ranked: { ...RANKED, "respawn.on": false, "capture.radius": 7 },
     },
@@ -136,7 +138,7 @@ export const BUILTIN_MANIFEST: Manifest = {
       name: { en: "Scarcity", pcm: "Scarcity" },
       blurb: { en: "Three flags, twelve players. Last standing with one wins.", pcm: "Three flag for twelve people. Last person wey still hold one, win." },
       respawn: { on: false },
-      modules: { zone: ZONE_TIGHT, items: ITEMS, airfall: AIRFALL, vehicles: CARS, melee: MELEE, flags: { count: 3, extractAt: 360 } },
+      modules: { zone: ZONE_TIGHT, items: ITEMS, airfall: AIRFALL, melee: MELEE, flags: { count: 3, extractAt: 360 } },
       win: { kind: "last", measure: "flags.holding" },
       ranked: { ...RANKED, "zone.scale": 0.8 },
     },

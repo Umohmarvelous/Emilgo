@@ -42,6 +42,8 @@ export class ZoneModule implements RuleModule {
   shown = 0;
   private exposure = new Float64Array(0);
   private doom = new Float64Array(0);
+  /** A mode played on part of a world (the Flag Duel's market): its first circle. */
+  private arena: Circle | null = null;
 
   constructor(params: Record<string, unknown>) {
     const scale = typeof params.scale === "number" ? params.scale : 1;
@@ -57,7 +59,9 @@ export class ZoneModule implements RuleModule {
     const half = Math.max(b.x1 - b.x0, b.z1 - b.z0) / 2;
     const cx = (b.x0 + b.x1) / 2;
     const cz = (b.z0 + b.z1) / 2;
-    this.circles.push({ x: cx, z: cz, r: half * Math.SQRT2 + 1 });
+    const ar = m.world.arena;
+    this.arena = ar ? { x: ar.x, z: ar.z, r: ar.r } : null;
+    this.circles.push(this.arena ?? { x: cx, z: cz, r: half * Math.SQRT2 + 1 });
     const rng = m.rng("zone");
     const reach = m.reach;
     for (const p of this.phases) {
@@ -133,7 +137,8 @@ export class ZoneModule implements RuleModule {
     let k = -1;
     for (let i = 0; i < this.phases.length; i++) if (t >= this.phases[i].start) k = i;
     if (k < 0) {
-      this.rate = 0;
+      // On part of a world, its edge is the zone's from the start, at the first phase's rate.
+      this.rate = this.arena ? (this.phases[0]?.rate ?? 1) : 0;
       return Object.assign(out, this.circles[0]);
     }
     const p = this.phases[k];
@@ -173,5 +178,29 @@ export class ZoneModule implements RuleModule {
   /** The laser is coming down on body i. */
   doomed(i: number): boolean {
     return (this.doom[i] ?? -1) >= 0;
+  }
+
+  // ── The online client's copy ──
+
+  view(m: Match): void {
+    this.at(m.elapsed, this.now);
+  }
+
+  apply(m: Match, e: MatchEvent): void {
+    if (e.type === "zone") this.shown = Math.max(this.shown, e.phase + 1);
+    else if (e.type === "laser") {
+      const c = m.get(e.id);
+      if (c) this.doom[c.index] = e.hitAt;
+    } else if (e.type === "eliminated" || e.type === "respawn") {
+      const c = m.get(e.id);
+      if (!c) return;
+      this.doom[c.index] = -1;
+      if (e.type === "respawn") this.exposure[c.index] = 0;
+    }
+  }
+
+  /** The online client: a body's meter from a snapshot. */
+  setExposure(i: number, v: number): void {
+    this.exposure[i] = v;
   }
 }
