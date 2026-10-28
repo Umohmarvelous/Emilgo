@@ -6,8 +6,11 @@
 > server. 11 phases, **each waits for the owner's go-ahead**. **Phase 1
 > (foundations) is done and committed (28 Oct 2026)**. **Phase 2 (the
 > open-world engine, Naija World, the film look) is built and committed (28 Oct
-> 2026)**; its perf gate for Medium must be re-run on a quiet Mac. Phase 3
-> waits for the go-ahead. See SPEC-V3 "Status".
+> 2026)**; its Medium perf gate was re-run on a quiet Mac and passes. **Phase 3
+> (shared gameplay: the match core, the zone, items and the backpack, Airfall,
+> the sky laser and its falls, footprints, the item compass) is built and
+> committed (28 Oct 2026)**; it is played on `dev/open.html?play=1` until Free
+> For All uses it. Phase 4 waits for the go-ahead. See SPEC-V3 "Status".
 >
 > Before v3: Red Light, Green Light v2 was built to [SPEC-V2.md](SPEC-V2.md)
 > in 8 phases, all done and committed, then the owner's scanned people
@@ -174,6 +177,14 @@ Where things are:
 - Mouse look: `input/controls.ts` (`lockPointer`, `mouseMode`). Pause hush: `sound.hush`.
 - New tests: `ranktest` (set `RANK_SECRET` to the server's `SUPABASE_JWT_SECRET` for the online part) and `contenttest`. The test server now also takes `SUPABASE_JWT_SECRET=test-supabase-jwt-secret-0123456789abcdef`.
 
+## v3 Phase 3: where things are
+
+- The match core: `src/game/core/match.ts` (`Match`, `settingsOf` for Ranked), `module.ts` (`RuleModule`, `MatchEvent`), `reach.ts` (the walk grid). Modules: `src/game/modules/` (`zone.ts`, `items.ts`, `airfall.ts`, `index.ts` builds them in step order). Items and loot tables: `src/content/items.ts` (an item with `effect: null` is never handed out). Numbers: `ZONE`, `LOOT`, `AIRFALL`, `RESPAWN` in `src/config.ts`.
+- On screen: `src/world/matchScene.ts` ties a match to everything below (Phase 4's `GameMode` should use it as it is): `skyLaser.ts`, `zone.ts` (the curtain), `items.ts` (items, loot bags, crates, the Ankara parachute, flares), `footprints.ts`, `decals.ts` (scorch and prints); `human/pack.ts` (the worn backpack), `ragdoll.ts` (`roll`, `skyFall`), `crowd.ts` (`strike`, `revive`, `setPack`).
+- HUD: `src/ui/play.ts` (zone line, exposure meter, interact, the backpack radial, effect chips, tints); `hud.ts` (`setCompass`'s item diamond), `minimap.ts` (`zone`, crate marks). Sounds: `sound.ts` (`skyWarn`, `skyHit`, `pickup`, `useItem`, `full`, `flare`, `crate`, `heartbeat`, `zoneAlert`).
+- Try it: `npm run game:dev`, then `/dev/open.html?play=1` (`&fast=4` brings the zone and Airfall sooner, `&seed=n`, `&tier=0|1|2`, `&auto=1` tours the city). `window.__match` is the match, `window.__ms` the scene, `window.__play` the numbers. **Editing `src/` while a headless run is going reloads its page** (Vite): don't, during a perf gate.
+- New test: `sharedtest` (59 checks, no server needed).
+
 ## Running and testing
 
 From the repo root:
@@ -198,6 +209,9 @@ PORT=8797 DATA_DIR=<scratch>/data TICKET_SECRET=test-ticket-secret-0123456789abc
   SUPABASE_JWT_SECRET=test-supabase-jwt-secret-0123456789abcdef node server/dist/index.mjs &
 node server/dist/rulestest.mjs                          # 115 checks, no server needed
 node server/dist/contenttest.mjs                        # 27 checks, no server needed
+node server/dist/spacetest.mjs                          # 19 checks (Phase 2: ground and walls)
+node server/dist/worldtest.mjs                          # 15 checks (Phase 2: Naija World)
+node server/dist/sharedtest.mjs                         # 59 checks (Phase 3: the match core, zone, items, Airfall)
 GAME=ws://localhost:8797 node server/dist/ranktest.mjs  # 42 checks (needs SUPABASE_JWT_SECRET on the server, as above)
 GAME=ws://localhost:8797 node server/dist/matchtest.mjs
 GAME=ws://localhost:8797 node server/dist/ballstest.mjs

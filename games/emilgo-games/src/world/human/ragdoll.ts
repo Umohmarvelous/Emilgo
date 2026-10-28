@@ -12,6 +12,12 @@
 //   crumple  the legs fold first (down onto the knees), then they topple
 //            over sideways
 //
+//   roll     (SPEC-V3's sky laser, from prone) already down on the front,
+//            the hit rolls them over onto their back, arms flung out
+//
+// The Red Light, Green Light falls are picked by the seed; the sky laser
+// picks one from the beam's angle and the body's stance (skyFall).
+//
 // Every fall lands, settles (a damped wobble, the limbs slapping down) and
 // then lies still for the rest of the match: the bodies stay (step 10). The
 // Human's ground solver keeps the lowest point on the ground all the way.
@@ -24,7 +30,7 @@ import { clip, mirror, play, type Clip } from "./keys";
 /** Seconds from the shot until the body is down. */
 export const FALL_TIME = 0.95;
 
-export type FallKind = "thrown" | "spin" | "crumple";
+export type FallKind = "thrown" | "spin" | "crumple" | "roll";
 
 const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
 const smooth = (a: number, b: number, x: number) => {
@@ -38,8 +44,31 @@ export function fallKind(seed: number): FallKind {
   return u < 0.5 ? "thrown" : u < 0.8 ? "spin" : "crumple";
 }
 
+/** The fall this body does: the one it was given (the sky laser's), else its seed's. */
+export function fallOf(a: { seed: number; fallAs: FallKind | null }): FallKind {
+  return a.fallAs ?? fallKind(a.seed);
+}
+
+/**
+ * The sky laser's fall (SPEC-V3 §7): from where the beam comes from against
+ * the way you face, and your stance. Prone: a roll. Straight down: the knees
+ * go first. From in front or behind: thrown (back, or face down). From the
+ * side: spun. `fromYaw` is the beam's compass direction towards its source,
+ * `lean` its slant off vertical (radians). Returns the fall and its direction
+ * relative to the body's heading.
+ */
+export function skyFall(fromYaw: number, lean: number, heading: number, stance: number): { kind: FallKind; dir: number } {
+  // The body goes away from where the beam comes from.
+  const dir = Math.atan2(Math.sin(fromYaw + Math.PI - heading), Math.cos(fromYaw + Math.PI - heading));
+  if (stance >= 2) return { kind: "roll", dir: 0 };
+  if (lean < 0.12) return { kind: "crumple", dir };
+  return { kind: Math.abs(Math.cos(dir)) > Math.cos(Math.PI * 0.28) ? "thrown" : "spin", dir };
+}
+
 /** Fall progress 0…1 (blob shadows read it): gravity-like, after the hit's beat. */
 export function fallProgress(dead: number, kind: FallKind): number {
+  // Already lying down.
+  if (kind === "roll") return 1;
   const start = kind === "crumple" ? 0.32 : 0.1;
   const t = clamp01((dead - start) / (FALL_TIME - start));
   return t * t;
@@ -456,16 +485,107 @@ const CRUMPLE = clip(1.6, false, [
   },
 ]);
 
-const FALLS: Record<"back" | "front" | "spin" | "crumple", [Clip, Clip]> = {
+/**
+ * Roll (from prone): lying face down (the prone pose's arms forward, legs
+ * long), the hit arches the back, then the body rolls over about its spine
+ * onto its back (the hips' turn carries everything), arms flung wide.
+ */
+const ROLL = clip(1.6, false, [
+  {
+    t: 0,
+    b: {
+      upperArmL: [-2.5, 0, 0.35],
+      upperArmR: [-2.5, 0, -0.35],
+      foreArmL: [-1.2, 0, 0],
+      foreArmR: [-1.2, 0, 0],
+      thighL: [0, 0, 0.1],
+      thighR: [0, 0, -0.1],
+    },
+  },
+  {
+    t: 0.08,
+    curl: [0.1, 0.1],
+    b: {
+      chest: [-0.35, 0, 0],
+      neck: [-0.2, 0, 0],
+      head: [-0.45, 0, 0],
+      upperArmL: [-2.2, 0, 0.7],
+      upperArmR: [-2.2, 0, -0.7],
+      foreArmL: [-0.6, 0, 0],
+      foreArmR: [-0.6, 0, 0],
+      thighL: [0.15, 0, 0.12],
+      thighR: [0.15, 0, -0.12],
+      shinL: [0.5, 0, 0],
+      shinR: [0.4, 0, 0],
+    },
+  },
+  {
+    t: 0.45,
+    curl: [0.2, 0.2],
+    b: {
+      hips: [0, 1.6, 0],
+      chest: [-0.1, 0, 0.2],
+      head: [-0.1, 0, 0.3],
+      upperArmL: [-1.2, 0, 1.4],
+      upperArmR: [-2.6, 0, -0.3],
+      foreArmL: [-0.4, 0, 0],
+      foreArmR: [-0.9, 0, 0],
+      thighL: [-0.3, 0, 0.2],
+      thighR: [-0.1, 0, -0.05],
+      shinL: [0.7, 0, 0],
+      shinR: [0.3, 0, 0],
+    },
+  },
+  {
+    t: 0.9,
+    curl: [0.3, 0.3],
+    b: {
+      hips: [0, 3.05, 0],
+      chest: [0.05, 0, 0],
+      head: [0.1, 0.5, 0.1],
+      upperArmL: [-0.2, 0, 1.3],
+      upperArmR: [-0.15, 0, -1.2],
+      foreArmL: [-0.25, 0, 0],
+      foreArmR: [-0.35, 0, 0],
+      thighL: [-0.25, 0, 0.14],
+      thighR: [-0.1, 0, -0.1],
+      shinL: [0.5, 0, 0],
+      shinR: [0.2, 0, 0],
+      footL: [0.35, 0, 0],
+      footR: [0.35, 0, 0],
+    },
+  },
+  {
+    t: 1.6,
+    curl: [0.35, 0.3],
+    b: {
+      hips: [0, 3.14, 0],
+      head: [0.05, 0.6, 0.1],
+      upperArmL: [-0.12, 0, 1.2],
+      upperArmR: [-0.1, 0, -1.3],
+      foreArmL: [-0.25, 0, 0],
+      foreArmR: [-0.35, 0, 0],
+      thighL: [-0.2, 0, 0.14],
+      thighR: [-0.05, 0, -0.08],
+      shinL: [0.45, 0, 0],
+      shinR: [0.12, 0, 0],
+      footL: [0.4, 0, 0],
+      footR: [0.35, 0, 0],
+    },
+  },
+]);
+
+const FALLS: Record<"back" | "front" | "spin" | "crumple" | "roll", [Clip, Clip]> = {
   back: [BACK, mirror(BACK)],
   front: [FRONT, mirror(FRONT)],
   spin: [SPIN, mirror(SPIN)],
   crumple: [CRUMPLE, mirror(CRUMPLE)],
+  roll: [ROLL, mirror(ROLL)],
 };
 
 export function ragdollPose(a: AnimState, out: Pose): void {
   const d = a.dead;
-  const kind = fallKind(a.seed);
+  const kind = fallOf(a);
   // Which side things go to, and small per-person differences in the resting pose.
   const side = ((a.seed * 13.7) % 2) < 1 ? 1 : -1;
   const vary = ((a.seed * 3.1) % 1) - 0.5;
@@ -475,8 +595,16 @@ export function ragdollPose(a: AnimState, out: Pose): void {
   const since = d - FALL_TIME;
   const bounce = since > 0 ? Math.sin(since * 15) * Math.exp(-since * 5.5) : 0;
 
-  // ── Whole body: how far over, which way ──
+  // ── Whole body: how far over, which way (a roll starts, and stays, face down) ──
   let tilt = (Math.PI / 2) * f;
+  if (kind === "roll") {
+    out.tilt = Math.PI / 2 + bounce * 0.04;
+    out.tiltYaw = 0;
+    out.rootY = 0.11;
+    play(FALLS.roll[side > 0 ? 0 : 1], d, out);
+    out.add("head", bounce * 0.1, vary * 0.2);
+    return;
+  }
   let tiltYaw = a.fallDir;
   if (kind === "spin") tiltYaw += side * 0.5 * f;
   // Crumple goes over to one side, not straight back.

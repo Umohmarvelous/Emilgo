@@ -32,6 +32,21 @@ Green Light build (Ball Haunt), SPEC-V2 still applies until Phase 11.
 | The lobby's film look | The lobby keeps its own pipeline (the blurred set behind you) and is graded **the Low way on every tier** (lights, exposure, the CSS vignette). | A grade pass there would retune its look and add a full-screen pass to the 4 s boot. |
 | The interface's warmth | `--white` is a warm white (#fff8ee); the glass panels are warm black; lines and dim text are warm. Accent colours unchanged. | "The interface's colours warmed to match." |
 | Naija World in the game | Not yet in the menus: it is walked on `dev/open.html` until a mode uses it (the match core in Phase 3, Free For All in Phase 4). The builder runs in slices between frames (`buildOpenWorldIdle`) so it can build behind the lobby. | Phase 2 is the engine and the city; there is no open-world mode to play yet. |
+| Phase 3 in the game (Phase 3) | The match core (`game/core/match.ts`) and its first modules (zone, items, Airfall) are pure and run on the server's side of the code, but **no room plays them yet**: Free For All's rooms come in Phase 4 with the `GameMode` seam. Today they run in the headless test (`sharedtest`) and on `dev/open.html?play=1` (a local match on Naija World). Protocol stays 11. | Phase 3 is the shared gameplay; Phase 4 is the first mode that uses it. |
+| The zone's numbers (Phase 3) | A phase's rate fills the exposure meter at **rate × 10% a second** outside the circle (1.0: 10 s to full; 4: 2.5 s). Back inside it drains **12.5% a second**. Each circle lies inside the one before, its centre on ground you can walk to, at least 35% of its radius from the world's edge. The next circle shows **30 s** before it starts closing. | The brief gives the rates, not their unit; early circles forgive, late ones don't. |
+| The sky laser is certain (Phase 3) | Once the meter is full the laser **always** hits: it takes 1.2 s to come down and follows you. The meter is the warning you can act on. From the first instant a faint shaft and a closing ring mark the spot (a camera looking level never sees 110 m up), then the white-hot core comes down it. | "Descends slowly … as the warning, then hits instantly." |
+| The sky laser's falls (Phase 3) | Prone: a new **roll** (face down, rolled onto the back). A beam within 7° of vertical: knees first. From in front or behind (within 50°): thrown back, or face down. From the side: spun. Each beam's slant comes from its target and time, so every phone draws it, and drops the body, the same way. | §7's four falls. |
+| Items built now (Phase 3) | Only items whose effect needs Phase 3's systems are handed out: **Kola Rush** (+15% run and sprint, 10 s), **Zobo Flask** (−40% off the meter at once), **Big Bag** (used: +2 slots for this life, one a life) and Airfall's **Zone Shield** (no exposure for 30 s; the meter doesn't drain either). The rest are in the tables but never scattered or put in a crate until their phase gives them an effect, as modes stay "Soon". | Building melee or vehicle items before melee and vehicles would be guessing. |
+| Item tables (Phase 3) | Built into the game (`content/items.ts`), not yet in the signed manifest. A table moves into the manifest (a format change) when a weekly drop needs one. | No week needs one yet. |
+| The scatter (Phase 3) | 8 items a hectare × the mode's density: **102** on Naija World at 0.8 (Ranked 77). A little over half at the named places, never closer than 5 m, only on open ground you can walk to (the walk grid). | "Seeded scatter that changes every match." |
+| Picking up and opening (Phase 3) | A **tap** of interact takes the nearest item or loot bag within 1.6 m (a full backpack says so). A crate needs interact **held** 3 s within 2 m; letting go, walking off or a knockdown starts you again; the first to finish gets it. Keys on the dev page: E, B or Tab, 1–0 (Shift drops). | §7, §10.3. |
+| What a crate holds (Phase 3) | **One rare** item (built: the Zone Shield) and **two** from the mode's table, straight into the opener's backpack; what doesn't fit lands round them. It lands inside the circle the zone is closing to (70% of its radius) as the flare goes up, 20 s before; none in a match's last 45 s. | §10.3 lists the rare loot, not how much. |
+| Loot bags (Phase 3) | A dead body's backpack becomes a bag that **glows (and shows on the compass) for 60 s**, then stays, dark, until emptied. Looting takes what fits; the rest stays in it. | §10 #5. |
+| Respawns (Phase 3) | When a mode respawns: after its delay, inside the circle the zone is closing to, as far from everyone as can be found (25 m and up), with an empty backpack and meter. | The match core needed it for Find the Flag. |
+| The walk grid (Phase 3) | A 1 m grid of where a body fits, flooded from the first start (`game/core/reach.ts`), built once per world in about 0.14 s: items, crates, zone centres and respawns go only on it. | Nothing should land in a wall or a yard with no way in. |
+| The compass and the map (Phase 3) | The compass's diamond is the nearest thing within 180 m you'd want: an item you don't carry (gold if rare), a glowing loot bag, or a crate. The map shades outside the zone, dashes the next circle and shows crates as gold squares. | §7's "item compass", plus the zone on the map. |
+| Footprints (Phase 3) | Yours only, 40, fading over 20 s, every half stride on the ground; none in water, on metal roofs, in the air or crawling. | §7. |
+| The backpack you wear (Phase 3) | Everyone wears one in the open worlds: a small merged mesh on the **chest bone** (it follows every lean); off when you're out (it's the loot bag now), on again when you're back. Drawn only on bodies within 45 m (one draw each). | §3.3 "worn visibly on your back". |
 
 
 ## Context (from the plan)
@@ -914,14 +929,14 @@ Built:
 
 Not done in Phase 1 (see Decisions): the module-based match core (Phase 3), the `GameMode` seam (Phase 4), spatial voices (Phases 5, 7), a content key (at hosting). The online results line updating from the server is covered by the rank test over the network, not yet seen in a browser round.
 
-### Phase 2: Open-world engine and Naija World (built 28 Oct 2026; perf gate to re-run)
+### Phase 2: Open-world engine and Naija World (done 28 Oct 2026)
 
 | Check | Result |
 | --- | --- |
 | Tests | **space 19** (walls, kerbs, stairs, roofs, ledges, gutters, slabs, wading, the edge) · **world 15** (new: the same seed builds the same city solid for solid; 12 landmarks and 18 places; no building over 5 floors; 99.3% of open ground reachable on foot and every landmark and place walkable to; 24 starts on open ground, 40 m apart; a minute of 24 bodies running, jumping and crawling about: never inside a wall, never off the world; 1.7 µs a body step) · rules 115 · content 27 · rank 42 · match · balls · shop · social · fairness 7/7: all passed |
 | The city | 659 placements · 1,870 solids · 88 gutter runs · 274 slabs · built in ~20 ms (server and phones, same seed) |
 | Draws and triangles (tour of the city, 12 people, shadows counted) | Low ≤ 33 calls, ≤ 40K triangles · Medium ≤ 52 calls, ≤ 67K. Both under 100 / 100K |
-| Frame rate (headless Chrome, real GPU, CPU 4× and 6×, 844×390 and 390×844) | Low: lowest 32–42 fps (holds 30). Medium: lowest 56, mean 59 at CPU 4× landscape when the Mac was quiet. **Other runs swung from 10 to 60 fps on both arms of an A/B** while other apps held the load average at 20–80, so the gate must be re-run on a quiet machine: Medium with the new grade pass is not yet measured cleanly. |
+| Frame rate (headless Chrome, real GPU, CPU 4× and 6×, 844×390 and 390×844) | Low: lowest 32–42 fps (holds 30). Medium: lowest 56, mean 59 at CPU 4× landscape when the Mac was quiet. **Other runs swung from 10 to 60 fps on both arms of an A/B** while other apps held the load average at 20–80, so the gate was re-run on a quiet machine (28 Oct, evening, load 5–7): **Medium with the grade: lowest 59, mean 60 at CPU 4×; lowest 54, mean 59 at 6×. Low 59/60.** Passed. |
 | Building it | 0.55–0.9 s of work at full speed. Sliced: no slice over ~0.2 s at full speed (the rest are GC pauses); the first frame's uploads and shader compiles take up to 1 s and are for the mode to hide (Phase 4) |
 | Load test, 600 clients | 0 failed; tick p99 25 ms with the Mac under heavy load (no server code changed this phase; Phase 1 was 8.1 ms) |
 | Builds | EMILGO embed 2,370 KB (was 2,363); Naija World isn't in it yet (nothing in the game imports it) |
@@ -935,4 +950,27 @@ Built:
 - **The film look** (`graphics/grade.ts`): see Decisions.
 - **Dev**: `dev/open.html?tier=0|1|2` walks the city (WASD, drag to look; `&auto=1` tours it; `&sky=x,z,h` looks down; `&idle=1` builds in slices). `?nograde=1` on the game skips Medium's grade pass, for A/B.
 
-Not done in Phase 2: a clean perf gate for Medium with the grade (machine load); Naija World in a playable mode (Phases 3–4); a real Tecno or Infinix (Phase 10).
+Not done in Phase 2: Naija World in a playable mode (Phases 3–4); a real Tecno or Infinix (Phase 10).
+
+### Phase 3: Shared gameplay (done 28 Oct 2026)
+
+| Check | Result |
+| --- | --- |
+| Tests | **shared 59** (new: the walk grid; the core's phases, Ranked settings, determinism over 5 minutes of 12 players, 24 pushing into one spot; the zone's nested circles, its timing, 10%/s exposure, the shield, the laser 1.2 s after full, out by the zone, back inside the circle; drain and Zobo; the scatter's count, kinds, ground, spacing and places; pick-up reach, a full backpack, Big Bag, drop, the loot bag, Kola Rush's speed; Airfall's times, flare, landing spot, hold, let go, walk off, first to finish, its loot) · rules 115 · content 27 · space 19 · world 15 · rank 42 · match 20 · balls 29 · shop 22 · social 13 · fairness 7/7 · space 20 · world 15: all passed. Load, 600 clients: 0 failed, tick p99 10.8 ms |
+| In headless Chrome (`dev/open.html?play=1`) | Pick up (E, or the button), the backpack radial (use, drop), Kola Rush, a Zone Shield; the zone's curtain from inside and out, the exposure meter, the tint, the heartbeat; the laser's shaft and ring, then its core, the hit, smoke, scorch and a fall (thrown, spun, knees first, and the roll from prone); out, "Back in 6", back inside the zone; a loot bag's green glow; Airfall's flare, the crate under its Ankara canopy, the canopy settling aside, held 3 s open, its three items in the backpack; worn backpacks from behind. |
+| Draws and triangles (the city tour, 12 people, a live match) | Low ≤ 52 calls, ≤ 46K triangles · Medium ≤ 72 calls, ≤ 73K. Items, crates and loot bags: 6 calls, ≤ 1.3K. Under 100 / 100K |
+| Frame rate (CPU 4× and 6×, 844×390 and 390×844, real GPU, a live match with the zone at 6× speed; a quiet Mac, load 5–7) | Low: lowest 43–54, mean 57–59 (holds 30). Medium: lowest 54, mean 59 at CPU 4× (both layouts); at CPU 6× lowest 39–48, mean 47–50. The city alone, the same runs: Low 59/60, Medium 59/60 at 4× and 54/59 at 6×, so the match costs Medium about 1 fps at 4× |
+| Cost | A 12-player step with the zone, items and Airfall: about 70 µs (a 60 Hz tick has 16,667). The walk grid: about 0.14 s once per world. |
+| Builds | Lagos Life `dist/`: 330 KB JS gzipped (was 326) · EMILGO embed: 2,382 KB (was 2,370; nothing in the game imports the match yet) · server |
+
+Built:
+- **The match core** (`game/core/match.ts`, `module.ts`): bodies, phases (walkout, countdown, play, ended), a fixed step, separation on a spatial hash, seeded streams per module, events every module hears, timed effects, eliminations and respawns; `settingsOf` applies Ranked. **The walk grid** (`reach.ts`).
+- **The zone** (`modules/zone.ts`): nested circles from the seed, announced 30 s ahead, closing on time; the exposure meter; the sky laser's timing. On screen: the heat curtain (`world/zone.ts`), the zone on the map, the zone line, the meter, the tint and the heartbeat.
+- **Items and the backpack** (`modules/items.ts`, `content/items.ts`): the scatter, pick up, use, drop, 10 slots (12 with a Big Bag), loot bags. On screen: items turning over pillars of light (`world/items.ts`), the interact button, the backpack radial, effect chips, the compass's diamond, the worn backpack (`human/pack.ts`).
+- **Airfall** (`modules/airfall.ts`): up to 3 crates, the flare 20 s ahead, landing inside the closing circle, hold to open, rare loot. On screen: the flare column, the crate under an Ankara-cloth parachute, the gold square on the map.
+- **The sky laser and its falls** (`world/skyLaser.ts`, `human/ragdoll.ts`): the shaft, the closing ring, the white-hot core coming down, the hit, smoke, heat flash and scorch; the fall from the beam's angle and the stance, with a new roll from prone.
+- **Footprints** (`world/footprints.ts`, `world/decals.ts`).
+- **Sounds**: the laser's whine and hit, pick-up, drink, a full backpack, the flare, a crate, the heartbeat, the zone's horn.
+- **Dev**: `dev/open.html?play=1` (`&fast=n`, `&seed=n`; E, B or Tab, 1–0, Shift+1–0).
+
+Not done in Phase 3 (see Decisions): rooms on the server and the wire (Phase 4, with Free For All); the items that need melee, flags, squads or vehicles (their phases); spatial voices (Phases 5, 7); a real phone (Phase 10).

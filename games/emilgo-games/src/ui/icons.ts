@@ -92,6 +92,16 @@ const P: Record<string, string> = {
   slay: `<circle cx="12" cy="4.5" r="2.2"/><path d="M12 7v7l-2.5 7M12 14l2.5 7M12 9l-3.5 2.5 1.5 2M12 9l3-3 1.5-3"/>`,
   flex: `<path d="M4 14c0-3 2-5 4.5-5 1-2.5 2.5-4.5 5-4.5 1.5 0 2.5 1 2.5 2.5s-1 2-2.5 2l-1.5 1c2.5-.5 6.5.5 6.5 5 0 3-2.5 5-6 5H8c-2.5 0-4-2-4-6z"/>`,
   fire: `<path d="M12 21.5c-3.8 0-6.5-2.6-6.5-6.3 0-4 3-6 4-9.7 2.3 1.6 3.7 3.6 3.7 6.2.8-.6 1.4-1.6 1.6-2.7 2 1.6 3.7 3.8 3.7 6.4 0 3.6-2.7 6.1-6.5 6.1z"/>`,
+  // Open worlds: the backpack, picking up, the zone, the items (SPEC-V3 Phase 3)
+  pack: `<path d="M7 8.5a5 5 0 0 1 10 0V20a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1z"/><path d="M9.5 5.2V4a2.5 2.5 0 0 1 5 0v1.2"/><path d="M9 13h6v4H9z"/>`,
+  hand: `<path d="M8 12.5V6a1.5 1.5 0 0 1 3 0v5.5M11 11V4.5a1.5 1.5 0 0 1 3 0V11M14 11V5.5a1.5 1.5 0 0 1 3 0V14c0 4-2.6 7-6.5 7-2.4 0-3.9-1.3-5.2-3.5L4 14.2a1.4 1.4 0 0 1 2.4-1.4L8 15"/>`,
+  zone: `<circle cx="12" cy="12" r="8.5" stroke-dasharray="3 2.4"/><circle cx="12" cy="12" r="3.5"/><path d="M12 2v3M12 19v3"/>`,
+  kola: `<path d="M3.5 12h17a8.5 8.5 0 0 1-17 0z"/><circle cx="9" cy="9.5" r="2.3"/><circle cx="14.5" cy="9" r="2.6"/><path d="M14.5 6.4v1"/>`,
+  zobo: `<path d="M10 3.5h4M10.5 3.5v3l-2 2.5v10.5a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1V9l-2-2.5v-3"/><path d="M8.5 12.5h7"/>`,
+  bigbag: `<rect x="3.5" y="8.5" width="17" height="11.5" rx="1.5"/><path d="M8.5 8.5V6a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v2.5M3.5 13h17M9 8.5V20M15 8.5V20"/>`,
+  umbrella: `<path d="M3 12a9 9 0 0 1 18 0z"/><path d="M12 3v1M12 12v6.5a2 2 0 0 1-4 0"/>`,
+  crate: `<path d="M3.5 8 12 4l8.5 4v8.5L12 20.5l-8.5-4z"/><path d="M3.5 8 12 12l8.5-4M12 12v8.5M7.8 6l8.5 4"/>`,
+  bundle: `<path d="M6 11c0-2.5 2.7-4 6-4s6 1.5 6 4l1.5 7a2 2 0 0 1-2 2.5h-11a2 2 0 0 1-2-2.5z"/><path d="M10 7l-1.5-3h7L14 7"/>`,
 };
 
 export type IconName = keyof typeof P;

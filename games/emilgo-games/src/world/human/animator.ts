@@ -26,7 +26,7 @@
 // leans forward. Everything here is presentation; the referee never reads it.
 
 import { EMOTE_SECONDS, type EmoteId } from "../../social/emotes";
-import { FALL_TIME, fallKind, fallProgress, ragdollPose } from "./ragdoll";
+import { FALL_TIME, fallOf, fallProgress, ragdollPose, type FallKind } from "./ragdoll";
 import { clip, mirror, mirrorKey, play, playAdd, setScratch, type Clip, type Key, type V3 } from "./keys";
 import { BONES, BONE_INDEX, LID_CLOSE, type BoneName } from "./skeleton";
 
@@ -136,6 +136,8 @@ export interface AnimState {
   dead: number;
   fall: number;
   fallDir: number;
+  /** The fall chosen for this death (the sky laser's), or null: the seed's. */
+  fallAs: FallKind | null;
   /** Seconds since finishing (−1: not). */
   done: number;
   emote: EmoteId | null;
@@ -178,6 +180,7 @@ export function newAnimState(seed: number): AnimState {
     dead: -1,
     fall: 0,
     fallDir: 0,
+    fallAs: null,
     done: -1,
     emote: null,
     emoteT: 0,
@@ -209,7 +212,7 @@ export function stepGait(a: AnimState, speed: number, dt: number): void {
   a.time += dt;
   if (a.dead >= 0) {
     a.dead += dt;
-    a.fall = fallProgress(a.dead, fallKind(a.seed));
+    a.fall = fallProgress(a.dead, fallOf(a));
     return;
   }
   if (a.done >= 0) a.done += dt;

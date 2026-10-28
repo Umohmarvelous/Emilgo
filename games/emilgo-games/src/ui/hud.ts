@@ -18,6 +18,13 @@ import { icon } from "./icons";
 import { Minimap, type MapMark } from "./minimap";
 
 export type { MapMark } from "./minimap";
+
+/** The compass's item diamond: everyday items warm white, Airfall's gold, a loot bag green, a crate red. */
+export interface ItemPin {
+  x: number;
+  z: number;
+  kind: "item" | "rare" | "bag" | "crate";
+}
 export type Signal = "count" | "none";
 
 const FEED_MS = 5000;
@@ -181,7 +188,13 @@ export class Hud {
   private stripX = Number.NaN;
   private pinX = Number.NaN;
 
-  setCompass(yaw: number, me: { x: number; z: number }, doll: { x: number; z: number; watching: boolean } | null, places: readonly { name: string; x: number; z: number }[] = []): void {
+  setCompass(
+    yaw: number,
+    me: { x: number; z: number },
+    doll: { x: number; z: number; watching: boolean } | null,
+    places: readonly { name: string; x: number; z: number }[] = [],
+    item: ItemPin | null = null,
+  ): void {
     // The camera looks along (−sin yaw, −cos yaw): north (−z) at yaw 0, east (+x) at yaw −π/2.
     const deg = (d: number) => ((d % 360) + 360) % 360;
     const heading = deg((-yaw * 180) / Math.PI);
@@ -210,6 +223,32 @@ export class Hud {
       this.dollPin.classList.toggle("watch", doll.watching);
     }
     this.placePins(places, me, w, relOf);
+    this.itemPin(item, w, relOf);
+  }
+
+  /**
+   * Open worlds (SPEC-V3 §7): a diamond for the nearest item you don't
+   * already carry, a loot bag or a crate, at its bearing; dimmed at the edge
+   * when it's behind you.
+   */
+  private readonly itemEl = el("i", "itempin");
+  private itemX = Number.NaN;
+  private itemKind = "";
+  private itemPin(p: ItemPin | null, w: number, relOf: (x: number, z: number) => number): void {
+    if (!this.itemEl.parentElement) this.compass.append(this.itemEl);
+    this.itemEl.hidden = !p;
+    if (!p) return;
+    const rel = relOf(p.x, p.z);
+    const x = Math.round(Math.max(4, Math.min(w - 4, w / 2 + rel * 2)) * 2) / 2;
+    if (x !== this.itemX) {
+      this.itemX = x;
+      this.itemEl.style.transform = `translateX(${x}px) rotate(45deg)`;
+    }
+    if (p.kind !== this.itemKind) {
+      this.itemKind = p.kind;
+      this.itemEl.className = `itempin ${p.kind}`;
+    }
+    this.itemEl.classList.toggle("edge", Math.abs(rel * 2) > w / 2);
   }
 
   /**

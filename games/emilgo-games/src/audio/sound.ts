@@ -689,6 +689,83 @@ export class Sound {
     this.noise(t, 0.05, { gain: 0.06, freq: 900, type: "lowpass" });
   }
 
+  // ── Open worlds (SPEC-V3 §7, Phase 3) ──────────────────────────────────────
+
+  /**
+   * The sky laser coming down: a rising, tightening whine over `dur`
+   * seconds; `near` 0 … 1 (far beams are barely there, out of range silent).
+   */
+  skyWarn(dur: number, near: number): void {
+    if (near <= 0.03 || this.busy(VOICE_CAP - 4)) return;
+    const t = this.now;
+    this.tone(180, t, dur + 0.05, { type: "sawtooth", gain: 0.045 * near, to: 1500, attack: dur * 0.9 });
+    this.tone(270, t, dur + 0.05, { type: "sine", gain: 0.07 * near, to: 2200, attack: dur * 0.9 });
+  }
+
+  /** It hits: a white crack, a deep thump and the hiss of the smoke. */
+  skyHit(near: number): void {
+    const t = this.now;
+    const g = Math.max(0.12, near);
+    this.noise(t, 0.09, { gain: 0.55 * g, freq: 2600, type: "highpass" });
+    this.tone(95, t, 0.7, { type: "sine", gain: 0.5 * g, to: 34 });
+    this.tone(1900, t, 0.22, { type: "sawtooth", gain: 0.045 * g, to: 280 });
+    this.noise(t + 0.05, 1.3, { gain: 0.1 * g, freq: 900, type: "lowpass" });
+  }
+
+  /** Into the backpack: a soft double click and a cloth rustle. */
+  pickup(): void {
+    const t = this.now;
+    this.tone(660, t, 0.05, { type: "triangle", gain: 0.1 });
+    this.tone(990, t + 0.06, 0.06, { type: "triangle", gain: 0.08 });
+    this.noise(t, 0.12, { gain: 0.05, freq: 2400, type: "bandpass" });
+  }
+
+  /** Used: a gulp for a drink, a quick zip for anything else. */
+  useItem(drink: boolean): void {
+    const t = this.now;
+    if (drink) {
+      this.tone(260, t, 0.12, { type: "sine", gain: 0.16, to: 140 });
+      this.tone(240, t + 0.18, 0.12, { type: "sine", gain: 0.13, to: 130 });
+    } else this.noise(t, 0.16, { gain: 0.08, freq: 3200, type: "bandpass" });
+  }
+
+  /** The backpack's full: a dull knock. */
+  full(): void {
+    const t = this.now;
+    this.tone(140, t, 0.12, { type: "square", gain: 0.06, to: 110 });
+  }
+
+  /** Airfall's flare goes up: a fizzing hiss rising into the sky. */
+  flare(near: number): void {
+    const t = this.now;
+    const g = Math.max(0.2, near);
+    this.noise(t, 1.6, { gain: 0.12 * g, freq: 3000, type: "bandpass" });
+    this.tone(500, t, 1.4, { type: "sawtooth", gain: 0.02 * g, to: 1600, attack: 0.3 });
+  }
+
+  /** A crate opened: wood knocks and a creak. */
+  crate(): void {
+    const t = this.now;
+    this.tone(180, t, 0.08, { type: "triangle", gain: 0.12, to: 130 });
+    this.tone(160, t + 0.09, 0.08, { type: "triangle", gain: 0.1, to: 120 });
+    this.tone(420, t + 0.15, 0.3, { type: "sawtooth", gain: 0.025, to: 300 });
+  }
+
+  /** One heartbeat, lub-dub; `level` 0 … 1 makes it harder (the zone's meter). */
+  heartbeat(level: number): void {
+    const t = this.now;
+    const g = 0.18 + 0.32 * level;
+    this.tone(58, t, 0.2, { type: "sine", gain: g, to: 40 });
+    this.tone(52, t + 0.16, 0.18, { type: "sine", gain: g * 0.65, to: 38 });
+  }
+
+  /** The zone starts closing: two low notes on a horn. */
+  zoneAlert(): void {
+    const t = this.now;
+    this.tone(hz(45), t, 0.45, { type: "sawtooth", gain: 0.07, attack: 0.04 });
+    this.tone(hz(45) * 1.5, t + 0.5, 0.6, { type: "sawtooth", gain: 0.07, attack: 0.04 });
+  }
+
   win(): void {
     const t = this.now;
     [hz(72), hz(76), hz(79), hz(84)].forEach((f, i) =>

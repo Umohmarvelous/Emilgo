@@ -12,7 +12,7 @@ import { CircleGeometry, DynamicDrawUsage, Group, InstancedMesh, Matrix4, MeshBa
 import type { Contestant } from "../game/rules";
 import type { EmoteId } from "../social/emotes";
 import { Human, lodLevels, warmBodies, type ActionId, type Look, type Tier } from "./human";
-import { FALL_TIME } from "./human/ragdoll";
+import { FALL_TIME, skyFall } from "./human/ragdoll";
 import type { AnimState } from "./human/animator";
 import { HOODIE_COLORS } from "./human/wardrobe";
 
@@ -105,6 +105,7 @@ export class Crowd {
       return h;
     });
     this.hidden = new Array(this.n).fill(false);
+    this.packs = new Array(this.n).fill(false);
     this.slowBy = new Array(this.n).fill(1);
     this.slowLeft = new Array(this.n).fill(0);
     this.shadows.count = this.n;
@@ -126,6 +127,38 @@ export class Crowd {
     if (!h) return;
     const away = Math.atan2(c.x - dollX, c.z - dollZ);
     h.kill(away - c.heading);
+  }
+
+  /**
+   * Down by the sky laser (SPEC-V3 §7): the fall from the beam's angle and
+   * the body's stance. `fromYaw` is the compass direction towards the beam's
+   * source, `lean` its slant off vertical.
+   */
+  strike(i: number, c: Contestant, fromYaw: number, lean: number): void {
+    const h = this.people[i];
+    if (!h) return;
+    const f = skyFall(fromYaw, lean, c.heading, c.stance);
+    h.kill(f.dir, f.kind);
+  }
+
+  /** Open worlds: backpacks on (everyone), or off. */
+  private packs: boolean[] = [];
+  setPacks(on: boolean): void {
+    for (let i = 0; i < this.n; i++) this.setPack(i, on);
+  }
+
+  /** Body i wears its backpack, or not (it drops as a loot bag when they're out). */
+  setPack(i: number, on: boolean): void {
+    const h = this.people[i];
+    if (!h) return;
+    this.packs[i] = on;
+    if (on || h.wearsPack) h.wearPack(on);
+  }
+
+  /** Up again where the body now stands (an open-world respawn). */
+  revive(i: number): void {
+    this.people[i]?.revive();
+    this.slowLeft[i] = 0;
   }
 
   /** Every body's animation state: a replay borrows the bodies, then gives them back. */
@@ -244,6 +277,8 @@ export class Crowd {
       }
       h.setDetail(lvl);
       left -= h.trianglesAt(lvl);
+      // A backpack is a draw of its own: only on the bodies near enough to see it.
+      if (this.packs[i]) h.showPack(i === this.featured || d < MID_M);
       if (!this.blobShadows) h.castShadows(rank < SHADOW_MAX[this.tier]);
     });
   }

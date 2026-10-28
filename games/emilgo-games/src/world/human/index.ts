@@ -33,7 +33,8 @@ import { computePose, newAnimState, Pose, stepGait, type ActionId, type AnimStat
 import { shadowOnly } from "../../graphics/shadowOnly";
 import { buildBody, nearDetail, type BuiltBody, type Detail, type Tier } from "./mesh";
 import { paintLook, TEX_SIZE } from "./paint";
-import { FALL_TIME } from "./ragdoll";
+import { FALL_TIME, type FallKind } from "./ragdoll";
+import { packMesh } from "./pack";
 import { BONES, PARENT, type BoneName } from "./skeleton";
 import { normalMapFor } from "./normals";
 import { loadScanLevel, onScanLevel, scanReady, scanStamp } from "./scanbody";
@@ -275,6 +276,8 @@ export class Human {
   private shadow = false;
   /** At the High level the shadow comes from a Low stand-in that only the sun's shadow camera sees. */
   private standIn: SkinnedMesh | null = null;
+  /** The backpack on the chest bone (open worlds), or null. */
+  private pack: import("three").Mesh | null = null;
   /** Posed since the skin last read the bones. */
   private skinDirty = true;
 
@@ -449,11 +452,25 @@ export class Human {
     this.anim.hitSide = Math.max(-1, Math.min(1, side));
   }
 
-  kill(fallDir: number): void {
+  /** Down: a fall `fallDir` from the heading; `as` picks the fall (else the seed does). */
+  kill(fallDir: number, as: FallKind | null = null): void {
     if (this.anim.dead >= 0) return;
     this.anim.dead = 0;
     this.anim.fall = 0;
     this.anim.fallDir = fallDir;
+    this.anim.fallAs = as;
+  }
+
+  /** Up again (an open-world respawn): standing, no fall, nothing in hand. */
+  revive(): void {
+    const a = this.anim;
+    a.dead = -1;
+    a.fall = 0;
+    a.fallAs = null;
+    a.action = null;
+    a.emote = null;
+    a.hitT = 0;
+    a.done = -1;
   }
 
   /**
@@ -623,7 +640,26 @@ export class Human {
     return n;
   }
 
+  /** Wear a backpack, or not (SPEC-V3 §3.3: worn, so everyone sees you carry one). */
+  wearPack(on: boolean): void {
+    if (on && !this.pack) {
+      this.pack = packMesh();
+      this.bone("chest").add(this.pack);
+    }
+    if (this.pack) this.pack.visible = on;
+  }
+
+  /** Is the backpack drawn (worn, and near enough to matter)? */
+  showPack(on: boolean): void {
+    if (this.pack) this.pack.visible = on;
+  }
+
+  get wearsPack(): boolean {
+    return !!this.pack;
+  }
+
   dispose(): void {
+    this.pack?.removeFromParent();
     people.delete(this);
     releaseTexture(this.tex);
     (this.mesh.material as Material).dispose();
