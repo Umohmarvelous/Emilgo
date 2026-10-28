@@ -20,7 +20,7 @@ import { CameraRig } from "../src/world/camera";
 import { Crowd } from "../src/world/crowd";
 import { loadScans } from "../src/world/human";
 import { randomLook } from "../src/world/human/wardrobe";
-import { Minimap } from "../src/ui/minimap";
+import { Hud } from "../src/ui/hud";
 
 const q = new URLSearchParams(location.search);
 const tierQ = q.get("tier") ?? "1";
@@ -123,7 +123,11 @@ addEventListener("resize", () => {
 const TOUR: [number, number][] = [[60, -90], [0, -90], [0, -150], [120, -150], [120, 75], [60, 75], [60, 145], [120, 145], [120, 0], [-40, 0], [-135, 0], [-135, -120], [-135, 0], [-110, 0], [-110, 120], [-110, 0], [0, 0], [0, 75], [-60, 75], [-60, 185], [-60, 75], [60, 75], [60, 0]];
 let leg = 0;
 
-const minimap = new Minimap(document.body);
+// The game's own HUD: the compass (landmark pins) and the minimap.
+const hud = new Hud();
+document.getElementById("ui")!.append(hud.root);
+hud.show(true);
+const minimap = hud.map;
 minimap.setTerrain(world.terrain);
 minimap.reach = 80;
 minimap.names = layout.landmarks;
@@ -135,6 +139,8 @@ let acc = 0;
 const focus = new Vector3();
 let split = 0;
 let statN = 0;
+const marks = people.slice(1) as unknown as { x: number; z: number; kind: "other" }[];
+for (const m of marks) (m as { kind: string }).kind = "other";
 let worldOnly = { calls: 0, tris: 0 };
 function frame(now: number): void {
   const dt = Math.min(0.1, (now - last) / 1000);
@@ -218,7 +224,8 @@ function frame(now: number): void {
   }
   r.info.reset();
   r.render(scene, camera);
-  minimap.draw({ x: me.x, z: me.z, heading: me.heading, out: false }, people.slice(1).map((p) => ({ x: p.x, z: p.z, kind: "other" as const })), null, rig.yaw);
+  minimap.draw({ x: me.x, z: me.z, heading: me.heading, out: false }, marks, null, rig.yaw);
+  hud.setCompass(rig.yaw, me, null, layout.landmarks);
   if (++statN % 15) {
     requestAnimationFrame(frame);
     return;

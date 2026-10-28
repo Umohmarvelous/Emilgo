@@ -181,7 +181,7 @@ export class Hud {
   private stripX = Number.NaN;
   private pinX = Number.NaN;
 
-  setCompass(yaw: number, me: { x: number; z: number }, doll: { x: number; z: number; watching: boolean }): void {
+  setCompass(yaw: number, me: { x: number; z: number }, doll: { x: number; z: number; watching: boolean } | null, places: readonly { name: string; x: number; z: number }[] = []): void {
     // The camera looks along (−sin yaw, −cos yaw): north (−z) at yaw 0, east (+x) at yaw −π/2.
     const deg = (d: number) => ((d % 360) + 360) % 360;
     const heading = deg((-yaw * 180) / Math.PI);
@@ -193,21 +193,65 @@ export class Hud {
       this.stripX = sx;
       this.strip.style.transform = `translateX(${sx}px)`;
     }
-    const bearing = deg((Math.atan2(doll.x - me.x, -(doll.z - me.z)) * 180) / Math.PI);
-    let rel = bearing - heading;
-    rel = ((rel + 540) % 360) - 180;
-    const x = w / 2 + rel * 2;
-    const px = Math.round(Math.max(4, Math.min(w - 4, x)) * 2) / 2;
-    if (px !== this.pinX) {
-      this.pinX = px;
-      this.dollPin.style.transform = `translateX(${px}px)`;
+    const relOf = (x: number, z: number) => {
+      const r = deg((Math.atan2(x - me.x, -(z - me.z)) * 180) / Math.PI) - heading;
+      return ((r + 540) % 360) - 180;
+    };
+    this.dollPin.hidden = !doll;
+    if (doll) {
+      const rel = relOf(doll.x, doll.z);
+      const x = w / 2 + rel * 2;
+      const px = Math.round(Math.max(4, Math.min(w - 4, x)) * 2) / 2;
+      if (px !== this.pinX) {
+        this.pinX = px;
+        this.dollPin.style.transform = `translateX(${px}px)`;
+      }
+      this.dollPin.classList.toggle("edge", Math.abs(rel * 2) > w / 2);
+      this.dollPin.classList.toggle("watch", doll.watching);
     }
-    this.dollPin.classList.toggle("edge", Math.abs(rel * 2) > w / 2);
-    this.dollPin.classList.toggle("watch", doll.watching);
+    this.placePins(places, me, w, relOf);
+  }
+
+  /**
+   * Open worlds: a small pin for each landmark within 250 m at its bearing,
+   * and the name of the one nearest the middle (within 12°) under the strip.
+   */
+  private readonly pins: HTMLElement[] = [];
+  private readonly placeName = el("span", "placename");
+  private lastPlace = "";
+  private placePins(places: readonly { name: string; x: number; z: number }[], me: { x: number; z: number }, w: number, relOf: (x: number, z: number) => number): void {
+    if (!this.placeName.parentElement && places.length) this.compass.append(this.placeName);
+    let best = "";
+    let bestRel = 12;
+    let n = 0;
+    for (const p of places) {
+      const d = Math.hypot(p.x - me.x, p.z - me.z);
+      if (d > 250 || d < 6) continue;
+      const rel = relOf(p.x, p.z);
+      if (Math.abs(rel * 2) > w / 2) continue;
+      let pin = this.pins[n];
+      if (!pin) {
+        pin = el("i", "placepin");
+        this.pins.push(pin);
+        this.compass.append(pin);
+      }
+      pin.hidden = false;
+      pin.style.transform = `translateX(${Math.round((w / 2 + rel * 2) * 2) / 2}px)`;
+      n++;
+      if (Math.abs(rel) < bestRel) {
+        bestRel = Math.abs(rel);
+        best = `${p.name} · ${Math.round(d)} m`;
+      }
+    }
+    for (let i = n; i < this.pins.length; i++) this.pins[i].hidden = true;
+    if (best !== this.lastPlace) {
+      this.lastPlace = best;
+      this.placeName.textContent = best;
+    }
   }
 
   /** The minimap and, when open, the full map. */
-  setMap(me: { x: number; z: number; heading: number; out: boolean }, marks: readonly MapMark[], doll: { x: number; z: number; watching: boolean }, yaw: number): void {
+  setMap(me: { x: number; z: number; heading: number; out: boolean }, marks: readonly MapMark[], doll: { x: number; z: number; watching: boolean } | null, yaw: number): void {
     this.map.draw(me, marks, doll, yaw);
   }
 

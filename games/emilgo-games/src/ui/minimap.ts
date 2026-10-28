@@ -197,9 +197,20 @@ export class Minimap {
       g.lineWidth = 3 * dpr;
       g.strokeStyle = "rgba(0,0,0,0.7)";
       g.fillStyle = "#fff4e0";
+      // A name that would cover one already written moves below its point, or is left out.
+      const used: [number, number, number, number][] = [];
+      const lh = 12 * dpr;
       for (const n of this.names) {
-        g.strokeText(n.name, (n.x - x0) * k, (n.z - z0) * k);
-        g.fillText(n.name, (n.x - x0) * k, (n.z - z0) * k);
+        const w2 = g.measureText(n.name).width / 2 + 2 * dpr;
+        const x = (n.x - x0) * k;
+        for (const y of [(n.z - z0) * k, (n.z - z0) * k + lh, (n.z - z0) * k - lh]) {
+          const box: [number, number, number, number] = [x - w2, y - lh * 0.8, x + w2, y + lh * 0.2];
+          if (used.some((u) => box[0] < u[2] && box[2] > u[0] && box[1] < u[3] && box[3] > u[1])) continue;
+          used.push(box);
+          g.strokeText(n.name, x, y);
+          g.fillText(n.name, x, y);
+          break;
+        }
       }
     }
     this.arrow(g, (me.x - x0) * k, (me.z - z0) * k, me.heading, Math.max(8, r * k * 2.2), me.out);

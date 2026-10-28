@@ -544,10 +544,13 @@ input { font: inherit; color: inherit; }
 .compass .strip i.tick { width: 1px; height: 5px; top: 4px; background: rgba(255, 255, 255, 0.7); box-shadow: 0 0 1px #000; }
 .compass .strip i.num { font: 500 9px/1 var(--num); opacity: 0.75; top: 3px; }
 .compass .strip i.cardinal { font-size: 11px; }
-.compass .caret { position: absolute; left: 50%; bottom: 0; width: 0; height: 0; margin-left: -4px; border: 4px solid transparent; border-bottom-color: var(--white); filter: drop-shadow(0 0 1px #000); }
-.compass .dollpin { position: absolute; left: 0; bottom: 1px; width: 6px; height: 6px; margin-left: -3px; transform-origin: center; background: var(--white); transform: rotate(45deg); box-shadow: 0 0 0 1px #000; }
+.compass .caret { position: absolute; left: 50%; top: 14px; width: 0; height: 0; margin-left: -4px; border: 4px solid transparent; border-bottom-color: var(--white); filter: drop-shadow(0 0 1px #000); }
+.compass .dollpin { position: absolute; left: 0; top: 15px; width: 6px; height: 6px; margin-left: -3px; transform-origin: center; background: var(--white); transform: rotate(45deg); box-shadow: 0 0 0 1px #000; }
 .compass .dollpin.watch { background: #e5292a; }
 .compass .dollpin.edge { opacity: 0.55; }
+.compass .placepin { position: absolute; left: 0; top: 16px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: #ffd890; box-shadow: 0 0 0 1px #000; }
+.compass:has(.placename:not(:empty)) { height: 34px; }
+.compass .placename { position: absolute; left: 0; right: 0; top: 24px; text-align: center; font: 600 9px/1 var(--head); color: #fff4e0; text-shadow: 0 0 2px #000, 0 1px 2px #000; letter-spacing: 0.02em; }
 
 /* Top centre: kill feed / activity feed — text only, slides in, gone after 5 s. */
 .feed { display: flex; flex-direction: column; align-items: center; gap: 2px; max-width: 100%; }
