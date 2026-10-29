@@ -63,7 +63,7 @@ import { Hud, type MapMark } from "../ui/hud";
 import { QuickChat } from "../ui/quickchat";
 import { Scoreboard } from "../ui/scoreboard";
 import type { TerrainShot } from "../ui/minimap";
-import { Screens, naira, payoutOf, type LobbyTab, type OnlineAvailability, type PlayMode, type ResultInfo } from "../ui/screens";
+import { Screens, naira, payoutOf, type FfaResultView, type LobbyTab, type OnlineAvailability, type PlayMode, type ResultInfo } from "../ui/screens";
 import { ReplayOverlay } from "../ui/replay";
 import { Bubbles, ChatPanel, EmoteWheel } from "../ui/social";
 import { CameraRig } from "../world/camera";
@@ -80,7 +80,14 @@ import { buildAtlas } from "../world/textures";
 import { BOT_NAMES, BotBrain } from "./bots";
 import { addProgress, ensureDaily } from "./progress";
 import { rankOf, rankUp } from "../rank/ladder";
-import { games } from "../content/catalog";
+import { catalog, games } from "../content/catalog";
+import type { ModeDef } from "../content/modes";
+import { buildOpenWorldIdle, type OpenWorld } from "../maps/open/build";
+import { buildNaijaWorld } from "../maps/open/naija";
+import type { MatchSnap, WireEvent } from "../net/matchWire";
+import { FfaMode } from "../modes/ffa";
+import { FfaCards } from "../ui/ffaCards";
+import type { ModeHost, ModeResult } from "../modes/types";
 import { Content } from "../content/load";
 import { attackTarget, canAttack } from "./combat";
 import { CLIP, Highlights, type Moment, type MomentKind } from "./highlights";
@@ -268,6 +275,17 @@ export class Game {
   private seatId: string | null = null;
   private connecting = false;
 
+  // Free For All (SPEC-V3 Phase 4): the mode behind the GameMode seam (modes/),
+  // Naija World (built once per graphics tier, in slices while the menus are
+  // up), a start that arrived before the world was ready, your party, the results.
+  private gm: FfaMode | null = null;
+  private naija: { tier: Tier; p: Promise<OpenWorld>; w: OpenWorld | null } | null = null;
+  private ffaWait: { start: StartInfo; log: WireEvent[]; snap?: MatchSnap } | null = null;
+  private ffaRes: FfaResultView | null = null;
+  private party: { code: string; members: { id: string; name: string }[]; lead: string } | null = null;
+  private hostObj: ModeHost | null = null;
+  private readonly cards: FfaCards;
+
   // Lagos Life matches
   private vmatch: MatchView | null = null;
   private vStake = 0;
@@ -373,6 +391,7 @@ export class Game {
       this.startTutorial("solo");
     });
     this.tutorial = new TutorialPlayer(ui);
+    this.cards = new FfaCards(ui);
     this.tutorial.onClose(() => this.endTutorial());
     this.countdown = new Countdown(this.hud, (last) => this.sound.countTick(last));
     this.chat.onSend((text) => this.net?.send({ t: "chat", text }));
@@ -636,6 +655,15 @@ export class Game {
     saveSettings(this.host, this.settings);
     const up = rankUp(before, this.rankXp);
     if (up) this.screens.toast(`Rank up: ${up.name}`);
+    const f = this.ffaRes;
+    if (f && f.online && f.xp === null) {
+      f.xp = m.gain;
+      f.rank = rankOf(this.rankXp);
+      f.rankUp = !!up;
+      f.xpNote = m.off && this.ranked ? "Not saved: couldn't confirm who you are. Reopen the game to rank." : m.off ? "Counted on this device only" : null;
+      this.screens.updateFfaRank(f);
+      return;
+    }
     const r = this.recorded;
     if (r && r.online && r.xp === null) {
       r.xp = m.gain;
@@ -764,6 +792,25 @@ export class Game {
 
   private showPlay(): void {
     this.frame("full");
+    const list = games(this.content.manifest, { xp: this.rankXp });
+    // Ball Haunt hidden: Free For All is the only game on the strip that plays.
+    if (!list.some((g) => g.id === "rlgl")) this.settings.game = "ffa";
+    if (this.settings.game === "ffa") {
+      const net = this.net;
+      this.screens.playFfa({
+        mode: this.playMode,
+        online: this.onlineAvailability(),
+        lagosLife: !!this.host.matches,
+        error: this.playError,
+        connecting: this.connecting,
+        games: list,
+        modes: catalog(this.content.manifest, { xp: this.rankXp }).filter((e) => e.def.family === "ffa"),
+        rotation: this.content.manifest.rotation ?? [],
+        pick: this.settings.ffaMode,
+        party: this.party && net ? { ...this.party, me: this.seatId ?? net.id } : null,
+      });
+      return;
+    }
     this.screens.play({
       mode: this.playMode,
       settings: this.settings,
@@ -823,6 +870,7 @@ export class Game {
 
   /** Stop whatever round is running and put the world back to idle. */
   private endRound(): void {
+    this.endFfa();
     if (this.round instanceof OnlineRound) this.round.dispose();
     this.round = null;
     this.brains = [];
@@ -1125,6 +1173,10 @@ export class Game {
   // ── Fixed step ────────────────────────────────────────────────────────────
 
   private update(dt: number): void {
+    if (this.gm) {
+      if (!(this.paused && this.mode === "practice")) this.gm.update(dt);
+      return;
+    }
     const round = this.round;
     if (!round) return;
     // Practice freezes on pause. Online the round goes on without you — you
@@ -1785,11 +1837,12 @@ export class Game {
   private setOutcome(text: string): void {
     this.vOutcome = text;
     if (this.recorded) this.recorded.matchNote = text;
+    if (this.ffaRes) this.ffaRes.matchNote = text;
     this.screens.matchOutcome(text);
   }
 
   private matchOutcomeText(m: MatchView): string {
-    if (m.winner === "draw" || !m.winner) return m.stake ? "Draw. Every stake went back." : "Draw. Nobody crossed first.";
+    if (m.winner === "draw" || !m.winner) return m.stake ? "Draw. Every stake went back." : "Draw. Nobody claimed the flag.";
     const winner = m.players.find((p) => p.id === m.winner)?.name ?? "Someone";
     if (!m.stake) return m.winner === m.me ? "You won the match." : `${winner} won the match.`;
     const pay = naira(payoutOf(m.stake, m.players.length));
@@ -1847,9 +1900,11 @@ export class Game {
       case "room":
         this.room = m.room;
         if (m.room.state === "lobby" && !this.round) this.flow.go(m.room.map ? "loading" : "waiting");
+        // Free For All: Naija World starts building while the room fills.
+        if (m.room.ffa) void this.ensureNaija();
         if (this.screens.name === "room" || this.screens.name === "friends") this.showRoom();
         // Loading: the server has picked the map — build it now, under the loading bar.
-        if (m.room.map && m.room.state === "lobby" && !this.round) {
+        if (m.room.map && m.room.state === "lobby" && !this.round && !m.room.ffa) {
           const r = m.room;
           const map = r.map!;
           setTimeout(() => {
@@ -1860,7 +1915,24 @@ export class Game {
         }
         break;
       case "start":
-        this.startOnline(m.start, false);
+        if (m.start.ffa) this.startFfa(m.start);
+        else this.startOnline(m.start, false);
+        break;
+      case "msync":
+        if (this.gm?.receive(m)) break;
+        if (this.ffaWait && this.ffaWait.start.seed === m.sync.seed) this.ffaWait = { start: this.ffaWait.start, log: [...m.sync.log], snap: m.sync.snap };
+        else this.startFfa({ seed: m.sync.seed, s: m.sync.s, roster: m.sync.roster, init: [], ffa: m.sync.ffa }, m.sync.log, m.sync.snap);
+        break;
+      case "mev":
+        // The world still building: the match's events wait with its start.
+        if (this.ffaWait) this.ffaWait.log.push(...m.e);
+        break;
+      case "msnap":
+        if (this.ffaWait) this.ffaWait.snap = m;
+        break;
+      case "party":
+        this.party = "off" in m ? null : { code: m.code, members: m.members, lead: m.lead };
+        if (this.screens.name === "play") this.showPlay();
         break;
       case "sync":
         if (!(this.round instanceof OnlineRound) || this.round.seed !== m.sync.seed) this.startOnline(m.sync, true);
@@ -1888,7 +1960,7 @@ export class Game {
   }
 
   private onNetState(s: NetClient["state"]): void {
-    if (this.mode === "online" && this.round) this.hud.setConnection(s === "open" ? "ok" : s === "closed" ? "lost" : "reconnecting");
+    if (this.mode === "online" && (this.round || this.gm)) this.hud.setConnection(s === "open" ? "ok" : s === "closed" ? "lost" : "reconnecting");
     if (s === "closed" && this.room && !this.round) {
       this.room = null;
       if (this.screens.name === "room") {
@@ -1970,7 +2042,7 @@ export class Game {
         this.screens.placePlates(this.stage.podiumPlates(w, h), left);
         if (this.returnAt && left <= 0) {
           this.returnAt = 0;
-          this.action(this.recorded?.online === "private" ? "room" : "menu", document.body);
+          this.action((this.recorded?.online ?? this.ffaRes?.online) === "private" ? "room" : "menu", document.body);
         }
       }
       this.updateSocial(null);
@@ -1978,6 +2050,12 @@ export class Game {
       return;
     }
 
+    if (this.gm) {
+      this.gm.render(frameDt);
+      this.updateSocial(null);
+      this.quality.sample(frameDt * 1000, performance.now() - workStart, this.loop.targetMs);
+      return;
+    }
     if (this.slowmo > 0) {
       this.slowmo -= frameDt;
       if (this.slowmo <= 0) this.loop.timeScale = 1;
@@ -2156,8 +2234,7 @@ export class Game {
    * puddles' mirror; Medium one grade pass; Low a plain draw (its grade is in
    * the lights, the exposure and the veil).
    */
-  private draw(): void {
-    const look = this.lookNow();
+  private draw(look: GradeLook = this.lookNow()): void {
     if (this.spec.fancy) {
       this.world?.beforeRender(this.renderer, this.scene, this.camera);
       if (!this.post) this.post = new Post();
@@ -2400,7 +2477,7 @@ export class Game {
   // ── Pause / host lifecycle ────────────────────────────────────────────────
 
   private pause(): void {
-    if (!this.round || this.paused || this.screens.name === "results" || this.view !== "game") return;
+    if ((!this.round && !this.gm) || this.paused || this.screens.name === "results" || this.view !== "game") return;
     this.paused = true;
     this.controls.reset();
     this.controls.releasePointer();
@@ -2430,7 +2507,7 @@ export class Game {
   private hostPause(): void {
     this.hostPaused = true;
     this.net?.resetInput();
-    if (this.round && !this.paused && this.my === "playing" && this.screens.name !== "results" && this.view === "game") this.pause();
+    if ((this.gm || (this.round && this.my === "playing")) && !this.paused && this.screens.name !== "results" && this.view === "game") this.pause();
     // The lobby's animations stop too: a backgrounded game costs nothing.
     this.loop.stop();
     this.sound.suspend();
@@ -2444,9 +2521,10 @@ export class Game {
   }
 
   private back(): void {
+    if (this.cards.open) return this.cards.cancel();
     const s = this.screens.name;
     if (this.tut && !s) return this.endTutorial();
-    if (this.round && !this.paused && !s) this.pause();
+    if ((this.round || this.gm) && !this.paused && !s) this.pause();
     else if (s === "pause") this.resume();
     else if (s === "settings") this.action(this.settingsFrom === "pause" ? "pause-menu" : "back", document.body);
     else if (s === "room") this.action("leave-room", document.body);
@@ -2731,6 +2809,51 @@ export class Game {
       case "go":
         this.go();
         break;
+      case "pick-game":
+        this.settings.game = d.g === "rlgl" && FEATURES.ballHaunt ? "rlgl" : "ffa";
+        saveSettings(this.host, this.settings);
+        this.showPlay();
+        break;
+      case "ffa-mode":
+        if (d.m) this.settings.ffaMode = d.m;
+        saveSettings(this.host, this.settings);
+        this.showPlay();
+        break;
+      case "party-make":
+        this.online((net) => net.send({ t: "party", op: "make" }));
+        break;
+      case "party-join": {
+        const input = this.screens.root.querySelector<HTMLInputElement>("input[name=pcode]");
+        const code = normalizeCode(input?.value ?? "");
+        if (code.length !== NET.codeLength) {
+          this.playError = "Party codes are six letters.";
+          this.showPlay();
+          break;
+        }
+        this.online((net) => net.send({ t: "party", op: "join", code }));
+        break;
+      }
+      case "party-leave":
+        this.net?.send({ t: "party", op: "leave" });
+        this.party = null;
+        this.showPlay();
+        break;
+      case "ffa-tutorial": {
+        const def = this.ffaPick();
+        if (this.playMode === "lagos") this.cards.show("flag-duel", "Flag Duel");
+        else if (def) this.cards.show(def.id, def.name.en);
+        break;
+      }
+      case "ffa-again":
+        this.ffaRes = null;
+        if (this.mode === "online") {
+          this.playMode = "new";
+          this.goFfa();
+        } else {
+          this.playMode = "solo";
+          this.goFfa();
+        }
+        break;
       case "practice":
         this.practice();
         break;
@@ -2958,13 +3081,268 @@ export class Game {
     }
   }
 
-  /** START on the play screen. */
-  private go(): void {
-    // Nothing playable to start while Ball Haunt is off and no flagship mode is built yet.
-    if (!FEATURES.ballHaunt) {
-      this.screens.toast("That game isn't on right now.");
+  // ── Free For All (SPEC-V3 Phase 4) ──────────────────────────────────────────
+
+  /** Naija World for this graphics tier: built once, in slices between frames, then kept. */
+  private ensureNaija(): Promise<OpenWorld> {
+    const tier = this.spec.tier;
+    if (this.naija && this.naija.tier === tier) return this.naija.p;
+    if (this.naija?.w && !this.gm) this.naija.w.dispose();
+    const slot: { tier: Tier; p: Promise<OpenWorld>; w: OpenWorld | null } = { tier, p: Promise.resolve(null as unknown as OpenWorld), w: null };
+    slot.p = buildOpenWorldIdle(buildNaijaWorld(), this.spec, {}).then((w) => {
+      // Low has no grade pass: the look reaches the lights instead.
+      if (tier === 0) gradeLights(w.group, LOOKS.naija);
+      slot.w = w;
+      return w;
+    });
+    this.naija = slot;
+    return slot.p;
+  }
+
+  /** What the session lends a mode (modes/types.ts). */
+  private modeHost(): ModeHost {
+    if (this.hostObj) return this.hostObj;
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const g = this;
+    const host: ModeHost = {
+      renderer: this.renderer,
+      scene: this.scene,
+      camera: this.camera,
+      rig: this.rig,
+      crowd: this.crowd,
+      hud: this.hud,
+      controls: this.controls,
+      sound: this.sound,
+      get spec() {
+        return g.spec;
+      },
+      settings: this.settings,
+      ui: this.uiRoot,
+      get paused() {
+        return g.paused;
+      },
+      draw: (look) => this.draw(look),
+      haptic: (k) => this.haptic(k),
+      myLook: () => this.myLook(),
+      onEnd: (r) => this.onFfaEnd(r),
+    };
+    this.hostObj = host;
+    return host;
+  }
+
+  /** The mode picked on the Play screen, if it can be played that way (the queue has only the featured ones). */
+  private ffaPick(): ModeDef | null {
+    const list = catalog(this.content.manifest, { xp: this.rankXp }).filter((e) => e.def.family === "ffa" && e.state === "play");
+    const rot = this.content.manifest.rotation ?? [];
+    const ok = this.playMode === "new" ? list.filter((e) => rot.includes(e.def.id)) : list;
+    return (ok.find((e) => e.def.id === this.settings.ffaMode) ?? ok[0])?.def ?? null;
+  }
+
+  /** START with Free For All picked. */
+  private goFfa(): void {
+    const def = this.ffaPick();
+    if (this.playMode === "lagos") {
+      void this.ensureNaija();
+      const seen = this.settings.ffaSeen.split(",").filter(Boolean);
+      if (!seen.includes("flag-duel")) {
+        this.settings.ffaSeen = [...seen, "flag-duel"].join(",");
+        saveSettings(this.host, this.settings);
+        this.cards.show("flag-duel", "Flag Duel", () => this.goFfa());
+        return;
+      }
+      this.vError = null;
+      this.showMatchMenu();
       return;
     }
+    if (!def) {
+      this.screens.toast("Pick a mode first.");
+      return;
+    }
+    this.settings.ffaMode = def.id;
+    // The first match of a mode: its "How to play" cards first (SPEC-V3 §3.3 #16).
+    const seen = this.settings.ffaSeen.split(",").filter(Boolean);
+    if (!seen.includes(def.id)) {
+      this.settings.ffaSeen = [...seen, def.id].join(",");
+      saveSettings(this.host, this.settings);
+      this.cards.show(def.id, def.name.en, () => this.goFfa());
+      return;
+    }
+    saveSettings(this.host, this.settings);
+    switch (this.playMode) {
+      case "solo":
+        this.practiceFfa(def);
+        break;
+      case "new":
+        this.chat.clear();
+        this.onlineError = null;
+        this.endRound();
+        this.hud.show(false);
+        this.online((net) => {
+          void this.ensureNaija();
+          net.send({ t: "fq", m: def.id });
+          this.room = null;
+          this.showWaiting("Finding players…");
+        });
+        break;
+      case "friends":
+        this.chat.clear();
+        this.onlineError = null;
+        this.online((net) => {
+          void this.ensureNaija();
+          net.send({ t: "create", size: def.players.max, m: def.id });
+          this.showWaiting("Making your room…");
+        });
+        break;
+    }
+  }
+
+  /** Practice: the mode on your own (there are no bots in Free For All, ever). */
+  private practiceFfa(def: ModeDef): void {
+    this.leaveOnline();
+    this.endRound();
+    this.mode = "practice";
+    this.showWaiting("Building Naija World…");
+    void this.ensureNaija().then((w) => {
+      // Cancelled while it built.
+      if (this.screens.name !== "room" || this.room || this.gm) return;
+      this.beginFfa(FfaMode.practice(this.modeHost(), w, def, randomSeed(), this.host.player.name || "You"));
+    });
+  }
+
+  /** An online Free For All match starts (or is rejoined): now, or once Naija World is built. */
+  private startFfa(start: StartInfo, log: readonly WireEvent[] = [], snap?: MatchSnap): void {
+    const net = this.net;
+    if (!net) return;
+    this.endRound();
+    this.mode = "online";
+    this.meId = this.seatId ?? net.id;
+    const at = Date.now();
+    for (const r of start.roster) {
+      if (r.id === this.meId) continue;
+      this.settings.recent = [{ name: r.name, at, seat: r.id }, ...this.settings.recent.filter((x) => x.name !== r.name)].slice(0, 30);
+    }
+    const w = this.naija?.tier === this.spec.tier ? this.naija.w : null;
+    if (!w) {
+      this.ffaWait = { start, log: [...log], snap };
+      this.showWaiting("Building Naija World…");
+      void this.ensureNaija().then(() => {
+        const wait = this.ffaWait;
+        if (!wait || !this.naija?.w) return;
+        this.ffaWait = null;
+        this.openFfa(wait.start, wait.log, wait.snap);
+      });
+      return;
+    }
+    this.openFfa(start, log, snap);
+  }
+
+  private openFfa(start: StartInfo, log: readonly WireEvent[], snap?: MatchSnap): void {
+    const net = this.net;
+    const w = this.naija?.w;
+    if (!net || !w) return;
+    try {
+      this.beginFfa(FfaMode.online(this.modeHost(), w, start, this.meId, net, log, snap));
+    } catch {
+      // A mode this build doesn't have in the same version: the copy would disagree with the server.
+      this.toLobby();
+      this.playError = "Update the game to play this mode.";
+      this.showPlay();
+    }
+  }
+
+  /** The mode is on: the game view, its loop, its controls. */
+  private beginFfa(gm: FfaMode): void {
+    if (this.world) this.scene.remove(this.world.group);
+    if (this.dollObj) this.dollObj.root.visible = false;
+    this.props.setup([], []);
+    this.gm = gm;
+    this.ffaRes = null;
+    this.recorded = null;
+    this.paused = false;
+    this.view = "game";
+    this.stage.interactive = false;
+    this.flow.reset("play");
+    this.screens.hide();
+    this.sound.hush(false);
+    this.touch.classList.add("live");
+    this.setActions(true);
+    this.rig.firstPerson = this.settings.firstPerson;
+    this.crowd.hideMyHead = this.settings.firstPerson;
+    this.hud.setFirstPerson(this.settings.firstPerson);
+    this.loop.setStepping(true);
+    this.loop.setFpsCap(this.spec.tier === 0 ? 30 : 60);
+    if (!this.loop.isRunning && !this.hostPaused) this.loop.start();
+    this.board.show(false);
+    this.quick.toggle(false);
+    this.settings.played++;
+    saveSettings(this.host, this.settings);
+    this.rotator.prompt();
+  }
+
+  /** Free For All is over, or left: put Red Light, Green Light's world back as it was. */
+  private endFfa(): void {
+    this.ffaWait = null;
+    const gm = this.gm;
+    if (!gm) return;
+    this.gm = null;
+    gm.dispose();
+    if (this.world) {
+      this.scene.add(this.world.group);
+      this.scene.fog = this.world.fog;
+      this.renderer.setClearColor(this.world.clear);
+      this.rig.colliders = this.world.colliders;
+    }
+    this.camera.far = 900;
+    this.camera.updateProjectionMatrix();
+    if (this.dollObj) this.dollObj.root.visible = true;
+    this.controls.enabled = false;
+    this.setActions(false);
+    this.touch.classList.remove("live");
+  }
+
+  /** The match is over: the winner's circle, everyone's places, the XP (it follows from the server). */
+  private onFfaEnd(r: ModeResult): void {
+    const online: FfaResultView["online"] = r.online ? (this.vPlaying ? "match" : this.room?.kind === "private" ? "private" : "quick") : null;
+    const me = r.standings.find((x) => x.me);
+    const top = r.standings.slice(0, 3);
+    const fmt = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
+    this.ffaRes = {
+      mode: r.def.name.en,
+      won: r.won,
+      place: me?.place ?? 0,
+      sides: new Set(r.standings.map((x) => x.squad)).size,
+      seconds: r.seconds,
+      measure: r.measure,
+      rows: r.standings.map((x) => ({ place: x.place, name: x.name, me: x.me, squad: x.squad, objective: x.objective, won: x.won })),
+      online,
+      matchNote: this.vOutcome,
+      xp: online ? this.pendingGain : 0,
+      xpNote: null,
+      rank: rankOf(this.rankXp),
+      rankUp: false,
+    };
+    this.pendingGain = null;
+    if (r.won) this.settings.wins++;
+    this.endFfa();
+    this.hud.show(false);
+    this.view = "lobby";
+    this.stage.setMode("podium");
+    this.stage.setPodium(top.map((x) => x.look));
+    this.stage.interactive = false;
+    this.flow.reset("post");
+    this.returnAt = online === null || online === "quick" ? performance.now() + RETURN_AFTER * 1000 : 0;
+    this.screens.ffaResults(
+      this.ffaRes,
+      top.map((x) => ({ name: x.name, line: r.measure ? `${fmt(x.objective)}` : x.won ? "Won" : "", me: x.me })),
+      this.returnAt ? RETURN_AFTER : 0,
+    );
+    this.loop.setFpsCap(30);
+    saveSettings(this.host, this.settings);
+  }
+
+  /** START on the play screen. */
+  private go(): void {
+    if (this.settings.game === "ffa" || !FEATURES.ballHaunt) return this.goFfa();
     switch (this.playMode) {
       case "solo":
         this.practice();

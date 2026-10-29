@@ -148,8 +148,13 @@ export class MatchScene {
     }
   }
 
-  /** Every frame, after the match has stepped. */
-  update(dt: number, m: Match, cam: Vector3, marks: MapMark[]): { pin: ItemPin | null } {
+  /**
+   * Every frame, after the match has stepped. `extra`: what a mode adds to
+   * the HUD (Free For All: a stash to search or a prop to pick up, at its
+   * distance — the nearest thing wins the interact prompt, as on the server;
+   * and the objective line).
+   */
+  update(dt: number, m: Match, cam: Vector3, marks: MapMark[], extra?: { target: (NonNullable<PlayHudState["target"]> & { d: number }) | null; objective: string }): { pin: ItemPin | null } {
     const zone = m.module<ZoneModule>("zone");
     const items = m.module<ItemsModule>("items");
     const air = m.module<AirfallModule>("airfall");
@@ -203,8 +208,15 @@ export class MatchScene {
       if (crate) target = { kind: "crate", progress: air!.opening(i) };
       else {
         const tg = items?.target(me) ?? null;
-        if (tg?.item) target = { kind: "item", item: tg.item.kind, progress: 0 };
-        else if (tg?.bag) target = { kind: "bag", left: tg.bag.kinds.length, progress: 0 };
+        let d = Infinity;
+        if (tg?.item) {
+          target = { kind: "item", item: tg.item.kind, progress: 0 };
+          d = Math.hypot(tg.item.x - me.x, tg.item.z - me.z);
+        } else if (tg?.bag) {
+          target = { kind: "bag", left: tg.bag.kinds.length, progress: 0 };
+          d = Math.hypot(tg.bag.x - me.x, tg.bag.z - me.z);
+        }
+        if (extra?.target && extra.target.d < d) target = extra.target;
       }
     }
 
@@ -219,6 +231,7 @@ export class MatchScene {
       effects: m.effects(me),
       respawn,
       heat: this.laser.heat,
+      objective: extra?.objective ?? "",
     });
 
     // ── The compass's diamond and the map's crates ──

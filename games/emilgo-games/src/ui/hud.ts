@@ -23,7 +23,8 @@ export type { MapMark } from "./minimap";
 export interface ItemPin {
   x: number;
   z: number;
-  kind: "item" | "rare" | "bag" | "crate";
+  /** Items (above); Free For All's objective: the flag (gold), a goal (a drop zone, the rally point), a rival holding the flag (red, glowing). */
+  kind: "item" | "rare" | "bag" | "crate" | "flag" | "goal" | "hot";
 }
 export type Signal = "count" | "none";
 
@@ -194,6 +195,7 @@ export class Hud {
     doll: { x: number; z: number; watching: boolean } | null,
     places: readonly { name: string; x: number; z: number }[] = [],
     item: ItemPin | null = null,
+    goal: ItemPin | null = null,
   ): void {
     // The camera looks along (−sin yaw, −cos yaw): north (−z) at yaw 0, east (+x) at yaw −π/2.
     const deg = (d: number) => ((d % 360) + 360) % 360;
@@ -224,6 +226,28 @@ export class Hud {
     }
     this.placePins(places, me, w, relOf);
     this.itemPin(item, w, relOf);
+    this.goalPin(goal, w, relOf);
+  }
+
+  /** Free For All: the objective's pin (a flag shape), at its bearing. */
+  private readonly goalEl = el("i", "goalpin");
+  private goalX = Number.NaN;
+  private goalKind = "";
+  private goalPin(p: ItemPin | null, w: number, relOf: (x: number, z: number) => number): void {
+    if (!this.goalEl.parentElement) this.compass.append(this.goalEl);
+    this.goalEl.hidden = !p;
+    if (!p) return;
+    const rel = relOf(p.x, p.z);
+    const x = Math.round(Math.max(6, Math.min(w - 6, w / 2 + rel * 2)) * 2) / 2;
+    if (x !== this.goalX) {
+      this.goalX = x;
+      this.goalEl.style.transform = `translateX(${x}px)`;
+    }
+    if (p.kind !== this.goalKind) {
+      this.goalKind = p.kind;
+      this.goalEl.className = `goalpin ${p.kind}`;
+    }
+    this.goalEl.classList.toggle("edge", Math.abs(rel * 2) > w / 2);
   }
 
   /**

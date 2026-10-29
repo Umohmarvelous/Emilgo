@@ -27,12 +27,12 @@ export const DOLL_Z = -131;
 
 /**
  * Switches the developer flips in code (SPEC-V3). Ball Haunt (Red Light,
- * Green Light) is hidden by default once a flagship mode can be played; until
- * then it stays on, or the game would have nothing to play (SPEC-V3 Decisions).
- * Off: not in any menu, refused by the server, and Mama is never built.
+ * Green Light) is hidden now that Free For All plays (Phase 4): not in any
+ * menu, refused by the server (its tests run one with BALL_HAUNT=1), and
+ * Mama is never built. It comes back rebuilt on the shared core in Phase 11.
  */
 export const FEATURES = {
-  ballHaunt: true,
+  ballHaunt: false,
 } as const;
 
 // ── Modes and distances (SPEC-V2 §2.1) ───────────────────────────────────────

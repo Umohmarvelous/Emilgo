@@ -563,17 +563,31 @@ export class Match {
       const k = this.mul[i];
       this.mul[i] = 1;
       if (c.status !== "alive") continue;
-      const fast = this.fast[i];
-      const src = fast && this.effect(c, "speed") > 0 ? fast : this.base[i];
-      if (k !== 1) {
-        const s = Object.assign(this.slowed[i], src);
-        s.speed = src.speed * k;
-        s.sprint = src.sprint * k;
-        c.bst = s;
-      } else c.bst = src;
-      moveContestant(c, dt, DEFAULT_COURSE, space);
+      this.move(c, dt, k, space);
     }
     this.separate();
+  }
+
+  /**
+   * The online client's own body, moved as the server will move it (a phone
+   * predicts only itself; Match.mirror). `k`: the speed share the modules
+   * would give it this step (a brace, a flag held, a clinch).
+   */
+  predict(c: Contestant, dt: number, k = 1): void {
+    if (c.status === "alive") this.move(c, dt, k, this.world.space);
+  }
+
+  private move(c: Contestant, dt: number, k: number, space: Space): void {
+    const i = c.index;
+    const fast = this.fast[i];
+    const src = fast && this.effect(c, "speed") > 0 ? fast : this.base[i];
+    if (k !== 1) {
+      const s = Object.assign(this.slowed[i], src);
+      s.speed = src.speed * k;
+      s.sprint = src.sprint * k;
+      c.bst = s;
+    } else c.bst = src;
+    moveContestant(c, dt, DEFAULT_COURSE, space);
   }
 
   private readonly sepCells = new Map<number, number[]>();

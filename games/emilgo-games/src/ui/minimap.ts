@@ -13,7 +13,13 @@ import { el } from "./dom";
 export interface MapMark {
   x: number;
   z: number;
-  kind: "other" | "out" | "safe" | "ball" | "basket" | "crate";
+  /**
+   * Free For All adds: a flag (gold; held or on the ground), a goal ring of
+   * radius `r` (a drop zone, the rally point, the gate), a squad mate
+   * (green), a flag holder's ping (red).
+   */
+  kind: "other" | "out" | "safe" | "ball" | "basket" | "crate" | "flag" | "goal" | "mate" | "ping";
+  r?: number;
 }
 
 export interface TerrainShot {
@@ -46,6 +52,8 @@ export class Minimap {
   names: readonly { name: string; x: number; z: number }[] = [];
   /** Open worlds: the zone now (outside it shaded) and the next circle (dashed). */
   zone: { now: { x: number; z: number; r: number }; next: { x: number; z: number; r: number } | null } | null = null;
+  /** Find the Flag: the radio hints, each a circle the flag is somewhere in (the newest drawn strongest). */
+  hints: { x: number; z: number; r: number }[] = [];
 
   constructor(parent: HTMLElement) {
     this.root.dataset.ui = "1";
@@ -108,6 +116,7 @@ export class Minimap {
     }
     const r = 1.1 * (this.reach / REACH); // metres (a dot ≈ 2 m across on the field's map)
     if (this.zone) this.zoneMark(g, me, this.reach * 2, 1 / k);
+    this.hintMarks(g, 1 / k);
     for (const m of marks) this.mark(g, m, r);
     if (doll) this.dollMark(g, doll, r * 1.8);
     // You: an arrow at the centre pointing where you face (relative to the view).
@@ -121,6 +130,43 @@ export class Minimap {
     if (m.kind === "basket") {
       g.fillStyle = "#c08a4a";
       g.rect(m.x - r, m.z - r, r * 2, r * 2);
+      g.fill();
+      return;
+    }
+    if (m.kind === "goal") {
+      // A drop zone, the rally point, the gate: a gold ring its own size, a dot in the middle.
+      g.strokeStyle = "#ffd36a";
+      g.lineWidth = r * 0.55;
+      g.arc(m.x, m.z, Math.max(r * 2, m.r ?? r * 3), 0, Math.PI * 2);
+      g.stroke();
+      g.beginPath();
+      g.fillStyle = "#ffd36a";
+      g.arc(m.x, m.z, r * 0.6, 0, Math.PI * 2);
+      g.fill();
+      return;
+    }
+    if (m.kind === "flag") {
+      // A flag: a gold pennant on a pole.
+      g.fillStyle = "#ffc23a";
+      g.strokeStyle = "#000";
+      g.lineWidth = r * 0.3;
+      g.moveTo(m.x - r * 0.7, m.z + r * 1.4);
+      g.lineTo(m.x - r * 0.7, m.z - r * 1.6);
+      g.lineTo(m.x + r * 1.5, m.z - r * 0.9);
+      g.lineTo(m.x - r * 0.7, m.z - r * 0.2);
+      g.closePath();
+      g.fill();
+      g.stroke();
+      return;
+    }
+    if (m.kind === "ping") {
+      g.strokeStyle = "#ff4a3a";
+      g.lineWidth = r * 0.5;
+      g.arc(m.x, m.z, r * 2.4, 0, Math.PI * 2);
+      g.stroke();
+      g.beginPath();
+      g.fillStyle = "#ff4a3a";
+      g.arc(m.x, m.z, r, 0, Math.PI * 2);
       g.fill();
       return;
     }
@@ -140,7 +186,7 @@ export class Minimap {
       g.lineWidth = r * 0.5;
       g.stroke();
     } else {
-      g.fillStyle = m.kind === "out" ? "rgba(140,140,140,0.6)" : m.kind === "ball" ? "#ff6a2a" : "#ffffff";
+      g.fillStyle = m.kind === "out" ? "rgba(140,140,140,0.6)" : m.kind === "ball" ? "#ff6a2a" : m.kind === "mate" ? "#3ee08a" : "#ffffff";
       g.fill();
     }
   }
@@ -168,6 +214,24 @@ export class Minimap {
       g.stroke();
       g.setLineDash([]);
     }
+  }
+
+  /** The radio hints: dashed gold circles, older ones fainter. `px`: metres per pixel. */
+  private hintMarks(g: CanvasRenderingContext2D, px: number): void {
+    const n = this.hints.length;
+    this.hints.forEach((h, i) => {
+      g.beginPath();
+      g.arc(h.x, h.z, h.r, 0, Math.PI * 2);
+      g.setLineDash([4 * px, 3 * px]);
+      g.strokeStyle = i === n - 1 ? "rgba(255,200,80,0.95)" : "rgba(255,200,80,0.4)";
+      g.lineWidth = 1.4 * px;
+      g.stroke();
+      g.setLineDash([]);
+      if (i === n - 1) {
+        g.fillStyle = "rgba(255,200,80,0.12)";
+        g.fill();
+      }
+    });
   }
 
   private dollMark(g: CanvasRenderingContext2D, d: { x: number; z: number; watching: boolean }, r: number): void {
@@ -227,6 +291,7 @@ export class Minimap {
     if (t) g.drawImage(t.image, t.x0, t.z0, t.x1 - t.x0, t.z1 - t.z0);
     const r = Math.max(1.4, 3 / k);
     if (this.zone) this.zoneMark(g, { x: x0 + wide / 2, z: z0 + span / 2 }, Math.max(wide, span), 1 / k);
+    this.hintMarks(g, 1 / k);
     for (const m of marks) this.mark(g, m, r);
     if (doll) this.dollMark(g, doll, r * 1.8);
     g.setTransform(1, 0, 0, 1, 0, 0);

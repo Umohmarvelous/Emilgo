@@ -7,6 +7,12 @@
 //
 //   npm run loadtest -- --clients 1200 --seconds 90 --url ws://localhost:8787
 //
+// Free For All (SPEC-V3 Phase 4): --ffa find-the-flag puts a share of the
+// clients (--share, default all) in that mode's public queue instead: rooms of
+// 12 running the match core; they wander, sprint, swing, search and re-queue
+// after each match. Red Light, Green Light needs BALL_HAUNT=1 on the server
+// while FEATURES.ballHaunt is off.
+//
 // Run the server with MAX_PER_IP raised (every client comes from one address):
 //   MAX_PER_IP=100000 npm run server:start
 //
@@ -23,6 +29,8 @@ const CLIENTS = Number(args.get("clients") ?? 600);
 const SECONDS = Number(args.get("seconds") ?? 75);
 const URL_ = args.get("url") ?? "ws://localhost:8787";
 const HTTP = URL_.replace(/^ws/, "http");
+const FFA = args.get("ffa") ?? "";
+const SHARE = FFA ? Number(args.get("share") ?? 1) : 0;
 
 const stats = {
   connected: 0,
@@ -34,9 +42,12 @@ const stats = {
   bytesIn: 0,
   msgsIn: 0,
   snapGapMs: [] as number[],
+  matches: 0,
+  ffaGapMs: [] as number[],
 };
 
 function bot(n: number): void {
+  if (FFA && (n % 100) / 100 < SHARE) return ffaBot(n);
   const ws = new WebSocket(URL_);
   let me = -1;
   let myId = "";
@@ -142,6 +153,74 @@ function bot(n: number): void {
   }
 }
 
+/** A Free For All client: the public queue, then wandering, sprinting, swinging and searching until the match ends. */
+function ffaBot(n: number): void {
+  const ws = new WebSocket(URL_);
+  const queue = { t: "fq", m: FFA };
+  const inp = { x: 0, z: 0, b: 0, a: 0, g: 0, i: 0, k: 0 };
+  let timer: NodeJS.Timeout | null = null;
+  let lastSnap = 0;
+  let turnAt = 0;
+  const send = (o: object) => ws.readyState === 1 && ws.send(JSON.stringify(o));
+  ws.on("open", () => {
+    stats.connected++;
+    send({ t: "hello", v: NET.protocol, name: `Load ${n}` });
+  });
+  ws.on("error", () => stats.failed++);
+  ws.on("message", (data) => {
+    const raw = data.toString();
+    stats.bytesIn += raw.length;
+    stats.msgsIn++;
+    const m = JSON.parse(raw) as ServerMsg;
+    switch (m.t) {
+      case "welcome":
+        send(queue);
+        break;
+      case "ping":
+        send({ t: "pong", s: m.s });
+        break;
+      case "start":
+        if (!m.start.ffa) break;
+        stats.matches++;
+        lastSnap = 0;
+        if (timer) clearInterval(timer);
+        timer = setInterval(think, 1000 / NET.inputHz);
+        break;
+      case "msnap": {
+        const t = Date.now();
+        if (lastSnap) stats.ffaGapMs.push(t - lastSnap);
+        if (stats.ffaGapMs.length > 20000) stats.ffaGapMs.splice(0, 10000);
+        lastSnap = t;
+        break;
+      }
+      case "mev":
+        if (m.e.some((e) => e.k === "ended")) {
+          if (timer) clearInterval(timer);
+          timer = null;
+          lastSnap = 0;
+          setTimeout(() => send(queue), 1500 + Math.random() * 3000);
+        }
+        break;
+    }
+  });
+  function think(): void {
+    const t = Date.now();
+    if (t > turnAt) {
+      // A new heading every few seconds; now and then a stop.
+      turnAt = t + 1500 + Math.random() * 4000;
+      const a = Math.random() * Math.PI * 2;
+      const stop = Math.random() < 0.15;
+      inp.x = stop ? 0 : Math.round(Math.cos(a) * 100);
+      inp.z = stop ? 0 : Math.round(Math.sin(a) * 100);
+      inp.b = Math.random() < 0.4 ? 1 : 0;
+    }
+    if (Math.random() < 0.05) inp.a = ((((inp.a >> 2) + 1) & 63) << 2) | (1 + Math.floor(Math.random() * 3));
+    if (Math.random() < 0.01) inp.g = (inp.g + 1) & 255;
+    if (Math.random() < 0.04) inp.i = (inp.i + 1) & 255;
+    send({ t: "in", ...inp });
+  }
+}
+
 async function metrics(): Promise<string> {
   try {
     const r = await fetch(`${HTTP}/metrics`);
@@ -173,7 +252,12 @@ async function main(): Promise<void> {
   console.log("\n── result ──");
   console.log(`clients connected ${stats.connected}/${CLIENTS}, failed ${stats.failed}`);
   console.log(`player-rounds ${stats.rounds}: finished ${pct100(stats.finished / outcomes)} · caught ${pct100(stats.caught / outcomes)} · time up ${pct100(stats.timedOut / outcomes)}`);
-  console.log(`snapshot spacing at clients: p50 ${pct(0.5)}ms · p99 ${pct(0.99)}ms (target ${Math.round(1000 / NET.snapshotHz)}ms)`);
+  if (stats.rounds) console.log(`snapshot spacing at clients: p50 ${pct(0.5)}ms · p99 ${pct(0.99)}ms (target ${Math.round(1000 / NET.snapshotHz)}ms)`);
+  if (FFA) {
+    const fg = [...stats.ffaGapMs].sort((a, b) => a - b);
+    const fp = (p: number) => fg[Math.min(fg.length - 1, Math.floor(fg.length * p))] ?? 0;
+    console.log(`Free For All (${FFA}): player-matches ${stats.matches} · snapshot spacing p50 ${fp(0.5)}ms · p99 ${fp(0.99)}ms (target ${Math.round(1000 / NET.snapshotHz)}ms)`);
+  }
   console.log(`downstream per client: ${((stats.bytesIn / Math.max(1, stats.connected)) / SECONDS / 1024).toFixed(1)} KB/s`);
   console.log(await metrics());
   process.exit(0);

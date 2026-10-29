@@ -844,6 +844,16 @@ export class MeleeModule implements RuleModule {
   isDown(i: number): boolean {
     return this.down[i] >= 0;
   }
+
+  /** Whom body i holds in a clinch (dragging too), or −1. */
+  clinchOf(i: number): number {
+    return this.clinch[i]?.held ?? -1;
+  }
+
+  /** Body i's swing winding up (everyone sees it coming): its kind, or null. */
+  windingUp(i: number): SwingKind | null {
+    return this.windup[i]?.kind ?? null;
+  }
 }
 
 /** Names of the items melee gives an effect (content/items.ts uses it to hand them out). */

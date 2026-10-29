@@ -101,6 +101,12 @@ const P: Record<string, string> = {
   bigbag: `<rect x="3.5" y="8.5" width="17" height="11.5" rx="1.5"/><path d="M8.5 8.5V6a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v2.5M3.5 13h17M9 8.5V20M15 8.5V20"/>`,
   umbrella: `<path d="M3 12a9 9 0 0 1 18 0z"/><path d="M12 3v1M12 12v6.5a2 2 0 0 1-4 0"/>`,
   crate: `<path d="M3.5 8 12 4l8.5 4v8.5L12 20.5l-8.5-4z"/><path d="M3.5 8 12 12l8.5-4M12 12v8.5M7.8 6l8.5 4"/>`,
+  // Free For All (Phase 4): search a stash; brace; the clinch's finishers.
+  search: `<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.5 5.5"/>`,
+  brace: `<path d="M12 3.5 19.5 6v5.5c0 4.4-3.1 7.7-7.5 9-4.4-1.3-7.5-4.6-7.5-9V6z"/><path d="M8.5 12h7"/>`,
+  throw: `<circle cx="8" cy="5" r="2"/><path d="M8 7.5v6l-2.5 6M8 13.5l3 6M8 9.5l4-1.5"/><path d="M13 8.5c3-3 6.5-2.5 8-0.5M21 8l.2-3.2-3 .7"/>`,
+  trip: `<circle cx="16" cy="5" r="2"/><path d="M16 7.5l-1.5 6-4.5 2M14.5 13.5l2.5 6"/><path d="M3 20.5h9l-3-3"/>`,
+  drag: `<circle cx="17" cy="5" r="2"/><path d="M17 7.5V14l-2 6.5M17 14l2 6.5M17 9.5l-4 2"/><path d="M11 11.5H3.5M6.5 8.5l-3 3 3 3"/>`,
   bundle: `<path d="M6 11c0-2.5 2.7-4 6-4s6 1.5 6 4l1.5 7a2 2 0 0 1-2 2.5h-11a2 2 0 0 1-2-2.5z"/><path d="M10 7l-1.5-3h7L14 7"/>`,
 };
 

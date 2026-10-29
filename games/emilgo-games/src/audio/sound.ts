@@ -766,6 +766,46 @@ export class Sound {
     this.tone(hz(45) * 1.5, t + 0.5, 0.6, { type: "sawtooth", gain: 0.07, attack: 0.04 });
   }
 
+  // ── Free For All (SPEC-V3 §4, Phase 4) ─────────────────────────────────────
+
+  /** A parry: a sharp clap of forearms and a ring. */
+  parry(): void {
+    const t = this.now;
+    this.noise(t, 0.05, { gain: 0.3, freq: 3200, type: "highpass" });
+    this.tone(1250, t, 0.25, { type: "triangle", gain: 0.07, to: 1100 });
+  }
+
+  /** Down on the ground: a body's thud and the dust. `near` 0 … 1. */
+  thud(near: number): void {
+    if (near <= 0.05) return;
+    const t = this.now;
+    this.tone(62, t, 0.3, { type: "sine", gain: 0.45 * near, to: 34 });
+    this.noise(t + 0.02, 0.35, { gain: 0.12 * near, freq: 500, type: "lowpass" });
+  }
+
+  /** A flag in someone's hands: a talking-drum rise (yours: louder and higher). */
+  flag(mine: boolean): void {
+    const t = this.now;
+    const g = mine ? 0.3 : 0.14;
+    this.tone(mine ? 190 : 150, t, 0.16, { type: "sine", gain: g, to: mine ? 320 : 240 });
+    this.tone(mine ? 260 : 200, t + 0.15, 0.22, { type: "sine", gain: g * 0.8, to: mine ? 420 : 300 });
+  }
+
+  /** The radio: a burst of static and two blips (a hint is in). */
+  radio(): void {
+    const t = this.now;
+    this.noise(t, 0.35, { gain: 0.08, freq: 2000, type: "bandpass" });
+    this.tone(880, t + 0.38, 0.07, { type: "square", gain: 0.05 });
+    this.tone(1320, t + 0.48, 0.09, { type: "square", gain: 0.05 });
+  }
+
+  /** A stash spot searched and empty: a hollow knock. */
+  empty(): void {
+    const t = this.now;
+    this.tone(210, t, 0.09, { type: "triangle", gain: 0.1, to: 160 });
+    this.noise(t, 0.08, { gain: 0.05, freq: 1200, type: "bandpass" });
+  }
+
   win(): void {
     const t = this.now;
     [hz(72), hz(76), hz(79), hz(84)].forEach((f, i) =>

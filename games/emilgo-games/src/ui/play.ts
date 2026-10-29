@@ -27,13 +27,15 @@ export interface PlayHudState {
   outside: boolean;
   doomed: boolean;
   pack: readonly (ItemId | null)[];
-  /** What interact would do now. */
-  target: { kind: "item" | "bag" | "crate"; item?: ItemId; left?: number; progress: number } | null;
+  /** What interact would do now (Free For All adds: search a stash spot, pick up a street prop, named in `label`). */
+  target: { kind: "item" | "bag" | "crate" | "stash" | "prop"; item?: ItemId; left?: number; label?: string; progress: number } | null;
   effects: readonly { key: string; left: number }[];
   /** Out: seconds until back (−1: not coming back); alive: −2. */
   respawn: number;
   /** 0 … 1: a laser just hit close by. */
   heat: number;
+  /** Free For All: the mode's objective in a line ("Hold it: 6 s"), or "". */
+  objective?: string;
 }
 
 /** An item's icon. */
@@ -59,7 +61,7 @@ const EFFECT_NAME: Record<string, { item: ItemId; label: string }> = {
 };
 
 export class PlayHud {
-  readonly root = el("div", "play");
+  readonly root = el("div", "playhud");
   /** Interact pressed (true) and released (false). */
   onInteract: (down: boolean) => void = () => {};
   onUse: (slot: number) => void = () => {};
@@ -68,6 +70,7 @@ export class PlayHud {
   onPack: (open: boolean) => void = () => {};
 
   private readonly zoneLine = el("div", "pzone");
+  private readonly obj = el("div", "pobj");
   private readonly expo = el("div", "pexpo");
   private readonly expoFill = el("i");
   private readonly expoText = el("span");
@@ -90,6 +93,7 @@ export class PlayHud {
   private lastTarget = "";
   private lastFx = "";
   private lastDead = "";
+  private lastObj = "";
   private holding = false;
   private pack: readonly (ItemId | null)[] = [];
 
@@ -107,7 +111,7 @@ export class PlayHud {
     this.radial.dataset.ui = "1";
     this.radial.setAttribute("role", "dialog");
     this.radial.setAttribute("aria-label", "Backpack");
-    this.root.append(this.tint, this.heat, this.zoneLine, this.expo, this.act, this.packBtn, this.fx, this.dead, this.radial);
+    this.root.append(this.tint, this.heat, this.zoneLine, this.obj, this.expo, this.act, this.packBtn, this.fx, this.dead, this.radial);
 
     // Interact: a tap picks up; holding opens a crate.
     const down = (e: Event) => {
@@ -169,6 +173,13 @@ export class PlayHud {
       this.zoneLine.classList.toggle("closing", !!s.zone?.closing);
     }
 
+    // ── The objective ──
+    const ob = s.respawn === -2 || s.objective ? (s.objective ?? "") : "";
+    if (ob !== this.lastObj) {
+      this.lastObj = ob;
+      this.obj.textContent = ob;
+    }
+
     // ── Exposure ──
     const showExpo = s.outside || s.exposure > 0.01 || s.doomed;
     this.expo.classList.toggle("visible", showExpo && s.respawn === -2);
@@ -183,6 +194,8 @@ export class PlayHud {
     let tl = "";
     if (s.target && s.respawn === -2) {
       if (s.target.kind === "crate") tl = `crate:${t("Hold to open")}`;
+      else if (s.target.kind === "stash") tl = `stash:${t("Search")}`;
+      else if (s.target.kind === "prop") tl = `prop:${t("Pick up")} · ${s.target.label ?? ""}`;
       else if (s.target.kind === "bag") tl = `bag:${t("Take from the bag")}`;
       else tl = `item:${t("Pick up")} · ${itemName(s.target.item!)}:${s.target.item}`;
     }
@@ -191,7 +204,7 @@ export class PlayHud {
       this.act.classList.toggle("visible", !!tl);
       if (tl) {
         const [kind, label, item] = tl.split(":");
-        const ico = kind === "crate" ? "crate" : kind === "bag" ? "bundle" : ITEM_ICON[item as ItemId];
+        const ico = kind === "crate" ? "crate" : kind === "bag" || kind === "prop" ? "bundle" : kind === "stash" ? "search" : ITEM_ICON[item as ItemId];
         this.act.querySelector("svg")?.remove();
         this.act.insertAdjacentHTML("afterbegin", icon(ico, "", 18));
         this.actText.textContent = label;

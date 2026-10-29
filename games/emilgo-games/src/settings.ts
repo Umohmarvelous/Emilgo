@@ -79,6 +79,11 @@ export interface Settings {
   /** The mode and distance picked on the play screen (SPEC-V2 §2.1). */
   mode: Mode;
   distance: Distance;
+  /** The game picked on the Play screen's strip, and Free For All's mode (SPEC-V3 §9). */
+  game: "ffa" | "rlgl";
+  ffaMode: string;
+  /** The Free For All modes whose "How to play" cards you've seen (ids, comma-separated). */
+  ffaSeen: string;
   /** Light / dark mode (SPEC-V2 §6.4): full daylight, full night, or the map's own sky. */
   lightMode: "auto" | "light" | "dark";
   /** Controls (SPEC-V2 §4, §7.5): stick size and opacity, how sprint works. */
@@ -168,6 +173,9 @@ export function defaults(host: Host): Settings {
     recent: [],
     mode: "classic",
     distance: DEFAULT_DISTANCE,
+    game: "ffa",
+    ffaMode: "find-the-flag",
+    ffaSeen: "",
     lightMode: "auto",
     stickSize: "medium",
     stickOpacity: 0.8,
@@ -230,6 +238,9 @@ export function loadSettings(host: Host): Settings {
     if (out.mouseLook !== "lock" && out.mouseLook !== "stick") out.mouseLook = base.mouseLook;
     if (!MODES.includes(out.mode)) out.mode = base.mode;
     if (!DISTANCES.includes(out.distance)) out.distance = base.distance;
+    if (out.game !== "ffa" && out.game !== "rlgl") out.game = base.game;
+    if (!/^[a-z0-9-]{1,40}$/.test(out.ffaMode)) out.ffaMode = base.ffaMode;
+    if (!/^[a-z0-9,-]{0,400}$/.test(out.ffaSeen)) out.ffaSeen = base.ffaSeen;
     if (!["auto", "light", "dark"].includes(out.lightMode)) out.lightMode = base.lightMode;
     if (!["small", "medium", "large"].includes(out.stickSize)) out.stickSize = base.stickSize;
     if (!["small", "medium", "large"].includes(out.mapSize)) out.mapSize = base.mapSize;

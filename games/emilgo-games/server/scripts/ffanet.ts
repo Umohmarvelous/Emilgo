@@ -74,7 +74,7 @@ export class Phone {
   playMs = 0;
   snaps = 0;
   private waiters: { test: (m: ServerMsg) => boolean; done: (m: ServerMsg) => void }[] = [];
-  private input = { x: 0, z: 0, b: 0, i: 0 };
+  private input = { x: 0, z: 0, b: 0, i: 0, a: 0 };
 
   constructor(readonly name: string, private readonly url: string) {}
 
@@ -250,6 +250,11 @@ export class Phone {
 
   tap(): void {
     this.input.i = (this.input.i + 1) & 255;
+  }
+
+  /** A swing: 1 fist, 2 slap, 3 push. */
+  swing(kind: 1 | 2 | 3): void {
+    this.input.a = ((((this.input.a >> 2) + 1) & 63) << 2) | kind;
   }
 
   sendInput(): void {

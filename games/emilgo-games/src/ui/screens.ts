@@ -10,7 +10,8 @@ import { DISTANCES, FLOW, MODES, MODE_NAME, NET, PRACTICE, STAKED, TIME_LIMIT, b
 import { CONTROLS, RLGL_CONTROLS, unusedReason } from "../input/actions";
 import type { ChallengeDef } from "../game/progress";
 import { CATEGORIES, MAPS, SKY_LABEL, SKY_STATES, mapOf, thumbSvg, type MapCategory, type SkyState } from "../maps/registry";
-import type { GameEntry } from "../content/catalog";
+import type { GameEntry, ModeEntry } from "../content/catalog";
+import { BUILTIN_MANIFEST } from "../content/modes";
 import type { RoomInfo } from "../net/protocol";
 import type { Rank } from "../rank/ladder";
 import type { Host, Leaderboard, MatchView } from "../platform/types";
@@ -52,10 +53,44 @@ export interface ResultInfo {
   completed: string[];
 }
 
+/** The Play screen with Free For All picked (SPEC-V3 §9). */
+export interface FfaPlayState {
+  mode: PlayMode;
+  online: OnlineAvailability;
+  lagosLife: boolean;
+  error: string | null;
+  connecting: boolean;
+  games: GameEntry[];
+  /** Every Free For All mode you can see, and this week's featured ones (the public queues). */
+  modes: ModeEntry[];
+  rotation: readonly string[];
+  pick: string;
+  /** Your party, if you're in one. */
+  party: { code: string; members: { id: string; name: string }[]; lead: string; me: string } | null;
+}
+
+/** A Free For All match's results. */
+export interface FfaResultView {
+  mode: string;
+  won: boolean;
+  place: number;
+  /** Squads (or people on their own) in the match. */
+  sides: number;
+  seconds: number;
+  measure: string;
+  rows: { place: number; name: string; me: boolean; squad: number; objective: number; won: boolean }[];
+  online: "quick" | "private" | "match" | null;
+  matchNote?: string | null;
+  xp: number | null;
+  xpNote: string | null;
+  rank: Rank;
+  rankUp: boolean;
+}
+
 /** The results' XP line: what the round earned toward your rank, and where the rank stands. */
-function rankLine(r: ResultInfo): string {
+function rankLine(r: Pick<ResultInfo, "rank" | "xp" | "rankUp" | "xpNote"> & { cp?: number }): string {
   const k = r.rank;
-  const xp = r.xp === null ? `<span class="label">Counting XP…</span>` : `<span class="label">+${r.xp} XP · +${r.cp} CP</span>`;
+  const xp = r.xp === null ? `<span class="label">Counting XP…</span>` : `<span class="label">+${r.xp} XP${r.cp !== undefined ? ` · +${r.cp} CP` : ""}</span>`;
   const bar = `<span class="bar gold"><i style="width:${k.top ? 100 : Math.round((k.into / k.need) * 100)}%"></i></span>`;
   const name = `<span class="label">${esc(k.name)}${r.rankUp ? " · Rank up" : ""}</span>`;
   return `${xp}${bar}${name}${r.xpNote ? `<span class="small">${esc(r.xpNote)}</span>` : ""}`;
@@ -631,6 +666,133 @@ export class Screens {
     });
   }
 
+  /** The Play screen, Free For All picked: how to play (queue, room, practice, stakes), which mode, your party. */
+  playFfa(s: FfaPlayState): void {
+    const off = (m: PlayMode) => (m === "solo" ? false : m === "lagos" ? !s.lagosLife || s.online !== "ready" : s.online !== "ready");
+    const info: Record<PlayMode, { name: string; sub: string; icon: string; tag: string }> = {
+      new: { name: "Quick match", sub: "This week's featured modes · 12 players", icon: "people", tag: "Online" },
+      friends: { name: "Private room", sub: "Any mode you've unlocked, with your people", icon: "invite", tag: "Online" },
+      solo: { name: "Practice", sub: "Naija World on your own: learn the moves", icon: "target", tag: "Alone" },
+      lagos: { name: "Lagos Life match", sub: "The Flag Duel · 2–4 players · optional stakes", icon: "trophy", tag: "Stakes" },
+    };
+    const order: PlayMode[] = ["new", "friends", "solo", "lagos"];
+    const modes = order
+      .filter((m) => m !== "lagos" || s.lagosLife)
+      .map((m) => {
+        const i = info[m];
+        return `<button class="md ${s.mode === m ? "on" : ""}" data-act="pick-mode" data-mode="${m}" ${off(m) ? "disabled" : ""}>${icon(i.icon, "", 20)}<span class="grow"><b>${i.name}</b><small>${off(m) && s.online !== "ready" ? (s.online === "offline" ? "You're offline" : "Coming soon in this build") : i.sub}</small></span><span class="tag">${i.tag}</span></button>`;
+      })
+      .join("");
+    const games = s.games
+      .map((g) => `<button class="gm ${g.id === "ffa" ? "on" : ""}" data-act="pick-game" data-g="${g.id}" ${g.state === "play" ? "" : "disabled"}>${esc(g.name)}${g.state === "play" ? "" : `<span class="soon">${g.state === "locked" ? "Locked" : "Soon"}</span>`}</button>`)
+      .join("");
+    // Which modes this way of playing offers: the queue has only the featured ones.
+    const list = s.mode === "new" ? s.modes.filter((e) => s.rotation.includes(e.def.id)) : s.modes;
+    const picked = list.find((e) => e.def.id === s.pick && e.state === "play") ?? list.find((e) => e.state === "play") ?? null;
+    const seg = list
+      .map((e) => {
+        const why = e.state === "locked" ? `${icon("lock", "", 11)}${esc(e.unlocksAt ?? "")}` : e.state === "soon" ? "Soon" : "";
+        return `<button class="${picked && e.def.id === picked.def.id ? "on" : ""}" data-act="ffa-mode" data-m="${esc(e.def.id)}" ${e.state === "play" ? "" : "disabled"}>${esc(e.def.name.en)}${why ? `<small>${why}</small>` : ""}</button>`;
+      })
+      .join("");
+    const party = s.party;
+    const lead = !party || party.lead === party.me;
+    const partyBox =
+      s.mode === "new" || s.mode === "friends"
+        ? party
+          ? `<div class="label">Party · <span class="num">${esc(party.code)}</span></div>
+             <span class="small">${party.members.map((p) => esc(p.name) + (p.id === party.lead ? " (leader)" : "")).join(", ")}</span>
+             ${lead ? "" : `<span class="small">The leader picks the game.</span>`}
+             <button class="btn secondary" style="height:30px;padding:0 10px;align-self:flex-start" data-act="party-leave">Leave the party</button>`
+          : `<div class="label">Party</div><span class="small">Up to 4: one squad, matched together.</span>
+             <div class="row"><button class="btn secondary" style="height:30px;padding:0 10px" data-act="party-make">${icon("invite", "", 14)}Make a party</button></div>
+             <form class="join party-join"><input name="pcode" maxlength="${NET.codeLength}" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="PARTY CODE" aria-label="Party code" /><button class="btn secondary" type="button" data-act="party-join">Join</button></form>`
+        : "";
+    const join =
+      s.mode === "friends" && !off("friends")
+        ? `<form class="join room-join" style="margin-top:8px"><input name="code" maxlength="${NET.codeLength}" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ROOM CODE" aria-label="Room code" /><button class="btn secondary" type="button" data-act="join">Join</button></form>`
+        : "";
+    const p = picked?.def;
+    const card =
+      s.mode === "lagos"
+        ? `<div class="label">Lagos Life match</div><span class="small">The Flag Duel on the market: the first to find the hidden flag and hold it for 10 s wins. Melee, the zone and items are on. Every staked match plays the same.</span>`
+        : `<div class="label">Mode</div><div class="seg wrap ffa-modes">${seg || `<span class="small">No mode here yet.</span>`}</div>
+           ${p ? `<span class="small">${esc(p.blurb.en)} ${p.players.min === p.players.max ? `${p.players.max} players` : `${p.players.min}–${p.players.max} players`}${p.players.squad[1] > 1 ? `, squads of ${p.players.squad[0] === p.players.squad[1] ? p.players.squad[0] : `up to ${p.players.squad[1]}`}` : ""}, ${Math.round(p.time / 60)} min.</span>` : ""}`;
+    const label = s.mode === "friends" ? "Make a room" : s.mode === "solo" ? "Practice" : s.mode === "lagos" ? "Stakes" : "Find a match";
+    const blocked = off(s.mode) || s.connecting || (s.mode !== "lagos" && !picked) || (s.mode === "new" && !lead);
+    const node = this.mount(
+      "play",
+      `<div class="playscreen">
+        <div class="head"><button class="ibtn glass" data-act="back" aria-label="Back">${icon("back")}</button><span class="h">Play</span><span class="grow"></span></div>
+        <div class="games">${games}</div>
+        <div class="modes">${modes}${join}
+          ${s.error ? `<div class="status error" role="alert">${esc(s.error)}</div>` : ""}
+          ${s.connecting ? `<div class="status">Connecting…</div>` : ""}
+        </div>
+        <div class="side">
+          <div class="glass mapcard">
+            <div class="row"><b>Naija World</b></div>
+            <span class="small">One city, 400 × 400 m: market streets and the bus park in the east, compounds, farms and the river in the west. The zone closes in; the sky hunts whoever is outside it.</span>
+          </div>
+          <div class="glass gamecard">${card}${partyBox}</div>
+        </div>
+        <div class="start"><button class="btn secondary" data-act="ffa-tutorial">${icon("help", "", 16)}How to play</button><button class="btn primary" data-act="go" ${blocked ? "disabled" : ""}>${label}</button></div>
+      </div>`,
+      "dim",
+    );
+    for (const form of node.querySelectorAll("form")) {
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const btn = form.querySelector<HTMLElement>("[data-act]");
+        if (btn) this.onAction(btn.dataset.act!, btn, e);
+      });
+    }
+  }
+
+  /** A Free For All match's results: your place, everyone's, the XP. */
+  ffaResults(r: FfaResultView, plates: { name: string; line: string; me: boolean }[], returnIn: number): void {
+    const head = r.won ? "Victory" : r.place > 0 ? `${ordinal(r.place)} of ${r.sides}` : "Match over";
+    const primary =
+      r.online === "match"
+        ? `<button class="btn primary" data-act="vmenu" autofocus>${icon("trophy", "", 16)}Another match</button>`
+        : r.online === "private"
+          ? `<button class="btn primary" data-act="room" autofocus>${icon("back", "", 16)}Back to the room</button>`
+          : r.online === "quick"
+            ? `<button class="btn primary" data-act="ffa-again" autofocus>${icon("bolt", "", 16)}Play again</button>`
+            : `<button class="btn primary" data-act="ffa-again" autofocus>${icon("refresh", "", 16)}Practice again</button>`;
+    // The top five, and you (wherever you came).
+    const mine = r.rows.findIndex((x) => x.me);
+    const shown = r.rows.filter((_, i) => i < 5 || i === mine);
+    const rows = shown
+      .map((x) => `<tr class="${x.me ? "me" : ""}"><td class="num">${x.place}</td><td>${esc(x.name)}${x.me ? " · You" : ""}</td><td class="num">${r.measure ? (Number.isInteger(x.objective) ? x.objective : x.objective.toFixed(1)) : ""}</td></tr>`)
+      .join("");
+    this.mount(
+      "results",
+      `<div class="pm-head"><span class="h">${esc(r.mode)}</span><span class="sub ${r.won ? "win" : "lose"}">${head}</span></div>
+       <div class="pm-return glass" data-return>${returnIn > 0 ? `Returning to lobby in <span class="num">${returnIn}</span>` : ""}</div>
+       <div class="pm-plates">${plates
+         .map((p, i) => `<div class="plate glass" data-plate="${i}" style="left:-999px"><span class="pl">${i + 1}</span><span class="pn"><b>${esc(p.name)}${p.me ? " · You" : ""}</b><small class="num">${esc(p.line)}</small></span></div>`)
+         .join("")}</div>
+       <div class="pm-card glass">
+         <table class="ffa-table"><thead><tr><th>#</th><th>Player</th><th>${esc(r.measure)}</th></tr></thead><tbody>${rows}</tbody></table>
+         <div class="pm-xp" data-rank-line>${r.online ? rankLine(r) : `<span class="small">Practice: no XP. Play online to rank up.</span>`}</div>
+         ${r.online === "match" ? `<div class="status" data-match-outcome>${esc(r.matchNote ?? "Sending the result to Lagos Life…")}</div>` : ""}
+         <div class="pm-actions">
+           ${primary}
+           <button class="btn secondary" data-act="menu">${icon("home", "", 16)}${r.online ? "Leave" : "Lobby"}</button>
+         </div>
+       </div>`,
+    );
+  }
+
+  /** The server's XP for a Free For All match arrived after its results went up. */
+  updateFfaRank(r: FfaResultView): void {
+    const el = this.root.querySelector<HTMLElement>("[data-rank-line]");
+    if (!el || !r.online) return;
+    el.innerHTML = rankLine(r);
+    translateTree(el);
+  }
+
   maps(selected: string, cat: MapCategory): void {
     const tabs = CATEGORIES.map((c) => `<button class="tab ${c.id === cat ? "on" : ""}" data-act="mapcat" data-cat="${c.id}">${esc(c.label)}</button>`).join("");
     const tiles = MAPS.filter((x) => x.category === cat)
@@ -859,7 +1021,7 @@ export class Screens {
     this.mount(
       "room",
       `<div class="sq-head">
-         <span class="label">${room.kind === "match" && room.stake ? `${naira(room.stake)} each` : `${MODE_NAME[room.mode]} · ${room.dist} m`}</span>
+         <span class="label">${room.kind === "match" && room.stake ? `${naira(room.stake)} each` : room.ffa ? `${esc(BUILTIN_MANIFEST.modes.find((d) => d.id === room.ffa)?.name.en ?? "Free For All")} · ${t("Naija World")}` : `${MODE_NAME[room.mode]} · ${room.dist} m`}</span>
          <span class="h">${title}</span>
          ${room.code && room.kind !== "match" ? `<div style="display:flex;gap:6px;align-items:center"><span class="code" style="padding:6px 10px;font-size:14px">${esc(room.code)}</span><button class="ibtn glass" data-act="copy-code" aria-label="Copy code">${icon("copy", "", 18)}</button></div>` : ""}
        </div>
@@ -921,7 +1083,7 @@ export class Screens {
     }
     if (room.state === "playing") return "A round is running. You'll join the next one.";
     if (room.state === "ended") return "Round over. Back in a moment…";
-    if (room.players.length < 2) return room.kind === "private" ? "Share the code. It starts when everyone's ready." : "Waiting for more players…";
+    if (room.players.length < 2) return room.kind === "private" ? "Share the code. It starts when everyone's ready." : room.ffa ? `Finding players… (${room.players.length}/${room.size})` : "Waiting for more players…";
     if (room.startsAt) {
       const s = Math.max(0, Math.ceil((room.startsAt - serverNow) / 1000));
       return s > 0 ? `Starting in ${s}s, or when everyone's ready` : "Here we go";

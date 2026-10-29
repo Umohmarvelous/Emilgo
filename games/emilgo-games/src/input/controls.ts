@@ -19,6 +19,13 @@
 // V first person, Q/E look, T chat, G emotes, Y quick chat, 1/2/3 fist/slap/
 // push, F grab, Tab scoreboard (hold), M map, K kill feed, Esc/P pause.
 // Nothing is hover-only (Lagos Life review checklist §03).
+//
+// Free For All (layout "ffa", SPEC-V3 §4): the bottom-centre buttons are
+// always there in play — fist, slap, push, grab and brace (held); while you
+// hold someone in a clinch, fist, slap and push become Throw, Trip and Drag.
+// Keys: F fist, R slap, X push, Q grab, Ctrl brace (held), E interact (hold
+// to open a crate), B the backpack, 1–0 use a slot (Shift: drop it); with
+// the mouse taken, left click a fist and right click a brace (held).
 
 import { gameSize, toGame } from "../ui/rotate";
 import { ATTACK_KINDS, type AttackKind, type Stance } from "../config";
@@ -76,6 +83,21 @@ export class Controls {
   /** Attack requests: (count << 2) | kind (1 fist, 2 slap, 3 push). Grab requests: a count. */
   attacks = 0;
   grabs = 0;
+  /** Which game the buttons and keys are for. */
+  layout: "rlgl" | "ffa" = "rlgl";
+  /** Free For All: brace held (button, Ctrl or the right mouse button). */
+  get brace(): boolean {
+    return this.braceKey || this.braceTouch || this.braceMouse;
+  }
+  private braceKey = false;
+  private braceTouch = false;
+  private braceMouse = false;
+  private finisher = false;
+  /** Free For All: interact pressed and released (E). */
+  onInteract: ((down: boolean) => void) | null = null;
+  /** Free For All: the backpack (B), and a slot used or dropped (1–0, Shift). */
+  onPack: (() => void) | null = null;
+  onSlot: ((slot: number, drop: boolean) => void) | null = null;
   readonly actions: HTMLDivElement;
   /** Above the move stick: sprint, with your stamina round it (SPEC-V2 §3.2). */
   readonly moveSide: HTMLDivElement;
@@ -83,6 +105,7 @@ export class Controls {
   readonly vitals: HTMLDivElement;
   private readonly attackBtns: HTMLButtonElement[] = [];
   private readonly grabBtn: HTMLButtonElement;
+  private readonly braceBtn: HTMLButtonElement;
   readonly chatBtn: HTMLButtonElement;
   private readonly jumpBtn: HTMLButtonElement;
   private readonly crouchBtn: HTMLButtonElement;
@@ -163,6 +186,7 @@ export class Controls {
     };
     for (const k of ATTACK_KINDS) this.attackBtns.push(vbtn(k, k[0].toUpperCase() + k.slice(1)));
     this.grabBtn = vbtn("grab", "Grab the ball");
+    this.braceBtn = vbtn("brace", "Brace (hold)");
 
     const press = (b: HTMLElement, down: (e: PointerEvent) => void, up?: (e: PointerEvent) => void) => {
       b.addEventListener("pointerdown", (e) => {
@@ -188,6 +212,11 @@ export class Controls {
     press(this.jumpBtn, () => this.jump());
     ATTACK_KINDS.forEach((k, i) => press(this.attackBtns[i], () => this.attack(k)));
     press(this.grabBtn, () => this.grab());
+    press(
+      this.braceBtn,
+      () => (this.braceTouch = true),
+      () => (this.braceTouch = false),
+    );
     press(
       this.sprintBtn,
       () => (this.sprintMode === "hold" ? this.setSprint(true) : this.setSprint(!this.sprint)),
@@ -234,6 +263,15 @@ export class Controls {
     window.addEventListener("blur", () => this.reset());
     surface.addEventListener("contextmenu", (e) => e.preventDefault());
     document.addEventListener("mousemove", this.lockedMove);
+    // Free For All with the mouse taken: left click a fist, right click a brace.
+    document.addEventListener("mousedown", (e) => {
+      if (!this.locked || !this.on || this.layout !== "ffa") return;
+      if (e.button === 0) this.attack("fist");
+      else if (e.button === 2) this.braceMouse = true;
+    });
+    document.addEventListener("mouseup", (e) => {
+      if (e.button === 2) this.braceMouse = false;
+    });
     document.addEventListener("pointerlockchange", () => this.onPointerLock?.(this.locked));
   }
 
@@ -343,10 +381,26 @@ export class Controls {
     this.placeLookHome();
   }
 
-  /** Which bottom-centre buttons apply right now: someone in reach to attack, a ball to grab. */
+  /** Which bottom-centre buttons apply right now: someone in reach to attack, a ball to grab (Free For All: brace with the attacks). */
   setNear(attack: boolean, grab: boolean): void {
     for (const b of this.attackBtns) if (b.hidden === attack) b.hidden = !attack;
     if (this.grabBtn.hidden === grab) this.grabBtn.hidden = !grab;
+    const brace = attack && this.layout === "ffa";
+    if (this.braceBtn.hidden === brace) this.braceBtn.hidden = !brace;
+    this.grabBtn.setAttribute("aria-label", this.layout === "ffa" ? "Grab (clinch)" : "Grab the ball");
+  }
+
+  /** Free For All: holding someone, the attacks finish the clinch (fist Throw, slap Trip, push Drag). */
+  setFinisher(on: boolean): void {
+    if (on === this.finisher) return;
+    this.finisher = on;
+    const names = on ? (["throw", "trip", "drag"] as const) : ATTACK_KINDS;
+    this.attackBtns.forEach((b, i) => {
+      const k = names[i];
+      b.innerHTML = icon(k, "", 24);
+      b.setAttribute("aria-label", k[0].toUpperCase() + k.slice(1));
+      b.classList.toggle("finish", on);
+    });
   }
 
   attack(kind: AttackKind): void {
@@ -389,6 +443,8 @@ export class Controls {
     this.mouseLook = null;
     this.keys.clear();
     this.shiftSprint = false;
+    this.braceKey = this.braceTouch = this.braceMouse = false;
+    this.setFinisher(false);
     this.setSprint(false);
     this.setStance(0);
     this.placeLookHome();
@@ -421,7 +477,8 @@ export class Controls {
     m.el.classList.toggle("sprint", this.sprint && m.id !== null);
 
     const l = this.sticks.look;
-    const kl = (this.key("e") ? 1 : 0) - (this.key("q") ? 1 : 0);
+    // Q and E turn the camera in Red Light, Green Light; Free For All gives them to grab and interact.
+    const kl = this.layout === "ffa" ? 0 : (this.key("e") ? 1 : 0) - (this.key("q") ? 1 : 0);
     this.look.x = this.enabled ? kl || l.x : 0;
     this.look.y = this.enabled ? l.y : 0;
   }
@@ -577,6 +634,10 @@ export class Controls {
     if (!this.enabled) return;
     if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(k)) e.preventDefault();
     if (e.repeat) return;
+    if (this.layout === "ffa" && this.ffaKey(e, k, true)) {
+      this.keys.add(k);
+      return;
+    }
     if (k === " ") this.jump();
     else if (k === "shift") {
       this.shiftSprint = true;
@@ -605,6 +666,7 @@ export class Controls {
     const k = e.key.toLowerCase();
     this.keys.delete(k);
     if (!this.enabled) return;
+    if (this.layout === "ffa") this.ffaKey(e, k, false);
     if (k === "tab") this.onScoreboard?.(false);
     if (k === "shift") {
       this.shiftSprint = false;
@@ -614,4 +676,27 @@ export class Controls {
       if (performance.now() - this.crouchDownAt < PRONE_HOLD_MS) this.setStance(this.stance === 0 ? 1 : 0);
     }
   };
+
+  /** Free For All's own keys (true: taken). */
+  private ffaKey(e: KeyboardEvent, k: string, down: boolean): boolean {
+    if (k === "control") {
+      this.braceKey = down;
+      return true;
+    }
+    if (k === "e") {
+      this.onInteract?.(down);
+      return true;
+    }
+    if (!down) return false;
+    if (k === "f") this.attack("fist");
+    else if (k === "r") this.attack("slap");
+    else if (k === "x") this.attack("push");
+    else if (k === "q") this.grab();
+    else if (k === "b") this.onPack?.();
+    else if (/^digit\d$/.test(e.code.toLowerCase())) {
+      const d = Number(e.code.slice(5));
+      this.onSlot?.(d === 0 ? 9 : d - 1, e.shiftKey);
+    } else return false;
+    return true;
+  }
 }

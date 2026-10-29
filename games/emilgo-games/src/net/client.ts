@@ -51,6 +51,14 @@ export class NetClient {
   private sentA = 0;
   private wantG = 0;
   private sentG = 0;
+  /** Free For All (protocol 12): brace held, the interact counter | held << 8, the backpack counter. */
+  private wantBrace = false;
+  private sentBrace = false;
+  private wantI = 0;
+  private sentI = 0;
+  private wantK = 0;
+  private sentK = 0;
+  private match = false;
   private lastInputAt = 0;
   private inputTimer = 0;
   private connectWaiters: { ok: () => void; no: (e: Error) => void }[] = [];
@@ -145,7 +153,8 @@ export class NetClient {
   setInput(x: number, z: number): void {
     this.wantX = Math.round(Math.max(-1, Math.min(1, x)) * 100);
     this.wantZ = Math.round(Math.max(-1, Math.min(1, z)) * 100);
-    const buttons = this.wantB !== this.sentB || this.wantJ !== this.sentJ || this.wantA !== this.sentA || this.wantG !== this.sentG;
+    const buttons =
+      this.wantB !== this.sentB || this.wantJ !== this.sentJ || this.wantA !== this.sentA || this.wantG !== this.sentG || this.wantBrace !== this.sentBrace || this.wantI !== this.sentI || this.wantK !== this.sentK;
     if (this.wantX === this.sentX && this.wantZ === this.sentZ && !buttons) return;
     // Stops and buttons go at once: a late stop, jump, crouch or punch is a lost round.
     const stop = (this.wantX === 0 && this.wantZ === 0) || buttons;
@@ -172,10 +181,22 @@ export class NetClient {
     this.setInput(this.wantX / 100, this.wantZ / 100);
   }
 
+  /** Free For All's buttons: brace held, the interact counter and whether it's held, the backpack's counter. Sent at once when they change. */
+  setMatchButtons(brace: boolean, interact: number, hold: boolean, pack: number): void {
+    this.match = true;
+    this.wantBrace = brace;
+    this.wantI = (interact & 255) | (hold ? 256 : 0);
+    this.wantK = pack;
+    this.setInput(this.wantX / 100, this.wantZ / 100);
+  }
+
   resetInput(): void {
     this.wantX = this.wantZ = 0;
     this.wantB = 0;
-    if (this.sentX || this.sentZ || this.sentB) this.flushInput();
+    this.wantBrace = false;
+    this.wantI &= 255;
+    if (this.sentX || this.sentZ || this.sentB || this.sentBrace || this.sentI !== this.wantI) this.flushInput();
+    this.match = false;
   }
 
   private flushInput(): void {
@@ -187,8 +208,13 @@ export class NetClient {
     this.sentJ = this.wantJ;
     this.sentA = this.wantA;
     this.sentG = this.wantG;
+    this.sentBrace = this.wantBrace;
+    this.sentI = this.wantI;
+    this.sentK = this.wantK;
     this.lastInputAt = performance.now();
-    this.send({ t: "in", x: this.sentX, z: this.sentZ, b: this.sentB, j: this.sentJ, a: this.sentA, g: this.sentG });
+    const b = this.sentB | (this.sentBrace ? 8 : 0);
+    if (this.match) this.send({ t: "in", x: this.sentX, z: this.sentZ, b, j: this.sentJ, a: this.sentA, g: this.sentG, i: this.sentI, k: this.sentK });
+    else this.send({ t: "in", x: this.sentX, z: this.sentZ, b, j: this.sentJ, a: this.sentA, g: this.sentG });
   }
 
   // ── Socket ─────────────────────────────────────────────────────────────────
