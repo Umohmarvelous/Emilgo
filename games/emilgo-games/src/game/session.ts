@@ -597,6 +597,7 @@ export class Game {
       daily: daily.map((def, i) => ({ def, progress: this.settings.daily.progress[i] ?? 0 })),
       mode: this.playMode,
       badge: this.settings.badge && !!this.shop?.owned.has("badge_gold"),
+      ffa: this.settings.game === "ffa" || !FEATURES.ballHaunt ? (this.ffaPick()?.name.en ?? "Free For All") : null,
     });
     this.stage.setFraming("center");
   }

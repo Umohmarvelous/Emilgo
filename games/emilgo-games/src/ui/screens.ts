@@ -137,6 +137,8 @@ export interface LobbyState {
   daily: { def: ChallengeDef; progress: number }[];
   mode: PlayMode;
   badge: boolean;
+  /** Free For All's mode on the card (its name), or null for Ball Haunt. */
+  ffa: string | null;
 }
 
 type Action = (name: string, el: HTMLElement, ev: Event) => void;
@@ -172,6 +174,9 @@ const MODE_INFO: Record<PlayMode, { name: string; sub: string; icon: string }> =
   solo: { name: "Play Solo vs AI", sub: `Practice with ${PRACTICE.bots} CPU players · works offline`, icon: "target" },
   lagos: { name: "Lagos Life match", sub: "2–4 players · optional stakes", icon: "trophy" },
 };
+
+/** Naija World's thumbnail: a market skyline at midday. */
+const NAIJA_THUMB = { ...mapOf("market-square"), id: "naijaworld", colors: ["#6fa8dc", "#f3d9a4", "#8a7a5c", "#3b2a1e", "#f4a259"] } as const satisfies ReturnType<typeof mapOf>;
 
 
 
@@ -298,6 +303,15 @@ export class Screens {
   }
 
   private modeCard(s: LobbyState): string {
+    if (s.ffa !== null) {
+      return `<button class="modecard glass" data-act="mode" aria-label="Change mode">
+      <span class="thumb">${thumbSvg(NAIJA_THUMB)}</span>
+      ${icon("swap", "", 18)}
+      <span class="txt art-t"><span class="label">Free For All</span>
+      <b>${esc(s.ffa)}</b>
+      <span class="small">${t("Naija World")}</span></span>
+    </button>`;
+    }
     const map = mapOf(s.settings.map);
     const mode = MODE_INFO[s.mode];
     return `<button class="modecard glass" data-act="mode" aria-label="Change mode and map">
