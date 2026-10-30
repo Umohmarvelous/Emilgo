@@ -457,6 +457,7 @@ export class FfaMode implements GameMode {
       objective: m.phase === "play" ? this.view.objectiveLine(m, this.src.measures) || this.modes6.objectiveLine(m) : "",
       car: car.panel,
       smoke: inSmoke,
+      riddle: this.modes6.riddle(m),
     };
     const { pin } = this.ms.update(dt, m, cam, this.marks, extra);
     const { goal: flagGoal } = this.view.update(dt, m, h.camera, this.marks, h.rig.firstPerson && target === me);
@@ -557,6 +558,7 @@ function measureName(m: Match): string {
   if (m.module("tag")) return "Seconds human";
   if (m.module("blackout")) return "Seconds unfound";
   if (m.module("economy")) return "Owo banked";
+  if (m.module("riddles")) return "Riddles solved";
   if (m.module<CaptureModule>("capture")) return "Seconds in the rally point";
   if (!f) return "";
   if (f.claimHold > 0) return "Longest hold (s)";

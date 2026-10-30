@@ -45,6 +45,8 @@ export interface PlayHudState {
   car?: { fuel: number; state: number; blowIn: number; hijack: boolean; radio: string } | null;
   /** Inside a Smoke Pot's cloud: the screen greys (Phase 6). */
   smoke?: boolean;
+  /** Riddles of the Elders: the newest riddle you haven't solved (its language, then English beneath), and your count. */
+  riddle?: { text: string; en: string; solved: number; need: number } | null;
 }
 
 /** An item's icon. */
@@ -94,6 +96,8 @@ export class PlayHud {
   private readonly fx = el("div", "pfx");
   private readonly tint = el("div", "ptint");
   private readonly smoke = el("div", "psmoke");
+  private readonly riddle = el("div", "priddle glass");
+  private lastRiddle = "";
   private readonly heat = el("div", "pheat");
   private readonly dead = el("div", "pdead");
   /** In a car: the tank, its state, the warnings. */
@@ -130,7 +134,7 @@ export class PlayHud {
     this.car.innerHTML = `${icon("fuel", "", 14)}<b class="tank"></b>`;
     this.car.querySelector(".tank")!.append(this.carFuel);
     this.car.append(this.carText);
-    this.root.append(this.smoke, this.tint, this.heat, this.zoneLine, this.obj, this.expo, this.car, this.carWarn, this.act, this.packBtn, this.fx, this.dead, this.radial);
+    this.root.append(this.smoke, this.riddle, this.tint, this.heat, this.zoneLine, this.obj, this.expo, this.car, this.carWarn, this.act, this.packBtn, this.fx, this.dead, this.radial);
 
     // Interact: a tap picks up; holding opens a crate.
     const down = (e: Event) => {
@@ -180,6 +184,22 @@ export class PlayHud {
 
   update(s: PlayHudState): void {
     this.smoke.classList.toggle("visible", !!s.smoke);
+    const r = s.respawn === -2 ? (s.riddle ?? null) : null;
+    const rs = r ? `${r.text}|${r.en}|${r.solved}/${r.need}` : "";
+    if (rs !== this.lastRiddle) {
+      this.lastRiddle = rs;
+      this.riddle.classList.toggle("visible", !!r);
+      if (r) {
+        this.riddle.innerHTML = "";
+        const head = el("b");
+        head.textContent = `${t("The Elders ask")} · ${r.solved}/${r.need}`;
+        const main = el("span");
+        main.textContent = r.text;
+        const en = el("small");
+        en.textContent = r.en;
+        this.riddle.append(head, main, ...(r.en && r.en !== r.text ? [en] : []));
+      }
+    }
     // ── Your car ──
     const c = s.respawn === -2 ? (s.car ?? null) : null;
     this.car.classList.toggle("visible", !!c);

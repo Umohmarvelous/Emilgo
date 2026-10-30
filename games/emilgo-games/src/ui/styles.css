@@ -850,6 +850,12 @@ input { font: inherit; color: inherit; }
 /* Inside a Smoke Pot's cloud. */
 .playhud .psmoke { position: absolute; inset: 0; opacity: 0; background: radial-gradient(ellipse at center, rgba(214, 206, 192, 0.72) 20%, rgba(190, 182, 168, 0.95) 100%); transition: opacity 0.6s; pointer-events: none; }
 .playhud .psmoke.visible { opacity: 1; }
+/* Riddles of the Elders: the riddle, under the objective line. */
+.playhud .priddle { position: absolute; left: 50%; top: calc(var(--safe-t) + 146px); transform: translateX(-50%); width: min(360px, calc(100% - 320px)); display: none; flex-direction: column; gap: 2px; padding: 6px 10px; border-radius: 10px; text-align: center; pointer-events: none; }
+.playhud .priddle.visible { display: flex; }
+.playhud .priddle b { font: 700 9px/1.2 var(--head); letter-spacing: 0.08em; text-transform: uppercase; color: #ffd36a; }
+.playhud .priddle span { font: 600 12px/1.3 var(--head); color: #fff; }
+.playhud .priddle small { font: 500 10px/1.3 var(--head); color: rgba(255,255,255,0.7); }
 /* Over heads: the Wobble meter (near), a brace's shield, a squad mate's diamond, the flag's holder. */
 .ffa-heads { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .fhead { position: absolute; left: 0; top: 0; display: none; flex-direction: column; align-items: center; gap: 2px; }

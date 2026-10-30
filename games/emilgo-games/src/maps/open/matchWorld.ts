@@ -77,5 +77,6 @@ export function matchWorldOf(layout: OpenLayout, space: Space, map = layout.id):
   if (arena && spawns.length < 4) spawns = [...spawns, ...layout.spawns.filter(([x, z]) => !inArena(x, z, 0.85)).sort((a, b) => Math.hypot(a[0] - arena.x, a[1] - arena.z) - Math.hypot(b[0] - arena.x, b[1] - arena.z)).slice(0, 4 - spawns.length)];
   const roads = layout.roads.map((r) => ({ x0: r.x0, z0: r.z0, x1: r.x1, z1: r.z1, w: r.w }));
   const generators = layout.placements.filter((p) => p.prefab === "generator" && inArena(p.x, p.z)).map((p) => ({ x: p.x, z: p.z }));
-  return { space, spawns, places, stash, route: NAIJA_ROUTE, roads, fuel: fuelStands(layout), generators, ...(arena ? { arena } : {}) };
+  const named = [...layout.landmarks.map((l) => ({ id: l.id, x: l.x, z: l.z, r: 18 })), ...layout.areas.map((a) => ({ id: a.id, x: a.x, z: a.z, r: a.r }))];
+  return { space, spawns, places, stash, route: NAIJA_ROUTE, roads, fuel: fuelStands(layout), generators, named, ...(arena ? { arena } : {}) };
 }

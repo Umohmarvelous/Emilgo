@@ -16,6 +16,8 @@ import type { ItemsModule } from "../../src/game/modules/items";
 import type { MeleeModule } from "../../src/game/modules/melee";
 import type { BlackoutModule } from "../../src/game/modules/blackout";
 import type { EconomyModule } from "../../src/game/modules/economy";
+import type { RiddlesModule } from "../../src/game/modules/riddles";
+import { RIDDLES, shownLangs } from "../../src/content/riddles";
 import type { TagModule } from "../../src/game/modules/tag";
 import { matchWorldOf } from "../../src/maps/open/matchWorld";
 import { matchXp } from "../../src/rank/xp";
@@ -497,6 +499,51 @@ console.log("Hustle:");
   eco.banked[1] = 10;
   const ev = runFor(m, 4);
   check(ev.some((e) => e.type === "won" && e.id === "p2"), "time up: the most Owo banked wins");
+}
+
+console.log("Riddles of the Elders:");
+{
+  // The drafts in Yoruba, Igbo and Hausa never show until reviewed.
+  const drafts = RIDDLES.filter((r) => r.text.yo || r.text.ig || r.text.ha);
+  check(drafts.length > 0 && drafts.every((r) => shownLangs(r, ["yo", "ig", "ha", "pcm"]).every((l) => l === "pcm")), `${drafts.length} riddles have Yoruba/Igbo/Hausa drafts: none shows before a fluent speaker reviews it`);
+  check(RIDDLES.every((r) => world.named!.some((p) => p.id === r.answer)), `every riddle's answer is a place in Naija World (${RIDDLES.length})`);
+  const m = newMatch(51, bare("riddles-elders", (x) => ((x.modules.riddles as Record<string, unknown>).every = 30)), 3);
+  runFor(m, 0.1);
+  const rd = m.module<RiddlesModule>("riddles")!;
+  check(rd.asked.length >= rd.need && rd.tokens.length >= rd.asked.length && !!rd.bench, `${rd.asked.length} riddles, ${rd.tokens.length} kola-nut tokens, the bench`);
+  const ev = runFor(m, 30);
+  check(ev.some((e) => e.type === "riddle" && e.k === 0) && rd.shown >= 1, "a riddle is asked");
+  clear(m, ["p0", "p1"]);
+  // A wrong token: locked out for a while.
+  const k0 = rd.asked[0].riddle.answer;
+  const wrong = rd.tokens.find((tk) => tk.place !== k0 && !rd.asked.slice(0, rd.shown).some((a) => a.riddle.answer === tk.place))!;
+  put(m, "p1", wrong.x + 0.5, wrong.z);
+  m.setInteract("p1", 1, false);
+  const ev2 = runFor(m, 0.1);
+  check(ev2.some((e) => e.type === "token" && e.id === "p1" && !e.right) && rd.locked[1] > m.elapsed + rd.wrongCost - 1, `a wrong kola nut: no tokens for ${rd.wrongCost} s`);
+  const right = rd.tokens.find((tk) => tk.place === k0)!;
+  put(m, "p1", right.x + 0.5, right.z);
+  m.setInteract("p1", 2, false);
+  runFor(m, 0.1);
+  check(rd.count(1) === 0, "… not even the right one");
+  // The right token: solved.
+  put(m, "p0", right.x + 0.5, right.z);
+  m.setInteract("p0", 1, false);
+  const ev3 = runFor(m, 0.1);
+  check(ev3.some((e) => e.type === "token" && e.id === "p0" && e.right) && rd.count(0) === 1, "the place the riddle points at: solved");
+  // Enough solved, back to the bench: won.
+  runFor(m, rd.asked[rd.need - 1].at - m.elapsed + 0.1);
+  let press = 2;
+  for (let k = 1; k < rd.need; k++) {
+    const tk = rd.tokens.find((x) => x.place === rd.asked[k].riddle.answer)!;
+    put(m, "p0", tk.x + 0.5, tk.z);
+    m.setInteract("p0", ++press, false);
+    runFor(m, 0.1);
+  }
+  check(rd.count(0) === rd.need, `${rd.need} solved`);
+  put(m, "p0", rd.bench!.x + 1, rd.bench!.z);
+  const ev4 = runFor(m, 0.2);
+  check(ev4.some((e) => e.type === "won" && e.id === "p0"), "back at the Elders' Bench: won");
 }
 
 void MELEE;

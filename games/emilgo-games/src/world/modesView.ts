@@ -10,6 +10,8 @@
 //   Hustle            the job stations (a signboard on a post, in its job's
 //                     colour; grey while it rests or is broken), the Esusu
 //                     boxes, spilled Owo, your delivery's drop; Owo on the HUD
+//   Riddles           kola-nut tokens on little stools, the Elders' Bench
+//                     under the baobab; the riddle on the HUD
 //
 // Each mode's things are one instanced draw.
 
@@ -35,14 +37,15 @@ import {
 import type { Sound } from "../audio/sound";
 import type { Match } from "../game/core/match";
 import type { MatchEvent } from "../game/core/module";
-import { BLACKOUT, ECONOMY, type JobKind } from "../config";
+import { BLACKOUT, ECONOMY, RIDDLES_CFG, type JobKind } from "../config";
 import type { BlackoutModule } from "../game/modules/blackout";
 import type { EconomyModule } from "../game/modules/economy";
+import type { RiddlesModule } from "../game/modules/riddles";
 import type { TagModule } from "../game/modules/tag";
 import type { Hud, ItemPin } from "../ui/hud";
 import type { PlayHudState } from "../ui/play";
 import type { MapMark } from "../ui/minimap";
-import { t } from "../ui/i18n";
+import { getLang, t } from "../ui/i18n";
 import type { Crowd } from "./crowd";
 import { merge, part } from "./geo";
 
@@ -85,6 +88,22 @@ function boxGeometry(): BufferGeometry {
   ]);
 }
 
+function kolaGeometry(): BufferGeometry {
+  return merge([
+    part(new CylinderGeometry(0.22, 0.25, 0.45, 8), 0x6d4c41, { p: [0, 0.22, 0] }),
+    part(new IcosahedronGeometry(0.08, 0), 0xa0522d, { p: [-0.05, 0.5, 0], s: [1, 0.7, 1.2] }),
+    part(new IcosahedronGeometry(0.08, 0), 0xc87941, { p: [0.05, 0.5, 0.01], s: [1, 0.7, 1.2] }),
+  ]);
+}
+
+function benchGeometry(): BufferGeometry {
+  return merge([
+    part(new CylinderGeometry(0.06, 0.06, 0.45, 6), 0x5d4037, { p: [-1.1, 0.22, 0] }),
+    part(new CylinderGeometry(0.06, 0.06, 0.45, 6), 0x5d4037, { p: [1.1, 0.22, 0] }),
+    part(new CylinderGeometry(0.2, 0.2, 2.6, 8), 0x8d6e63, { p: [0, 0.5, 0], r: [0, 0, Math.PI / 2], s: [1, 1, 0.6] }),
+  ]);
+}
+
 function charmGeometry(): BufferGeometry {
   return merge([
     part(new TorusGeometry(0.16, 0.035, 6, 14), 0xffc23a, { p: [0, 0.32, 0] }),
@@ -104,6 +123,8 @@ export class ModesView {
   private readonly boxes: InstancedMesh;
   private readonly sacks: InstancedMesh;
   private readonly drop: InstancedMesh;
+  private readonly kola: InstancedMesh;
+  private readonly bench: InstancedMesh;
   private readonly glows: InstancedMesh;
   /** Lights Out: how dark the city is now (eased), and whether a rival's lamp is on you. */
   dim = 0;
@@ -132,6 +153,8 @@ export class ModesView {
     this.boxes = make(boxGeometry(), new MeshLambertMaterial({ vertexColors: true }), ECONOMY.banks);
     this.sacks = make(new IcosahedronGeometry(0.22, 0), new MeshLambertMaterial({ color: 0xffc23a, emissive: new Color(0x4a3200) }), 24);
     this.drop = make(new CylinderGeometry(1, 1, 1, 24, 1, true).translate(0, 0.5, 0), new MeshBasicMaterial({ color: 0xffd36a, transparent: true, opacity: 0.35, blending: AdditiveBlending, depthWrite: false, side: DoubleSide }), 1);
+    this.kola = make(kolaGeometry(), new MeshLambertMaterial({ vertexColors: true }), 24);
+    this.bench = make(benchGeometry(), new MeshLambertMaterial({ vertexColors: true }), 1);
   }
 
   events(list: readonly MatchEvent[], m: Match): void {
@@ -164,6 +187,12 @@ export class ModesView {
           if (c && c !== me) hud.pushFeed(`${c.name} ${t("sabotaged a station")}`, "info");
         } else if (e.how === "lost" && e.id === me.id) hud.pushFeed(t("Your job is lost"), "out");
         else if (e.how === "take" && e.id === me.id) hud.pushFeed(t("Take it to the gold ring"), "info");
+      } else if (e.type === "riddle") {
+        hud.pushFeed(t("The Elders have a new riddle"), "info");
+        this.o.sound?.radio();
+      } else if (e.type === "token" && e.id === me.id) {
+        if (e.right) hud.pushFeed(t("Right! The Elders nod"), "safe");
+        else hud.pushFeed(t("Wrong kola nut: wait 20 s"), "out");
       } else if (e.type === "found") {
         const a = m.get(e.id);
         const b = m.get(e.tg);
@@ -276,6 +305,25 @@ export class ModesView {
       this.drop.count = to ? 1 : 0;
       this.drop.instanceMatrix.needsUpdate = true;
     }
+    const rd = m.module<RiddlesModule>("riddles");
+    if (rd) {
+      rd.tokens.forEach((tk, i) => {
+        _m.makeTranslation(tk.x, tk.h, tk.z);
+        this.kola.setMatrixAt(i, _m);
+        marks.push({ x: tk.x, z: tk.z, kind: "crate" });
+      });
+      this.kola.count = Math.min(24, rd.tokens.length);
+      this.kola.instanceMatrix.needsUpdate = true;
+      if (rd.bench) {
+        _m.makeTranslation(rd.bench.x, rd.bench.h, rd.bench.z);
+        this.bench.setMatrixAt(0, _m);
+        this.bench.count = 1;
+        this.bench.instanceMatrix.needsUpdate = true;
+        marks.push({ x: rd.bench.x, z: rd.bench.z, kind: "goal", r: RIDDLES_CFG.bench });
+        // Enough solved: the compass points home.
+        if (rd.count(me.index) >= rd.need) pin = { x: rd.bench.x, z: rd.bench.z, kind: "goal" };
+      }
+    }
     const bo = m.module<BlackoutModule>("blackout");
     if (bo) {
       const dark = bo.cut(m);
@@ -310,10 +358,33 @@ export class ModesView {
     return { pin };
   }
 
+  /** The riddle card: the newest you haven't solved (its language, English beneath). */
+  riddle(m: Match): PlayHudState["riddle"] {
+    const rd = m.module<RiddlesModule>("riddles");
+    const me = m.contestants[this.o.me];
+    if (!rd || m.phase !== "play") return null;
+    const open = rd.open(me.index);
+    const solved = rd.count(me.index);
+    if (solved >= rd.need) return { text: t("Back to the Elders' Bench under the baobab!"), en: "", solved, need: rd.need };
+    if (!open.length) return { text: t("Wait for the Elders' next riddle"), en: "", solved, need: rd.need };
+    const a = rd.asked[open[open.length - 1]];
+    const lang = getLang() === "en" ? "en" : a.lang;
+    return { text: a.riddle.text[lang] ?? a.riddle.text.pcm, en: lang === "en" ? "" : a.riddle.text.en, solved, need: rd.need };
+  }
+
   /** What interact would do at a Hustle station or box, and how far it is (the nearest thing wins). */
   target(m: Match): (NonNullable<PlayHudState["target"]> & { d: number }) | null {
     const eco = m.module<EconomyModule>("economy");
     const me = m.contestants[this.o.me];
+    const rd = m.module<RiddlesModule>("riddles");
+    if (rd && me.status === "alive" && !m.seated(me)) {
+      let best: (NonNullable<PlayHudState["target"]> & { d: number }) | null = null;
+      for (const tk of rd.tokens) {
+        const d = Math.hypot(tk.x - me.x, tk.z - me.z);
+        if (d <= RIDDLES_CFG.reach && (!best || d < best.d)) best = { kind: "job", label: m.elapsed < rd.locked[me.index] ? `${t("Wait")} ${Math.ceil(rd.locked[me.index] - m.elapsed)} s` : t("Take the kola nut"), progress: 0, d };
+      }
+      if (best) return best;
+    }
     if (!eco || me.status !== "alive" || m.seated(me)) return null;
     let best: (NonNullable<PlayHudState["target"]> & { d: number }) | null = null;
     const take = (d: number, label: string, progress = 0) => {

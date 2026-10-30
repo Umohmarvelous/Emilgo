@@ -517,6 +517,15 @@ export const ECONOMY = {
 
 export type JobKind = keyof typeof ECONOMY.jobs;
 
+/** Riddles of the Elders (SPEC-V3 §9 #9; Phase 6). */
+export const RIDDLES_CFG = {
+  /** Take a token from this close; the bench counts from this close. */
+  reach: 2.2,
+  bench: 4,
+  /** Kola-nut tokens at places that answer nothing, as well as the answers. */
+  decoys: 5,
+} as const;
+
 /**
  * Lights Out (SPEC-V3 §9 #10; Phase 6). Your lamp lights a cone in front of
  * you; a rival kept in it (in sight) for the mode's `findHold` is found.

@@ -107,7 +107,12 @@ export type MatchEvent =
   | { type: "owo"; id: string; carried: number; banked: number; why: "job" | "bank" | "spill" | "pick" | "bounty" }
   /** Spilled Owo on the ground (a bag), and scooped up. */
   | { type: "spill"; bag: number; x: number; z: number; h: number; owo: number }
-  | { type: "scoop"; bag: number; id: string };
+  | { type: "scoop"; bag: number; id: string }
+  // ── Riddles of the Elders (Phase 6, riddles.ts) ──
+  /** Riddle k is asked (its id in content/riddles.ts, the language it's asked in). */
+  | { type: "riddle"; k: number; id: string; lang: string }
+  /** A kola-nut token taken: the right answer to riddle k, or wrong (no tokens for a while). */
+  | { type: "token"; id: string; token: number; riddle: number; right: boolean };
 
 /** Why someone went down: melee's reasons, then a car's (pulled out, thrown by a blast, out at speed). */
 export type DownWhy = "daze" | "trip" | "tackle" | "throw" | "ringout" | "hijack" | "blast" | "tumble";
