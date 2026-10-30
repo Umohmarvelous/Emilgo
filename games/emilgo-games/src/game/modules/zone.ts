@@ -15,6 +15,7 @@ import { ZONE } from "../../config";
 import { ITEM_DEFS } from "../../content/items";
 import type { Match } from "../core/match";
 import type { MatchEvent, RuleModule } from "../core/module";
+import type { VehiclesModule } from "./vehicles";
 
 export interface Circle {
   x: number;
@@ -101,16 +102,21 @@ export class ZoneModule implements RuleModule {
     }
     this.at(t, this.now);
 
+    const cars = m.module<VehiclesModule>("vehicles");
     for (const c of m.contestants) {
       const i = c.index;
       if (c.status !== "alive") continue;
+      // Driving fast, the sky can't see you: nothing builds, and a laser already coming misses.
+      const hidden = !!cars && cars.hidden(m, c);
       if (this.doom[i] >= 0) {
         if (t >= this.doom[i]) {
           this.doom[i] = -1;
-          m.eliminate(c, "zone");
+          if (hidden) m.emit({ type: "dodge", id: c.id });
+          else m.eliminate(c, "zone");
         }
         continue;
       }
+      if (hidden) continue;
       const dx = c.x - this.now.x;
       const dz = c.z - this.now.z;
       const out = dx * dx + dz * dz > this.now.r * this.now.r;

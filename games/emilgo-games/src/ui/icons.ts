@@ -101,6 +101,11 @@ const P: Record<string, string> = {
   bigbag: `<rect x="3.5" y="8.5" width="17" height="11.5" rx="1.5"/><path d="M8.5 8.5V6a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v2.5M3.5 13h17M9 8.5V20M15 8.5V20"/>`,
   umbrella: `<path d="M3 12a9 9 0 0 1 18 0z"/><path d="M12 3v1M12 12v6.5a2 2 0 0 1-4 0"/>`,
   crate: `<path d="M3.5 8 12 4l8.5 4v8.5L12 20.5l-8.5-4z"/><path d="M3.5 8 12 12l8.5-4M12 12v8.5M7.8 6l8.5 4"/>`,
+  // Vehicles (Phase 5): a car, its horn, its radio, a jerrycan.
+  car: `<path d="M4 15.5V12l2-4.5h12l2 4.5v3.5z"/><path d="M4 12h16M7.5 7.5l-1 4.5M16.5 7.5l1 4.5"/><circle cx="7.5" cy="16.5" r="1.8"/><circle cx="16.5" cy="16.5" r="1.8"/>`,
+  horn: `<path d="M4 10v4h3l7 4V6l-7 4z"/><path d="M17 9.5c1 .8 1 4.2 0 5M19.5 7.5c2 1.8 2 7.2 0 9"/>`,
+  radio: `<rect x="3.5" y="8" width="17" height="11.5" rx="2"/><path d="M7 8 16.5 4"/><circle cx="15.5" cy="13.75" r="2.6"/><path d="M6.5 12h4M6.5 15.5h4"/>`,
+  fuel: `<path d="M6 6.5h8.5l3 3V20H6z"/><path d="M8.5 6.5V4h4v2.5M17.5 9.5 20 7M9.5 12.5l5 5M14.5 12.5l-5 5"/>`,
   // Free For All (Phase 4): search a stash; brace; the clinch's finishers.
   search: `<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.5 5.5"/>`,
   brace: `<path d="M12 3.5 19.5 6v5.5c0 4.4-3.1 7.7-7.5 9-4.4-1.3-7.5-4.6-7.5-9V6z"/><path d="M8.5 12h7"/>`,

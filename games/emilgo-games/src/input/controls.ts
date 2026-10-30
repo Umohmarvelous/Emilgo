@@ -26,6 +26,10 @@
 // Keys: F fist, R slap, X push, Q grab, Ctrl brace (held), E interact (hold
 // to open a crate), B the backpack, 1–0 use a slot (Shift: drop it); with
 // the mouse taken, left click a fist and right click a brace (held).
+//
+// In a car (vehicles, Phase 5): the stick drives; jump is the horn (Space);
+// sprint, crouch and the emotes go; a radio button (N) changes the station;
+// slap (R) shows only while someone is pulling at your door.
 
 import { gameSize, toGame } from "../ui/rotate";
 import { ATTACK_KINDS, type AttackKind, type Stance } from "../config";
@@ -111,6 +115,10 @@ export class Controls {
   private readonly crouchBtn: HTMLButtonElement;
   private readonly sprintBtn: HTMLButtonElement;
   private readonly emoteBtn: HTMLButtonElement;
+  private readonly radioBtn: HTMLButtonElement;
+  private driving: "driver" | "rider" | null = null;
+  /** In a car: the radio's next station. */
+  onRadio: (() => void) | null = null;
   readonly quickBtn: HTMLButtonElement;
   private readonly stamRing: SVGCircleElement;
   /** The stick's radius in px (Settings: small, medium, large). */
@@ -187,6 +195,7 @@ export class Controls {
     for (const k of ATTACK_KINDS) this.attackBtns.push(vbtn(k, k[0].toUpperCase() + k.slice(1)));
     this.grabBtn = vbtn("grab", "Grab the ball");
     this.braceBtn = vbtn("brace", "Brace (hold)");
+    this.radioBtn = vbtn("radio", "Radio");
 
     const press = (b: HTMLElement, down: (e: PointerEvent) => void, up?: (e: PointerEvent) => void) => {
       b.addEventListener("pointerdown", (e) => {
@@ -210,6 +219,7 @@ export class Controls {
       b.addEventListener("pointercancel", end);
     };
     press(this.jumpBtn, () => this.jump());
+    press(this.radioBtn, () => this.onRadio?.());
     ATTACK_KINDS.forEach((k, i) => press(this.attackBtns[i], () => this.attack(k)));
     press(this.grabBtn, () => this.grab());
     press(
@@ -388,6 +398,36 @@ export class Controls {
     const brace = attack && this.layout === "ffa";
     if (this.braceBtn.hidden === brace) this.braceBtn.hidden = !brace;
     this.grabBtn.setAttribute("aria-label", this.layout === "ffa" ? "Grab (clinch)" : "Grab the ball");
+  }
+
+  /**
+   * In a car (or out: null). The driver's jump is the horn; a rider has no
+   * jump; sprint, crouch and the emotes go; the radio comes. `slap`: someone
+   * is pulling at your door, so the slap shows.
+   */
+  setDriving(mode: "driver" | "rider" | null, slap: boolean): void {
+    if (mode !== this.driving) {
+      this.driving = mode;
+      this.jumpBtn.innerHTML = icon(mode === "driver" ? "horn" : "jump", "", 26);
+      this.jumpBtn.setAttribute("aria-label", mode === "driver" ? "Horn" : "Jump");
+      this.jumpBtn.hidden = mode === "rider";
+      this.crouchBtn.hidden = !!mode;
+      this.sprintBtn.hidden = !!mode;
+      this.emoteBtn.hidden = !!mode;
+      if (mode) {
+        this.setSprint(false);
+        this.setStance(0);
+      }
+    }
+    if (this.radioBtn.hidden === !!mode) this.radioBtn.hidden = !mode;
+    if (mode) {
+      this.attackBtns.forEach((b, i) => {
+        const on = slap && ATTACK_KINDS[i] === "slap";
+        if (b.hidden === on) b.hidden = !on;
+      });
+      if (!this.grabBtn.hidden) this.grabBtn.hidden = true;
+      if (!this.braceBtn.hidden) this.braceBtn.hidden = true;
+    }
   }
 
   /** Free For All: holding someone, the attacks finish the clinch (fist Throw, slap Trip, push Drag). */
@@ -693,6 +733,7 @@ export class Controls {
     else if (k === "x") this.attack("push");
     else if (k === "q") this.grab();
     else if (k === "b") this.onPack?.();
+    else if (k === "n" && this.driving) this.onRadio?.();
     else if (/^digit\d$/.test(e.code.toLowerCase())) {
       const d = Number(e.code.slice(5));
       this.onSlot?.(d === 0 ? 9 : d - 1, e.shiftKey);

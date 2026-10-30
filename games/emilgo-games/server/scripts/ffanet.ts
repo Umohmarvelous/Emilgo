@@ -11,6 +11,9 @@
 //      the server's log and agrees with the others.
 //   4. At the end the server pays XP (guests: shown, not kept), the winner most.
 //   5. A mode a guest's rank hasn't opened is refused, in the queue and as a private room.
+//   6. Vehicles (Phase 5): the phone nearest a car walks to its driver's door,
+//      gets in and drives off; every phone's copy agrees it is driving, and
+//      where the car is (protocol 13's car snapshots).
 
 import WebSocket from "ws";
 
@@ -19,8 +22,10 @@ import { BUILTIN_MANIFEST } from "../../src/content/modes";
 import { Match, settingsOf } from "../../src/game/core/match";
 import type { Reach } from "../../src/game/core/reach";
 import type { FlagsModule } from "../../src/game/modules/flags";
+import { doorPoint } from "../../src/game/modules/drive";
 import type { ItemsModule } from "../../src/game/modules/items";
-import { decodeEvent, MATCH_PHASES, MSNAP_STRIDE, type MatchSnap, type MatchSync, type WireEvent } from "../../src/net/matchWire";
+import type { VehiclesModule } from "../../src/game/modules/vehicles";
+import { CAR_STRIDE, decodeEvent, MATCH_PHASES, MSNAP_STRIDE, type MatchSnap, type MatchSync, type WireEvent } from "../../src/net/matchWire";
 import type { ServerMsg, StartInfo } from "../../src/net/protocol";
 import { worldFor } from "../src/ffa";
 
@@ -199,6 +204,18 @@ export class Phone {
       c.h = m.world.space.floorAt(c.x, c.z, hy + 0.05).h;
       c.y = Math.max(0, hy - c.h);
     }
+    const v = m.module<VehiclesModule>("vehicles");
+    if (v && s.v) {
+      for (const car of v.cars) {
+        const k = car.index * CAR_STRIDE;
+        if (!car || k + CAR_STRIDE > s.v.length) continue;
+        car.x = s.v[k] / 100;
+        car.z = s.v[k + 1] / 100;
+        car.heading = s.v[k + 2] / 100;
+        car.speed = s.v[k + 3] / 100;
+        car.fuel = s.v[k + 4] / 10;
+      }
+    }
   }
 
   me() {
@@ -328,6 +345,27 @@ export async function online(url: string, check: Check): Promise<number> {
     let rejoined = false;
     let agree = false;
     const late = phones[10];
+    // The driver: whoever (not the phone that drops, not the party) starts nearest a car's driver door.
+    const cars = () => lead.match!.module<VehiclesModule>("vehicles")!.cars;
+    let driver: Phone | null = null;
+    let door: [number, number] = [0, 0];
+    let bestDoor = Infinity;
+    for (const p of phones.slice(2, 10)) {
+      const c = p.me()!;
+      for (const car of cars()) {
+        const d = doorPoint(car, 0);
+        const dist = Math.hypot(d[0] - c.x, d[1] - c.z);
+        if (dist < bestDoor) {
+          bestDoor = dist;
+          driver = p;
+          door = d;
+        }
+      }
+    }
+    const doorField = field(reach, door[0], door[1]);
+    const parked = cars().map((c) => [c.x, c.z]);
+    let droveAt = -1;
+    let carSeen = false;
     const t0 = Date.now();
     let told = 0;
     while (!phones.every((p) => p.ended) && Date.now() - t0 < 300_000) {
@@ -350,6 +388,37 @@ export async function online(url: string, check: Check): Promise<number> {
         if (p === late && dropped && !rejoined) continue;
         const c = p.me();
         if (!c || !p.match) continue;
+        // The driver: to the door, in, and away down the road for a few seconds.
+        if (p === driver && droveAt < 0) {
+          const seated = p.match.seatOf(c) >= 0;
+          if (seated) {
+            const car = cars()[p.match.seatOf(c)];
+            p.stick(Math.sin(car.heading), Math.cos(car.heading));
+            if (car.speed > 4 && droveAt < 0) droveAt = m.elapsed;
+          } else if (Math.hypot(door[0] - c.x, door[1] - c.z) < 1.2) {
+            p.stick(0, 0);
+            p.tap();
+          } else p.steer(doorField);
+          p.sendInput();
+          continue;
+        }
+        if (p === driver && m.elapsed - droveAt > 3 && !carSeen) {
+          // Stopped: does every phone see the same?
+          await sleep(300);
+          const seat = p.match.seatOf(c);
+          const where = phones.filter((q) => q.match && !(q === late && dropped && !rejoined)).map((q) => q.match!.module<VehiclesModule>("vehicles")!.cars[Math.max(0, seat)]);
+          const moved = seat >= 0 && Math.hypot(where[0].x - parked[seat][0], where[0].z - parked[seat][1]) > 3;
+          const same = where.every((w) => Math.hypot(w.x - where[0].x, w.z - where[0].z) < 1.5);
+          const seen = phones.every((q) => !q.match || (q === late && dropped && !rejoined) || q.match.seatOf(q.match.get(p.seat)!) === seat);
+          const spread = Math.max(...where.map((w) => Math.hypot(w.x - where[0].x, w.z - where[0].z)));
+          ok(moved && same && seen, `a phone walked to a car (${bestDoor.toFixed(0)} m), got in and drove off: every copy agrees it's driving, and where` + (moved && same && seen ? "" : ` (seat ${seat}, moved ${seat >= 0 ? Math.hypot(where[0].x - parked[seat][0], where[0].z - parked[seat][1]).toFixed(1) : "-"} m, copies ${spread.toFixed(2)} m apart, all see it seated: ${seen})`));
+          carSeen = true;
+        }
+        if (p === driver && p.match.seatOf(c) >= 0) {
+          p.stick(0, 0);
+          p.sendInput();
+          continue;
+        }
         if (f.holder === c.index) p.stick(0, 0);
         else if (f.holder >= 0) p.stick(0, 0);
         else {
@@ -396,6 +465,7 @@ export async function online(url: string, check: Check): Promise<number> {
       }
     }
     ok(rejoined && agree, "a phone that dropped and came back rebuilt its copy from the server's log: it agrees with the others");
+    if (!carSeen) ok(false, `a phone walked to a car and drove off (the match ended first: ${droveAt >= 0 ? "it drove" : "it never got in"})`);
     const winner = lead.won;
     const holder = winner ? phones.find((p) => p.seat === winner) : null;
     ok(phones.every((p) => p.ended) && !!holder, `the flag found and held 10 s: ${holder?.name ?? "nobody"} won (${(lead.playMs / 1000).toFixed(0)} s of play)`);

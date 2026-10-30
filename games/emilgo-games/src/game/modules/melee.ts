@@ -31,7 +31,7 @@ import type { ItemId } from "../../content/items";
 import { knock } from "../combat";
 import type { Contestant } from "../core/body";
 import type { Match } from "../core/match";
-import type { MatchEvent, RuleModule } from "../core/module";
+import type { DownWhy, MatchEvent, RuleModule } from "../core/module";
 import type { ItemsModule } from "./items";
 
 export type PropId = "chair" | "bucket" | "broom" | "pestle" | "bench" | "slipper";
@@ -179,9 +179,10 @@ export class MeleeModule implements RuleModule {
     }
     for (const c of m.contestants) {
       const i = c.index;
-      if (c.status !== "alive") {
+      if (c.status !== "alive" || m.seated(c)) {
         c.attackSeen = c.inAttack;
         c.grabSeen = c.inGrab;
+        if (m.seated(c)) this.brace[i] = false;
         continue;
       }
       // Getting up: then a moment no hit lands.
@@ -321,7 +322,25 @@ export class MeleeModule implements RuleModule {
 
   private hittable(m: Match, o: Contestant): boolean {
     const i = o.index;
-    return o.status === "alive" && this.down[i] < 0 && this.immune[i] < m.elapsed && this.heldBy[i] < 0;
+    return o.status === "alive" && this.down[i] < 0 && this.immune[i] < m.elapsed && this.heldBy[i] < 0 && !m.seated(o);
+  }
+
+  /**
+   * Something that isn't a swing knocks tg about (a car's bump, a blast):
+   * the knockback and the wobble, which can Daze. True: they were Dazed.
+   */
+  shove(m: Match, tg: Contestant, dx: number, dz: number, dist: number, stun: number, wobble: number): boolean {
+    if (tg.status !== "alive" || this.down[tg.index] >= 0) return false;
+    knock(tg, dx, dz, dist, stun);
+    if (wobble <= 0) return false;
+    const dazed = this.gain(m, tg, wobble, -1);
+    if (dazed) this.knockdown(m, tg, MELEE.daze, "daze", null);
+    return dazed;
+  }
+
+  /** In a car: can't, while down, held or holding someone. */
+  busy(i: number): boolean {
+    return this.down[i] >= 0 || this.heldBy[i] >= 0 || !!this.clinch[i] || !!this.windup[i];
   }
 
   /** Where o was `lag` seconds ago (never more than MELEE.rewind), for an attacker with that lag. */
@@ -469,7 +488,7 @@ export class MeleeModule implements RuleModule {
    * Down on the ground for `s`: can't move or be hit, and whatever is in their
    * hands drops (the modules that own it hear "down"). Then a moment's immunity.
    */
-  knockdown(m: Match, tg: Contestant, s: number, why: "daze" | "trip" | "tackle" | "throw" | "ringout", by: Contestant | null): void {
+  knockdown(m: Match, tg: Contestant, s: number, why: DownWhy, by: Contestant | null): void {
     const j = tg.index;
     if (tg.status !== "alive") return;
     this.release(j);
@@ -604,6 +623,10 @@ export class MeleeModule implements RuleModule {
     for (const c of m.contestants) {
       const i = c.index;
       if (c.status !== "alive") continue;
+      if (m.seated(c)) {
+        this.floorWas[i] = c.h;
+        continue;
+      }
       // A clinch: the held body stays in front of the grabber; it breaks after a while, or by escaping a drag.
       const cl = this.clinch[i];
       if (cl) {

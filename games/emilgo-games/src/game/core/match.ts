@@ -47,6 +47,10 @@ export interface MatchWorld {
   readonly stash?: readonly { x: number; z: number; h: number }[];
   /** Squad Rally's route: down the middle of the main roads, a loop. */
   readonly route?: readonly (readonly [number, number])[];
+  /** The roads (vehicles start on them, and a Danfo Key calls one to the nearest). */
+  readonly roads?: readonly { x0: number; z0: number; x1: number; z1: number; w: number }[];
+  /** The fuel boys' stands by the roadside (a car stopped beside one gets a top-up, once a match each). */
+  readonly fuel?: readonly { x: number; z: number; rot: number }[];
   /** A mode played on part of the world (the Flag Duel): that circle is the zone's first. */
   readonly arena?: { x: number; z: number; r: number };
 }
@@ -154,6 +158,8 @@ export class Match {
   private readonly fast: (BoostMods | null)[];
   private readonly respawnAt: number[];
   private readonly respawnRng: Rng;
+  /** The car each body sits in (vehicles), or −1. */
+  private readonly seats: Int16Array;
 
   constructor(opts: MatchOptions) {
     this.seed = opts.seed;
@@ -213,6 +219,7 @@ export class Match {
     this.base = this.contestants.map((c) => c.bst);
     this.fast = new Array(n).fill(null);
     this.respawnAt = new Array(n).fill(-1);
+    this.seats = new Int16Array(n).fill(-1);
 
     this.modules = makeModules(opts.settings.modules);
     for (const m of this.modules) this.byModule.set(m.id, m);
@@ -271,6 +278,20 @@ export class Match {
   /** Two different bodies on the same squad. */
   sameSquad(a: Contestant, b: Contestant): boolean {
     return a !== b && this.squads[a.index] === this.squads[b.index];
+  }
+
+  /** In a car (vehicles): the car moves them, nothing else does, and nobody can hit them. */
+  seated(c: Contestant): boolean {
+    return this.seats[c.index] >= 0;
+  }
+
+  seatOf(c: Contestant): number {
+    return this.seats[c.index];
+  }
+
+  /** Into car `car` (vehicles only), or out (−1). */
+  setSeat(c: Contestant, car: number): void {
+    this.seats[c.index] = car;
   }
 
   /** Bodies per squad number. */
@@ -490,7 +511,10 @@ export class Match {
     for (const c of this.contestants) {
       if (!this.takePress(c) || c.status !== "alive") continue;
       let best: { d: number; take: () => void } | null = null;
+      // In a car, the only thing in reach is the door.
+      const seated = this.seated(c);
       for (const m of this.modules) {
+        if (seated && m.id !== "vehicles") continue;
         const r = m.reachFor?.(this, c);
         if (r && (!best || r.d < best.d)) best = r;
       }
@@ -562,7 +586,7 @@ export class Match {
       }
       const k = this.mul[i];
       this.mul[i] = 1;
-      if (c.status !== "alive") continue;
+      if (c.status !== "alive" || this.seats[i] >= 0) continue;
       this.move(c, dt, k, space);
     }
     this.separate();
@@ -574,7 +598,7 @@ export class Match {
    * would give it this step (a brace, a flag held, a clinch).
    */
   predict(c: Contestant, dt: number, k = 1): void {
-    if (c.status === "alive") this.move(c, dt, k, this.world.space);
+    if (c.status === "alive" && this.seats[c.index] < 0) this.move(c, dt, k, this.world.space);
   }
 
   private move(c: Contestant, dt: number, k: number, space: Space): void {
@@ -610,7 +634,7 @@ export class Match {
     if (cells.size > 4096) cells.clear();
     const key = (q: number, r: number) => (q + 2048) * 4096 + (r + 2048);
     for (const c of list) {
-      if (c.status !== "alive") continue;
+      if (c.status !== "alive" || this.seats[c.index] >= 0) continue;
       const k = key(Math.floor(c.x), Math.floor(c.z));
       let b = cells.get(k);
       if (!b) cells.set(k, (b = []));
@@ -621,7 +645,7 @@ export class Match {
     pushed.length = list.length;
     pushed.fill(false);
     for (const a of list) {
-      if (a.status !== "alive") continue;
+      if (a.status !== "alive" || this.seats[a.index] >= 0) continue;
       const q = Math.floor(a.x);
       const r = Math.floor(a.z);
       for (let dq = -1; dq <= 1; dq++) {

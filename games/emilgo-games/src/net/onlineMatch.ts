@@ -10,7 +10,9 @@
 //                 server moves you (knocked down, held in a clinch, your own
 //                 shoulder charge) you follow it instead.
 //   Everyone else INTERPOLATED: drawn NET.interpDelayMs in the past, between
-//                 two snapshots.
+//                 two snapshots. Cars too (protocol 13), except the one you
+//                 drive: it is predicted like your body (drive.ts), and
+//                 riders sit in their seats wherever their car is drawn.
 //   Everything    ONLY the server decides: the match's events arrive as they
 //   else          happen and are applied to the copy (Match.applyRemote), then
 //                 handed to the screen in the same order.
@@ -22,9 +24,11 @@ import { Match, settingsOf, type MatchWorld } from "../game/core/match";
 import type { MatchEvent } from "../game/core/module";
 import type { CaptureModule } from "../game/modules/capture";
 import type { FlagsModule } from "../game/modules/flags";
+import { driveCar, wrap, type Car } from "../game/modules/drive";
 import type { MeleeModule } from "../game/modules/melee";
+import type { VehiclesModule } from "../game/modules/vehicles";
 import type { NetClient } from "./client";
-import { decodeEvent, MATCH_PHASES, MSNAP_STRIDE, unpackMeter, type FfaStart, type MatchSnap, type MatchSync, type WireEvent } from "./matchWire";
+import { CAR_STRIDE, decodeEvent, MATCH_PHASES, MSNAP_STRIDE, unpackMeter, type FfaStart, type MatchSnap, type MatchSync, type WireEvent } from "./matchWire";
 import { unpackFlags, type ServerMsg, type StartInfo } from "./protocol";
 
 const SNAP_KEEP = 24;
@@ -35,6 +39,8 @@ interface Hist {
   t: number;
   x: number;
   z: number;
+  /** The car you drive: its heading then. */
+  h?: number;
 }
 
 /** The mode a start names, if this build has the same version of it (else the copy would disagree). */
@@ -56,6 +62,10 @@ export class OnlineMatch {
 
   private readonly melee: MeleeModule | null;
   private readonly flags: FlagsModule | null;
+  private readonly cars: VehiclesModule | null;
+  /** The car you drive: where it was (predicted), and the gap to the server still to close. */
+  private readonly carHist: Hist[] = [];
+  private carCorr = { x: 0, z: 0, h: 0 };
   private readonly snaps: MatchSnap[] = [];
   private readonly hist: Hist[] = [];
   private corrX = 0;
@@ -90,6 +100,7 @@ export class OnlineMatch {
     this.measures = new Array(this.match.contestants.length).fill(0);
     this.melee = this.match.module<MeleeModule>("melee");
     this.flags = this.match.module<FlagsModule>("flags");
+    this.cars = this.match.module<VehiclesModule>("vehicles");
     // A rejoin: every event so far, straight into the copy (the screen sees only what comes after).
     this.events(log);
     this.match.drain();
@@ -154,7 +165,10 @@ export class OnlineMatch {
     const m = this.match;
     m.step(dt);
     const me = this.me;
-    if (me && me.status === "alive" && m.phase === "play") {
+    const car = this.driving();
+    if (car && me && m.phase === "play") this.driveMine(car, me, dt);
+    else if (this.carHist.length) this.carHist.length = 0;
+    if (me && me.status === "alive" && m.phase === "play" && !m.seated(me)) {
       if (this.net.state !== "open") me.inX = me.inZ = 0;
       const follow = this.following();
       if (!follow) m.predict(me, dt, this.share(me));
@@ -177,6 +191,41 @@ export class OnlineMatch {
       while (this.hist.length && t - this.hist[0].t > HIST_KEEP_MS) this.hist.shift();
     }
     this.interpolate(this.net.serverNow() - this.interpMs);
+    this.cars?.placeRiders(m);
+  }
+
+  /** The car you're driving, if you are. */
+  driving(): Car | null {
+    const me = this.me;
+    const v = this.cars;
+    if (!me || !v) return null;
+    const i = this.match.seatOf(me);
+    const car = i >= 0 ? v.cars[i] : undefined;
+    return car && car.seats[0] === me.index && car.state < 4 ? car : null;
+  }
+
+  /** Your car, predicted: your stick drives it now, and the server's word pulls it back gently. */
+  private driveMine(car: Car, me: Contestant, dt: number): void {
+    if (this.net.state !== "open") me.inX = me.inZ = 0;
+    driveCar(car, me.inX, me.inZ, car.fuel > 0, dt, this.match.world.space);
+    const k = 1 - Math.exp(-dt * 6);
+    const dx = this.carCorr.x * k;
+    const dz = this.carCorr.z * k;
+    const dh = this.carCorr.h * k;
+    car.x += dx;
+    car.z += dz;
+    car.heading = wrap(car.heading + dh);
+    this.carCorr.x -= dx;
+    this.carCorr.z -= dz;
+    this.carCorr.h -= dh;
+    for (const h of this.carHist) {
+      h.x += dx;
+      h.z += dz;
+      h.h = (h.h ?? 0) + dh;
+    }
+    const t = performance.now();
+    this.carHist.push({ t, x: car.x, z: car.z, h: car.heading });
+    while (this.carHist.length && t - this.carHist[0].t > HIST_KEEP_MS) this.carHist.shift();
   }
 
   /** The server is moving you: down, held, or in your own charge's lunge. */
@@ -237,10 +286,22 @@ export class OnlineMatch {
         if (e.id === me.id && e.kind === "charge") this.followUntil = m.elapsed + MELEE.charge.windup + MELEE.charge.dash + 0.2;
         break;
       case "respawn":
+      case "seat":
         if (e.id === me.id) {
           this.hist.length = 0;
           this.corrX = this.corrZ = 0;
+          this.carHist.length = 0;
+          this.carCorr = { x: 0, z: 0, h: 0 };
         }
+        break;
+      case "bump":
+        this.melee?.setWobble(m.get(e.tg)?.index ?? -1, e.w);
+        if (e.tg !== me.id) break;
+        // Pushed aside by a car: slide now, as the server has you.
+        me.vx = e.kx;
+        me.vz = e.kz;
+        me.sprinting = false;
+        me.stun = Math.max(me.stun, Math.hypot(me.vx, me.vz) / MOVE.decel);
         break;
       default:
         break;
@@ -287,7 +348,58 @@ export class OnlineMatch {
         if (sync) this.place(c, s, k);
       }
     }
-    if (!sync) this.reconcile(s);
+    // The cars: fuel and damage as the server says (their places are drawn from the buffer).
+    const v = this.cars;
+    if (v && s.v) {
+      for (const car of v.cars) {
+        if (!car) continue;
+        const k = car.index * CAR_STRIDE;
+        if (k + CAR_STRIDE > s.v.length) continue;
+        car.fuel = s.v[k + 4] / 10;
+        car.damage = s.v[k + 5] / 10;
+        if (sync) {
+          car.x = s.v[k] / 100;
+          car.z = s.v[k + 1] / 100;
+          car.heading = s.v[k + 2] / 100;
+          car.speed = s.v[k + 3] / 100;
+        }
+      }
+      if (sync) v.placeRiders(m);
+    }
+    if (!sync) {
+      this.reconcile(s);
+      this.reconcileCar(s);
+    }
+  }
+
+  /** Your car: where the server had it against where we predicted it then. */
+  private reconcileCar(s: MatchSnap): void {
+    const car = this.driving();
+    if (!car || !s.v || !this.carHist.length) return;
+    const k = car.index * CAR_STRIDE;
+    if (k + CAR_STRIDE > s.v.length) return;
+    const sx = s.v[k] / 100;
+    const sz = s.v[k + 1] / 100;
+    const sh = s.v[k + 2] / 100;
+    const ss = s.v[k + 3] / 100;
+    const localThen = s.s - (this.net.serverNow() - performance.now()) - this.net.rtt / 2;
+    const h = histAt(this.carHist, localThen);
+    const ex = sx - h.x;
+    const ez = sz - h.z;
+    const eh = wrap(sh - (h.h ?? car.heading));
+    if (Math.hypot(ex, ez) > SNAP_IF_ERROR_M * 1.5 || Math.abs(eh) > 0.6) {
+      car.x += ex;
+      car.z += ez;
+      car.heading = wrap(car.heading + eh);
+      for (const p of this.carHist) {
+        p.x += ex;
+        p.z += ez;
+        p.h = (p.h ?? 0) + eh;
+      }
+      this.carCorr = { x: 0, z: 0, h: 0 };
+    } else this.carCorr = { x: ex, z: ez, h: eh };
+    // A knock the phone couldn't see (another car, a blast): take the server's speed.
+    if (Math.abs(ss - car.speed) > 1.5) car.speed = ss;
   }
 
   private place(c: Contestant, s: MatchSnap, k: number): void {
@@ -332,17 +444,7 @@ export class OnlineMatch {
   }
 
   private histAt(t: number): Hist {
-    const h = this.hist;
-    if (t <= h[0].t) return h[0];
-    for (let i = h.length - 1; i > 0; i--) {
-      if (h[i - 1].t <= t) {
-        const a = h[i - 1];
-        const b = h[i];
-        const u = b.t > a.t ? (t - a.t) / (b.t - a.t) : 1;
-        return { t, x: a.x + (b.x - a.x) * u, z: a.z + (b.z - a.z) * u };
-      }
-    }
-    return h[h.length - 1];
+    return histAt(this.hist, t);
   }
 
   /** Everyone else, between the two snapshots either side of `t` (server ms). */
@@ -361,8 +463,32 @@ export class OnlineMatch {
     const span = b.s - a.s;
     const u = span > 0 ? Math.max(0, Math.min(1, (t - a.s) / span)) : 1;
     const space = this.match.world.space;
-    for (const c of this.match.contestants) {
-      if (c === this.me || c.status !== "alive" || a.st[c.index] !== "a" || b.st[c.index] !== "a") continue;
+    const m = this.match;
+    const mine = this.driving();
+    if (this.cars && a.v && b.v) {
+      for (const car of this.cars.cars) {
+        if (!car || car === mine) continue;
+        const k = car.index * CAR_STRIDE;
+        if (k + CAR_STRIDE > a.v.length || k + CAR_STRIDE > b.v.length) {
+          if (k + CAR_STRIDE <= b.v.length) {
+            car.x = b.v[k] / 100;
+            car.z = b.v[k + 1] / 100;
+            car.heading = b.v[k + 2] / 100;
+          }
+          continue;
+        }
+        const was = car.heading;
+        car.x = (a.v[k] + (b.v[k] - a.v[k]) * u) / 100;
+        car.z = (a.v[k + 1] + (b.v[k + 1] - a.v[k + 1]) * u) / 100;
+        const ha = a.v[k + 2] / 100;
+        car.heading = wrap(ha + wrap(b.v[k + 2] / 100 - ha) * u);
+        car.speed = (a.v[k + 3] + (b.v[k + 3] - a.v[k + 3]) * u) / 100;
+        car.turn = span > 0 ? wrap(car.heading - was) * 60 : 0;
+        car.h = space.floorAt(car.x, car.z, car.h + 0.3).h;
+      }
+    }
+    for (const c of m.contestants) {
+      if (c === this.me || c.status !== "alive" || m.seated(c) || a.st[c.index] !== "a" || b.st[c.index] !== "a") continue;
       const k = c.index * MSNAP_STRIDE;
       const ax = a.p[k] / 100;
       const az = a.p[k + 1] / 100;
@@ -393,4 +519,20 @@ export class OnlineMatch {
       c.slide = fl.sliding ? 0.2 : 0;
     }
   }
+}
+
+/** Where a history was at time t (between its samples). */
+function histAt(h: readonly Hist[], t: number): Hist {
+  if (t <= h[0].t) return h[0];
+  for (let i = h.length - 1; i > 0; i--) {
+    if (h[i - 1].t <= t) {
+      const a = h[i - 1];
+      const b = h[i];
+      const u = b.t > a.t ? (t - a.t) / (b.t - a.t) : 1;
+      const out: Hist = { t, x: a.x + (b.x - a.x) * u, z: a.z + (b.z - a.z) * u };
+      if (a.h !== undefined && b.h !== undefined) out.h = a.h + wrap(b.h - a.h) * u;
+      return out;
+    }
+  }
+  return h[h.length - 1];
 }

@@ -12,6 +12,7 @@
 // silences only what was already queued.
 
 import type { Surface } from "../maps/registry";
+import { RADIO, type RadioId } from "./radio";
 import { SONGS, type Hit, type Song, type SongId, type SungNote, type VoiceKind } from "./songs";
 
 type Ctx = AudioContext;
@@ -244,10 +245,24 @@ export class Sound {
 
   /** Start (or resume) `id` from `fromBeat`. Loops until stopSong(). */
   playSong(id: SongId, fromBeat: number): void {
+    this.playLoop(SONGS[id], fromBeat);
+  }
+
+  /** The car radio (vehicles): a station, or off. It plays on the music bus, like a song. */
+  carRadio(id: RadioId | null): void {
+    // Already on (and not cut off by something else since).
+    if (this.radioOn === id && (id === null || this.playing?.song === RADIO[id])) return;
+    this.radioOn = id;
+    if (id) this.playLoop(RADIO[id], 0);
+    else this.stopSong();
+  }
+
+  private radioOn: RadioId | null = null;
+
+  private playLoop(song: Song, fromBeat: number): void {
     const ctx = this.ctx;
     if (!ctx || !this.music) return;
     this.stopSong();
-    const song = SONGS[id];
     // Each song gets its own bus, so a cut can fade it in 25 ms without a click.
     const bus = ctx.createGain();
     bus.gain.value = 1;
@@ -673,6 +688,102 @@ export class Sound {
       this.tone(70, at, 0.22, { type: "sine", gain: 0.3, to: 40 });
       this.noise(at, 0.18, { gain: 0.1, freq: 400, type: "lowpass" });
     }
+  }
+
+  // ── Vehicles (Phase 5). `near`: 0 (out of earshot) … 1 (right there). ──
+
+  /** A danfo horn: two reedy tones together, a short double blast. */
+  horn(near: number): void {
+    if (near <= 0.02) return;
+    const t = this.now;
+    for (const at of [t, t + 0.2]) {
+      this.tone(415, at, 0.16, { type: "square", gain: 0.06 * near, attack: 0.01 });
+      this.tone(523, at, 0.16, { type: "square", gain: 0.05 * near, attack: 0.01 });
+    }
+  }
+
+  /** A car alarm: a siren that rises and falls, then whoops. */
+  carAlarm(near: number): void {
+    if (near <= 0.02 || this.busy()) return;
+    const t = this.now;
+    for (let i = 0; i < 6; i++) this.tone(900, t + i * 0.5, 0.45, { type: "triangle", gain: 0.06 * near, to: 1500 });
+    for (let i = 0; i < 8; i++) this.tone(1300, t + 3 + i * 0.18, 0.12, { type: "square", gain: 0.03 * near });
+  }
+
+  carDoor(near: number): void {
+    if (near <= 0.02) return;
+    const t = this.now;
+    this.tone(85, t, 0.12, { type: "sine", gain: 0.25 * near, to: 55 });
+    this.noise(t, 0.06, { gain: 0.08 * near, freq: 900, type: "bandpass" });
+  }
+
+  /** Low fuel: one beep at 20%, two at 10%. */
+  fuelBeep(n: number): void {
+    const t = this.now;
+    for (let i = 0; i < n; i++) this.tone(1760, t + i * 0.16, 0.09, { type: "square", gain: 0.05 });
+  }
+
+  /** Metal on something: a thud and a rattle. */
+  crash(near: number): void {
+    if (near <= 0.02 || this.busy()) return;
+    const t = this.now;
+    this.tone(70, t, 0.25, { type: "sine", gain: 0.35 * near, to: 40 });
+    this.noise(t, 0.3, { gain: 0.18 * near, freq: 1800, type: "bandpass" });
+    this.noise(t + 0.05, 0.2, { gain: 0.08 * near, freq: 5000, type: "highpass" });
+  }
+
+  /** A car blowing up: a deep boom, a roar of noise, debris after. */
+  explosion(near: number): void {
+    const t = this.now;
+    this.tone(60, t, 1.2, { type: "sine", gain: 0.6 * near, to: 25 });
+    this.noise(t, 1.4, { gain: 0.45 * near, freq: 500, type: "lowpass" });
+    this.noise(t + 0.02, 0.5, { gain: 0.2 * near, freq: 3000, type: "highpass" });
+    for (let i = 0; i < 5; i++) this.noise(t + 0.4 + i * 0.13, 0.08, { gain: 0.06 * near, freq: 2500, type: "bandpass" });
+  }
+
+  private engineNodes: { osc: OscillatorNode; sub: OscillatorNode; gain: GainNode; filter: BiquadFilterNode } | null = null;
+
+  /**
+   * The engine you hear (yours, or the nearest car going): `level` 0 … 1
+   * (0 stops it), `rev` 0 … 1 (its speed). One voice, kept running.
+   */
+  engine(level: number, rev: number): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.sfx) return;
+    const t = ctx.currentTime;
+    if (level <= 0.01) {
+      if (this.engineNodes) {
+        const n = this.engineNodes;
+        this.engineNodes = null;
+        n.gain.gain.setTargetAtTime(0, t, 0.08);
+        n.osc.stop(t + 0.4);
+        n.sub.stop(t + 0.4);
+      }
+      return;
+    }
+    if (!this.engineNodes) {
+      const osc = ctx.createOscillator();
+      const sub = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const filter = ctx.createBiquadFilter();
+      osc.type = "sawtooth";
+      sub.type = "square";
+      filter.type = "lowpass";
+      filter.frequency.value = 400;
+      gain.gain.value = 0;
+      osc.connect(filter);
+      sub.connect(filter);
+      filter.connect(gain).connect(this.sfx);
+      osc.start();
+      sub.start();
+      this.engineNodes = { osc, sub, gain, filter };
+    }
+    const n = this.engineNodes;
+    const f = 38 + rev * 70;
+    n.osc.frequency.setTargetAtTime(f, t, 0.1);
+    n.sub.frequency.setTargetAtTime(f / 2, t, 0.1);
+    n.filter.frequency.setTargetAtTime(300 + rev * 900, t, 0.1);
+    n.gain.gain.setTargetAtTime(0.05 * level * (0.6 + rev * 0.4), t, 0.1);
   }
 
   /** A foot in a puddle: a wet slap and a spray. */

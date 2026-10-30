@@ -415,6 +415,77 @@ export const DROPZONES = { radius: 5, minApart: 60 } as const;
 /** Squad Rally's moving point. */
 export const RALLY = { speed: 1.4, radius: 9 } as const;
 
+/**
+ * Vehicles (SPEC-V3 §5; Phase 5). Arcade, forward only. Each kind is a box
+ * on the ground (len × wid), solid to the world as a row of circles; seats in
+ * its own frame (+z is the nose; the driver sits left, Nigerian roads drive
+ * on the right).
+ */
+export const VEHICLES = {
+  kinds: {
+    // top m/s, accel and brake m/s², turn: the most rad/s, minR: the tightest circle (m), grip: the most sideways m/s².
+    danfo: { len: 4.8, wid: 2.0, floor: 0.55, top: 10.5, accel: 3.0, brake: 7, turn: 1.1, minR: 6.5, grip: 6.5, circles: [-1.6, 0, 1.6], r: 1.0, seats: [[-0.45, 1.35], [0.45, 1.35]] },
+    keke: { len: 2.8, wid: 1.35, floor: 0.35, top: 9, accel: 3.6, brake: 6, turn: 1.8, minR: 3.2, grip: 5.5, circles: [-0.55, 0.55], r: 0.68, seats: [[0, 0.55], [0, -0.45]] },
+    tokunbo: { len: 4.4, wid: 1.8, floor: 0.3, top: 13, accel: 4.2, brake: 8, turn: 1.4, minR: 5.2, grip: 8, circles: [-1.4, 0, 1.4], r: 0.9, seats: [[-0.4, 0.15], [0.4, 0.15]] },
+  },
+  /** A stick past this steers and drives; past `brakeAt` radians from the nose, it brakes (there's no reverse). */
+  deadStick: 0.15,
+  brakeAt: 1.9,
+  /** No driver, no fuel, or no throttle: slowing like this. */
+  coast: 2.6,
+  /** Above this (m/s) the sky can't see you: no exposure, no laser (SPEC-V3 §5). */
+  hidden: 4,
+  fuel: {
+    /** Seconds of driving in a full tank; the beeps; a fuel boy's top-up; a Fuel Jerrycan's. */
+    full: 30,
+    beeps: [0.2, 0.1],
+    boy: 10,
+    can: 15,
+    /** Stop within this of a fuel boy (slower than `still`) for his top-up, once a match each. */
+    boyR: 4,
+  },
+  /** Slower than this (m/s): you can get in or out on your feet, a hijack can start, a fuel boy can serve. */
+  still: 2,
+  /** Get in from this close to a door (the car's side by the seat). */
+  door: 2.1,
+  /** Out at speed: a tumble (down this long). */
+  tumble: 1.2,
+  damage: {
+    /** A sudden loss of speed over `impact` m/s costs `perImpact` a m/s; sideways g over `lateral` m/s², `perG` a second each; scraping a wall, `scrape` a second. */
+    impact: 2.5,
+    perImpact: 6,
+    lateral: 6,
+    perG: 3,
+    scrape: 4,
+    /** clean → scratched → smoking → on fire (out of 100). */
+    states: [15, 45, 75],
+    /** On fire: it blows after 10–15 s; "GET OUT" this long before. */
+    fire: [10, 15],
+    warn: 3,
+    /** The blast: everyone this close is knocked away; the occupants are thrown out and down this long. */
+    blast: 5.5,
+    blastKnock: 3,
+    blastWobble: 0.5,
+    blastDown: 2.4,
+  },
+  /** Somebody in the way is pushed aside (never hurt): knockback base + per m/s, stun, wobble at top speed. */
+  push: { knock: 0.8, perSpeed: 0.28, stun: 0.5, wobble: 0.5, every: 0.6, slow: 0.85 },
+  /** Hold interact this long at the driver's door to pull them out; they're stunned and drop what they hold. */
+  hijack: { hold: 0.6, stun: 1 },
+  /** Beeps, the horn and the alarm (seconds between). */
+  horn: 0.35,
+  alarm: 8,
+  /** A Danfo Key calls a danfo to a road this far away (m); no more than `max` cars in a match. */
+  call: [10, 45],
+  max: 4,
+  /** Starting cars: on a road at least this far from the middle of the starts, this far from each other. */
+  far: 100,
+  apart: 50,
+} as const;
+
+export type VehicleKind = keyof typeof VEHICLES.kinds;
+export const VEHICLE_KINDS: readonly VehicleKind[] = ["danfo", "keke", "tokunbo"];
+
 /** Squads in Free For All (SPEC-V3 §7: a squad-coloured trim and a small diamond, no names). */
 export const SQUAD_COLORS = ["#f5b82e", "#38b6ff", "#ff5a5f", "#59d98e"] as const;
 
@@ -441,7 +512,7 @@ export const NET = {
    * and baskets, fist / slap / push, rooms of 20. 3: jump, crouch, prone,
    * sprint, the map, rich looks.)
    */
-  protocol: 12,
+  protocol: 13,
   tickHz: 60,
   /** Server → client state broadcasts per second. */
   snapshotHz: 15,

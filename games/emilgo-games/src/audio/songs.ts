@@ -46,7 +46,8 @@ export interface Hit {
 }
 
 export interface Song {
-  id: SongId;
+  /** The doll's songs, or a car radio loop (radio.ts). */
+  id: SongId | "highlife" | "afrobeats" | "fuji";
   title: string;
   bpm: number;
   /** Loop length, beats. */

@@ -55,6 +55,8 @@ export class Crowd {
   private people: (Human | null)[] = [];
   private readonly shadows: InstancedMesh;
   private hidden: boolean[] = [];
+  /** Seated in a car: how far above the floor the body is drawn. */
+  private seatLift: number[] = [];
   private slowBy: number[] = [];
   private slowLeft: number[] = [];
   private n = 0;
@@ -105,6 +107,7 @@ export class Crowd {
       return h;
     });
     this.hidden = new Array(this.n).fill(false);
+    this.seatLift = new Array(this.n).fill(0);
     this.packs = new Array(this.n).fill(false);
     this.slowBy = new Array(this.n).fill(1);
     this.slowLeft = new Array(this.n).fill(0);
@@ -206,6 +209,15 @@ export class Crowd {
     if (!this.hidden[i]) this.people[i]?.act(id);
   }
 
+  /** In a car (vehicles): seated `lift` metres above the body's floor, the driver's hands on the wheel; null: standing. */
+  setSeat(i: number, seat: { lift: number; driver: boolean } | null): void {
+    const h = this.people[i];
+    this.seatLift[i] = seat ? seat.lift : 0;
+    if (!h) return;
+    h.anim.sitWant = seat ? 1 : 0;
+    h.anim.steer = !!seat?.driver;
+  }
+
   setCarry(i: number, on: boolean): void {
     this.people[i]?.setCarry(on);
   }
@@ -299,7 +311,7 @@ export class Crowd {
       const speed = Math.hypot(c.vx, c.vz);
       // Standing on its floor (a roof, the stairs, a gutter in the open worlds; 0 on the field).
       const floor = c.h ?? 0;
-      h.mesh.position.set(c.x, floor + (c.y ?? 0), c.z);
+      h.mesh.position.set(c.x, floor + (c.y ?? 0) + this.seatLift[i], c.z);
       h.mesh.quaternion.setFromAxisAngle(UP, c.heading);
       // A fall in slow motion runs on its own, slower clock (the zoom, the kill cam).
       let k = 1;

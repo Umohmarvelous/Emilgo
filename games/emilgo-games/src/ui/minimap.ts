@@ -16,9 +16,10 @@ export interface MapMark {
   /**
    * Free For All adds: a flag (gold; held or on the ground), a goal ring of
    * radius `r` (a drop zone, the rally point, the gate), a squad mate
-   * (green), a flag holder's ping (red).
+   * (green), a flag holder's ping (red). Vehicles add a car (r 0: blown
+   * up) and a fuel boy still selling.
    */
-  kind: "other" | "out" | "safe" | "ball" | "basket" | "crate" | "flag" | "goal" | "mate" | "ping";
+  kind: "other" | "out" | "safe" | "ball" | "basket" | "crate" | "flag" | "goal" | "mate" | "ping" | "car" | "fuel";
   r?: number;
 }
 
@@ -168,6 +169,26 @@ export class Minimap {
       g.fillStyle = "#ff4a3a";
       g.arc(m.x, m.z, r, 0, Math.PI * 2);
       g.fill();
+      return;
+    }
+    if (m.kind === "car") {
+      // A car (vehicles): a rounded white body with a dark windscreen; a blown-up one grey.
+      g.fillStyle = m.r === 0 ? "rgba(140,140,140,0.7)" : "#f5f5f5";
+      g.strokeStyle = "#000";
+      g.lineWidth = r * 0.3;
+      g.rect(m.x - r * 0.9, m.z - r * 1.4, r * 1.8, r * 2.8);
+      g.fill();
+      g.stroke();
+      return;
+    }
+    if (m.kind === "fuel") {
+      // A fuel boy: a small yellow jerrycan.
+      g.fillStyle = "#ffd21a";
+      g.strokeStyle = "#000";
+      g.lineWidth = r * 0.25;
+      g.rect(m.x - r * 0.7, m.z - r * 0.8, r * 1.4, r * 1.6);
+      g.fill();
+      g.stroke();
       return;
     }
     if (m.kind === "crate") {

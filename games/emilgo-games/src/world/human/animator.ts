@@ -165,6 +165,10 @@ export interface AnimState {
   talk: number;
   /** Fixed expression (dev sheets): lids 0 open … 1 shut, jaw open (radians), where the eyes look. */
   face: { lids?: number; jaw?: number; yaw?: number; pitch?: number } | null;
+  /** In a car (vehicles): 0 … 1 seated (blended), the target, and hands on the wheel (the driver). */
+  sit: number;
+  sitWant: number;
+  steer: boolean;
   seed: number;
 }
 
@@ -199,6 +203,9 @@ export function newAnimState(seed: number): AnimState {
     curlBias: 0,
     talk: 0,
     face: null,
+    sit: 0,
+    sitWant: 0,
+    steer: false,
     seed,
   };
 }
@@ -478,6 +485,17 @@ export function computePose(a: AnimState, out: Pose): void {
     out.curlR = lerp(out.curlR, lerp(0.35, 0.5, a.carryTuck), a.carryW);
   }
 
+  // ── Sitting in a car: hips down onto the seat, thighs forward, shins down;
+  // the driver's hands on the wheel, a passenger's in the lap ──
+  if (a.sit > 0.01) {
+    const w = a.sit;
+    for (const [b, v] of SIT) towards(out, b, v, w);
+    for (const [b, v] of a.steer ? WHEEL : LAP) towards(out, b, v, w);
+    out.hipsY = lerp(out.hipsY, -0.4, w);
+    out.tilt *= 1 - w;
+    out.rootY *= 1 - w;
+  }
+
   // ── A one-off action over everything ──
   if (a.action) actionPose(a.action, a.actionT, out);
 
@@ -755,6 +773,32 @@ const GAIT = {
 } as const;
 
 /** Carry, both hands: forearms in round the ball, palms on its sides. */
+/** Seated: thighs out in front, shins down, feet flat; the back a little reclined. */
+const SIT: [BoneName, V3][] = [
+  ["thighL", [-1.5, 0.08, 0.1]],
+  ["thighR", [-1.5, -0.08, -0.1]],
+  ["shinL", [1.45, 0, 0]],
+  ["shinR", [1.45, 0, 0]],
+  ["footL", [0.05, 0, 0]],
+  ["footR", [0.05, 0, 0]],
+  ["spine", [-0.06, 0, 0]],
+  ["chest", [0.02, 0, 0]],
+];
+/** Driving: both hands forward on the wheel. */
+const WHEEL: [BoneName, V3][] = [
+  ["upperArmL", [-0.8, 0.1, -0.18]],
+  ["upperArmR", [-0.8, -0.1, 0.18]],
+  ["foreArmL", [-0.75, -0.3, 0]],
+  ["foreArmR", [-0.75, 0.3, 0]],
+];
+/** Riding: hands in the lap. */
+const LAP: [BoneName, V3][] = [
+  ["upperArmL", [-0.3, 0, -0.08]],
+  ["upperArmR", [-0.3, 0, 0.08]],
+  ["foreArmL", [-1.1, -0.2, 0]],
+  ["foreArmR", [-1.1, 0.2, 0]],
+];
+
 const HOLD: [BoneName, V3][] = [
   ["upperArmL", [-0.22, 0.05, -0.12]],
   ["upperArmR", [-0.22, -0.05, 0.12]],

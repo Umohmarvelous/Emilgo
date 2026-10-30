@@ -197,6 +197,14 @@ Where things are:
 - Tests: `ffatest` (offline rules, then 12 phones online with `GAME=`), `matchtest` (the staked Flag Duel), `loadtest --ffa find-the-flag`.
 - **Open item: Phase 4's frame-rate gate isn't measured.** Other apps kept this Mac's load at 18–160 on 29–30 Oct. Re-run it on a quiet Mac (load under 8) before Phase 5: the game page, a live 12-player match (`ffaplay --n 11`), CPU 4×, Low and Medium. SPEC-V3 Status has the numbers so far.
 
+## v3 Phase 5: where things are
+
+- Rules (pure, shared): `src/game/modules/drive.ts` (how a car moves: `driveCar`, `collideWorld`, seats and doors; the server and the phone that drives both run it) and `vehicles.ts` (`VehiclesModule`: parking, getting in and out, bumps, the sky, fuel and the fuel boys, damage and the blast, the hijack, the items). Numbers: `VEHICLES` in `src/config.ts`. The core knows who is seated (`Match.seated`, `setSeat`): a rider isn't walked, bumped, hit or offered anything but the door. The roads and the six fuel boys' stands come from the layout (`maps/open/matchWorld.ts`, `fuelStands`).
+- Wire: protocol 13 (`CAR_STRIDE` numbers per car in each snapshot; `car`, `seat`, `hijack`, `fuel`, `wreck`, `horn`, `alarm`, `bump`, `dodge` events). The phone predicts the car it drives (`OnlineMatch.driveMine`, `reconcileCar`) and smooths the others.
+- The phone: `src/world/vehicles.ts` (the three kinds built from boxes, wheels, smoke, fire, the blast, the stands; riders seated via `crowd.setSeat`), the seated pose (`animator.ts` SIT/WHEEL/LAP), `controls.setDriving` (horn, radio, slap), the HUD's car panel (`ui/play.ts`), car sounds and the engine (`audio/sound.ts`), the radio loops (`audio/radio.ts`), card 6 (`ui/ffaCards.ts`), the driving camera (`rig.arm`, `rig.lift`).
+- Tests: `cartest` (50 checks, offline), and `ffatest`'s network half now has a phone walk to a car and drive it.
+- Try it: Practice (Free For All) and walk to the car on the map (a white box), or `window.__game.gm.match.module("vehicles").cars`.
+
 ## Running and testing
 
 From the repo root:
@@ -224,6 +232,7 @@ node server/dist/contenttest.mjs                        # 27 checks, no server n
 node server/dist/spacetest.mjs                          # 19 checks (Phase 2: ground and walls)
 node server/dist/worldtest.mjs                          # 15 checks (Phase 2: Naija World)
 node server/dist/sharedtest.mjs                         # 59 checks (Phase 3: the match core, zone, items, Airfall)
+node server/dist/cartest.mjs                            # 50 checks (Phase 5: vehicles)
 GAME=ws://localhost:8797 node server/dist/ffatest.mjs   # Phase 4: melee and the five modes offline, then 12 phones online
 GAME=ws://localhost:8797 node server/dist/ranktest.mjs  # 42 checks (needs SUPABASE_JWT_SECRET on the server, as above)
 GAME=ws://localhost:8797 node server/dist/matchtest.mjs

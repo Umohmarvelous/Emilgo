@@ -14,11 +14,12 @@ import { Match, settingsOf, type MatchWorld, type Standing } from "../../src/gam
 import { Space } from "../../src/game/core/space";
 import type { FlagsModule } from "../../src/game/modules/flags";
 import type { MeleeModule } from "../../src/game/modules/melee";
+import type { VehiclesModule } from "../../src/game/modules/vehicles";
 import { PROP_IDS } from "../../src/game/modules/melee";
 import type { ZoneModule } from "../../src/game/modules/zone";
 import { matchWorldOf } from "../../src/maps/open/matchWorld";
 import { buildNaijaWorld, SURFACE_OF, type OpenLayout } from "../../src/maps/open/naija";
-import { encodeEvent, HAND_FLAG, MATCH_PHASES, MSNAP_STRIDE, packMeter, type FfaStart, type MatchSnap, type MatchSync, type WireEvent } from "../../src/net/matchWire";
+import { CAR_STRIDE, encodeEvent, HAND_FLAG, MATCH_PHASES, MSNAP_STRIDE, packMeter, type FfaStart, type MatchSnap, type MatchSync, type WireEvent } from "../../src/net/matchWire";
 import { packFlags } from "../../src/net/protocol";
 import type { MatchFacts } from "../../src/rank/xp";
 import type { WireLook } from "../../src/shop/catalog";
@@ -113,6 +114,7 @@ export class FfaGame {
   private readonly melee: MeleeModule | null;
   private readonly zone: ZoneModule | null;
   private readonly flags: FlagsModule | null;
+  private readonly cars: VehiclesModule | null;
 
   constructor(
     readonly def: ModeDef,
@@ -134,6 +136,7 @@ export class FfaGame {
     this.melee = this.match.module<MeleeModule>("melee");
     this.zone = this.match.module<ZoneModule>("zone");
     this.flags = this.match.module<FlagsModule>("flags");
+    this.cars = this.match.module<VehiclesModule>("vehicles");
     // What the modules decided at the start (the drop zones' first places) goes out with the first tick.
   }
 
@@ -194,6 +197,20 @@ export class FfaGame {
       const prop = mel?.hand[i] ?? -1;
       p[k + 6] = this.flags?.heldBy(i) ? HAND_FLAG : prop >= 0 ? PROP_IDS.indexOf(mel!.props[prop].kind) + 1 : 0;
     }
+    let v: number[] | null = null;
+    const cars = this.cars?.cars ?? [];
+    if (cars.length) {
+      v = new Array(cars.length * CAR_STRIDE).fill(0);
+      cars.forEach((car, i) => {
+        const k = i * CAR_STRIDE;
+        v![k] = cm(car.x);
+        v![k + 1] = cm(car.z);
+        v![k + 2] = Math.round(car.heading * 100);
+        v![k + 3] = cm(car.speed);
+        v![k + 4] = Math.round(car.fuel * 10);
+        v![k + 5] = Math.round(car.damage * 10);
+      });
+    }
     return {
       t: "msnap",
       s: serverMs,
@@ -203,6 +220,7 @@ export class FfaGame {
       st,
       p,
       ...(o ? { o } : {}),
+      ...(v ? { v } : {}),
     };
   }
 

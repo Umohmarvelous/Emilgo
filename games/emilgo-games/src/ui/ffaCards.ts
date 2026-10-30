@@ -8,8 +8,10 @@
 //      slap, push, throw and trip
 //   4  the Wobble: the meter fills, you fall, the flag drops
 //   5  radio hints, items and Airfall
-// (Card 6, vehicles, comes with them in Phase 5.)
+//   6  cars (modes with vehicles): get in, the sky can't see you fast, fuel
+//      and the fuel boys, don't let it burn
 
+import { BUILTIN_MANIFEST } from "../content/modes";
 import { el, esc } from "./dom";
 import { t, translateTree } from "./i18n";
 import { icon } from "./icons";
@@ -109,10 +111,22 @@ const SHARED: Card[] = [
   },
 ];
 
-/** The cards for a mode: its own goal first, then the shared four. */
+/** Card 6: a danfo, invisible to the sky at speed, the fuel boy, the fire. */
+const CARS: Card = {
+  title: "Cars",
+  text: "Get in at a door: drive or ride. Fast, the sky can't see you. 30 s of fuel; fuel boys by the road top it up. Hit things and it burns, then blows: get out.",
+  art: svg(
+    `${streets}<g transform="translate(150 70) rotate(-90)"><rect x="-12" y="-28" width="24" height="56" rx="4" fill="#f5bd02" stroke="#000" stroke-width="1"/><rect x="-12" y="-4" width="24" height="3" fill="#151515"/><rect x="-10" y="12" width="20" height="8" fill="#26323a"/></g><path d="M196 70h40" stroke="${LINE}" stroke-width="2" stroke-dasharray="4 4"/><path d="M128 0 L140 56" stroke="#fff3d6" stroke-width="4" opacity="0.35"/><path d="M128 58l8 -10M144 58l-8 -10" stroke="${RED}" stroke-width="2.5"/>${label(150, 104, "Fast: hidden", GOLD, 10)}` +
+      `<rect x="232" y="118" width="18" height="12" fill="#8d6e63"/><rect x="236" y="108" width="8" height="10" fill="#f9c80e" stroke="#000" stroke-width="0.6"/>${fig(258, 132, LINE, 0.8)}${label(246, 152, "+10 s", GOLD, 10)}` +
+      `<g transform="translate(64 134)"><rect x="-22" y="-10" width="44" height="18" rx="3" fill="#8a7d74"/><path d="M-8 -10 q4 -16 0 -26 M6 -10 q6 -14 0 -22" stroke="#ff8a1a" stroke-width="4" fill="none"/></g>${label(64, 160, "GET OUT", RED, 10)}`,
+  ),
+};
+
+/** The cards for a mode: its own goal first, then the shared four; cars last in a mode with them. */
 export function cardsFor(modeId: string): Card[] {
   const g = GOALS[modeId] ?? GOALS["find-the-flag"];
-  return [{ title: g.title, text: g.text, art: g.art() }, ...SHARED];
+  const def = BUILTIN_MANIFEST.modes.find((d) => d.id === modeId);
+  return [{ title: g.title, text: g.text, art: g.art() }, ...SHARED, ...(def?.modules.vehicles ? [CARS] : [])];
 }
 
 export class FfaCards {

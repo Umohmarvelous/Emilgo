@@ -28,6 +28,7 @@ import { Footprints, type Ground } from "./footprints";
 import { ItemsView, type ItemsState } from "./items";
 import { SkyLaser } from "./skyLaser";
 import { ZoneWall } from "./zone";
+import type { VehiclesModule } from "../game/modules/vehicles";
 
 /** The compass shows the nearest thing within this distance, metres. */
 const PIN_RANGE = 180;
@@ -84,7 +85,9 @@ export class MatchScene {
         case "laser": {
           const c = m.get(e.id);
           if (!c) break;
-          const target = () => (c.status === "alive" ? { x: c.x, y: c.h, z: c.z } : null);
+          // A car too fast for the sky: the laser comes down where it was, and misses.
+          const cars = m.module<VehiclesModule>("vehicles");
+          const target = () => (c.status === "alive" && !cars?.hidden(m, c) ? { x: c.x, y: c.h, z: c.z } : null);
           const ang = this.laser.strike(`${e.id}@${e.hitAt.toFixed(2)}`, target, e.hitAt - m.elapsed);
           this.beams.set(e.id, ang);
           this.o.sound?.skyWarn(e.hitAt - m.elapsed, near(c.x, c.z, 120));
@@ -154,7 +157,7 @@ export class MatchScene {
    * distance — the nearest thing wins the interact prompt, as on the server;
    * and the objective line).
    */
-  update(dt: number, m: Match, cam: Vector3, marks: MapMark[], extra?: { target: (NonNullable<PlayHudState["target"]> & { d: number }) | null; objective: string }): { pin: ItemPin | null } {
+  update(dt: number, m: Match, cam: Vector3, marks: MapMark[], extra?: { target: (NonNullable<PlayHudState["target"]> & { d: number }) | null; objective: string; car?: PlayHudState["car"] }): { pin: ItemPin | null } {
     const zone = m.module<ZoneModule>("zone");
     const items = m.module<ItemsModule>("items");
     const air = m.module<AirfallModule>("airfall");
@@ -203,7 +206,10 @@ export class MatchScene {
 
     // ── What interact would do ──
     let target: PlayHudState["target"] = null;
-    if (alive) {
+    if (alive && extra?.target && extra.target.d < 0) {
+      // In a car: the only thing in reach is the door.
+      target = extra.target;
+    } else if (alive) {
       const crate = air?.nearest(me) ?? null;
       if (crate) target = { kind: "crate", progress: air!.opening(i) };
       else {
@@ -232,6 +238,7 @@ export class MatchScene {
       respawn,
       heat: this.laser.heat,
       objective: extra?.objective ?? "",
+      car: extra?.car ?? null,
     });
 
     // ── The compass's diamond and the map's crates ──

@@ -27,7 +27,10 @@ export type ItemEffect =
   | { kind: "pepper"; s: number }
   | { kind: "iron"; s: number }
   /** Thrown forward: a stun where it lands on someone; `back`: it comes home to your backpack. */
-  | { kind: "throw"; back: boolean };
+  | { kind: "throw"; back: boolean }
+  /** Vehicles (Phase 5): fuel for the car you're in or beside; a danfo called to the nearest road. */
+  | { kind: "fuel" }
+  | { kind: "call" };
 
 export interface ItemDef {
   id: ItemId;
@@ -69,8 +72,9 @@ export const ITEM_DEFS: Record<ItemId, ItemDef> = {
   "decoy-flag": def("decoy-flag", "Decoy Flag", "Fake Flag", "A flag that isn't", "Flag wey no be flag", null),
   "talking-drum": def("talking-drum", "Talking Drum", "Talking Drum", "Shows the nearest rival for 5 s", "E go show the person wey near pass for 5 seconds", null),
   "aso-ebi": def("aso-ebi", "Aso-ebi Disguise", "Aso-ebi Disguise", "Wear a rival squad's colour for 20 s", "Wear another squad colour for 20 seconds", null),
-  jerrycan: def("jerrycan", "Fuel Jerrycan", "Fuel Jerrycan", "Fuel for a car", "Fuel for motor", null, true),
-  "danfo-key": def("danfo-key", "Danfo Key", "Danfo Key", "Calls a vehicle to the road nearby", "E go call motor come the road wey near", null, true),
+  // Vehicles' (Phase 5).
+  jerrycan: def("jerrycan", "Fuel Jerrycan", "Fuel Jerrycan", "+15 s of fuel for the car you're in or beside", "+15 seconds fuel for the motor wey you dey inside or near", { kind: "fuel" }, true, "vehicles"),
+  "danfo-key": def("danfo-key", "Danfo Key", "Danfo Key", "Calls a danfo to the road nearby", "E go call danfo come the road wey near", { kind: "call" }, true, "vehicles"),
 };
 
 /** A loot table: items and their weights. */

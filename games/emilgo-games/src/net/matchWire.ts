@@ -1,4 +1,4 @@
-// A Free For All match on the wire (protocol 12), shared by the server and the
+// A Free For All match on the wire (protocol 13), shared by the server and the
 // phones. The phone keeps a copy of the match (Match.mirror) built from the
 // same seed, mode and world, so the start carries only who is playing, in
 // which squads; after that:
@@ -6,7 +6,8 @@
 //   msnap  NET.snapshotHz: per body x, z, heading, height (floor + jump),
 //          the movement flags, a meter word (wobble, exposure, down, brace,
 //          held, immune) and what's in their hands; once a second, each
-//          body's measure for the mode (seconds held, deliveries …)
+//          body's measure for the mode (seconds held, deliveries …);
+//          per car (protocol 13) x, z, heading, speed, fuel and damage
 //   mev    the match's events as they happen, ids as roster indexes, numbers
 //          rounded. A phone (re)joining mid-match gets them all again (the
 //          server keeps the log) and replays them into a fresh copy.
@@ -17,6 +18,8 @@ import type { WireLook } from "../shop/catalog";
 
 export const MATCH_PHASES: readonly MatchPhase[] = ["walkout", "countdown", "play", "ended"];
 export const MSNAP_STRIDE = 7;
+/** Per car in a snapshot: x, z (cm), heading (centiradians), speed (cm/s), fuel (tenths of a second), damage (tenths). */
+export const CAR_STRIDE = 6;
 
 /** A Free For All start: in StartInfo as `ffa`. */
 export interface FfaStart {
@@ -45,6 +48,8 @@ export interface MatchSnap {
   p: number[];
   /** Per body: the mode's measure × 10 (once a second, and in a sync). */
   o?: number[];
+  /** Per car CAR_STRIDE numbers (vehicles; left out when there are none). */
+  v?: number[];
 }
 
 /** The match's events, as they happened since the last message. */

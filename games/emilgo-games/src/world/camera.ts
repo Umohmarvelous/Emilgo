@@ -43,6 +43,7 @@ const MAX_RATE = Math.PI; // 180°/s
 const PITCH_MIN = (-60 * Math.PI) / 180;
 const PITCH_MAX = (60 * Math.PI) / 180;
 const DIST = 2.5;
+const BASE_DIST = DIST;
 const SHOULDER = 0.5;
 const EYE = 1.6;
 const SMOOTH = 0.15; // per 1/60 s
@@ -67,6 +68,9 @@ export class CameraRig {
   sensH = 0.35;
   sensV = 0.25;
   firstPerson = false;
+  /** Driving (vehicles): the arm this many times longer, the pivot this much higher. */
+  arm = 1;
+  lift = 0;
   /** Set from the screen's shape: wider on tall portrait phones. */
   baseFov = 65;
   colliders: Collider[] = [];
@@ -322,7 +326,7 @@ export class CameraRig {
     const stance = t.stance ?? 0;
     const eye = stance >= 1.5 ? 0.45 : stance >= 0.5 ? 1.05 : EYE;
     this.floor = t.ground ?? 0;
-    this.pivot.set(t.x, this.floor + eye + (t.y ?? 0) * 0.85, t.z);
+    this.pivot.set(t.x, this.floor + eye + (t.y ?? 0) * 0.85 + this.lift, t.z);
     const d = this.lookDir(this.wantLook);
     const rx = Math.cos(this.viewYaw);
     const rz = -Math.sin(this.viewYaw);
@@ -336,6 +340,7 @@ export class CameraRig {
 
   /** How far back the camera can sit before hitting something (≤ DIST). */
   private clearance(p: Vector3, bx: number, by: number, bz: number, rx: number, rz: number): number {
+    const DIST = BASE_DIST * this.arm;
     let best = DIST;
     // Ray from the pivot to the camera spot (back along the view, plus the shoulder).
     const ex = bx * DIST + rx * SHOULDER;

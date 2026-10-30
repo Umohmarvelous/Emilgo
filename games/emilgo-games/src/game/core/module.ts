@@ -7,6 +7,7 @@
 // All their randomness comes from the match's seeded streams, so the server
 // and every phone referee the same match.
 
+import type { VehicleKind } from "../../config";
 import type { ItemId } from "../../content/items";
 import type { ModuleId } from "../../content/modes";
 import type { PropId, SwingKind } from "../modules/melee";
@@ -43,7 +44,7 @@ export type MatchEvent =
   | { type: "parry"; id: string; by: string }
   /** A grab's wind-up broken by a strike. */
   | { type: "broke"; id: string; by: string }
-  | { type: "down"; id: string; s: number; why: "daze" | "trip" | "tackle" | "throw" | "ringout"; by: string | null }
+  | { type: "down"; id: string; s: number; why: DownWhy; by: string | null }
   | { type: "up"; id: string }
   | { type: "clinch"; id: string; tg: string }
   | { type: "release"; id: string; tg: string; how: "throw" | "trip" | "drag" | "reverse" | "break" | "escape" }
@@ -62,7 +63,28 @@ export type MatchEvent =
   /** A drop zone (Steal & Reposition) moves: live from now until `until`. */
   | { type: "dz"; k: number; x: number; z: number; until: number }
   /** Someone (or a squad) won: the match ends. */
-  | { type: "won"; id: string | null; squad: number };
+  | { type: "won"; id: string | null; squad: number }
+  // ── Vehicles (Phase 5) ──
+  /** A car arrives: parked at the start, or called by a Danfo Key. `hd`: its heading. */
+  | { type: "car"; car: number; kind: VehicleKind; x: number; z: number; h: number; hd: number }
+  /** Someone gets in (seat 0 drives, 1 rides) or out (seat −1, standing at x, z). */
+  | { type: "seat"; car: number; id: string; seat: number; x: number; z: number }
+  /** Pulling a driver out: started, given up, or done (they're out, you drive). */
+  | { type: "hijack"; car: number; id: string; how: "start" | "stop" | "done" }
+  | { type: "horn"; car: number }
+  /** An empty car bumped: its alarm goes. */
+  | { type: "alarm"; car: number }
+  /** The tank, in seconds of driving: a fuel boy's or a jerrycan's top-up, a low-fuel beep, empty (it stalls). */
+  | { type: "fuel"; car: number; s: number; why: "boy" | "can" | "beep" | "empty"; stand?: number }
+  /** Worse: 1 scratched, 2 smoking, 3 on fire (it blows at `blow`, seconds of play), 4 blown up. */
+  | { type: "wreck"; car: number; state: number; blow?: number }
+  /** Somebody in a car's way, pushed aside: their slide and wobble now. */
+  | { type: "bump"; car: number; tg: string; kx: number; kz: number; w: number }
+  /** The sky's laser missed: they were driving too fast to see. */
+  | { type: "dodge"; id: string };
+
+/** Why someone went down: melee's reasons, then a car's (pulled out, thrown by a blast, out at speed). */
+export type DownWhy = "daze" | "trip" | "tackle" | "throw" | "ringout" | "hijack" | "blast" | "tumble";
 
 export interface RuleModule {
   readonly id: ModuleId;

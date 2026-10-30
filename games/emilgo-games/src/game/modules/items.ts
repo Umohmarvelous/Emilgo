@@ -18,6 +18,7 @@ import { builtLoot, ITEM_DEFS, type ItemId, type LootTable } from "../../content
 import type { Contestant } from "../core/body";
 import type { Match } from "../core/match";
 import type { MatchEvent, RuleModule } from "../core/module";
+import type { VehiclesModule } from "./vehicles";
 
 export interface GroundItem {
   readonly index: number;
@@ -220,7 +221,14 @@ export class ItemsModule implements RuleModule {
         break;
       case "throw":
         // Melee throws it when it hears the "use"; not while knocked down or held.
-        if (c.stun > 0) return;
+        if (c.stun > 0 || m.seated(c)) return;
+        break;
+      case "fuel":
+        // Vehicles fill the car when they hear the "use": only with a car to fill.
+        if (!m.module<VehiclesModule>("vehicles")?.fuelTarget(m, c)) return;
+        break;
+      case "call":
+        if (!m.module<VehiclesModule>("vehicles")?.canCall(m, c)) return;
         break;
     }
     pack[slot] = null;

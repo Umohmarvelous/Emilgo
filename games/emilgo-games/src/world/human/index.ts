@@ -520,7 +520,9 @@ export class Human {
     a.slide += (slide - a.slide) * (1 - Math.exp(-dt * (slide > a.slide ? 18 : 8)));
     a.stance += (stance - a.stance) * (1 - Math.exp(-dt * 10));
     a.air += (air - a.air) * (1 - Math.exp(-dt * 14));
-    stepGait(a, speed, dt);
+    a.sit += (a.sitWant - a.sit) * (1 - Math.exp(-dt * 12));
+    // Seated, the legs don't walk however fast the car goes.
+    stepGait(a, a.sitWant > 0 ? 0 : speed, dt);
     computePose(a, this.pose);
     this.apply();
     this.restedAt = a.dead > REST_AT ? this.level : -1;

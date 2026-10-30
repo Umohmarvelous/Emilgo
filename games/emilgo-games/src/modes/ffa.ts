@@ -3,11 +3,14 @@
 // onlineMatch.ts) or a practice walk on your own (a local match, no bots:
 // there are none, ever). The shared match scene draws the zone, the items and
 // Airfall (world/matchScene.ts); the Free For All view adds melee and the
-// flags (world/ffa.ts); the session lends the renderer, the people, the HUD
+// flags (world/ffa.ts), and the cars their own (world/vehicles.ts: driving
+// pulls the camera back and swings it behind the car); the session lends the renderer, the people, the HUD
 // and the controls (modes/types.ts).
 
 import { Vector3 } from "three";
 
+import { RADIO_IDS, RADIO_NAME, type RadioId } from "../audio/radio";
+import { VEHICLES } from "../config";
 import { type ModeDef } from "../content/modes";
 import { Rng } from "../core/rng";
 import type { Contestant } from "../game/core/body";
@@ -16,6 +19,7 @@ import type { MatchEvent } from "../game/core/module";
 import type { CaptureModule } from "../game/modules/capture";
 import type { FlagsModule } from "../game/modules/flags";
 import type { MeleeModule } from "../game/modules/melee";
+import type { VehiclesModule } from "../game/modules/vehicles";
 import { LOOKS } from "../graphics/grade";
 import type { OpenWorld } from "../maps/open/build";
 import { matchWorldOf } from "../maps/open/matchWorld";
@@ -31,6 +35,7 @@ import { accentOf } from "../world/crowd";
 import { FfaView, PROP_NAME } from "../world/ffa";
 import { randomLook, type Look } from "../world/human/wardrobe";
 import { MatchScene } from "../world/matchScene";
+import { VehicleView } from "../world/vehicles";
 import type { GameMode, ModeHost, ModeResult } from "./types";
 
 /** Seconds from the end to the results: the last moment, seen. */
@@ -100,6 +105,10 @@ export class FfaMode implements GameMode {
   private src: Source;
   private readonly ms: MatchScene;
   private readonly view: FfaView;
+  private readonly cars: VehicleView | null;
+  /** The car you were in last frame (−1: none), and your radio's station. */
+  private inCar = -1;
+  private station: RadioId | null = null;
   private readonly play = new PlayHud();
   private readonly focus = new Vector3();
   private readonly marks: MapMark[] = [];
@@ -157,6 +166,8 @@ export class FfaMode implements GameMode {
     });
     this.view = new FfaView({ crowd: h.crowd, hud: h.hud, sound: h.sound, me: me.index, layer: h.ui, places: world.layout.landmarks });
     h.scene.add(this.ms.group, this.view.group);
+    this.cars = m.module<VehiclesModule>("vehicles") ? new VehicleView({ crowd: h.crowd, sound: h.sound, rig: h.rig, me: me.index, stands: m.world.fuel ?? [] }) : null;
+    if (this.cars) h.scene.add(this.cars.group);
 
     // The HUD.
     h.hud.reset(looks.map((l, i) => ({ accent: accentOf(l), me: i === me.index })));
@@ -178,6 +189,7 @@ export class FfaMode implements GameMode {
     c.onInteract = (down) => this.interact(down);
     c.onPack = () => this.play.openPack(!this.play.packOpen);
     c.onSlot = (slot, drop) => this.play.key(slot, drop);
+    c.onRadio = () => this.nextStation();
     h.rig.follow(true, { x: me.x, z: me.z, y: me.y, stance: me.stance, ground: me.h });
   }
 
@@ -250,6 +262,7 @@ export class FfaMode implements GameMode {
     const cam = h.camera.position;
     this.ms.events(events, m, cam);
     this.view.events(events, m, cam);
+    this.cars?.events(events, m, cam);
     for (const e of events) this.onEvent(e);
     if (this.endAt > 0 && performance.now() >= this.endAt && !this.over) this.finish();
   }
@@ -281,9 +294,103 @@ export class FfaMode implements GameMode {
       case "respawn":
         if (e.id === me.id) h.rig.follow(true, { x: me.x, z: me.z, y: me.y, stance: me.stance, ground: me.h });
         break;
+      // ── Cars ──
+      case "wreck":
+        // Your car blows up: the moment in slow motion, on your screen only.
+        if (e.state >= 4 && e.car === this.inCar) {
+          h.crowd.slowFall(me.index, 0.3, 1.6);
+          h.rig.push(0.8, 1.6);
+          h.haptic("heavy");
+        } else if (e.state === 3 && e.car === this.inCar) h.hud.pushFeed(t("Your car is on fire"), "out");
+        break;
+      case "fuel":
+        if (e.car !== this.inCar) break;
+        if (e.why === "empty") h.hud.pushFeed(t("Out of fuel"), "out");
+        else if (e.why === "boy") h.hud.pushFeed(t("Fuel boy: +10 s"), "safe");
+        else if (e.why === "can") h.hud.pushFeed(t("Jerrycan: +15 s"), "safe");
+        break;
+      case "hijack":
+        if (e.how === "done" && e.car === this.inCar && e.id !== me.id) h.hud.pushFeed(t("Pulled out of your car"), "out");
+        break;
+      case "dodge":
+        if (e.id === me.id) h.hud.pushFeed(t("Too fast for the sky"), "safe");
+        break;
+      case "car":
+        if (m.phase === "play") h.hud.pushFeed(t("A danfo has come"), "info");
+        break;
       default:
         break;
     }
+  }
+
+  /** The radio: off, then each station in turn. */
+  private nextStation(): void {
+    const i = this.station ? RADIO_IDS.indexOf(this.station) : -1;
+    this.station = i + 1 < RADIO_IDS.length ? RADIO_IDS[i + 1] : null;
+    this.host.sound.carRadio(this.station);
+  }
+
+  /** In a car: the camera, the buttons, the HUD's panel, the engine and the radio. Returns the HUD's car panel. */
+  private carFrame(dt: number, m: Match, me: Contestant, cam: Vector3): { panel: NonNullable<Parameters<MatchScene["update"]>[4]>["car"]; target: { kind: "car"; label: string; progress: number; d: number } | null } {
+    const h = this.host;
+    const v = m.module<VehiclesModule>("vehicles");
+    const seat = v && me.status === "alive" ? m.seatOf(me) : -1;
+    const car = seat >= 0 ? v!.cars[seat] : undefined;
+    // Out of the car: the radio stops.
+    if (seat !== this.inCar) {
+      if (seat < 0 && this.station) {
+        this.station = null;
+        h.sound.carRadio(null);
+      }
+      this.inCar = seat;
+    }
+    // The camera: further back and higher; behind the car while you aren't looking round.
+    const k = 1 - Math.exp(-dt * 4);
+    h.rig.arm += ((car ? 2.6 : 1) - h.rig.arm) * k;
+    h.rig.lift += ((car ? 0.7 : 0) - h.rig.lift) * k;
+    const c = h.controls;
+    if (car && car.speed > 1 && Math.hypot(c.look.x, c.look.y) < 0.05) {
+      const want = car.heading + Math.PI;
+      const d = Math.atan2(Math.sin(want - h.rig.yaw), Math.cos(want - h.rig.yaw));
+      h.rig.yaw += d * (1 - Math.exp(-dt * 2.2));
+    }
+    c.setDriving(car ? (car.seats[0] === me.index ? "driver" : "rider") : null, !!car?.hijack);
+    // The engine you hear: yours, or the nearest going.
+    let level = 0;
+    let rev = 0;
+    if (car && car.state < 4) {
+      level = 1;
+      rev = car.speed / VEHICLES.kinds[car.kind].top;
+    } else if (v) {
+      for (const o of v.cars) {
+        if (!o || o.state >= 4 || (o.seats[0] < 0 && o.speed < 0.5)) continue;
+        const near = 1 - Math.hypot(o.x - cam.x, o.z - cam.z) / 30;
+        if (near > level) {
+          level = near * 0.7;
+          rev = o.speed / VEHICLES.kinds[o.kind].top;
+        }
+      }
+    }
+    h.sound.engine(this.over ? 0 : level, rev);
+    // What interact would do at a car.
+    let target: { kind: "car"; label: string; progress: number; d: number } | null = null;
+    const o = v && me.status === "alive" && m.phase === "play" ? v.option(m, me) : null;
+    if (o) {
+      const oc = v!.cars[o.car];
+      const label = o.kind === "drive" ? t("Drive") : o.kind === "ride" ? t("Get in") : o.kind === "pull" ? t("Hold: pull them out") : t("Get out");
+      const mine = oc.hijack && oc.hijack.by === me.index;
+      target = { kind: "car", label, progress: mine ? Math.min(1, (m.elapsed - oc.hijack!.since) / VEHICLES.hijack.hold) : 0, d: o.d };
+    }
+    const panel = car
+      ? {
+          fuel: car.fuel / VEHICLES.fuel.full,
+          state: car.state,
+          blowIn: car.state === 3 ? car.blow - m.elapsed : -1,
+          hijack: !!car.hijack && car.seats[0] === me.index,
+          radio: this.station ? RADIO_NAME[this.station] : "",
+        }
+      : null;
+    return { panel, target };
   }
 
   // ── Frame ──────────────────────────────────────────────────────────────────
@@ -316,10 +423,14 @@ export class FfaMode implements GameMode {
     // The map: your squad and the objectives only (rivals aren't shown: a holder's ping is the point).
     this.marks.length = 0;
     const tg = this.view.target(m);
+    const car = this.carFrame(dt, m, me, cam);
+    const near = tg ? { kind: tg.kind, d: tg.d, label: tg.prop ? t(PROP_NAME[tg.prop]) : undefined, progress: 0 } : null;
     const extra = {
-      target: tg ? { kind: tg.kind, d: tg.d, label: tg.prop ? t(PROP_NAME[tg.prop]) : undefined, progress: 0 } : null,
+      target: car.target && (!near || car.target.d < near.d) ? car.target : near,
       objective: m.phase === "play" ? this.view.objectiveLine(m, this.src.measures) : "",
+      car: car.panel,
     };
+    this.cars?.update(dt, m, cam, this.marks);
     const { pin } = this.ms.update(dt, m, cam, this.marks, extra);
     const { goal } = this.view.update(dt, m, h.camera, this.marks, h.rig.firstPerson && target === me);
     h.hud.setMap({ x: target.x, z: target.z, heading: target.heading, out: me.status !== "alive" }, this.marks, null, h.rig.yaw);
@@ -342,7 +453,8 @@ export class FfaMode implements GameMode {
     // The buttons: melee's always there in play; holding someone, the finishers.
     const live = me.status === "alive" && m.phase === "play";
     h.controls.showActions(live || m.phase === "countdown");
-    h.controls.setNear(live, live);
+    const seated = m.seated(me);
+    if (!seated) h.controls.setNear(live, live);
     const mel = m.module<MeleeModule>("melee");
     h.controls.setFinisher(!!mel && live && mel.clinchOf(me.index) >= 0);
     h.controls.setStamina(me.stamina, me.sprinting);
@@ -381,10 +493,16 @@ export class FfaMode implements GameMode {
     h.scene.remove(this.world.group, this.ms.group, this.view.group);
     this.ms.dispose();
     this.view.dispose();
+    this.cars?.dispose();
+    h.sound.engine(0, 0);
+    h.sound.carRadio(null);
+    h.rig.arm = 1;
+    h.rig.lift = 0;
     this.play.root.remove();
     const c = h.controls;
     c.layout = "rlgl";
-    c.onInteract = c.onPack = null;
+    c.onInteract = c.onPack = c.onRadio = null;
+    c.setDriving(null, false);
     c.onSlot = null;
     c.reset();
     c.setNear(false, false);

@@ -18,6 +18,7 @@ import { ITEM_DEFS, type ItemId } from "../content/items";
 import { el, fmtTime } from "./dom";
 import { getLang, t } from "./i18n";
 import { icon } from "./icons";
+import { VEHICLES } from "../config";
 
 export interface PlayHudState {
   /** The zone: seconds until the next circle starts closing (−1: none coming), closing now. */
@@ -28,7 +29,7 @@ export interface PlayHudState {
   doomed: boolean;
   pack: readonly (ItemId | null)[];
   /** What interact would do now (Free For All adds: search a stash spot, pick up a street prop, named in `label`). */
-  target: { kind: "item" | "bag" | "crate" | "stash" | "prop"; item?: ItemId; left?: number; label?: string; progress: number } | null;
+  target: { kind: "item" | "bag" | "crate" | "stash" | "prop" | "car"; item?: ItemId; left?: number; label?: string; progress: number } | null;
   effects: readonly { key: string; left: number }[];
   /** Out: seconds until back (−1: not coming back); alive: −2. */
   respawn: number;
@@ -36,13 +37,19 @@ export interface PlayHudState {
   heat: number;
   /** Free For All: the mode's objective in a line ("Hold it: 6 s"), or "". */
   objective?: string;
+  /**
+   * In a car (vehicles): its tank (0 … 1), how bad it is (0 clean … 3 on
+   * fire), seconds until it blows (−1: it isn't burning), someone pulling
+   * the driver out, the radio's station.
+   */
+  car?: { fuel: number; state: number; blowIn: number; hijack: boolean; radio: string } | null;
 }
 
 /** An item's icon. */
 export const ITEM_ICON: Record<ItemId, string> = {
   kola: "kola", zobo: "zobo", "big-bag": "bigbag", "zone-shield": "umbrella", "pepper-soup": "bundle", "iron-wrapper": "bundle",
   "smoke-pot": "bundle", "banana-peel": "bundle", "pepper-powder": "bundle", megaphone: "bundle", slipper: "bundle", "decoy-flag": "flag",
-  "talking-drum": "bundle", "aso-ebi": "bundle", "golden-slipper": "bundle", jerrycan: "bundle", "danfo-key": "bundle",
+  "talking-drum": "bundle", "aso-ebi": "bundle", "golden-slipper": "bundle", jerrycan: "fuel", "danfo-key": "car",
 };
 
 export function itemName(k: ItemId): string {
@@ -86,6 +93,12 @@ export class PlayHud {
   private readonly tint = el("div", "ptint");
   private readonly heat = el("div", "pheat");
   private readonly dead = el("div", "pdead");
+  /** In a car: the tank, its state, the warnings. */
+  private readonly car = el("div", "pcar");
+  private readonly carFuel = el("i");
+  private readonly carText = el("span");
+  private readonly carWarn = el("div", "pwarn");
+  private lastCar = "";
   private slots: HTMLButtonElement[] = [];
   private picked = -1;
   private lastPack = "";
@@ -111,7 +124,10 @@ export class PlayHud {
     this.radial.dataset.ui = "1";
     this.radial.setAttribute("role", "dialog");
     this.radial.setAttribute("aria-label", "Backpack");
-    this.root.append(this.tint, this.heat, this.zoneLine, this.obj, this.expo, this.act, this.packBtn, this.fx, this.dead, this.radial);
+    this.car.innerHTML = `${icon("fuel", "", 14)}<b class="tank"></b>`;
+    this.car.querySelector(".tank")!.append(this.carFuel);
+    this.car.append(this.carText);
+    this.root.append(this.tint, this.heat, this.zoneLine, this.obj, this.expo, this.car, this.carWarn, this.act, this.packBtn, this.fx, this.dead, this.radial);
 
     // Interact: a tap picks up; holding opens a crate.
     const down = (e: Event) => {
@@ -160,6 +176,24 @@ export class PlayHud {
   }
 
   update(s: PlayHudState): void {
+    // ── Your car ──
+    const c = s.respawn === -2 ? (s.car ?? null) : null;
+    this.car.classList.toggle("visible", !!c);
+    if (c) {
+      this.carFuel.style.transform = `scaleX(${Math.max(0, Math.min(1, c.fuel)).toFixed(3)})`;
+      this.car.classList.toggle("low", c.fuel <= 0.2);
+    }
+    const state = c ? ["", t("Scratched"), t("Smoking"), t("On fire")][Math.min(3, c.state)] : "";
+    const words = c ? [state, c.radio].filter(Boolean).join(" · ") : "";
+    const warn = !c ? "" : c.blowIn >= 0 && c.blowIn <= VEHICLES.damage.warn ? t("GET OUT") : c.hijack ? t("They're pulling you out: slap!") : "";
+    const carSig = `${words}|${warn}`;
+    if (carSig !== this.lastCar) {
+      this.lastCar = carSig;
+      this.carText.textContent = words;
+      this.carWarn.textContent = warn;
+      this.carWarn.classList.toggle("visible", !!warn);
+    }
+
     // ── The zone ──
     let zl = "";
     if (s.zone) {
@@ -197,6 +231,7 @@ export class PlayHud {
       else if (s.target.kind === "stash") tl = `stash:${t("Search")}`;
       else if (s.target.kind === "prop") tl = `prop:${t("Pick up")} · ${s.target.label ?? ""}`;
       else if (s.target.kind === "bag") tl = `bag:${t("Take from the bag")}`;
+      else if (s.target.kind === "car") tl = `car:${s.target.label ?? ""}`;
       else tl = `item:${t("Pick up")} · ${itemName(s.target.item!)}:${s.target.item}`;
     }
     if (tl !== this.lastTarget) {
@@ -204,7 +239,7 @@ export class PlayHud {
       this.act.classList.toggle("visible", !!tl);
       if (tl) {
         const [kind, label, item] = tl.split(":");
-        const ico = kind === "crate" ? "crate" : kind === "bag" || kind === "prop" ? "bundle" : kind === "stash" ? "search" : ITEM_ICON[item as ItemId];
+        const ico = kind === "crate" ? "crate" : kind === "bag" || kind === "prop" ? "bundle" : kind === "stash" ? "search" : kind === "car" ? "car" : ITEM_ICON[item as ItemId];
         this.act.querySelector("svg")?.remove();
         this.act.insertAdjacentHTML("afterbegin", icon(ico, "", 18));
         this.actText.textContent = label;
