@@ -1973,12 +1973,12 @@ export class Game {
   /** Back online, but too late: the server had already let our seat go. */
   private seatLost(): void {
     const room = this.room;
-    const midRound = this.mode === "online" && !!this.round;
+    const midRound = this.mode === "online" && (!!this.round || !!this.gm);
     if (!room && !midRound) return;
     this.room = null;
     // Still looking for new people: just look again.
     if (room?.kind === "quick" && !midRound) {
-      this.net?.send({ t: "quick", mode: room.mode, dist: room.dist });
+      this.net?.send(room.ffa ? { t: "fq", m: room.ffa } : { t: "quick", mode: room.mode, dist: room.dist });
       return;
     }
     this.toLobby();

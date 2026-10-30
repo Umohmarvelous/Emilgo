@@ -591,6 +591,8 @@ export class Match {
   }
 
   private readonly sepCells = new Map<number, number[]>();
+  /** The buckets filled last step: only these are emptied (the map keeps every cell ever visited otherwise). */
+  private readonly sepUsed: number[][] = [];
   private readonly sepPushed: boolean[] = [];
 
   /**
@@ -602,13 +604,17 @@ export class Match {
     const list = this.contestants;
     const min = MOVE.radius * 2;
     const cells = this.sepCells;
-    for (const v of cells.values()) v.length = 0;
+    for (const b of this.sepUsed) b.length = 0;
+    this.sepUsed.length = 0;
+    // A long match wanders over thousands of cells: start the map afresh now and then.
+    if (cells.size > 4096) cells.clear();
     const key = (q: number, r: number) => (q + 2048) * 4096 + (r + 2048);
     for (const c of list) {
       if (c.status !== "alive") continue;
       const k = key(Math.floor(c.x), Math.floor(c.z));
       let b = cells.get(k);
       if (!b) cells.set(k, (b = []));
+      if (!b.length) this.sepUsed.push(b);
       b.push(c.index);
     }
     const pushed = this.sepPushed;

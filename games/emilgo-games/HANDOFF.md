@@ -9,8 +9,11 @@
 > 2026)**; its Medium perf gate was re-run on a quiet Mac and passes. **Phase 3
 > (shared gameplay: the match core, the zone, items and the backpack, Airfall,
 > the sky laser and its falls, footprints, the item compass) is built and
-> committed (28 Oct 2026)**; it is played on `dev/open.html?play=1` until Free
-> For All uses it. Phase 4 waits for the go-ahead. See SPEC-V3 "Status".
+> committed (28 Oct 2026)**. **Phase 4 (Free For All's core: Gidigbo melee,
+> 12-player rooms, squads and parties, the rotation, results with XP, modes
+> 1–5 and their "How to play" cards, the `GameMode` seam, the staked Flag Duel;
+> Ball Haunt hidden) is built and committed (29 Oct 2026)**. Phase 5
+> (vehicles) waits for the go-ahead. See SPEC-V3 "Status".
 >
 > Before v3: Red Light, Green Light v2 was built to [SPEC-V2.md](SPEC-V2.md)
 > in 8 phases, all done and committed, then the owner's scanned people
@@ -172,7 +175,7 @@ Where things are:
 
 - Rank: `src/rank/ladder.ts`, `src/rank/xp.ts`; server `server/src/profiles.ts` (DATA_DIR/profiles.db), `Room.onAward` in `room.ts`, the `id`/`rank` messages (protocol 11); session `onRank`, `sendIdentity`.
 - Modes as data: `src/content/` (`modes.ts` the launch manifest and `BUILT`, `validate.ts`, `catalog.ts`, `load.ts`); server `server/src/content.ts`. **Add a module to `BUILT` when its phase ships**, or its modes stay "Soon".
-- Ball Haunt's switch: `FEATURES` in `src/config.ts`. Flip it to `false` in Phase 4.
+- Ball Haunt's switch: `FEATURES` in `src/config.ts`. Off since Phase 4 (the test server runs with `BALL_HAUNT=1`).
 - The movement kernel: `src/game/core/body.ts`.
 - Mouse look: `input/controls.ts` (`lockPointer`, `mouseMode`). Pause hush: `sound.hush`.
 - New tests: `ranktest` (set `RANK_SECRET` to the server's `SUPABASE_JWT_SECRET` for the online part) and `contenttest`. The test server now also takes `SUPABASE_JWT_SECRET=test-supabase-jwt-secret-0123456789abcdef`.
@@ -184,6 +187,15 @@ Where things are:
 - HUD: `src/ui/play.ts` (zone line, exposure meter, interact, the backpack radial, effect chips, tints); `hud.ts` (`setCompass`'s item diamond), `minimap.ts` (`zone`, crate marks). Sounds: `sound.ts` (`skyWarn`, `skyHit`, `pickup`, `useItem`, `full`, `flare`, `crate`, `heartbeat`, `zoneAlert`).
 - Try it: `npm run game:dev`, then `/dev/open.html?play=1` (`&fast=4` brings the zone and Airfall sooner, `&seed=n`, `&tier=0|1|2`, `&auto=1` tours the city). `window.__match` is the match, `window.__ms` the scene, `window.__play` the numbers. **Editing `src/` while a headless run is going reloads its page** (Vite): don't, during a perf gate.
 - New test: `sharedtest` (59 checks, no server needed).
+
+## v3 Phase 4: where things are
+
+- Rules (pure, shared): `src/game/modules/melee.ts` (Gidigbo: Wobble, swings, brace and parry, the clinch and its finishers, trips, charges, ring-outs, street props, slippers), `flags.ts` (Find the Flag, Hold, Steal & Reposition, Scarcity, the Flag Duel), `dropzones.ts`, `capture.ts` (Squad Rally). The match core gained squads, standings, `reachFor` (one tap, the nearest thing), `predict`, and the **mirror** (`Match.mirror`, `applyRemote`, each module's `apply`/`view`); hidden things come from `secretRng` (the server's own seed). Numbers: `MELEE`, `FLAGS`, `DROPZONES`, `RALLY` in `src/config.ts`. Where stash spots and arenas come from: `src/maps/open/matchWorld.ts`.
+- Wire (protocol 12): `src/net/matchWire.ts`. Server: `server/src/ffa.ts` (`FfaGame`, `assignSquads`, the Flag Duel id), `room.ts` (`beginMatch`, `tickMatch`), `lobby.ts` (`fq`, parties, `openFor` rank locks, `ballHaunt`).
+- The phone: `src/modes/types.ts` (the `GameMode` seam, `ModeHost`), `src/modes/ffa.ts` (online or practice), `src/net/onlineMatch.ts` (the copy, prediction, interpolation), `src/world/ffa.ts` (flags, props, goals, melee on the bodies, meters over heads, the objective line). Session: `startFfa`, `beginFfa`, `endFfa`, `onFfaEnd`, `goFfa`, `ensureNaija` (Naija World built once per tier). Screens: `playFfa`, `ffaResults`; cards: `src/ui/ffaCards.ts`. Controls: `layout = "ffa"`.
+- Try it: the Play screen (Free For All) → Practice, or a quick match with company: `node server/dist/ffaplay.mjs --n 11 [--mode hold-the-flag] [--hunt]` fills the queue with scripted phones (`--hunt`: they come for you). `window.__game.gm` is the mode; `.match` the copy.
+- Tests: `ffatest` (offline rules, then 12 phones online with `GAME=`), `matchtest` (the staked Flag Duel), `loadtest --ffa find-the-flag`.
+- **Open item: Phase 4's frame-rate gate isn't measured.** Other apps kept this Mac's load at 18–160 on 29–30 Oct. Re-run it on a quiet Mac (load under 8) before Phase 5: the game page, a live 12-player match (`ffaplay --n 11`), CPU 4×, Low and Medium. SPEC-V3 Status has the numbers so far.
 
 ## Running and testing
 
@@ -220,11 +232,13 @@ GAME=ws://localhost:8797 node server/dist/shoptest.mjs
 GAME=ws://localhost:8797 node server/dist/socialtest.mjs
 node server/dist/fairness.mjs ws://localhost:8797       # 7/7
 node server/dist/loadtest.mjs --clients 600 --seconds 60 --url ws://localhost:8797
+node server/dist/loadtest.mjs --clients 600 --seconds 60 --url ws://localhost:8797 --ffa find-the-flag   # 50 rooms of 12
 ```
 
 - `BALL_HAUNT=1` keeps Ball Haunt's rooms open on the test server (ballstest, fairness, loadtest, socialtest
   play it) while `FEATURES.ballHaunt` is off. Leave it off any real server.
 - matchtest plays the Flag Duel: it takes as long as the flag takes to find (30 s to 5 min).
+- fairness times reactions in real time: at a load around 120 it marks safe runs as caught (2/7). Run it again when the Mac is quieter (7/7 at load 37) before you go looking for a bug.
 - macOS has no `timeout` command. Use the load test's own `--seconds` instead.
 - Kill both background servers when you're done.
 

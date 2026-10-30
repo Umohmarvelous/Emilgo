@@ -59,6 +59,7 @@ import { EMOTE_PACK } from "../../src/shop/catalog";
 import { boostsFromWire, boostsToWire } from "../../src/shop/boosts";
 import type { ModeDef } from "../../src/content/modes";
 import { now } from "./clock";
+import type { WireEvent } from "../../src/net/matchWire";
 import { assignSquads, FfaGame } from "./ffa";
 import type { Peer } from "./peer";
 
@@ -140,6 +141,8 @@ export class Room {
 
   /** The Free For All match being played, if any. */
   private game: FfaGame | null = null;
+  /** A Free For All match's events not sent yet (they go out at 30 Hz). */
+  private mev: WireEvent[] = [];
 
   get full(): boolean {
     return this.members.length >= this.size;
@@ -201,7 +204,7 @@ export class Room {
     peer.send({ t: "seat", id: playerId });
     peer.send({ t: "room", room: this.info() });
     if (this.state === "playing" && this.round) peer.send({ t: "sync", sync: this.syncInfo() });
-    if (this.state === "playing" && this.game && this.start) peer.send({ t: "msync", sync: this.game.sync(this.start.s, now()) });
+    if (this.state === "playing" && this.game && this.start) peer.send({ t: "msync", sync: this.game.sync(this.start.s, now(), this.mev.length) });
     this.broadcastRoom();
     return replaced;
   }
@@ -243,7 +246,7 @@ export class Room {
       peer.send({ t: "sync", sync: this.syncInfo() });
     }
     if (this.state === "playing" && this.start && this.game && this.inRound.has(this.seatOf(peer))) {
-      peer.send({ t: "msync", sync: this.game.sync(this.start.s, now()) });
+      peer.send({ t: "msync", sync: this.game.sync(this.start.s, now(), this.mev.length) });
     }
     this.broadcastRoom();
   }
@@ -415,6 +418,7 @@ export class Room {
     }
     const seed = this.pending?.seed ?? randomInt(0, 2 ** 31);
     const squads = assignSquads(members, def);
+    this.mev = [];
     this.game = new FfaGame(def, seed, roster.map((r) => ({ id: r.id, name: r.name, ...(r.look ? { look: r.look } : {}) })), squads);
     this.inRound.clear();
     for (const r of roster) this.inRound.add(r.id);
@@ -435,7 +439,13 @@ export class Room {
       if (!peer?.connected) game.idle(seat);
       return peer?.connected ? peer.graceBonus : 0;
     });
-    if (events.length) this.broadcast({ t: "mev", e: events });
+    // Events go out at 30 Hz (and with each snapshot, and at the end): half the socket writes of every tick.
+    if (events.length) this.mev.push(...events);
+    const snapNow = (this.ticks + 1) % SNAP_EVERY === 0 || game.over;
+    if (this.mev.length && ((this.ticks + 1) % 2 === 0 || snapNow)) {
+      this.broadcast({ t: "mev", e: this.mev });
+      this.mev = [];
+    }
     if (++this.ticks % SNAP_EVERY === 0 || game.over) {
       const half = (this.ticks / SNAP_EVERY) % 2 === 1 && !game.over;
       // Each body's measure goes out once a second (the HUD's scores), and with the last.

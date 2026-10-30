@@ -206,8 +206,10 @@ export class FfaGame {
     };
   }
 
-  sync(startMs: number, serverMs: number): MatchSync {
-    return { seed: this.seed, s: startMs, roster: this.roster, ffa: this.start, log: this.log, snap: this.snapshot(serverMs, true) };
+  /** A rejoin: everything so far, less the last `pending` events (the room sends those to everyone shortly). */
+  sync(startMs: number, serverMs: number, pending = 0): MatchSync {
+    const log = pending > 0 && this.log.length < LOG_MAX ? this.log.slice(0, Math.max(0, this.log.length - pending)) : this.log;
+    return { seed: this.seed, s: startMs, roster: this.roster, ffa: this.start, log, snap: this.snapshot(serverMs, true) };
   }
 
   /** "draw", or the winning seat (a staked duel: first to claim the flag; a timeout is a draw). */
