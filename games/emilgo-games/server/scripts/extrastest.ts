@@ -17,6 +17,7 @@ import type { MeleeModule } from "../../src/game/modules/melee";
 import type { BlackoutModule } from "../../src/game/modules/blackout";
 import type { EconomyModule } from "../../src/game/modules/economy";
 import type { RiddlesModule } from "../../src/game/modules/riddles";
+import type { RoomsModule } from "../../src/game/modules/rooms";
 import { RIDDLES, shownLangs } from "../../src/content/riddles";
 import type { TagModule } from "../../src/game/modules/tag";
 import { matchWorldOf } from "../../src/maps/open/matchWorld";
@@ -544,6 +545,81 @@ console.log("Riddles of the Elders:");
   put(m, "p0", rd.bench!.x + 1, rd.bench!.z);
   const ev4 = runFor(m, 0.2);
   check(ev4.some((e) => e.type === "won" && e.id === "p0"), "back at the Elders' Bench: won");
+}
+
+console.log("Compound Wars:");
+{
+  const cw = (seed: number, n = 4, squads?: number[]) => {
+    const st = settingsOf(def("compound-wars"));
+    delete st.modules.zone;
+    st.time = 900;
+    const w = matchWorldOf(layout, space, "naija-world:compound");
+    const mm = new Match({ seed, world: w, settings: st, contestants: Array.from({ length: n }, (_, i) => ({ id: `p${i}`, name: `P${i}`, bot: false, ...(squads ? { squad: squads[i] } : {}) })) });
+    runFor(mm, 0.1);
+    return mm;
+  };
+  const m = cw(61, 4, [0, 0, 1, 1]);
+  const rm = m.module<RoomsModule>("rooms")!;
+  check(rm.rooms.length === 8 && rm.doors.filter((d) => d.locked).length === 2 && rm.keys.length === 2, "8 rooms; the best two locked; two keys in the yard");
+  const room = rm.rooms[0];
+  check(rm.roomAt(room.x, room.z) === 0 && m.reach.at(room.x, room.z), "a room's inside is ground you can reach");
+  // Walk in through the open doorway.
+  const out = { x: room.door.x + room.door.nx * 2, z: room.door.z + room.door.nz * 2 };
+  const a = put(m, "p0", out.x, out.z);
+  for (const c of m.contestants) if (c !== a) put(m, c.id, out.x + room.door.nx * 6 + c.index, out.z + room.door.nz * 6);
+  m.setInput("p0", -room.door.nx, -room.door.nz);
+  runFor(m, 2);
+  m.setInput("p0", 0, 0);
+  check(rm.roomAt(a.x, a.z) === 0, "through the open door: inside the Boys' Quarters");
+  // Shut it from inside: it scores for your squad.
+  put(m, "p0", room.door.x - room.door.nx * 0.8, room.door.z - room.door.nz * 0.8);
+  m.setInteract("p0", 1, false);
+  const ev = runFor(m, 0.1);
+  check(ev.some((e) => e.type === "door" && e.room === 0 && !e.open) && !rm.doors[0].open, "tap at the door: shut");
+  put(m, "p0", room.x, room.z);
+  const p0 = rm.points[0];
+  runFor(m, 3);
+  check(rm.holder(m, 0) === 0 && Math.abs(rm.points[0] - p0 - rm.value(0) * 3) < 0.1, `inside, door shut, one squad: ${rm.value(0)} point a second`);
+  // A shut door is solid: a rival walks into it and stays out.
+  const b = put(m, "p2", out.x, out.z);
+  m.setInput("p2", -room.door.nx, -room.door.nz);
+  runFor(m, 2);
+  m.setInput("p2", 0, 0);
+  check(rm.roomAt(b.x, b.z) !== 0, "a rival walking at the shut door: kept out");
+  // Two squads inside: nobody scores.
+  put(m, "p2", room.x + 0.8, room.z);
+  const p1 = rm.points[0];
+  runFor(m, 2);
+  check(rm.holder(m, 0) === -1 && rm.points[0] === p1, "a rival inside too: contested, no points");
+  put(m, "p2", out.x, out.z);
+  // Jam: hold inside by the door.
+  put(m, "p0", room.door.x - room.door.nx * 0.8, room.door.z - room.door.nz * 0.8);
+  m.setInteract("p0", 2, true);
+  const ev2 = runFor(m, 2);
+  m.setInteract("p0", 2, false);
+  check(ev2.some((e) => e.type === "door" && e.room === 0 && e.jam > m.elapsed) && rm.doors[0].jam > m.elapsed, "held inside by the shut door: jammed");
+  put(m, "p2", room.door.x + room.door.nx * 0.8, room.door.z + room.door.nz * 0.8);
+  m.setInteract("p2", 1, false);
+  runFor(m, 0.1);
+  check(!rm.doors[0].open, "a rival can't open a jammed door");
+  // A locked room: take a key, open it.
+  const lockedRoom = rm.doors.findIndex((d) => d.locked);
+  const key = rm.keys[0];
+  put(m, "p1", key.x, key.z);
+  runFor(m, 0.1);
+  check(key.holder === m.get("p1")!.index, "walk onto a key: you carry it");
+  const lr = rm.rooms[lockedRoom];
+  put(m, "p1", lr.door.x + lr.door.nx * 0.8, lr.door.z + lr.door.nz * 0.8);
+  m.setInteract("p1", 1, false);
+  const ev3 = runFor(m, 0.1);
+  check(ev3.some((e) => e.type === "key" && e.how === "use") && !rm.doors[lockedRoom].locked && rm.doors[lockedRoom].open, `the key opens the ${["Boys' Quarters", "Storeroom", "Kitchen", "Children's Room", "Guest Room", "Parlour", "Madam's Room", "Master Bedroom"][lockedRoom]} for good`);
+  // The fuse box darkens the room a rival scores most from.
+  if (rm.fuseAt) {
+    put(m, "p3", rm.fuseAt.x, rm.fuseAt.z);
+    m.setInteract("p3", 1, false);
+    const ev4 = runFor(m, 0.1);
+    check(ev4.some((e) => e.type === "fuse" && e.room === 0) && rm.holder(m, 0) === -1, "the fuse box: the room the rival squad holds goes dark (no points)");
+  }
 }
 
 void MELEE;

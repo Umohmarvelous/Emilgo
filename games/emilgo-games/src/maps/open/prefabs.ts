@@ -59,7 +59,7 @@ export interface MudP { w: number; d: number }
 
 /** The id of every prefab. */
 export type PrefabId =
-  | "house" | "storey" | "shops" | "office" | "compound"
+  | "house" | "storey" | "shops" | "office" | "compound" | "courtyard"
   | "church" | "mosque" | "school" | "petrol" | "watertower" | "mast" | "viewing" | "buspark" | "market" | "suya"
   | "uncompleted" | "kiosk" | "generator" | "pole" | "wreck" | "danfo" | "busstop" | "footbridge" | "overbridge"
   | "tree" | "palm" | "bush" | "baobab" | "hut" | "mudhouse" | "farm" | "palmwine" | "chief" | "borehole"
@@ -103,6 +103,7 @@ export function footprint(id: PrefabId, v: number): [number, number] {
     case "shops": { const p = shopsP(v); return [p.w, p.d + 2]; }
     case "office": { const p = officeP(v); return [p.w, p.d]; }
     case "compound": { const p = compoundP(v); return [p.w, p.d]; }
+    case "courtyard": return [COURTYARD.w, COURTYARD.d];
     case "church": return [16, 28];
     case "mosque": return [20, 20];
     case "school": return [44, 30];
@@ -147,9 +148,89 @@ export function footprint(id: PrefabId, v: number): [number, number] {
 const GATE = 2.4;
 
 /** The solid parts of a prefab variant, in its own axes. */
+/**
+ * The Face-me-I-face-you courtyard (Compound Wars, SPEC-V3 §9 #7; Phase 6):
+ * a walled yard with four rooms down each side, each with a doorway onto the
+ * yard (the doors themselves are the rooms module's), a flat roof over each
+ * row, the gate at the front (+z). Rooms run back to front on the left (−x),
+ * then on the right.
+ */
+export const COURTYARD = { w: 30, d: 24, deep: 5, long: 5, door: 1.2, wall: 3.2, roof: 3.0, t: 0.2 } as const;
+
+export interface CourtRoom {
+  /** 0–7: left row back to front, then the right row. */
+  index: number;
+  /** The room's inside: centre, half sizes along its own axes, the placement's turn. */
+  x: number;
+  z: number;
+  hx: number;
+  hz: number;
+  rot: number;
+  /** The doorway: its centre, which way is out (to the yard), its width. */
+  door: { x: number; z: number; nx: number; nz: number; w: number };
+}
+
+function courtyardParts(): Part[] {
+  const C = COURTYARD;
+  const out: Part[] = [];
+  const W = C.w;
+  const D = C.d;
+  const t = C.t;
+  // The outer wall (the rooms' backs), the gate at the front.
+  out.push(box(0, -D / 2 + t / 2, W, t, 0, C.wall));
+  out.push(box(-W / 2 + t / 2, 0, t, D, 0, C.wall));
+  out.push(box(W / 2 - t / 2, 0, t, D, 0, C.wall));
+  const gate = 4;
+  const side = (W - gate) / 2;
+  out.push(box(-W / 2 + side / 2, D / 2 - t / 2, side, t, 0, C.wall));
+  out.push(box(W / 2 - side / 2, D / 2 - t / 2, side, t, 0, C.wall));
+  const z0 = -(C.long * 4) / 2;
+  for (const sx of [-1, 1]) {
+    const inner = sx * (W / 2 - t - C.deep);
+    // The partitions between rooms (and the row's ends).
+    for (let i = 0; i <= 4; i++) out.push(box(sx * (W / 2 - t - C.deep / 2), z0 + i * C.long, C.deep, t, 0, C.wall));
+    // The wall onto the yard, with a doorway in each room.
+    for (let i = 0; i < 4; i++) {
+      const zc = z0 + (i + 0.5) * C.long;
+      const seg = (C.long - C.door) / 2;
+      out.push(box(inner, zc - C.door / 2 - seg / 2, t, seg, 0, C.wall));
+      out.push(box(inner, zc + C.door / 2 + seg / 2, t, seg, 0, C.wall));
+      // Over the doorway: the lintel.
+      out.push(box(inner, zc, t, C.door, 2.2, C.wall));
+    }
+    // The row's flat roof.
+    out.push(box(sx * (W / 2 - t - C.deep / 2), 0, C.deep + t, C.long * 4 + t, C.roof, C.roof + 0.2));
+  }
+  return out;
+}
+
+/** The courtyard's rooms in the world, for a placement of it. */
+export function courtyardRooms(p: Placement): CourtRoom[] {
+  const C = COURTYARD;
+  const c = Math.cos(p.rot);
+  const s = Math.sin(p.rot);
+  const world = (x: number, z: number): [number, number] => [p.x + x * c + z * s, p.z - x * s + z * c];
+  const out: CourtRoom[] = [];
+  const z0 = -(C.long * 4) / 2;
+  for (const sx of [-1, 1]) {
+    for (let i = 0; i < 4; i++) {
+      const zc = z0 + (i + 0.5) * C.long;
+      const [x, z] = world(sx * (C.w / 2 - C.t - C.deep / 2), zc);
+      const [dx, dz] = world(sx * (C.w / 2 - C.t - C.deep), zc);
+      // Out of the room is towards the yard's middle (−sx along the local x).
+      const nx = -sx * c;
+      const nz = sx * s;
+      out.push({ index: out.length, x, z, hx: C.deep / 2 - C.t, hz: C.long / 2 - C.t, rot: p.rot, door: { x: dx, z: dz, nx, nz, w: C.door } });
+    }
+  }
+  return out;
+}
+
 export function parts(id: PrefabId, v: number): Part[] {
   const out: Part[] = [];
   switch (id) {
+    case "courtyard":
+      return courtyardParts();
     case "house": {
       const p = houseP(v);
       out.push(box(0, p.fence ? -1.5 : 0, p.w, p.d, 0, p.h));

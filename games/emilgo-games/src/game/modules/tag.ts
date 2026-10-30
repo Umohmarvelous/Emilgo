@@ -58,7 +58,8 @@ export class TagModule implements RuleModule {
     this.ojuju = new Uint8Array(n);
     this.human = new Float64Array(n);
     this.turned = new Float64Array(n);
-    if (m.mirror) return;
+    // Alone (Practice) there's nobody to chase: you're human, nothing is judged.
+    if (m.mirror || n < 2) return;
     // The first Ojuju: chosen by the seed, announced to everyone.
     const order = m.rng("tag").shuffle(m.contestants.map((c) => c.index));
     const k = Math.min(this.start, Math.max(1, n - 1));
@@ -179,7 +180,7 @@ export class TagModule implements RuleModule {
 
   /** Last human standing; or everyone turned. */
   private judge(m: Match): void {
-    if (m.winner) return;
+    if (m.winner || m.contestants.length < 2) return;
     const humans = this.humans(m);
     if (humans.length === 1 && m.contestants.length > 2) m.win(humans[0]);
     else if (humans.length === 0) m.win(this.topOjuju(m));

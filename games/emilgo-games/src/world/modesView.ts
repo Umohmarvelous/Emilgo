@@ -12,11 +12,15 @@
 //                     boxes, spilled Owo, your delivery's drop; Owo on the HUD
 //   Riddles           kola-nut tokens on little stools, the Elders' Bench
 //                     under the baobab; the riddle on the HUD
+//   Compound Wars     the doors (they swing open and shut), the keys, the
+//                     fuse box; each room's floor glows its holder's squad
+//                     colour (black while the fuse has it dark)
 //
 // Each mode's things are one instanced draw.
 
 import {
   AdditiveBlending,
+  BoxGeometry,
   type BufferGeometry,
   Color,
   ConeGeometry,
@@ -37,10 +41,11 @@ import {
 import type { Sound } from "../audio/sound";
 import type { Match } from "../game/core/match";
 import type { MatchEvent } from "../game/core/module";
-import { BLACKOUT, ECONOMY, RIDDLES_CFG, type JobKind } from "../config";
+import { BLACKOUT, ECONOMY, RIDDLES_CFG, ROOMS, SQUAD_COLORS, type JobKind } from "../config";
 import type { BlackoutModule } from "../game/modules/blackout";
 import type { EconomyModule } from "../game/modules/economy";
 import type { RiddlesModule } from "../game/modules/riddles";
+import { ROOM_NAMES, type RoomsModule } from "../game/modules/rooms";
 import type { TagModule } from "../game/modules/tag";
 import type { Hud, ItemPin } from "../ui/hud";
 import type { PlayHudState } from "../ui/play";
@@ -65,6 +70,7 @@ export interface ModesViewOptions {
 }
 
 const _m = new Matrix4();
+const ZERO = new Matrix4().makeScale(0, 0, 0);
 const _c = new Color();
 const _v = new Vector3();
 const _q = new Quaternion();
@@ -104,6 +110,14 @@ function benchGeometry(): BufferGeometry {
   ]);
 }
 
+function keyGeometry(): BufferGeometry {
+  return merge([
+    part(new TorusGeometry(0.09, 0.025, 6, 12), 0xffc23a, { p: [0, 0.6, 0] }),
+    part(new BoxGeometry(0.03, 0.03, 0.26), 0xffc23a, { p: [0, 0.6, -0.2] }),
+    part(new BoxGeometry(0.03, 0.08, 0.03), 0xffc23a, { p: [0, 0.56, -0.3] }),
+  ]);
+}
+
 function charmGeometry(): BufferGeometry {
   return merge([
     part(new TorusGeometry(0.16, 0.035, 6, 14), 0xffc23a, { p: [0, 0.32, 0] }),
@@ -124,6 +138,12 @@ export class ModesView {
   private readonly sacks: InstancedMesh;
   private readonly drop: InstancedMesh;
   private readonly kola: InstancedMesh;
+  private readonly doorMesh: InstancedMesh;
+  private readonly keysMesh: InstancedMesh;
+  private readonly floors: InstancedMesh;
+  private readonly fuseBox: InstancedMesh;
+  /** Each door's swing now (0 shut … 1 open), eased. */
+  private swing: number[] = [];
   private readonly bench: InstancedMesh;
   private readonly glows: InstancedMesh;
   /** Lights Out: how dark the city is now (eased), and whether a rival's lamp is on you. */
@@ -155,6 +175,12 @@ export class ModesView {
     this.drop = make(new CylinderGeometry(1, 1, 1, 24, 1, true).translate(0, 0.5, 0), new MeshBasicMaterial({ color: 0xffd36a, transparent: true, opacity: 0.35, blending: AdditiveBlending, depthWrite: false, side: DoubleSide }), 1);
     this.kola = make(kolaGeometry(), new MeshLambertMaterial({ vertexColors: true }), 24);
     this.bench = make(benchGeometry(), new MeshLambertMaterial({ vertexColors: true }), 1);
+    // A door: 1 m wide (scaled to the doorway), hinged at its left edge.
+    this.doorMesh = make(merge([part(new BoxGeometry(1, 2.15, 0.06), 0x6d4c2f, { p: [0.5, 1.08, 0] }), part(new BoxGeometry(0.05, 0.05, 0.1), 0xc0a060, { p: [0.85, 1.05, 0] })]), new MeshLambertMaterial({ vertexColors: true }), 8);
+    this.keysMesh = make(keyGeometry(), new MeshLambertMaterial({ vertexColors: true, emissive: new Color(0x3a2a00) }), ROOMS.keys);
+    this.floors = make(new BoxGeometry(1, 0.02, 1), new MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35, depthWrite: false }), 8);
+    this.floors.setColorAt(0, new Color(1, 1, 1));
+    this.fuseBox = make(merge([part(new CylinderGeometry(0.05, 0.05, 1.4, 6), 0x5a4a3a, { p: [0, 0.7, 0] }), part(new BoxGeometry(0.45, 0.6, 0.2), 0x9e9e9e, { p: [0, 1.5, 0] }), part(new BoxGeometry(0.1, 0.16, 0.04), 0xd32f2f, { p: [0, 1.5, 0.11] })]), new MeshLambertMaterial({ vertexColors: true }), 1);
   }
 
   events(list: readonly MatchEvent[], m: Match): void {
@@ -187,6 +213,14 @@ export class ModesView {
           if (c && c !== me) hud.pushFeed(`${c.name} ${t("sabotaged a station")}`, "info");
         } else if (e.how === "lost" && e.id === me.id) hud.pushFeed(t("Your job is lost"), "out");
         else if (e.how === "take" && e.id === me.id) hud.pushFeed(t("Take it to the gold ring"), "info");
+      } else if (e.type === "door" && e.jam > 0 && e.id) {
+        const c = m.get(e.id);
+        if (c) hud.pushFeed(`${c === me ? t("You") : c.name} ${t("jammed the")} ${t(ROOM_NAMES[e.room] ?? "")}`, "info");
+      } else if (e.type === "fuse") {
+        hud.pushFeed(`${t("Lights off in the")} ${t(ROOM_NAMES[e.room] ?? "")}`, "info");
+        this.o.sound?.crack(false);
+      } else if (e.type === "key" && e.how === "take" && e.id === me.id) {
+        hud.pushFeed(t("You have a key: a locked room opens with it"), "safe");
       } else if (e.type === "riddle") {
         hud.pushFeed(t("The Elders have a new riddle"), "info");
         this.o.sound?.radio();
@@ -324,6 +358,48 @@ export class ModesView {
         if (rd.count(me.index) >= rd.need) pin = { x: rd.bench.x, z: rd.bench.z, kind: "goal" };
       }
     }
+    const rm = m.module<RoomsModule>("rooms");
+    if (rm) {
+      rm.rooms.forEach((r, i) => {
+        const d = rm.doors[i];
+        const want = d.open ? 1 : 0;
+        this.swing[i] = (this.swing[i] ?? want) + (want - (this.swing[i] ?? want)) * (1 - Math.exp(-dt * 8));
+        // Hinged at one side of the doorway; open swings it out into the yard.
+        const along = { x: -r.door.nz, z: r.door.nx };
+        const hx = r.door.x - along.x * (r.door.w / 2);
+        const hz = r.door.z - along.z * (r.door.w / 2);
+        const shut = Math.atan2(along.z, along.x);
+        const ang = -shut + this.swing[i] * (Math.PI / 2);
+        _q.setFromAxisAngle(_y, ang);
+        _m.compose(_v.set(hx, 0, hz), _q, _s.set(r.door.w, 1, 1));
+        this.doorMesh.setMatrixAt(i, _m);
+        // The floor: its holder's colour; dark: black; nobody: none.
+        const q = rm.holder(m, i);
+        const isDark = rm.dark.room === i && m.elapsed < rm.dark.until;
+        _q.setFromAxisAngle(_y, r.rot);
+        _m.compose(_v.set(r.x, 0.03, r.z), _q, _s.set(r.hx * 2, 1, r.hz * 2));
+        this.floors.setMatrixAt(i, q < 0 && !isDark ? ZERO : _m);
+        this.floors.setColorAt(i, _c.set(isDark ? "#000000" : SQUAD_COLORS[Math.max(0, q) % SQUAD_COLORS.length]));
+      });
+      this.doorMesh.count = this.floors.count = rm.rooms.length;
+      this.doorMesh.instanceMatrix.needsUpdate = this.floors.instanceMatrix.needsUpdate = true;
+      if (this.floors.instanceColor) this.floors.instanceColor.needsUpdate = true;
+      let k = 0;
+      for (const key of rm.keys) {
+        if (key.used) continue;
+        _m.makeRotationY(this.time * 2 + key.index).setPosition(key.x, key.h + (key.holder >= 0 ? 0.3 : 0), key.z);
+        this.keysMesh.setMatrixAt(k++, _m);
+        if (key.holder < 0) marks.push({ x: key.x, z: key.z, kind: "crate" });
+      }
+      this.keysMesh.count = k;
+      this.keysMesh.instanceMatrix.needsUpdate = true;
+      if (rm.fuseAt) {
+        _m.makeTranslation(rm.fuseAt.x, rm.fuseAt.h, rm.fuseAt.z);
+        this.fuseBox.setMatrixAt(0, _m);
+        this.fuseBox.count = 1;
+        this.fuseBox.instanceMatrix.needsUpdate = true;
+      }
+    }
     const bo = m.module<BlackoutModule>("blackout");
     if (bo) {
       const dark = bo.cut(m);
@@ -376,6 +452,28 @@ export class ModesView {
   target(m: Match): (NonNullable<PlayHudState["target"]> & { d: number }) | null {
     const eco = m.module<EconomyModule>("economy");
     const me = m.contestants[this.o.me];
+    const rm = m.module<RoomsModule>("rooms");
+    if (rm && me.status === "alive") {
+      let best: (NonNullable<PlayHudState["target"]> & { d: number }) | null = null;
+      const inRoom = rm.roomAt(me.x, me.z);
+      for (const r of rm.rooms) {
+        const d = Math.hypot(r.door.x - me.x, r.door.z - me.z);
+        if (d > ROOMS.reach || (best && best.d <= d)) continue;
+        const door = rm.doors[r.index];
+        const hasKey = rm.keys.some((k) => k.holder === me.index && !k.used);
+        const label =
+          m.elapsed < door.jam ? t("Jammed") :
+          door.locked ? (hasKey ? t("Open it with the key") : t("Locked: find a key")) :
+          door.open ? `${t("Shut the door")} · ${t(ROOM_NAMES[r.index])} (${rm.value(r.index)}/s)` :
+          inRoom === r.index ? t("Tap: open · hold: jam") : t("Open the door");
+        best = { kind: "job", label, progress: 0, d };
+      }
+      if (rm.fuseAt && m.elapsed >= rm.fuseReady) {
+        const d = Math.hypot(rm.fuseAt.x - me.x, rm.fuseAt.z - me.z);
+        if (d <= ROOMS.reach && (!best || d < best.d)) best = { kind: "job", label: t("Fuse box: darken a rival's room"), progress: 0, d };
+      }
+      if (best) return best;
+    }
     const rd = m.module<RiddlesModule>("riddles");
     if (rd && me.status === "alive" && !m.seated(me)) {
       let best: (NonNullable<PlayHudState["target"]> & { d: number }) | null = null;
@@ -411,6 +509,18 @@ export class ModesView {
   /** The objective line for these modes ("" when it's none of them). */
   objectiveLine(m: Match): string {
     const me = m.contestants[this.o.me];
+    const rm = m.module<RoomsModule>("rooms");
+    if (rm) {
+      const mine = m.squads[me.index];
+      let us = 0;
+      let rival = 0;
+      const bySquad = new Map<number, number>();
+      for (const c of m.contestants) bySquad.set(m.squads[c.index], (bySquad.get(m.squads[c.index]) ?? 0) + rm.points[c.index]);
+      for (const [q, v] of bySquad) if (q === mine) us = v;
+      else rival = Math.max(rival, v);
+      const held = rm.rooms.filter((r) => rm.holder(m, r.index) === mine).length;
+      return `${t("Points")}: ${Math.floor(us)} · ${t("best rival")} ${Math.floor(rival)} · ${t("rooms held")}: ${held}`;
+    }
     const eco = m.module<EconomyModule>("economy");
     if (eco) {
       const lead = eco.leader(m);

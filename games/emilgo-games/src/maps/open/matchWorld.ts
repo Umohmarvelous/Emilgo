@@ -6,7 +6,7 @@
 import type { MatchWorld } from "../../game/core/match";
 import type { Space } from "../../game/core/space";
 import type { OpenLayout } from "./naija";
-import type { PrefabId } from "./prefabs";
+import { courtyardRooms, type PrefabId } from "./prefabs";
 
 /** Where a flag can be hidden: inside a danfo, a water tank, under a stall, by the bell tower … */
 const STASH_PREFABS: ReadonlySet<PrefabId> = new Set<PrefabId>(["danfo", "kiosk", "wreck", "generator", "busstop", "borehole", "carriage", "okada", "hut", "watertower", "church", "market", "suya", "mechanic", "carpenter", "barber"]);
@@ -64,6 +64,8 @@ export function fuelStands(layout: OpenLayout): { x: number; z: number; rot: num
 /** Parts of a world a mode can be played on ("naija-world:market"): a circle. */
 const ARENAS: Record<string, { x: number; z: number; r: number }> = {
   market: { x: 30, z: -40, r: 80 },
+  // Compound Wars: a small zone round the Face-me-I-face-you courtyard.
+  compound: { x: 100, z: 40, r: 60 },
 };
 
 export function matchWorldOf(layout: OpenLayout, space: Space, map = layout.id): MatchWorld {
@@ -77,6 +79,8 @@ export function matchWorldOf(layout: OpenLayout, space: Space, map = layout.id):
   if (arena && spawns.length < 4) spawns = [...spawns, ...layout.spawns.filter(([x, z]) => !inArena(x, z, 0.85)).sort((a, b) => Math.hypot(a[0] - arena.x, a[1] - arena.z) - Math.hypot(b[0] - arena.x, b[1] - arena.z)).slice(0, 4 - spawns.length)];
   const roads = layout.roads.map((r) => ({ x0: r.x0, z0: r.z0, x1: r.x1, z1: r.z1, w: r.w }));
   const generators = layout.placements.filter((p) => p.prefab === "generator" && inArena(p.x, p.z)).map((p) => ({ x: p.x, z: p.z }));
+  const court = layout.placements.find((p) => p.prefab === "courtyard");
+  const rooms = court ? courtyardRooms(court) : [];
   const named = [...layout.landmarks.map((l) => ({ id: l.id, x: l.x, z: l.z, r: 18 })), ...layout.areas.map((a) => ({ id: a.id, x: a.x, z: a.z, r: a.r }))];
-  return { space, spawns, places, stash, route: NAIJA_ROUTE, roads, fuel: fuelStands(layout), generators, named, ...(arena ? { arena } : {}) };
+  return { space, spawns, places, stash, route: NAIJA_ROUTE, roads, fuel: fuelStands(layout), generators, named, rooms, ...(arena ? { arena } : {}) };
 }

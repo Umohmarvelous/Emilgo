@@ -182,7 +182,8 @@ const FIXED: Omit<Placement, "v">[] = [
   { prefab: "footbridge", x: -130, z: 150, rot: 2.54 },
   { prefab: "petrol", x: 30, z: 18, rot: Math.PI },
   { prefab: "mast", x: -75, z: 112, rot: 0 },
-  { prefab: "compound", x: 100, z: 40, rot: Math.PI / 2 },
+  // Face-me-I-face-you: rooms round a yard you can walk into (Compound Wars plays here).
+  { prefab: "courtyard", x: 100, z: 40, rot: Math.PI / 2 },
   { prefab: "busstop", x: 71, z: -60, rot: -Math.PI / 2 },
   { prefab: "okada", x: 132, z: 100, rot: Math.PI / 2 },
   { prefab: "barber", x: -18, z: 30, rot: Math.PI / 2 },

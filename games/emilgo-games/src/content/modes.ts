@@ -18,7 +18,7 @@ export const MODULE_IDS = [
 export type ModuleId = (typeof MODULE_IDS)[number];
 
 /** The modules this build can play. Grows phase by phase (SPEC-V3 §13). */
-export const BUILT: ReadonlySet<ModuleId> = new Set<ModuleId>(["doll", "balls", "zone", "items", "airfall", "vehicles", "melee", "flags", "dropzones", "capture", "gadgets", "tag", "blackout", "economy", "riddles"]);
+export const BUILT: ReadonlySet<ModuleId> = new Set<ModuleId>(["doll", "balls", "zone", "items", "airfall", "vehicles", "melee", "flags", "dropzones", "capture", "gadgets", "tag", "blackout", "economy", "riddles", "rooms"]);
 
 export type Family = "ffa" | "survival" | "rlgl";
 export type Text = { en: string; pcm?: string };
@@ -153,7 +153,7 @@ export const BUILTIN_MANIFEST: Manifest = {
       ranked: { ...RANKED, "tag.cures": 1 },
     },
     {
-      id: "compound-wars", v: 1, family: "ffa", minRank: "pro-1", players: SOLO_OR_SQUAD, map: "naija-world", time: 480,
+      id: "compound-wars", v: 2, family: "ffa", minRank: "pro-1", players: SOLO_OR_SQUAD, map: "naija-world:compound", time: 480,
       name: { en: "Compound Wars", pcm: "Compound Wars" },
       blurb: { en: "Hold the best rooms in the compound. Most points wins.", pcm: "Hold the fine rooms for compound. Who get pass points, win." },
       respawn: { on: true, delay: 5 },

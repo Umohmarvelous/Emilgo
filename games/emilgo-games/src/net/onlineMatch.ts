@@ -26,6 +26,7 @@ import type { CaptureModule } from "../game/modules/capture";
 import type { FlagsModule } from "../game/modules/flags";
 import { driveCar, wrap, type Car } from "../game/modules/drive";
 import type { MeleeModule } from "../game/modules/melee";
+import type { RoomsModule } from "../game/modules/rooms";
 import type { TagModule } from "../game/modules/tag";
 import type { VehiclesModule } from "../game/modules/vehicles";
 import type { NetClient } from "./client";
@@ -172,7 +173,11 @@ export class OnlineMatch {
     if (me && me.status === "alive" && m.phase === "play" && !m.seated(me)) {
       if (this.net.state !== "open") me.inX = me.inZ = 0;
       const follow = this.following();
-      if (!follow) m.predict(me, dt, this.share(me));
+      if (!follow) {
+        m.predict(me, dt, this.share(me));
+        // Compound Wars: a shut door is solid on the phone too.
+        m.module<RoomsModule>("rooms")?.keepOut(m, me);
+      }
       // Close the gap to the server: about 90% in a quarter second (faster while it moves you).
       const k = 1 - Math.exp(-dt * (follow ? 18 : 9));
       const dx = this.corrX * k;
@@ -334,6 +339,7 @@ export class OnlineMatch {
         this.measures[i] = v;
         this.flags?.setObjective(i, v);
         cap?.setObjective(i, v);
+        m.module<RoomsModule>("rooms")?.setObjective(i, v);
       }
     }
     // Meters (wobble, brace) for everyone; the rest is drawn from the buffer.

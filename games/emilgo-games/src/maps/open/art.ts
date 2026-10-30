@@ -12,7 +12,7 @@ import { BoxGeometry, BufferGeometry, ConeGeometry, CylinderGeometry, Matrix4, O
 
 import { Kit, type Chunk, type Level, type TexKind } from "../kit";
 import { merge, part, type V3 } from "../../world/geo";
-import { compoundP, houseP, hutP, mudP, officeP, parts, shopsP, storeyP, type Part, type Placement } from "./prefabs";
+import { COURTYARD, compoundP, houseP, hutP, mudP, officeP, parts, shopsP, storeyP, type Part, type Placement } from "./prefabs";
 
 /** The atlas's tiles, in order (4 × 2). */
 export const TEX_KINDS: TexKind[] = ["plaster", "concrete", "brick", "wood", "mud", "zinc", "glass", "thatch"];
@@ -293,6 +293,37 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
       k.box("#8a8d90", [3, 1.4, 2], [q.w / 4, h + 0.85, -q.d / 4], "detail");
       // The entrance canopy.
       k.box("#3a4a5a", [5, 0.15, 2.2], [0, 3.2, q.d / 2 + 1.1], "main");
+      break;
+    }
+    case "courtyard": {
+      // Face-me-I-face-you, walkable (Compound Wars): plastered rooms round a
+      // yard, a zinc-edged flat roof over each row, a bed, a mat or a stove in
+      // each room; the doors are drawn by the mode (they open and shut).
+      const C = COURTYARD;
+      const roof = ps.filter((q) => q.y0 >= C.roof - 0.01);
+      allParts(k, ps.filter((q) => q.y0 < C.roof - 0.01), (q) => ({ tex: "plaster", color: q.y0 > 1 ? "#d9c9a8" : "#e6d8b8" }));
+      allParts(k, roof, () => ({ tex: "zinc", color: ZINC[1] }));
+      const z0 = -(C.long * 4) / 2;
+      const FURNISH = ["#7a5a3a", "#8d6e63", "#a1887f", "#6d4c41"];
+      for (const sx of [-1, 1]) {
+        for (let i = 0; i < 4; i++) {
+          const zc = z0 + (i + 0.5) * C.long;
+          const xc = sx * (C.w / 2 - C.t - C.deep / 2);
+          const n = (sx < 0 ? 0 : 4) + i;
+          // A door frame on the yard side.
+          k.box(DOOR, [0.08, 2.25, 0.1], [sx * (C.w / 2 - C.t - C.deep) - sx * 0.12, 1.12, zc - C.door / 2], "main");
+          k.box(DOOR, [0.08, 2.25, 0.1], [sx * (C.w / 2 - C.t - C.deep) - sx * 0.12, 1.12, zc + C.door / 2], "main");
+          // Inside: the Master Bedroom (the last) has a bed and the AC; the others a mat, a stool or a stove.
+          if (n === 7) {
+            k.box("#f2f2f2", [1.6, 0.5, 2.0], [xc + sx * 1, 0.25, zc], "detail");
+            k.box("#e8e8e8", [0.9, 0.35, 0.25], [sx * (C.w / 2 - C.t - 0.2), 2.4, zc + 1.4], "detail");
+          } else if (n >= 5) k.box("#c9b37a", [1.4, 0.45, 1.8], [xc + sx * 1.1, 0.22, zc], "detail");
+          else k.box(FURNISH[n % FURNISH.length], [1.1, 0.06, 1.6], [xc + sx * 0.8, 0.03, zc], "detail");
+        }
+      }
+      // The yard: a washing line, a bench.
+      k.box("#dedede", [0.02, 0.02, C.d - 8], [0, 2.2, 0], "detail");
+      k.box("#8d6e63", [0.45, 0.45, 2.2], [0, 0.22, -C.d / 2 + 2], "detail");
       break;
     }
     case "compound": {

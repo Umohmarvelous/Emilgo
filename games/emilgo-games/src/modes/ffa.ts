@@ -112,6 +112,7 @@ export class FfaMode implements GameMode {
   private readonly gadgets: GadgetView;
   private readonly modes6: ModesView;
   private dimmed = 0;
+  private readonly dimLook = { ...LOOKS.naija };
   /** The car you were in last frame (−1: none), and your radio's station. */
   private inCar = -1;
   private station: RadioId | null = null;
@@ -494,7 +495,12 @@ export class FfaMode implements GameMode {
     h.controls.setFinisher(!!mel && live && mel.clinchOf(me.index) >= 0);
     h.controls.setStamina(me.stamina, me.sprinting);
 
-    h.draw(LOOKS.naija);
+    // Lights Out: the film look darkens with the city.
+    if (this.dimmed > 0.01) {
+      this.dimLook.exposure = LOOKS.naija.exposure * (1 - 0.7 * this.dimmed);
+      this.dimLook.saturation = LOOKS.naija.saturation * (1 - 0.35 * this.dimmed);
+      h.draw(this.dimLook);
+    } else h.draw(LOOKS.naija);
   }
 
   /** The match is over: the result, for the session's results screen. */
@@ -559,6 +565,7 @@ function measureName(m: Match): string {
   if (m.module("blackout")) return "Seconds unfound";
   if (m.module("economy")) return "Owo banked";
   if (m.module("riddles")) return "Riddles solved";
+  if (m.module("rooms")) return "Points";
   if (m.module<CaptureModule>("capture")) return "Seconds in the rally point";
   if (!f) return "";
   if (f.claimHold > 0) return "Longest hold (s)";

@@ -112,7 +112,14 @@ export type MatchEvent =
   /** Riddle k is asked (its id in content/riddles.ts, the language it's asked in). */
   | { type: "riddle"; k: number; id: string; lang: string }
   /** A kola-nut token taken: the right answer to riddle k, or wrong (no tokens for a while). */
-  | { type: "token"; id: string; token: number; riddle: number; right: boolean };
+  | { type: "token"; id: string; token: number; riddle: number; right: boolean }
+  // ── Compound Wars (Phase 6, rooms.ts) ──
+  /** A door opened or shut (by id), its lock, jammed until (0: not). */
+  | { type: "door"; room: number; open: boolean; locked: boolean; jam: number; id: string | null }
+  /** A key: taken, dropped, used on a locked door. */
+  | { type: "key"; key: number; how: "take" | "drop" | "use"; id: string | null; x: number; z: number; h: number }
+  /** The fuse box: a room dark until. */
+  | { type: "fuse"; room: number; until: number; id: string };
 
 /** Why someone went down: melee's reasons, then a car's (pulled out, thrown by a blast, out at speed). */
 export type DownWhy = "daze" | "trip" | "tackle" | "throw" | "ringout" | "hijack" | "blast" | "tumble";

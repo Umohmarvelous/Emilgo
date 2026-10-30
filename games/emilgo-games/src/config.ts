@@ -517,6 +517,19 @@ export const ECONOMY = {
 
 export type JobKind = keyof typeof ECONOMY.jobs;
 
+/** Compound Wars (SPEC-V3 §9 #7; Phase 6): the courtyard's rooms and doors. */
+export const ROOMS = {
+  /** Tap a door from this close (either side); hold this long inside to jam it shut, for `jam` s. */
+  reach: 1.6,
+  jamHold: 1.5,
+  jam: 20,
+  /** The fuse box darkens a room for `dark` s (it scores nothing); then it rests `rest` s. */
+  dark: 20,
+  rest: 40,
+  /** Keys: walk onto one; the locked rooms (the best two) open with one. */
+  keys: 2,
+} as const;
+
 /** Riddles of the Elders (SPEC-V3 §9 #9; Phase 6). */
 export const RIDDLES_CFG = {
   /** Take a token from this close; the bench counts from this close. */

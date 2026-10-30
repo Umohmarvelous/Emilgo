@@ -36,6 +36,7 @@ import type { ZoneModule } from "../modules/zone";
 import { freshMotion, moveContestant, setBoosts, type Cause, type Contestant } from "./body";
 import type { MatchEvent, MatchPhase, RuleModule } from "./module";
 import { reachOf, type Reach } from "./reach";
+import type { CourtRoom } from "../../maps/open/prefabs";
 import type { Space } from "./space";
 
 /** The world a match is played in: its solids, its starts and the places worth finding. */
@@ -51,6 +52,8 @@ export interface MatchWorld {
   readonly roads?: readonly { x0: number; z0: number; x1: number; z1: number; w: number }[];
   /** The fuel boys' stands by the roadside (a car stopped beside one gets a top-up, once a match each). */
   readonly fuel?: readonly { x: number; z: number; rot: number }[];
+  /** Compound Wars: the courtyard's rooms and their doorways. */
+  readonly rooms?: readonly CourtRoom[];
   /** The named places (landmarks and areas) by id: Riddles of the Elders' answers. */
   readonly named?: readonly { id: string; x: number; z: number; r: number }[];
   /** The street generators (Lights Out: they run in a power cut, light what's near, and shock what touches them). */
