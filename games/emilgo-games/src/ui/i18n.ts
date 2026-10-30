@@ -229,6 +229,7 @@ const PCM: Record<string, string> = {
     "Enter for door: drive or sidon. If you dey go fast, sky no go see you. Fuel na 30 seconds; fuel boys for roadside go add am. If you jam things e go catch fire, then e go burst: comot.",
   "Fast: hidden": "Fast: sky no see",
   "Beaten by": "How to beat am",
+  Ranked: "Ranked",
   "Practice earns CP, not rank XP": "Practice dey give CP, e no dey give rank XP",
   "Not saved: couldn't confirm who you are. Reopen the game to rank.": "E no save: we no fit confirm say na you. Open the game again to rank.",
   "Counted on this device only": "Na only this phone e count am",

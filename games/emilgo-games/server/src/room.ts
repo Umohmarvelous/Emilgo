@@ -139,6 +139,8 @@ export class Room {
     this.owner = owner?.id ?? null;
   }
 
+  /** Ranked (Phase 6): double XP and the mode's harder rules. */
+  ranked = false;
   /** The Free For All match being played, if any. */
   private game: FfaGame | null = null;
   /** A Free For All match's events not sent yet (they go out at 30 Hz). */
@@ -419,7 +421,7 @@ export class Room {
     const seed = this.pending?.seed ?? randomInt(0, 2 ** 31);
     const squads = assignSquads(members, def);
     this.mev = [];
-    this.game = new FfaGame(def, seed, roster.map((r) => ({ id: r.id, name: r.name, ...(r.look ? { look: r.look } : {}) })), squads);
+    this.game = new FfaGame(def, seed, roster.map((r) => ({ id: r.id, name: r.name, ...(r.look ? { look: r.look } : {}) })), squads, this.ranked && this.kind === "quick");
     this.inRound.clear();
     for (const r of roster) this.inRound.add(r.id);
     this.start = { seed, s: t, roster, init: [], map: def.map, ffa: this.game.start };
@@ -609,6 +611,7 @@ export class Room {
       mode: this.mode,
       dist: this.dist,
       ...(this.ffa ? { ffa: this.ffa.id, min: this.ffa.players.min } : {}),
+      ...(this.ranked ? { rk: true } : {}),
     };
   }
 

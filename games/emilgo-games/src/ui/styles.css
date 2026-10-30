@@ -905,6 +905,12 @@ input { font: inherit; color: inherit; }
 .gamecard .seg.ffa-modes { display: grid; grid-template-columns: 1fr 1fr; align-self: stretch; }
 .ffa-modes button { display: inline-flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; height: auto; min-height: 30px; padding: 4px 8px; text-align: left; border-top: 1px solid var(--line); }
 .ffa-modes button + button { border-left: 0; }
+/* The Ranked switch under the modes (Phase 6). */
+.gamecard .rk { display: flex; align-items: center; gap: 8px; align-self: stretch; min-height: 34px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: inherit; font: inherit; text-align: left; }
+.gamecard .rk b { font-size: 12px; }
+.gamecard .rk small { margin-left: auto; font-size: 10px; opacity: 0.75; }
+.gamecard .rk.on { border-color: #ffc23a; background: rgba(255, 194, 58, 0.14); color: #ffd36a; }
+.gamecard .rk:disabled { opacity: 0.5; }
 .ffa-modes button:nth-child(even) { border-left: 1px solid var(--line); }
 .ffa-modes button:nth-child(-n + 2) { border-top: 0; }
 .ffa-modes button small { display: inline-flex; align-items: center; gap: 2px; font-size: 9px; opacity: 0.8; }

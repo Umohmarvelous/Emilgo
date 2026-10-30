@@ -79,7 +79,7 @@ import { setTextureAnisotropy } from "../world/tex";
 import { buildAtlas } from "../world/textures";
 import { BOT_NAMES, BotBrain } from "./bots";
 import { addProgress, ensureDaily } from "./progress";
-import { rankOf, rankUp } from "../rank/ladder";
+import { DIVISIONS, rankOf, rankUp } from "../rank/ladder";
 import { catalog, games } from "../content/catalog";
 import type { ModeDef } from "../content/modes";
 import { buildOpenWorldIdle, type OpenWorld } from "../maps/open/build";
@@ -809,6 +809,8 @@ export class Game {
         rotation: this.content.manifest.rotation ?? [],
         pick: this.settings.ffaMode,
         party: this.party && net ? { ...this.party, me: this.seatId ?? net.id } : null,
+        ranked: this.settings.ranked,
+        rankedOpen: rankOf(this.rankXp).k >= DIVISIONS,
       });
       return;
     }
@@ -2815,6 +2817,11 @@ export class Game {
         saveSettings(this.host, this.settings);
         this.showPlay();
         break;
+      case "ffa-ranked":
+        this.settings.ranked = !this.settings.ranked;
+        saveSettings(this.host, this.settings);
+        this.showPlay();
+        break;
       case "ffa-mode":
         if (d.m) this.settings.ffaMode = d.m;
         saveSettings(this.host, this.settings);
@@ -3181,7 +3188,8 @@ export class Game {
         this.hud.show(false);
         this.online((net) => {
           void this.ensureNaija();
-          net.send({ t: "fq", m: def.id });
+          const ranked = this.settings.ranked && rankOf(this.rankXp).k >= DIVISIONS;
+          net.send({ t: "fq", m: def.id, ...(ranked ? { r: true } : {}) });
           this.room = null;
           this.showWaiting("Finding players…");
         });

@@ -28,7 +28,7 @@ export type ClientMsg =
   /** A private room. m: a Free For All mode id (protocol 12); missing, Red Light, Green Light. */
   | { t: "create"; size: number; mode?: Mode; dist?: Distance; m?: string }
   /** Free For All's public queue for a featured mode (protocol 12). A party's leader brings the party. */
-  | { t: "fq"; m: string }
+  | { t: "fq"; m: string; r?: boolean }
   /** A party (up to 4, kept together as a squad): make one, join one by its code, leave it. */
   | { t: "party"; op: "make" | "leave" }
   | { t: "party"; op: "join"; code: string }
@@ -134,6 +134,8 @@ export interface RoomInfo {
   /** Free For All (protocol 12): the mode id, and the fewest people it starts with. */
   ffa?: string;
   min?: number;
+  /** Ranked (Phase 6): double XP and the mode's harder rules. */
+  rk?: boolean;
 }
 
 export interface StartInfo {
@@ -366,7 +368,7 @@ export function parseClient(raw: string): ClientMsg | null {
       return { t: "create", size, mode: cleanMode(o.mode), dist: cleanDist(o.dist), ...(m ? { m } : {}) };
     }
     case "fq":
-      return typeof o.m === "string" && MODE_ID.test(o.m) ? { t: "fq", m: o.m } : null;
+      return typeof o.m === "string" && MODE_ID.test(o.m) ? { t: "fq", m: o.m, ...(o.r === true ? { r: true } : {}) } : null;
     case "party":
       if (o.op === "make" || o.op === "leave") return { t: "party", op: o.op };
       return o.op === "join" && typeof o.code === "string" ? { t: "party", op: "join", code: normalizeCode(o.code) } : null;

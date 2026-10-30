@@ -26,6 +26,10 @@ import { ffaMode, STAKED_FFA } from "./ffa";
 import type { Peer } from "./peer";
 import { Room, type MatchSpec, type Winner } from "./room";
 import { VatarError, type VatarApi } from "./vatar";
+import { DIVISIONS, rankOf } from "../../src/rank/ladder";
+
+/** The Ranked queue opens at Pro I (SPEC-V3 §2.4): the first division of the second tier. */
+const RANKED_FROM = DIVISIONS;
 
 export interface MatchLog {
   (event: "verified" | "decided" | "posted" | "post_failed" | "refused", info: Record<string, unknown>): void;
@@ -118,21 +122,27 @@ export class Lobby {
     return party.members.filter((m) => m.connected);
   }
 
-  /** The public queue for a featured mode: an open room for it with space for the whole party, or a new one. */
-  fq(peer: Peer, id: string): ErrorCode | null {
+  /**
+   * The public queue for a featured mode: an open room for it with space for
+   * the whole party, or a new one. Ranked (from Pro I, SPEC-V3 §2.4) has its
+   * own rooms; everyone coming along must have reached it.
+   */
+  fq(peer: Peer, id: string, ranked = false): ErrorCode | null {
     const def = this.openFor(peer, id);
     if (typeof def === "string") return def;
     if (!BUILTIN_MANIFEST.rotation.includes(id)) return "mode_off";
     const crew = this.crew(peer);
     if (typeof crew === "string") return crew;
+    if (ranked && crew.some((p) => rankOf(this.xpOf(p)).k < RANKED_FROM)) return "locked";
     for (const p of crew) this.leave(p);
     for (let i = this.openQuick.length - 1; i >= 0; i--) {
       const r = this.openQuick[i];
       if (r.closed || r.state !== "lobby" || r.loading || r.full) this.openQuick.splice(i, 1);
     }
-    let room = this.openQuick.find((r) => r.ffa?.id === id && r.members.length + crew.length <= r.size && !r.members.some((m) => crew.some((c) => m.blockedWith(c))));
+    let room = this.openQuick.find((r) => r.ffa?.id === id && r.ranked === ranked && r.members.length + crew.length <= r.size && !r.members.some((m) => crew.some((c) => m.blockedWith(c))));
     if (!room) {
       room = new Room("quick", def.players.max, null, null, null, "classic", 200, def);
+      room.ranked = ranked;
       this.rooms.set(room.id, room);
       this.openQuick.push(room);
     }

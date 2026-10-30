@@ -67,6 +67,9 @@ export interface FfaPlayState {
   pick: string;
   /** Your party, if you're in one. */
   party: { code: string; members: { id: string; name: string }[]; lead: string; me: string } | null;
+  /** The Ranked queue (Phase 6): picked, and whether your rank has opened it (Pro I). */
+  ranked: boolean;
+  rankedOpen: boolean;
 }
 
 /** A Free For All match's results. */
@@ -727,10 +730,16 @@ export class Screens {
         ? `<form class="join room-join" style="margin-top:8px"><input name="code" maxlength="${NET.codeLength}" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ROOM CODE" aria-label="Room code" /><button class="btn secondary" type="button" data-act="join">Join</button></form>`
         : "";
     const p = picked?.def;
+    // Ranked: the public queue only, from Pro I.
+    const ranked =
+      s.mode === "new"
+        ? `<button class="rk ${s.ranked && s.rankedOpen ? "on" : ""}" data-act="ffa-ranked" ${s.rankedOpen ? "" : "disabled"} aria-pressed="${s.ranked && s.rankedOpen}">${icon(s.rankedOpen ? "trophy" : "lock", "", 14)}<b>Ranked</b><small>${s.rankedOpen ? "Double XP, harder rules" : "Opens at Pro I"}</small></button>`
+        : "";
     const card =
       s.mode === "lagos"
         ? `<div class="label">Lagos Life match</div><span class="small">The Flag Duel on the market: the first to find the hidden flag and hold it for 10 s wins. Melee, the zone and items are on. Every staked match plays the same.</span>`
         : `<div class="label">Mode</div><div class="seg wrap ffa-modes">${seg || `<span class="small">No mode here yet.</span>`}</div>
+           ${ranked}
            ${p ? `<span class="small">${esc(p.blurb.en)} ${p.players.min === p.players.max ? `${p.players.max} players` : `${p.players.min}–${p.players.max} players`}${p.players.squad[1] > 1 ? `, squads of ${p.players.squad[0] === p.players.squad[1] ? p.players.squad[0] : `up to ${p.players.squad[1]}`}` : ""}, ${Math.round(p.time / 60)} min.</span>` : ""}`;
     const label = s.mode === "friends" ? "Make a room" : s.mode === "solo" ? "Practice" : s.mode === "lagos" ? "Stakes" : "Find a match";
     const blocked = off(s.mode) || s.connecting || (s.mode !== "lagos" && !picked) || (s.mode === "new" && !lead);
@@ -1035,7 +1044,7 @@ export class Screens {
     this.mount(
       "room",
       `<div class="sq-head">
-         <span class="label">${room.kind === "match" && room.stake ? `${naira(room.stake)} each` : room.ffa ? `${esc(BUILTIN_MANIFEST.modes.find((d) => d.id === room.ffa)?.name.en ?? "Free For All")} · ${t("Naija World")}` : `${MODE_NAME[room.mode]} · ${room.dist} m`}</span>
+         <span class="label">${room.kind === "match" && room.stake ? `${naira(room.stake)} each` : room.ffa ? `${esc(BUILTIN_MANIFEST.modes.find((d) => d.id === room.ffa)?.name.en ?? "Free For All")} · ${t("Naija World")}${room.rk ? ` · ${t("Ranked")}` : ""}` : `${MODE_NAME[room.mode]} · ${room.dist} m`}</span>
          <span class="h">${title}</span>
          ${room.code && room.kind !== "match" ? `<div style="display:flex;gap:6px;align-items:center"><span class="code" style="padding:6px 10px;font-size:14px">${esc(room.code)}</span><button class="ibtn glass" data-act="copy-code" aria-label="Copy code">${icon("copy", "", 18)}</button></div>` : ""}
        </div>

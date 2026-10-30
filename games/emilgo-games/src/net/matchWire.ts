@@ -31,6 +31,8 @@ export interface FfaStart {
   sq: number[];
   /** Countdown seconds. */
   cd: number;
+  /** Ranked (Phase 6): the mode's `ranked` overrides apply. */
+  rk?: 1;
 }
 
 export interface MatchSnap {

@@ -121,12 +121,13 @@ export class FfaGame {
     readonly seed: number,
     readonly roster: { id: string; name: string; look?: WireLook }[],
     squads: number[],
+    readonly ranked = false,
   ) {
-    this.start = { mode: def.id, v: def.v, map: def.map, sq: squads, cd: FFA_COUNTDOWN };
+    this.start = { mode: def.id, v: def.v, map: def.map, sq: squads, cd: FFA_COUNTDOWN, ...(ranked ? { rk: 1 as const } : {}) };
     this.match = new Match({
       seed,
       world: worldFor(def.map),
-      settings: settingsOf(def),
+      settings: settingsOf(def, ranked),
       contestants: roster.map((r, i) => ({ id: r.id, name: r.name, bot: false, squad: squads[i] })),
       countdown: FFA_COUNTDOWN,
       // Hidden things (the flag's stash, the circles to come) from a seed no phone has.
@@ -253,6 +254,7 @@ export class FfaGame {
       objective: s.objective,
       objectiveTop: top,
       seconds: this.match.elapsed,
+      ...(this.ranked ? { ranked: true } : {}),
     };
   }
 }

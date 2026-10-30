@@ -15,6 +15,8 @@ import type { GadgetsModule } from "../../src/game/modules/gadgets";
 import type { ItemsModule } from "../../src/game/modules/items";
 import type { MeleeModule } from "../../src/game/modules/melee";
 import { matchWorldOf } from "../../src/maps/open/matchWorld";
+import { matchXp } from "../../src/rank/xp";
+import { FfaGame } from "../src/ffa";
 import { buildNaijaWorld, SURFACE_OF } from "../../src/maps/open/naija";
 
 let failures = 0;
@@ -250,6 +252,20 @@ console.log("the §10 items:");
   const b = gad(ph);
   const same = a.placed.length === b.placed.length && a.placed.every((p, i) => b.placed[i] && p.kind === b.placed[i].kind && Math.abs(p.x - b.placed[i].x) < 1e-3 && (p.until <= srv.elapsed) === (b.placed[i].until <= srv.elapsed + 0.05));
   check(same && a.placed.length > 4, `30 s of 8 people using them: the copy agrees on every cloud, peel and decoy (${a.placed.length}, ${n} events)`);
+}
+
+console.log("Ranked:");
+{
+  const d = def("find-the-flag");
+  const roster = Array.from({ length: 8 }, (_, i) => ({ id: `p${i}`, name: `P${i}` }));
+  const casual = new FfaGame(d, 5, roster, roster.map((_, i) => i));
+  const ranked = new FfaGame(d, 5, roster, roster.map((_, i) => i), true);
+  const z = (g: FfaGame) => (g.match.settings.modules.zone as { scale?: number }).scale ?? 1;
+  check(ranked.start.rk === 1 && !casual.start.rk, "a ranked match says so in its start (the phones apply the same rules)");
+  check(!ranked.match.settings.respawn.on && casual.match.settings.respawn.on && z(ranked) < z(casual), `harder: no respawns, the zone ${Math.round((1 - z(ranked)) * 100)}% smaller`);
+  const fc = casual.facts("p0")!;
+  const fr = ranked.facts("p0")!;
+  check(fr.ranked === true && matchXp({ ...fr, seconds: 480 }) === 2 * matchXp({ ...fc, seconds: 480 }), `double XP (${matchXp({ ...fc, seconds: 480 })} → ${matchXp({ ...fr, seconds: 480 })})`);
 }
 
 void MELEE;

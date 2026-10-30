@@ -272,7 +272,7 @@ function handle(peer: Peer, msg: ClientMsg): void {
       room?.input(peer, msg.x, msg.z, msg.b, msg.j, msg.a, msg.g, msg.i, msg.k);
       break;
     case "fq":
-      sendErr(peer, lobby.fq(peer, msg.m));
+      sendErr(peer, lobby.fq(peer, msg.m, msg.r === true));
       break;
     case "party":
       sendErr(peer, lobby.party(peer, msg.op, msg.op === "join" ? msg.code : ""));

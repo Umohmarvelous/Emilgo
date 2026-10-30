@@ -160,7 +160,7 @@ export class Phone {
     this.match = new Match({
       seed: start.seed,
       world: worldFor(f.map),
-      settings: settingsOf(def),
+      settings: settingsOf(def, f.rk === 1),
       contestants: start.roster.map((r, i) => ({ id: r.id, name: r.name, bot: false, squad: f.sq[i] })),
       countdown: f.cd,
       mirror: true,
@@ -309,6 +309,9 @@ export async function online(url: string, check: Check): Promise<number> {
     g.send({ t: "fq", m: "hustle" });
     await g.wait((m) => m.t === "err" && g.errors.length >= 3, 3000);
     ok(g.errors[2] === "mode_off", "a mode this build can't play yet (Hustle): refused");
+    g.send({ t: "fq", m: "find-the-flag", r: true });
+    await g.wait((m) => m.t === "err" && g.errors.length >= 4, 3000);
+    ok(g.errors[3] === "locked", "Ranked before Pro I: refused");
     // The queue fills.
     lead.send({ t: "fq", m: "find-the-flag" });
     await sleep(300);
