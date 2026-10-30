@@ -295,24 +295,27 @@ MAX_PER_IP=100000 …index.mjs; node server/dist/loadtest.mjs --clients 1200 --s
 
 Everything below needs your accounts; none of it is code.
 
-The addresses (decided 30 Oct 2026): players use **https://play.emilgo.app**
-(Cloudflare Pages, project `milgogames`); the server is **api.emilgo.app** on
-Fly.io in London (`fly.toml`). The bare `emilgo.app` is kept for the EMILGO
-app's own site.
+The addresses (30 Oct 2026). **Now, with no domain:** players use
+**https://milgogames.pages.dev**; the server is **https://emilgo-games.fly.dev**
+(Fly.io, London, `fly.toml`). **Later, with `emilgo.app`:** play.emilgo.app and
+api.emilgo.app (steps 1 and the `certs`/custom-domain parts below); the bare
+`emilgo.app` is kept for the EMILGO app's own site.
 
-1. **Buy `emilgo.app`** (Cloudflare → Domain Registration; DNS stays in Cloudflare).
+1. **Later: buy `emilgo.app`** (Cloudflare → Domain Registration, or any registrar).
 2. **Host the server** on Fly.io, from `games/emilgo-games`:
    `brew install flyctl`, `fly auth login`, `fly apps create emilgo-games`,
    `fly volumes create emilgo_data --region lhr --size 1`,
    `fly secrets set TICKET_SECRET=… ADMIN_TOKEN=…`, `fly deploy`,
-   `fly certs add api.emilgo.app` and add the DNS records it prints (grey cloud).
-   `https://api.emilgo.app/health` should say `ok`.
-3. **Host the game**: Cloudflare Pages → `milgogames` → Custom domains →
-   `play.emilgo.app`; then `scripts/deploy-site.sh` (builds the last commit
-   against `wss://api.emilgo.app`). Check the `content-security-policy:
-   frame-ancestors …` header on `https://play.emilgo.app`.
+   `https://emilgo-games.fly.dev/health` should say `ok`. (With the domain:
+   `fly certs add api.emilgo.app` and the DNS records it prints, grey cloud.)
+3. **Host the game**: `scripts/deploy-site.sh` (builds the last commit against
+   `wss://emilgo-games.fly.dev`). Check the `content-security-policy:
+   frame-ancestors …` header on the live URL. (With the domain: Pages →
+   `milgogames` → Custom domains → `play.emilgo.app`, and
+   `SERVER=wss://api.emilgo.app scripts/deploy-site.sh`.)
 4. **Get test keys** at `lagoslife.app/developers/keys`: Game URL =
-   `https://play.emilgo.app`; Webhook URL = `https://api.emilgo.app/vatar-webhook`.
+   `https://milgogames.pages.dev`; Webhook URL = `https://emilgo-games.fly.dev/vatar-webhook`
+   (change both when the domain comes).
    Put the test secret, results secret and webhook secret in with
    `fly secrets set VATAR_SECRET=… VATAR_RESULTS_SECRET=… VATAR_WEBHOOK_SECRET=…`.
 5. **Create the 5 products** in the dashboard — ids and prices from

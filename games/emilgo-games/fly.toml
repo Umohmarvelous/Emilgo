@@ -1,11 +1,12 @@
-# The EMILGO Games server on Fly.io: https://api.emilgo.app (wss:// for the
-# game, /vatar-webhook for Lagos Life). Run fly commands from games/emilgo-games.
+# The EMILGO Games server on Fly.io: https://emilgo-games.fly.dev for now
+# (https://api.emilgo.app once the domain is bought): wss:// for the game,
+# /vatar-webhook for Lagos Life. Run fly commands from games/emilgo-games.
 #
 #   fly apps create emilgo-games
 #   fly volumes create emilgo_data --region lhr --size 1
 #   fly secrets set TICKET_SECRET=… ADMIN_TOKEN=…            (and the Vatar keys when you have them)
 #   fly deploy
-#   fly certs add api.emilgo.app
+#   fly certs add api.emilgo.app                              (only once emilgo.app is bought)
 #
 # One machine on purpose: the server is one process, and its volume (the
 # purchases and profiles databases) belongs to one machine. It never sleeps:
