@@ -485,6 +485,25 @@ export const VEHICLES = {
 
 export type VehicleKind = keyof typeof VEHICLES.kinds;
 
+/**
+ * Lights Out (SPEC-V3 §9 #10; Phase 6). Your lamp lights a cone in front of
+ * you; a rival kept in it (in sight) for the mode's `findHold` is found.
+ */
+export const BLACKOUT = {
+  /** The lamp: half-angle (radians) and reach (m), and in a power cut. Crouched or prone in a cut, half the reach finds you. */
+  cone: 0.42,
+  reach: 12,
+  cutReach: 8,
+  /** A power cut lasts this long. */
+  cut: 25,
+  /** Within this of a running generator you're lit (found from the full reach); touching it shocks you. */
+  genLight: 5,
+  genTouch: 1.3,
+  shock: { stun: 1.0, wobble: 0.4, knock: 1.6 },
+  /** How often finding is judged (steps). */
+  every: 3,
+} as const;
+
 /** The §10.1 items' numbers (Phase 6: modules/gadgets.ts). Seconds, metres, radians. */
 export const GADGETS = {
   smoke: { s: 12, r: 6 },

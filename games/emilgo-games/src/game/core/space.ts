@@ -145,6 +145,29 @@ export class Space {
     return out;
   }
 
+  /**
+   * Can an eye at (ax, az) see (bx, bz), both `y` metres up? Walls, roofs and
+   * anything solid at that height in between block it (sampled every half
+   * metre; open ground, kerbs and gutters don't). Lights Out's lamps use it.
+   */
+  lineClear(ax: number, az: number, bx: number, bz: number, y: number): boolean {
+    const d = Math.hypot(bx - ax, bz - az);
+    const steps = Math.max(1, Math.ceil(d / 0.5));
+    for (let k = 1; k < steps; k++) {
+      const u = k / steps;
+      const x = ax + (bx - ax) * u;
+      const z = az + (bz - az) * u;
+      for (const i of this.near(x, z, 0.05, _ids)) {
+        const so = this.solids[i];
+        if (so.kind === "pit" || so.y0 > y) continue;
+        const [lx, lz] = this.toLocal(i, x, z, _l);
+        if (Math.abs(lx) > so.hx || Math.abs(lz) > so.hz) continue;
+        if (this.topAt(so, lz) >= y) return false;
+      }
+    }
+    return true;
+  }
+
   /** The camera's boxes near a point (the follow camera keeps out of them). */
   camBoxes(x: number, z: number, r: number, out: CamBox[] = []): CamBox[] {
     out.length = 0;

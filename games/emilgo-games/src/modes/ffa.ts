@@ -111,6 +111,7 @@ export class FfaMode implements GameMode {
   private readonly cars: VehicleView | null;
   private readonly gadgets: GadgetView;
   private readonly modes6: ModesView;
+  private dimmed = 0;
   /** The car you were in last frame (−1: none), and your radio's station. */
   private inCar = -1;
   private station: RadioId | null = null;
@@ -458,6 +459,12 @@ export class FfaMode implements GameMode {
     const { pin } = this.ms.update(dt, m, cam, this.marks, extra);
     const { goal: flagGoal } = this.view.update(dt, m, h.camera, this.marks, h.rig.firstPerson && target === me);
     const goal = flagGoal ?? this.modes6.update(dt, m, this.marks).pin;
+    // Lights Out: the city as dark as the mode says.
+    if (m.module("blackout") && Math.abs(this.modes6.dim - this.dimmed) > 0.01) {
+      this.dimmed = this.modes6.dim;
+      this.world.setDim(this.dimmed);
+      h.renderer.setClearColor(this.world.clear);
+    }
     h.hud.setMap({ x: target.x, z: target.z, heading: target.heading, out: me.status !== "alive" }, this.marks, null, h.rig.yaw);
     h.hud.setCompass(h.rig.yaw, target, null, this.world.layout.landmarks, pin, goal);
     h.hud.setTimer(m.phase === "play" ? m.timeLeft : m.settings.time, m.phase === "play" && m.timeLeft <= 30);
@@ -521,6 +528,7 @@ export class FfaMode implements GameMode {
     this.cars?.dispose();
     this.gadgets.dispose();
     this.modes6.dispose(this.src.match);
+    if (this.dimmed) this.world.setDim(0);
     h.sound.engine(0, 0);
     h.sound.carRadio(null);
     h.rig.arm = 1;
@@ -545,6 +553,7 @@ export class FfaMode implements GameMode {
 function measureName(m: Match): string {
   const f = m.module<FlagsModule>("flags");
   if (m.module("tag")) return "Seconds human";
+  if (m.module("blackout")) return "Seconds unfound";
   if (m.module<CaptureModule>("capture")) return "Seconds in the rally point";
   if (!f) return "";
   if (f.claimHold > 0) return "Longest hold (s)";

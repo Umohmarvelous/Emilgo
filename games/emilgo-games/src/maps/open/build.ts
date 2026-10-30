@@ -63,6 +63,12 @@ export interface OpenWorld {
   readonly terrain: TerrainShot;
   /** Per frame: which cells are drawn, LODs, the shadow casters near `focus`. */
   update(dt: number, focus: Vector3, cam: Vector3): void;
+  /**
+   * Darken the city (Lights Out, Phase 6): 0 as built … 1 a power cut at
+   * night. Lights, haze and the sky follow; `clear` is updated, so the mode
+   * sets the renderer's clear colour from it again.
+   */
+  setDim(k: number): void;
   /** What's drawn now (for the dev page and the perf gate). */
   stats(): { cells: number; pvsCut: number };
   /** Compile every shader off the main thread where the browser can (before the first frame). */
@@ -740,14 +746,25 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }): Gener
   const fog = new Fog(haze.clone(), view * 0.3, view);
   let drawn = 0;
   let cut = 0;
+  const clear = haze.clone();
+  const cutSky = new Color(0x080a12);
+  const lit = { hemi: hemi.intensity, sun: sun.intensity };
 
   return {
     layout: L,
     space,
     group,
     fog,
-    clear: haze.clone(),
+    clear,
     view,
+    setDim(k) {
+      const d = Math.max(0, Math.min(1, k));
+      hemi.intensity = lit.hemi * (1 - 0.82 * d);
+      sun.intensity = lit.sun * (1 - 0.95 * d);
+      fog.color.copy(haze).lerp(cutSky, d);
+      clear.copy(haze).lerp(cutSky, d);
+      sky.group.visible = d < 0.5;
+    },
     terrain,
     pvs: { mean: sum / pvs.length, max, ms: pvsMs },
     update(dt, focus, cam) {

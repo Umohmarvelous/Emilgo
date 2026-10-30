@@ -4,7 +4,7 @@
 //
 //   node server/build-tools.mjs && node server/dist/extrastest.mjs
 
-import { GADGETS, MELEE, MOVE } from "../../src/config";
+import { BLACKOUT, GADGETS, MELEE, MOVE } from "../../src/config";
 import type { ItemId } from "../../src/content/items";
 import { BUILTIN_MANIFEST } from "../../src/content/modes";
 import type { Contestant } from "../../src/game/core/body";
@@ -14,6 +14,7 @@ import { Space } from "../../src/game/core/space";
 import type { GadgetsModule } from "../../src/game/modules/gadgets";
 import type { ItemsModule } from "../../src/game/modules/items";
 import type { MeleeModule } from "../../src/game/modules/melee";
+import type { BlackoutModule } from "../../src/game/modules/blackout";
 import type { TagModule } from "../../src/game/modules/tag";
 import { matchWorldOf } from "../../src/maps/open/matchWorld";
 import { matchXp } from "../../src/rank/xp";
@@ -328,6 +329,84 @@ console.log("Chase & Reverse:");
   put(m2, humans[1].id, YX + 30, YZ);
   const ev3 = runFor(m2, 0.2);
   check(ev3.some((e) => e.type === "won" && e.id === humans[1].id) && m2.over, "one human left: they win");
+}
+
+console.log("Lights Out:");
+{
+  const m = newMatch(31, bare("lights-out"), 4);
+  runFor(m, 0.1);
+  const bo = m.module<BlackoutModule>("blackout")!;
+  const gaps = bo.cuts.map((c, i) => c[0] - (i ? bo.cuts[i - 1][1] : 0));
+  check(bo.cuts.length >= 3 && gaps.every((g) => g >= 60 - 1e-6 && g <= 90 + 1e-6) && bo.cuts.every(([a, b]) => b - a === BLACKOUT.cut), `power cuts every 60–90 s, ${BLACKOUT.cut} s each (${bo.cuts.length} in the match)`);
+  clear(m, ["p0", "p1", "p2"]);
+  // In front, in reach, in sight: found after findHold.
+  put(m, "p0", YX, YZ, EAST);
+  const b = put(m, "p1", YX + 6, YZ);
+  const behind = put(m, "p2", YX - 6, YZ + 1);
+  const ev = runFor(m, bo.findHold * 0.5);
+  check(b.status === "alive" && !ev.some((e) => e.type === "found"), "a rival in your light: not yet …");
+  const ev2 = runFor(m, bo.findHold);
+  check(ev2.some((e) => e.type === "found" && e.id === "p0" && e.tg === "p1") && b.status === "eliminated" && b.cause === "found", `… ${bo.findHold} s in your light: found, out`);
+  check(behind.status === "alive", "the one behind you: never");
+  // A wall between: no.
+  // A building narrow enough that both sides are within a lamp's reach.
+  const wall = layout.solids.find((so) => so.kind === "box" && so.y0 <= 0 && so.y1 > 2.5 && so.hx > 1.5 && so.hx < 4 && so.hz > 1.5 && Math.abs(so.x) < 150 && Math.abs(so.z) < 150)!;
+  const m2 = newMatch(32, bare("lights-out"), 3);
+  runFor(m2, 0.1);
+  clear(m2, ["p0", "p1"]);
+  const ux = Math.cos(wall.rot);
+  const uz = -Math.sin(wall.rot);
+  const ax = wall.x - ux * (wall.hx + 1.2);
+  const az = wall.z - uz * (wall.hx + 1.2);
+  const bx = wall.x + ux * (wall.hx + 1.2);
+  const bz = wall.z + uz * (wall.hx + 1.2);
+  const near = Math.hypot(bx - ax, bz - az) <= BLACKOUT.reach;
+  put(m2, "p0", ax, az, Math.atan2(bx - ax, bz - az));
+  const hid = put(m2, "p1", bx, bz);
+  runFor(m2, bo.findHold * 2);
+  check(near && hid.status === "alive", `a building between you: not found (${Math.hypot(bx - ax, bz - az).toFixed(1)} m apart, within reach)`);
+  // Smoke between: no.
+  const m3 = newMatch(33, bare("lights-out"), 3);
+  runFor(m3, 0.1);
+  clear(m3, ["p0", "p1"]);
+  put(m3, "p0", YX, YZ, EAST);
+  const sm = put(m3, "p1", YX + 6, YZ);
+  use(m3, "p1", "smoke-pot");
+  runFor(m3, bo.findHold * 2);
+  check(sm.status === "alive", "in a smoke cloud: not found");
+  // In a power cut, crouching halves the reach that finds you.
+  const m4 = newMatch(34, bare("lights-out"), 3);
+  runFor(m4, 0.1);
+  const b4 = m4.module<BlackoutModule>("blackout")!;
+  runFor(m4, b4.cuts[0][0] - m4.elapsed + 0.5);
+  check(b4.cut(m4), "the power goes");
+  clear(m4, ["p0", "p1"]);
+  const gens = world.generators ?? [];
+  const lone = (x: number, z: number) => gens.every((g) => Math.hypot(g.x - x, g.z - z) > BLACKOUT.genLight + 2);
+  check(lone(YX, YZ) && lone(YX + 6, YZ), "(no generator by the test spot)");
+  put(m4, "p0", YX, YZ, EAST);
+  const cr = put(m4, "p1", YX + BLACKOUT.cutReach * 0.7, YZ);
+  m4.setButtons("p1", false, 1, cr.inJump);
+  runFor(m4, 0.6);
+  check(cr.stance === 1 && !b4.sees(m4, m4.get("p0")!, cr), `crouched in the dark at ${(BLACKOUT.cutReach * 0.7).toFixed(1)} m: your glow is hidden`);
+  m4.setButtons("p1", false, 0, cr.inJump);
+  runFor(m4, 0.6);
+  check(b4.sees(m4, m4.get("p0")!, cr), "standing up, it shows");
+  // A running generator shocks whoever touches it.
+  if (gens.length) {
+    const g = gens[0];
+    const sh = put(m4, "p1", g.x + 0.8, g.z);
+    const ev5 = runFor(m4, 0.1);
+    check(ev5.some((e) => e.type === "shock" && e.id === "p1") && sh.stun > 0, "in a cut, touching a running generator: a shock");
+  }
+  // The last one not found wins.
+  const m5 = newMatch(35, bare("lights-out"), 2);
+  runFor(m5, 0.1);
+  clear(m5, ["p0", "p1"]);
+  put(m5, "p0", YX, YZ, EAST);
+  put(m5, "p1", YX + 5, YZ);
+  const ev6 = runFor(m5, 2);
+  check(ev6.some((e) => e.type === "won" && e.id === "p0") && m5.over, "the last one not found wins");
 }
 
 void MELEE;

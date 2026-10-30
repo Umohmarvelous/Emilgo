@@ -19,7 +19,7 @@ export type Status = "alive" | "finished" | "eliminated";
  * banked without yours. Open worlds (SPEC-V3): zone: the sky laser, your
  * exposure full; hazard: a live wire, a fire.
  */
-export type Cause = "moved" | "time" | "noball" | "zone" | "hazard";
+export type Cause = "moved" | "time" | "noball" | "zone" | "hazard" | "found";
 
 export interface Contestant {
   readonly id: string;

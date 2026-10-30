@@ -3,6 +3,10 @@
 //
 //   Chase & Reverse   the Ojuju's ashen skin; the Reverse charms (a gold
 //                     amulet under a green column) on the ground and the map
+//   Lights Out        dusk, and darker in a power cut (the mode asks the
+//                     world to dim); everyone's lamp: a glow at the hand and
+//                     a cone of light ahead (crouched in a cut, no glow);
+//                     a warning when a rival's light is on you
 //
 // Each mode's things are one instanced draw.
 
@@ -10,7 +14,9 @@ import {
   AdditiveBlending,
   type BufferGeometry,
   Color,
+  ConeGeometry,
   CylinderGeometry,
+  Quaternion,
   DoubleSide,
   DynamicDrawUsage,
   Group,
@@ -26,6 +32,8 @@ import {
 import type { Sound } from "../audio/sound";
 import type { Match } from "../game/core/match";
 import type { MatchEvent } from "../game/core/module";
+import { BLACKOUT } from "../config";
+import type { BlackoutModule } from "../game/modules/blackout";
 import type { TagModule } from "../game/modules/tag";
 import type { Hud, ItemPin } from "../ui/hud";
 import type { MapMark } from "../ui/minimap";
@@ -47,6 +55,11 @@ export interface ModesViewOptions {
 
 const _m = new Matrix4();
 const _v = new Vector3();
+const _q = new Quaternion();
+const _q2 = new Quaternion();
+const _s = new Vector3();
+const _x = new Vector3(1, 0, 0);
+const _y = new Vector3(0, 1, 0);
 
 function charmGeometry(): BufferGeometry {
   return merge([
@@ -62,6 +75,12 @@ export class ModesView {
   private readonly charms: InstancedMesh;
   private readonly columns: InstancedMesh;
   private tinted: boolean[] = [];
+  private readonly lamps: InstancedMesh;
+  private readonly glows: InstancedMesh;
+  /** Lights Out: how dark the city is now (eased), and whether a rival's lamp is on you. */
+  dim = 0;
+  lit = false;
+  private litSaid = -9;
   private time = 0;
 
   constructor(o: ModesViewOptions) {
@@ -76,6 +95,10 @@ export class ModesView {
     };
     this.charms = make(charmGeometry(), new MeshLambertMaterial({ vertexColors: true, emissive: new Color(0x3a2a00) }), MAX_CHARMS);
     this.columns = make(new CylinderGeometry(0.5, 0.5, 1, 12, 1, true).translate(0, 0.5, 0), new MeshBasicMaterial({ color: 0x3ee08a, transparent: true, opacity: 0.28, blending: AdditiveBlending, depthWrite: false, side: DoubleSide }), MAX_CHARMS);
+    // A lamp's light: a cone 1 m long pointing down +z from its tip (scaled to the reach).
+    const cone = new ConeGeometry(Math.tan(BLACKOUT.cone), 1, 16, 1, true).translate(0, -0.5, 0).rotateX(-Math.PI / 2);
+    this.lamps = make(cone, new MeshBasicMaterial({ color: 0xffd9a0, transparent: true, opacity: 0.16, blending: AdditiveBlending, depthWrite: false, side: DoubleSide }), 16);
+    this.glows = make(new IcosahedronGeometry(0.09, 1), new MeshBasicMaterial({ color: 0xfff1c8 }), 16);
   }
 
   events(list: readonly MatchEvent[], m: Match): void {
@@ -95,6 +118,19 @@ export class ModesView {
           if (c === me) hud.pushFeed(t("Cured: you're human again"), "safe");
           else hud.pushFeed(`${c.name} ${t("was cured")}`, "safe");
         }
+      } else if (e.type === "found") {
+        const a = m.get(e.id);
+        const b = m.get(e.tg);
+        if (!a || !b) continue;
+        if (b === me) hud.pushFeed(`${t("Found by")} ${a.name}`, "out");
+        else hud.pushFeed(a === me ? `${t("You found")} ${b.name}` : `${a.name} ${t("found")} ${b.name}`, a === me ? "safe" : "info");
+        this.o.sound?.catch(a === me || b === me);
+      } else if (e.type === "shock") {
+        if (e.id === me.id) {
+          hud.pushFeed(t("The generator shocked you"), "out");
+          hud.flashRed();
+        }
+        this.o.sound?.crack(e.id === me.id);
       } else if (e.type === "charm") {
         if (e.how === "drop" && !e.id) hud.pushFeed(t("Reverse charms are out: a human who carries one can cure an Ojuju"), "info");
         else if (e.how === "take" && e.id === me.id) hud.pushFeed(t("You carry a Reverse charm: touch an Ojuju to cure them"), "safe");
@@ -143,13 +179,50 @@ export class ModesView {
       this.charms.count = this.columns.count = n;
       this.charms.instanceMatrix.needsUpdate = this.columns.instanceMatrix.needsUpdate = true;
     }
-    void _v;
+    const bo = m.module<BlackoutModule>("blackout");
+    if (bo) {
+      const dark = bo.cut(m);
+      // Dusk always; a power cut nearly black.
+      const want = dark ? 1 - bo.dim * 0.4 : 0.55;
+      this.dim += (want - this.dim) * (1 - Math.exp(-dt * (dark ? 6 : 2)));
+      // Every lamp.
+      let n = 0;
+      for (const c of m.contestants) {
+        if (c.status !== "alive" || n >= 16) continue;
+        if (dark && c.stance > 0 && c !== me) continue;
+        const reach = dark ? BLACKOUT.cutReach : BLACKOUT.reach;
+        const hy = c.h + c.y + (c.stance === 2 ? 0.3 : c.stance === 1 ? 0.8 : 1.3);
+        _v.set(c.x + Math.sin(c.heading) * 0.35, hy, c.z + Math.cos(c.heading) * 0.35);
+        _m.makeTranslation(_v.x, _v.y, _v.z);
+        this.glows.setMatrixAt(n, _m);
+        _q.setFromAxisAngle(_y, c.heading).multiply(_q2.setFromAxisAngle(_x, 0.08));
+        _m.compose(_v, _q, _s.set(reach, reach, reach));
+        this.lamps.setMatrixAt(n, _m);
+        n++;
+      }
+      this.lamps.count = this.glows.count = n;
+      this.lamps.instanceMatrix.needsUpdate = this.glows.instanceMatrix.needsUpdate = true;
+      // A rival's light on you (the phone's own guess; the server decides).
+      this.lit = false;
+      if (me.status === "alive") for (const c of m.contestants) if (c !== me && c.status === "alive" && !m.sameSquad(c, me) && bo.sees(m, c, me, dark)) this.lit = true;
+      if (this.lit && this.time - this.litSaid > 3) {
+        this.litSaid = this.time;
+        this.o.hud.pushFeed(t("You're in a lamp's light: get out of it"), "out");
+      }
+    }
     return { pin };
   }
 
   /** The objective line for these modes ("" when it's none of them). */
   objectiveLine(m: Match): string {
     const me = m.contestants[this.o.me];
+    const bo = m.module<BlackoutModule>("blackout");
+    if (bo) {
+      const left = m.contestants.filter((c) => c.status === "alive").length;
+      const nx = bo.next(m);
+      const power = nx ? (nx.off ? `${t("Power cut in")} ${Math.ceil(nx.in)} s` : `${t("Power back in")} ${Math.ceil(nx.in)} s`) : "";
+      return [power, `${t("not found")}: ${left}`].filter(Boolean).join(" · ");
+    }
     const tag = m.module<TagModule>("tag");
     if (tag) {
       const humans = tag.humans(m).length;

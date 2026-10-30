@@ -94,7 +94,12 @@ export type MatchEvent =
   /** Someone turned Ojuju (by an Ojuju's touch, or at the start), or cured back to human (by a charm's carrier). */
   | { type: "turn"; id: string; ojuju: boolean; by: string | null }
   /** A Reverse charm: dropped (the start of them, or by a carrier), taken, used on an Ojuju. */
-  | { type: "charm"; charm: number; how: "drop" | "take" | "use"; id: string | null; x: number; z: number; h: number };
+  | { type: "charm"; charm: number; how: "drop" | "take" | "use"; id: string | null; x: number; z: number; h: number }
+  // ── Lights Out (Phase 6, blackout.ts) ──
+  /** Found: id kept tg in their lamp long enough (tg is out). */
+  | { type: "found"; id: string; tg: string }
+  /** A running generator shocked someone who touched it. */
+  | { type: "shock"; id: string; x: number; z: number };
 
 /** Why someone went down: melee's reasons, then a car's (pulled out, thrown by a blast, out at speed). */
 export type DownWhy = "daze" | "trip" | "tackle" | "throw" | "ringout" | "hijack" | "blast" | "tumble";

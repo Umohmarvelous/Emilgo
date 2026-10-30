@@ -1661,7 +1661,7 @@ export class Game {
     let boardNote: string | null = null;
     if (this.host.kind === "lagoslife" && !this.host.can.leaderboard) boardNote = "Sign in to Lagos Life to rank";
     this.recorded = {
-      outcome: outcome === "zone" || outcome === "hazard" ? "moved" : outcome,
+      outcome: outcome === "zone" || outcome === "hazard" || outcome === "found" ? "moved" : outcome,
       place: me.place,
       time: me.finishTime,
       progress: Math.min(1, me.progress / round.course.distance),
