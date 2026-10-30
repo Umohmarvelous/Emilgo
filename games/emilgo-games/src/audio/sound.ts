@@ -702,6 +702,14 @@ export class Sound {
     }
   }
 
+  /** The Harmattan's warning: a long siren, rising and falling twice. */
+  siren(): void {
+    const t = this.now;
+    this.tone(420, t, 1.4, { type: "triangle", gain: 0.07, to: 880, attack: 0.2 });
+    this.tone(880, t + 1.4, 1.4, { type: "triangle", gain: 0.07, to: 420 });
+    this.noise(t + 0.5, 2.6, { gain: 0.04, freq: 400, type: "lowpass" });
+  }
+
   /** A car alarm: a siren that rises and falls, then whoops. */
   carAlarm(near: number): void {
     if (near <= 0.02 || this.busy()) return;

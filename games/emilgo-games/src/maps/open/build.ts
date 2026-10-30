@@ -69,6 +69,8 @@ export interface OpenWorld {
    * sets the renderer's clear colour from it again.
    */
   setDim(k: number): void;
+  /** The Harmattan (Phase 6): 0 clear … 1 a sandstorm (dusty haze, `see` metres of view). */
+  setDust(k: number, see: number): void;
   /** What's drawn now (for the dev page and the perf gate). */
   stats(): { cells: number; pvsCut: number };
   /** Compile every shader off the main thread where the browser can (before the first frame). */
@@ -748,7 +750,18 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }): Gener
   let cut = 0;
   const clear = haze.clone();
   const cutSky = new Color(0x080a12);
+  const dustSky = new Color(0xc9a46a);
   const lit = { hemi: hemi.intensity, sun: sun.intensity };
+  const air: { dim: number; dust: number; see: number } = { dim: 0, dust: 0, see: view };
+  const fogNear = fog.near;
+  const fogFar = fog.far;
+  const mix = () => {
+    fog.color.copy(haze).lerp(dustSky, air.dust).lerp(cutSky, air.dim);
+    clear.copy(fog.color);
+    fog.near = fogNear + (2 - fogNear) * air.dust;
+    fog.far = fogFar + (air.see - fogFar) * air.dust;
+    sky.group.visible = air.dim < 0.5 && air.dust < 0.6;
+  };
 
   return {
     layout: L,
@@ -761,9 +774,14 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }): Gener
       const d = Math.max(0, Math.min(1, k));
       hemi.intensity = lit.hemi * (1 - 0.82 * d);
       sun.intensity = lit.sun * (1 - 0.95 * d);
-      fog.color.copy(haze).lerp(cutSky, d);
-      clear.copy(haze).lerp(cutSky, d);
-      sky.group.visible = d < 0.5;
+      air.dim = d;
+      mix();
+    },
+    setDust(k, see) {
+      air.dust = Math.max(0, Math.min(1, k));
+      air.see = see;
+      sun.intensity = lit.sun * (1 - 0.95 * air.dim) * (1 - 0.6 * air.dust);
+      mix();
     },
     terrain,
     pvs: { mean: sum / pvs.length, max, ms: pvsMs },

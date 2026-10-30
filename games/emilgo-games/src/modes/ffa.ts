@@ -10,7 +10,7 @@
 import { Vector3 } from "three";
 
 import { RADIO_IDS, RADIO_NAME, type RadioId } from "../audio/radio";
-import { VEHICLES } from "../config";
+import { HARMATTAN, VEHICLES } from "../config";
 import { ITEM_DEFS } from "../content/items";
 import { type ModeDef } from "../content/modes";
 import { Rng } from "../core/rng";
@@ -20,6 +20,7 @@ import type { MatchEvent } from "../game/core/module";
 import type { CaptureModule } from "../game/modules/capture";
 import type { FlagsModule } from "../game/modules/flags";
 import type { MeleeModule } from "../game/modules/melee";
+import type { HarmattanModule } from "../game/modules/harmattan";
 import type { VehiclesModule } from "../game/modules/vehicles";
 import { LOOKS } from "../graphics/grade";
 import type { OpenWorld } from "../maps/open/build";
@@ -112,6 +113,11 @@ export class FfaMode implements GameMode {
   private readonly gadgets: GadgetView;
   private readonly modes6: ModesView;
   private dimmed = 0;
+  /** The Harmattan: the dust now (eased), as last set on the world; in a storm; whose siren has sounded. */
+  private dust = 0;
+  private dustSet = 0;
+  private inStorm = false;
+  private sirenAt = -1;
   private readonly dimLook = { ...LOOKS.naija };
   /** The car you were in last frame (−1: none), and your radio's station. */
   private inCar = -1;
@@ -463,6 +469,26 @@ export class FfaMode implements GameMode {
     const { pin } = this.ms.update(dt, m, cam, this.marks, extra);
     const { goal: flagGoal } = this.view.update(dt, m, h.camera, this.marks, h.rig.firstPerson && target === me);
     const goal = flagGoal ?? this.modes6.update(dt, m, this.marks).pin;
+    // The Harmattan: the siren, then the dust; footprints gone; headlights on (or in a power cut).
+    const hm = m.module<HarmattanModule>("harmattan");
+    if (hm) {
+      const storm = hm.now(m);
+      const nx = hm.next(m);
+      if (nx >= 0 && nx <= HARMATTAN.siren && this.sirenAt !== hm.storms.findIndex((s) => s.at - m.elapsed === nx)) {
+        this.sirenAt = hm.storms.findIndex((s) => s.at - m.elapsed === nx);
+        h.sound.siren();
+        h.hud.pushFeed(t("Harmattan! A sandstorm is coming"), "info");
+      }
+      if (storm && !this.inStorm) this.ms.prints.wipe();
+      this.inStorm = !!storm;
+      this.dust += ((storm ? 1 : 0) - this.dust) * (1 - Math.exp(-dt * (storm ? 1.5 : 0.8)));
+      if (Math.abs(this.dust - this.dustSet) > 0.01) {
+        this.dustSet = this.dust;
+        this.world.setDust(this.dust, HARMATTAN.see);
+        h.renderer.setClearColor(this.world.clear);
+      }
+    }
+    this.cars?.setLights(this.dust > 0.3 || this.dimmed > 0.4);
     // Lights Out: the city as dark as the mode says.
     if (m.module("blackout") && Math.abs(this.modes6.dim - this.dimmed) > 0.01) {
       this.dimmed = this.modes6.dim;
@@ -538,6 +564,7 @@ export class FfaMode implements GameMode {
     this.gadgets.dispose();
     this.modes6.dispose(this.src.match);
     if (this.dimmed) this.world.setDim(0);
+    if (this.dustSet) this.world.setDust(0, HARMATTAN.see);
     h.sound.engine(0, 0);
     h.sound.carRadio(null);
     h.rig.arm = 1;

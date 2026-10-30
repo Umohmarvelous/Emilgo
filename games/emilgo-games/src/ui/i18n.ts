@@ -302,6 +302,7 @@ const PCM: Record<string, string> = {
   "Fuse box: darken a rival's room": "Fuse box: off light for rival room",
   Points: "Points",
   "rooms held": "rooms wey you hold",
+  "Harmattan! A sandstorm is coming": "Harmattan! Sand breeze dey come",
   "Practice earns CP, not rank XP": "Practice dey give CP, e no dey give rank XP",
   "Not saved: couldn't confirm who you are. Reopen the game to rank.": "E no save: we no fit confirm say na you. Open the game again to rank.",
   "Counted on this device only": "Na only this phone e count am",

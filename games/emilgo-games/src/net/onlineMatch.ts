@@ -26,6 +26,7 @@ import type { CaptureModule } from "../game/modules/capture";
 import type { FlagsModule } from "../game/modules/flags";
 import { driveCar, wrap, type Car } from "../game/modules/drive";
 import type { MeleeModule } from "../game/modules/melee";
+import type { HarmattanModule } from "../game/modules/harmattan";
 import type { RoomsModule } from "../game/modules/rooms";
 import type { TagModule } from "../game/modules/tag";
 import type { VehiclesModule } from "../game/modules/vehicles";
@@ -175,8 +176,9 @@ export class OnlineMatch {
       const follow = this.following();
       if (!follow) {
         m.predict(me, dt, this.share(me));
-        // Compound Wars: a shut door is solid on the phone too.
+        // Compound Wars: a shut door is solid on the phone too; the Harmattan's wind pushes you here as there.
         m.module<RoomsModule>("rooms")?.keepOut(m, me);
+        m.module<HarmattanModule>("harmattan")?.drift(m, me, dt);
       }
       // Close the gap to the server: about 90% in a quarter second (faster while it moves you).
       const k = 1 - Math.exp(-dt * (follow ? 18 : 9));

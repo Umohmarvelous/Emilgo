@@ -12,6 +12,7 @@ import { GadgetsModule } from "./gadgets";
 import { BlackoutModule } from "./blackout";
 import { EconomyModule } from "./economy";
 import { RiddlesModule } from "./riddles";
+import { HarmattanModule } from "./harmattan";
 import { RoomsModule } from "./rooms";
 import { TagModule } from "./tag";
 import { ItemsModule } from "./items";
@@ -20,7 +21,7 @@ import { VehiclesModule } from "./vehicles";
 import { ZoneModule } from "./zone";
 
 /** Phase 3: the zone, items and Airfall. Phase 4: melee, flags, drop zones, the rally point. Phase 5: vehicles. */
-export const MATCH_MODULES: ReadonlySet<ModuleId> = new Set<ModuleId>(["zone", "items", "airfall", "melee", "flags", "dropzones", "capture", "vehicles", "gadgets", "tag", "blackout", "economy", "riddles", "rooms"]);
+export const MATCH_MODULES: ReadonlySet<ModuleId> = new Set<ModuleId>(["zone", "items", "airfall", "melee", "flags", "dropzones", "capture", "vehicles", "gadgets", "tag", "blackout", "economy", "riddles", "rooms", "harmattan"]);
 
 /**
  * The modules for a mode's settings, in the order they step: vehicles first
@@ -33,7 +34,11 @@ export const MATCH_MODULES: ReadonlySet<ModuleId> = new Set<ModuleId>(["zone", "
 export function makeModules(mods: Partial<Record<ModuleId, Record<string, unknown>>>): RuleModule[] {
   const out: RuleModule[] = [];
   if (mods.vehicles) out.push(new VehiclesModule(mods.vehicles));
-  if (mods.zone) out.push(new ZoneModule(mods.zone));
+  if (mods.zone) {
+    out.push(new ZoneModule(mods.zone));
+    // Free For All's sandstorms ride with the zone (none on part of the city: it decides at init).
+    if (mods.melee) out.push(new HarmattanModule());
+  }
   if (mods.melee) out.push(new MeleeModule(mods.melee));
   if (mods.items) {
     out.push(new ItemsModule(mods.items));

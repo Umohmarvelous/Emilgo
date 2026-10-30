@@ -299,6 +299,9 @@ export class VehicleView {
   private readonly flames: InstancedMesh;
   private readonly bits: InstancedMesh;
   private readonly flash: Mesh;
+  /** Headlights (a sandstorm, a power cut): two cones of light ahead of each car. */
+  private readonly beams: InstancedMesh;
+  private lights = false;
   private readonly stands: InstancedMesh;
   private readonly cans: InstancedMesh;
   private readonly smoke: Puff[] = [];
@@ -318,6 +321,8 @@ export class VehicleView {
     this.bits = instanced(merge([box("#2b2622", [0.5, 0.06, 0.4], [0, 0, 0])]), new MeshLambertMaterial({ vertexColors: true }), MAX_BITS);
     this.flash = new Mesh(new IcosahedronGeometry(1, 1), new MeshBasicMaterial({ color: 0xffd27a, transparent: true, opacity: 0, blending: AdditiveBlending, depthWrite: false }));
     this.flash.visible = false;
+    const beam = new ConeGeometry(1.6, 9, 12, 1, true).translate(0, -4.5, 0).rotateX(-Math.PI / 2);
+    this.beams = instanced(beam as unknown as BufferGeometry, new MeshBasicMaterial({ color: 0xfff1c8, transparent: true, opacity: 0.12, blending: AdditiveBlending, depthWrite: false }), MAX_CARS * 2);
     const lit = new MeshLambertMaterial({ vertexColors: true });
     this.stands = instanced(standGeometry(), lit, Math.max(1, o.stands.length));
     this.cans = instanced(cansGeometry(), lit, Math.max(1, o.stands.length));
@@ -327,7 +332,7 @@ export class VehicleView {
       this.cans.setMatrixAt(i, _m);
     });
     this.stands.count = this.cans.count = o.stands.length;
-    this.group.add(this.wheels, this.puffs, this.flames, this.bits, this.flash, this.stands, this.cans);
+    this.group.add(this.wheels, this.puffs, this.flames, this.bits, this.flash, this.stands, this.cans, this.beams);
   }
 
   private geometry(car: Car): { body: BufferGeometry; glass: BufferGeometry; far: BufferGeometry } {
@@ -486,6 +491,23 @@ export class VehicleView {
       // On the map: every car (a wreck grey).
       marks.push({ x: car.x, z: car.z, kind: "car", r: car.state >= 4 ? 0 : 1 });
     }
+    // Headlights: from each lamp, ahead, a little down.
+    let b = 0;
+    if (this.lights) {
+      for (const car of cars) {
+        if (!car || car.state >= 4 || b + 2 > MAX_CARS * 2) continue;
+        const k = VEHICLES.kinds[car.kind];
+        for (const side of car.kind === "keke" ? [0] : [-1, 1]) {
+          const [x, z] = carPoint(car, side * k.wid * 0.33, k.len / 2);
+          _q.setFromAxisAngle(_e.set(0, 1, 0), car.heading);
+          _r.makeRotationX(0.12);
+          _m.makeRotationFromQuaternion(_q).multiply(_r).setPosition(x, car.h + 0.8, z);
+          this.beams.setMatrixAt(b++, _m);
+        }
+      }
+    }
+    this.beams.count = b;
+    this.beams.instanceMatrix.needsUpdate = true;
     for (let i = w; i < this.wheels.count; i++) this.wheels.setMatrixAt(i, ZERO);
     this.wheels.count = Math.max(w, 1);
     this.wheels.instanceMatrix.needsUpdate = true;
@@ -563,6 +585,11 @@ export class VehicleView {
     });
     this.bits.count = this.debris.length;
     this.bits.instanceMatrix.needsUpdate = true;
+  }
+
+  /** Headlights on (a sandstorm, a power cut) or off. */
+  setLights(on: boolean): void {
+    this.lights = on;
   }
 
   /** Draws and triangles (the perf gate). */

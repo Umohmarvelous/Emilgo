@@ -517,6 +517,19 @@ export const ECONOMY = {
 
 export type JobKind = keyof typeof ECONOMY.jobs;
 
+/** The Harmattan sandstorm (SPEC-V3 §10.4; Phase 6), Free For All on the whole city only. */
+export const HARMATTAN = {
+  /** Storms a match (1, or 2 in a match of 7 minutes or more), each this long; the siren this long before. */
+  long: 40,
+  siren: 3,
+  /** Seen this far in it (m). */
+  see: 25,
+  /** The wind's push on everyone on foot, m/s. */
+  wind: 0.9,
+  /** None in the first or the last of a match (s). */
+  margin: 75,
+} as const;
+
 /** Compound Wars (SPEC-V3 §9 #7; Phase 6): the courtyard's rooms and doors. */
 export const ROOMS = {
   /** Tap a door from this close (either side); hold this long inside to jam it shut, for `jam` s. */

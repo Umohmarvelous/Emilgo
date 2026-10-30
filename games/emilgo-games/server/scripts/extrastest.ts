@@ -4,7 +4,7 @@
 //
 //   node server/build-tools.mjs && node server/dist/extrastest.mjs
 
-import { BLACKOUT, ECONOMY, GADGETS, MELEE, MOVE } from "../../src/config";
+import { BLACKOUT, ECONOMY, GADGETS, HARMATTAN, MELEE, MOVE } from "../../src/config";
 import type { ItemId } from "../../src/content/items";
 import { BUILTIN_MANIFEST } from "../../src/content/modes";
 import type { Contestant } from "../../src/game/core/body";
@@ -18,6 +18,7 @@ import type { BlackoutModule } from "../../src/game/modules/blackout";
 import type { EconomyModule } from "../../src/game/modules/economy";
 import type { RiddlesModule } from "../../src/game/modules/riddles";
 import type { RoomsModule } from "../../src/game/modules/rooms";
+import type { HarmattanModule } from "../../src/game/modules/harmattan";
 import { RIDDLES, shownLangs } from "../../src/content/riddles";
 import type { TagModule } from "../../src/game/modules/tag";
 import { matchWorldOf } from "../../src/maps/open/matchWorld";
@@ -620,6 +621,28 @@ console.log("Compound Wars:");
     const ev4 = runFor(m, 0.1);
     check(ev4.some((e) => e.type === "fuse" && e.room === 0) && rm.holder(m, 0) === -1, "the fuse box: the room the rival squad holds goes dark (no points)");
   }
+}
+
+console.log("the Harmattan:");
+{
+  const s = settingsOf(def("hold-the-flag"));
+  delete s.modules.airfall;
+  delete s.modules.vehicles;
+  const m = newMatch(71, s, 4);
+  const hm = m.module<HarmattanModule>("harmattan")!;
+  check(!!hm && hm.storms.length === 2 && hm.storms.every((x) => x.at >= HARMATTAN.margin && x.until <= s.time - HARMATTAN.margin + 1e-6) && hm.storms[0].until <= hm.storms[1].at, `two sandstorms in an 8-minute match, ${HARMATTAN.long} s each, apart, clear of the start and the end`);
+  const ph = new Match({ seed: 71, world, settings: s, contestants: m.contestants.map((c) => ({ id: c.id, name: c.name, bot: false })), mirror: true });
+  const hp = ph.module<HarmattanModule>("harmattan")!;
+  check(JSON.stringify(hp.storms) === JSON.stringify(hm.storms), "a phone's copy knows them without being told (the seed)");
+  runFor(m, hm.storms[0].at - m.elapsed - 1);
+  clear(m, ["p0"]);
+  const a = put(m, "p0", YX, YZ);
+  runFor(m, 3);
+  const st = hm.storms[0];
+  const moved = (a.x - YX) * st.wx + (a.z - YZ) * st.wz;
+  check(!!hm.now(m) && moved > HARMATTAN.wind * 1.5 && moved < HARMATTAN.wind * 2.5, `in the storm, standing still: blown ${moved.toFixed(1)} m downwind in 2 s`);
+  const duel = new Match({ seed: 72, world: matchWorldOf(layout, space, "naija-world:market"), settings: settingsOf(def("flag-duel")), contestants: [{ id: "a", name: "A", bot: false }, { id: "b", name: "B", bot: false }] });
+  check((duel.module<HarmattanModule>("harmattan")?.storms.length ?? 0) === 0, "none in the staked duel (part of the city)");
 }
 
 void MELEE;
