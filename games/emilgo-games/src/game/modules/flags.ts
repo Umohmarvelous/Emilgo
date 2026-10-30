@@ -319,6 +319,19 @@ export class FlagsModule implements RuleModule {
       const c = m.get(e.id);
       if (c) this.drop(m, c, e.type === "eliminated" ? e.x : c.x, e.type === "eliminated" ? e.z : c.z, e.type === "eliminated" ? e.h : c.h);
     }
+    // Hold the Flag's bounty on the leader (§10.10): Daze them, take some of their seconds.
+    if (e.type === "down" && e.why === "daze" && e.by && this.ping > 0 && this.claimHold <= 0 && this.extractAt <= 0) {
+      const c = m.get(e.id);
+      const by = m.get(e.by);
+      if (!c || !by || m.sameSquad(c, by)) return;
+      let top = -1;
+      for (let i = 0; i < this.held.length; i++) if (top < 0 || this.held[i] > this.held[top]) top = i;
+      if (top !== c.index || this.held[top] <= 0) return;
+      const v = Math.min(this.held[top], FLAGS.bounty);
+      this.held[top] -= v;
+      this.held[by.index] += v;
+      m.emit({ type: "bounty", id: by.id, tg: c.id, v });
+    }
   }
 
   /** Time up: in a "most" mode, the clear leader wins (a tie: nobody). */

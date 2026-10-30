@@ -34,7 +34,8 @@ import type { MapMark } from "../ui/hud";
 import { getLang, t } from "../ui/i18n";
 import { PlayHud } from "../ui/play";
 import { accentOf } from "../world/crowd";
-import { FfaView, PROP_NAME } from "../world/ffa";
+import { displacement, FfaView, PLAY_SCORE, PROP_NAME } from "../world/ffa";
+import { fmtTime } from "../ui/dom";
 import { randomLook, type Look } from "../world/human/wardrobe";
 import { MatchScene } from "../world/matchScene";
 import { GadgetView } from "../world/gadgets";
@@ -131,6 +132,10 @@ export class FfaMode implements GameMode {
   private packN = 0;
   private packAct = 0;
   private endAt = -1;
+  /** The play of the game so far, and your trail for the heat map. */
+  private best = { score: 0, text: "" };
+  private readonly trail: [number, number, number][] = [];
+  private trailAt = 0;
   private lastCount = -1;
   private spectate = -1;
 
@@ -283,6 +288,12 @@ export class FfaMode implements GameMode {
     this.gadgets.events(events, m, cam);
     this.modes6.events(events, m);
     for (const e of events) this.onEvent(e);
+    // Your trail, once a second of play (the heat map).
+    if (m.phase === "play" && me.status === "alive" && m.elapsed >= this.trailAt) {
+      this.trailAt = m.elapsed + 1;
+      const flags = m.module<FlagsModule>("flags");
+      this.trail.push([Math.round(me.x), Math.round(me.z), flags?.heldBy(me.index) ? 1 : 0]);
+    }
     if (this.endAt > 0 && performance.now() >= this.endAt && !this.over) this.finish();
   }
 
@@ -298,6 +309,17 @@ export class FfaMode implements GameMode {
           h.haptic("select");
         }
         break;
+      case "down": {
+        // The play of the game: the best displacement so far.
+        const score = PLAY_SCORE[e.why] ?? 0;
+        const by = e.by ? m.get(e.by) : null;
+        const c = m.get(e.id);
+        if (c && score > this.best.score) {
+          const line = displacement(e.why, by?.name ?? null, c.name, c.h < -0.3);
+          if (line) this.best = { score, text: `${line} (${fmtTime(m.elapsed)})` };
+        }
+        break;
+      }
       case "won": {
         const mine = e.squad >= 0 && e.squad === m.squads[me.index];
         if (mine) h.sound.win();
@@ -454,7 +476,11 @@ export class FfaMode implements GameMode {
     this.marks.length = 0;
     const tg = this.view.target(m);
     const car = this.carFrame(dt, m, me, cam);
-    const flagNear = tg ? { kind: tg.kind, d: tg.d, label: tg.prop ? t(PROP_NAME[tg.prop]) : undefined, progress: 0 } : null;
+    const flagNear = tg
+      ? tg.kind === "mate"
+        ? { kind: "job" as const, d: tg.d, label: tg.how === "rescue" ? t("Pull them out of the gutter") : t("Help them up"), progress: 0 }
+        : { kind: tg.kind, d: tg.d, label: tg.prop ? t(PROP_NAME[tg.prop]) : undefined, progress: 0 }
+      : null;
     const jobNear = this.modes6.target(m);
     const near = jobNear && (!flagNear || jobNear.d < flagNear.d) ? jobNear : flagNear;
     this.cars?.update(dt, m, cam, this.marks);
@@ -550,6 +576,8 @@ export class FfaMode implements GameMode {
       online: !!this.online,
       seconds: m.elapsed,
       measure: measureName(m),
+      ...(this.best.text ? { play: this.best.text } : {}),
+      trail: this.trail,
     };
     this.host.onEnd(r);
   }

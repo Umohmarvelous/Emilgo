@@ -119,7 +119,12 @@ export type MatchEvent =
   /** A key: taken, dropped, used on a locked door. */
   | { type: "key"; key: number; how: "take" | "drop" | "use"; id: string | null; x: number; z: number; h: number }
   /** The fuse box: a room dark until. */
-  | { type: "fuse"; room: number; until: number; id: string };
+  | { type: "fuse"; room: number; until: number; id: string }
+  // ── The extras (§10; Phase 6) ──
+  /** A squad mate helped tg up (half the Daze left) or pulled them out of a gutter. */
+  | { type: "helpup"; id: string; tg: string; how: "up" | "rescue" }
+  /** A bounty on the leader (Hold the Flag): id Dazed them and took `v` of their measure. */
+  | { type: "bounty"; id: string; tg: string; v: number };
 
 /** Why someone went down: melee's reasons, then a car's (pulled out, thrown by a blast, out at speed). */
 export type DownWhy = "daze" | "trip" | "tackle" | "throw" | "ringout" | "hijack" | "blast" | "tumble";

@@ -377,6 +377,8 @@ export const MELEE = {
   tackle: 0.9,
   charge: { windup: 0.1, dash: 0.35, speed: 9, reach: 1.1, stamina: 0.4, wobble: 0.3, knock: 2.8, stun: 0.6, miss: 0.4, sidestep: 3 },
   ringOut: { gutter: 3, gutterDrop: 0.4, roof: 1, roofDrop: 1.5 },
+  /** A squad mate's help (§10.8): tap within `reach` of them down, the rest of it × `cut`. A gutter rescue (§10.20) from `rescue`, a moment's `lift`. */
+  help: { reach: 1.8, cut: 0.5, rescue: 2.2, lift: 1 },
   /** Pepper Soup: knockback and wobble × this. */
   pepper: 1.2,
   /** Street props: how many, and how close to take one. */
@@ -407,6 +409,8 @@ export const FLAGS = {
   extraAt: 9,
   /** Scarcity: the extraction gate's radius. */
   gate: 4,
+  /** Hold the Flag's bounty (§10.10): seconds held taken from the leader you Daze. */
+  bounty: 5,
 } as const;
 
 /** Steal & Reposition's drop zones. */

@@ -4,7 +4,9 @@
 //
 //   node server/build-tools.mjs && node server/dist/extrastest.mjs
 
-import { BLACKOUT, ECONOMY, GADGETS, HARMATTAN, MELEE, MOVE } from "../../src/config";
+import { BLACKOUT, ECONOMY, FLAGS, GADGETS, HARMATTAN, MELEE, MOVE } from "../../src/config";
+
+const FLAGS_BOUNTY = FLAGS.bounty;
 import type { ItemId } from "../../src/content/items";
 import { BUILTIN_MANIFEST } from "../../src/content/modes";
 import type { Contestant } from "../../src/game/core/body";
@@ -15,6 +17,7 @@ import type { GadgetsModule } from "../../src/game/modules/gadgets";
 import type { ItemsModule } from "../../src/game/modules/items";
 import type { MeleeModule } from "../../src/game/modules/melee";
 import type { BlackoutModule } from "../../src/game/modules/blackout";
+import type { FlagsModule } from "../../src/game/modules/flags";
 import type { EconomyModule } from "../../src/game/modules/economy";
 import type { RiddlesModule } from "../../src/game/modules/riddles";
 import type { RoomsModule } from "../../src/game/modules/rooms";
@@ -643,6 +646,57 @@ console.log("the Harmattan:");
   check(!!hm.now(m) && moved > HARMATTAN.wind * 1.5 && moved < HARMATTAN.wind * 2.5, `in the storm, standing still: blown ${moved.toFixed(1)} m downwind in 2 s`);
   const duel = new Match({ seed: 72, world: matchWorldOf(layout, space, "naija-world:market"), settings: settingsOf(def("flag-duel")), contestants: [{ id: "a", name: "A", bot: false }, { id: "b", name: "B", bot: false }] });
   check((duel.module<HarmattanModule>("harmattan")?.storms.length ?? 0) === 0, "none in the staked duel (part of the city)");
+}
+
+console.log("the extras (§10):");
+{
+  // §10.8: a squad mate helps you up (half the Daze left).
+  const m = newMatch(81, bare("hold-the-flag"), 4, [0, 0, 1, 1]);
+  runFor(m, 0.1);
+  clear(m, ["p0", "p1", "p2"]);
+  const mel = m.module<MeleeModule>("melee")!;
+  const a = put(m, "p0", YX, YZ);
+  put(m, "p1", YX + 1, YZ);
+  mel.knockdown(m, a, MELEE.daze, "daze", null);
+  runFor(m, 0.1);
+  const left = mel.down[a.index] - m.elapsed;
+  m.setInteract("p1", 1, false);
+  const ev = runFor(m, 0.05);
+  const after = mel.down[a.index] - m.elapsed;
+  check(ev.some((e) => e.type === "helpup" && e.id === "p1" && e.how === "up") && Math.abs(after - left * MELEE.help.cut) < 0.1, `a squad mate taps: the Daze left halves (${left.toFixed(1)} → ${after.toFixed(1)} s)`);
+  // A rival can't.
+  const b = put(m, "p2", YX + 20, YZ);
+  put(m, "p0", YX + 21, YZ);
+  mel.knockdown(m, b, MELEE.daze, "daze", null);
+  runFor(m, 0.1);
+  check(!mel.mateFor(m, m.get("p0")!), "a rival down: no help from you");
+  // §10.20: pulled out of a gutter.
+  const gut = layout.gutters[0];
+  const gx = gut.x;
+  const gz = gut.z;
+  const inG = put(m, "p0", gx, gz);
+  inG.h = space.floorAt(gx, gz, 0).h;
+  const side = Math.cos(gut.rot);
+  const sideZ = -Math.sin(gut.rot);
+  put(m, "p1", gx + side * 1.4, gz + sideZ * 1.4);
+  runFor(m, 2.5);
+  const was = inG.h;
+  m.setInteract("p1", 2, false);
+  const ev2 = runFor(m, 0.1);
+  check(was < -0.3 && ev2.some((e) => e.type === "helpup" && e.how === "rescue") && inG.h > -0.1, `in a gutter (${was.toFixed(1)} m): a squad mate pulls you out`);
+}
+{
+  // §10.10: Hold the Flag's bounty on the leader.
+  const m = newMatch(82, bare("hold-the-flag"), 3);
+  runFor(m, 0.1);
+  clear(m, ["p0", "p1"]);
+  const f = m.module<FlagsModule>("flags")!;
+  f.held[0] = 30;
+  f.held[1] = 4;
+  const lead = put(m, "p0", YX, YZ);
+  m.module<MeleeModule>("melee")!.knockdown(m, lead, 1, "daze", m.get("p1")!);
+  const ev = runFor(m, 0.05);
+  check(ev.some((e) => e.type === "bounty" && e.id === "p1") && f.held[1] === 4 + FLAGS_BOUNTY && f.held[0] === 30 - FLAGS_BOUNTY, `Daze the leader in Hold the Flag: ${FLAGS_BOUNTY} of their seconds are yours`);
 }
 
 void MELEE;

@@ -88,6 +88,9 @@ export interface FfaResultView {
   xpNote: string | null;
   rank: Rank;
   rankUp: boolean;
+  /** The play of the game (§10.11), and where you went (§10.22). */
+  play?: string;
+  trail?: readonly [number, number, number][];
 }
 
 /** The results' XP line: what the round earned toward your rank, and where the rank stands. */
@@ -798,6 +801,8 @@ export class Screens {
          .join("")}</div>
        <div class="pm-card glass">
          <table class="ffa-table"><thead><tr><th>#</th><th>Player</th><th>${esc(r.measure)}</th></tr></thead><tbody>${rows}</tbody></table>
+         ${r.play ? `<div class="pm-play"><span class="label">${t("Play of the game")}</span><span class="small">${esc(r.play)}</span></div>` : ""}
+         ${r.trail && r.trail.length > 4 ? `<div class="pm-heat"><span class="label">${t("Where you went")}</span><canvas width="120" height="120" data-heat></canvas></div>` : ""}
          <div class="pm-xp" data-rank-line>${r.online ? rankLine(r) : `<span class="small">Practice: no XP. Play online to rank up.</span>`}</div>
          ${r.online === "match" ? `<div class="status" data-match-outcome>${esc(r.matchNote ?? "Sending the result to Lagos Life…")}</div>` : ""}
          <div class="pm-actions">
@@ -806,6 +811,37 @@ export class Screens {
          </div>
        </div>`,
     );
+    const heat = this.root.querySelector<HTMLCanvasElement>("canvas[data-heat]");
+    if (heat && r.trail) this.drawHeat(heat, r.trail);
+  }
+
+  /** The heat map (§10.22): where you spent your match, gold where you had the objective. */
+  private drawHeat(c: HTMLCanvasElement, trail: readonly [number, number, number][]): void {
+    const g = c.getContext("2d");
+    if (!g) return;
+    const W = c.width;
+    const half = 200;
+    const px = (v: number) => ((v + half) / (2 * half)) * W;
+    g.fillStyle = "rgba(20,16,12,0.85)";
+    g.fillRect(0, 0, W, W);
+    g.strokeStyle = "rgba(255,255,255,0.12)";
+    for (const v of [-100, 0, 100]) {
+      g.beginPath();
+      g.moveTo(px(v), 0);
+      g.lineTo(px(v), W);
+      g.moveTo(0, px(v));
+      g.lineTo(W, px(v));
+      g.stroke();
+    }
+    g.globalCompositeOperation = "lighter";
+    for (const [x, z, held] of trail) {
+      const grad = g.createRadialGradient(px(x), px(z), 0, px(x), px(z), 6);
+      grad.addColorStop(0, held ? "rgba(255,194,58,0.55)" : "rgba(255,90,58,0.28)");
+      grad.addColorStop(1, "rgba(0,0,0,0)");
+      g.fillStyle = grad;
+      g.fillRect(px(x) - 6, px(z) - 6, 12, 12);
+    }
+    g.globalCompositeOperation = "source-over";
   }
 
   /** The server's XP for a Free For All match arrived after its results went up. */

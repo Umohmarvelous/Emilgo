@@ -75,4 +75,8 @@ export interface ModeResult {
   seconds: number;
   /** The mode's measure, named ("Seconds held", "Deliveries"…), or "" for none. */
   measure: string;
+  /** The play of the game (§10.11): the match's best displacement, in words. */
+  play?: string;
+  /** Where you went (§10.22): x, z every second, and 1 where you had the objective in hand. */
+  trail?: [number, number, number][];
 }

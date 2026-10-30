@@ -55,9 +55,11 @@ import { merge, part } from "./geo";
 
 /** What interact would do in Free For All (beside the items and crates). */
 export interface FfaTarget {
-  kind: "stash" | "prop";
+  kind: "stash" | "prop" | "mate";
   d: number;
   prop?: PropId;
+  /** A squad mate to help: up, or out of a gutter. */
+  how?: "up" | "rescue";
 }
 
 export interface FfaViewOptions {
@@ -125,6 +127,32 @@ function propGeometry(k: PropId): BufferGeometry {
       ]);
   }
 }
+
+/** The displacement feed's line for a knockdown (§10.9), or "" when there's nothing to tell. */
+export function displacement(why: string, by: string | null, tg: string, gutter: boolean): string {
+  if (why === "blast") return `${tg} ${t("was blown out of a car")}`;
+  if (why === "tumble") return `${tg} ${t("tumbled out of a moving car")}`;
+  if (!by) return why === "ringout" ? `${tg} ${gutter ? t("fell in the gutter") : t("fell off a roof")}` : "";
+  switch (why) {
+    case "ringout":
+      return gutter ? `${by} ${t("dumped")} ${tg} ${t("in the gutter")}` : `${by} ${t("knocked")} ${tg} ${t("off the roof")}`;
+    case "throw":
+      return `${by} ${t("threw")} ${tg}`;
+    case "tackle":
+      return `${by} ${t("flattened")} ${tg}`;
+    case "trip":
+      return `${by} ${t("tripped")} ${tg}`;
+    case "hijack":
+      return `${by} ${t("pulled")} ${tg} ${t("out of a car")}`;
+    case "daze":
+      return `${by} ${t("dazed")} ${tg}`;
+    default:
+      return "";
+  }
+}
+
+/** A knockdown's worth as the play of the game (§10.11): the more it moved someone somewhere bad, the more. */
+export const PLAY_SCORE: Record<string, number> = { ringout: 5, hijack: 4, blast: 4, throw: 3, tackle: 3, daze: 2, trip: 1, tumble: 1 };
 
 /** A flag: a pole and a gold cloth with a green band. */
 function flagGeometry(): BufferGeometry {
@@ -278,6 +306,25 @@ export class FfaView {
           crowd.setCarry(c.index, false);
           this.o.sound?.thud(near(c.x, c.z, 40));
           if (c === me) this.o.hud.pushFeed(e.why === "daze" ? t("Dazed") : e.why === "ringout" ? t("Into the gutter") : t("Down"), "out");
+          else {
+            // The displacement feed (§10.9): who put whom where, not who killed whom.
+            const line = displacement(e.why, by?.name ?? null, c.name, c.h < -0.3);
+            if (line) this.o.hud.pushFeed(line, by === me ? "safe" : m.sameSquad(c, me) ? "out" : "info");
+          }
+          break;
+        }
+        case "helpup": {
+          const a = body(e.id);
+          const b = body(e.tg);
+          if (!a || !b) break;
+          if (b === me) this.o.hud.pushFeed(`${a.name} ${e.how === "rescue" ? t("pulled you out") : t("helped you up")}`, "safe");
+          else if (a === me) this.o.hud.pushFeed(e.how === "rescue" ? t("You pulled them out") : t("You helped them up"), "safe");
+          break;
+        }
+        case "bounty": {
+          const a = body(e.id);
+          const b = body(e.tg);
+          if (a && b) this.o.hud.pushFeed(`${a === me ? t("You") : a.name} ${t("took the leader's bounty from")} ${b.name}: ${Math.round(e.v)} s`, a === me ? "safe" : "info");
           break;
         }
         case "up": {
@@ -372,6 +419,8 @@ export class FfaView {
       const d = Math.hypot(p.x - me.x, p.z - me.z);
       if (!out || d < out.d) out = { kind: "prop", d, prop: p.kind };
     }
+    const mate = mel?.mateFor(m, me);
+    if (mate) return { kind: "mate", d: mate.d, how: mate.how };
     return out;
   }
 

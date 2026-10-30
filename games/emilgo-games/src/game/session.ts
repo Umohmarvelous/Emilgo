@@ -3330,6 +3330,8 @@ export class Game {
       xpNote: null,
       rank: rankOf(this.rankXp),
       rankUp: false,
+      ...(r.play ? { play: r.play } : {}),
+      ...(r.trail ? { trail: r.trail } : {}),
     };
     this.pendingGain = null;
     if (r.won) this.settings.wins++;

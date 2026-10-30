@@ -110,6 +110,8 @@ export class MeleeModule implements RuleModule {
   private dash: { until: number; dx: number; dz: number; hit: boolean }[] = [];
   private tackled: boolean[] = [];
   private floorWas = new Float64Array(0);
+  /** This knockdown has had a squad mate's help already. */
+  private helped: boolean[] = [];
   private hist: Float64Array[] = [];
   private histAt = 0;
   private readonly density: number;
@@ -135,6 +137,7 @@ export class MeleeModule implements RuleModule {
     this.dash = Array.from({ length: n }, () => ({ until: -1, dx: 0, dz: 0, hit: false }));
     this.tackled = new Array(n).fill(false);
     this.floorWas = new Float64Array(n);
+    this.helped = new Array(n).fill(false);
     this.hist = Array.from({ length: n }, () => new Float64Array(MELEE.histTicks * 2));
     for (const c of m.contestants) this.floorWas[c.index] = c.h;
     this.scatter(m);
@@ -495,6 +498,7 @@ export class MeleeModule implements RuleModule {
     if (this.heldBy[j] >= 0) this.release(this.heldBy[j]);
     this.windup[j] = null;
     this.down[j] = m.elapsed + s;
+    this.helped[j] = false;
     tg.stun = Math.max(tg.stun, s);
     tg.inSprint = tg.sprinting = false;
     if (why === "daze") this.wobble[j] = 0;
@@ -564,6 +568,9 @@ export class MeleeModule implements RuleModule {
   }
 
   reachFor(m: Match, c: Contestant): { d: number; take: () => void } | null {
+    // A squad mate down beside you: help them up (half the time left, §10.8); in a gutter: pull them out (§10.20).
+    const mate = this.mateFor(m, c);
+    if (mate) return mate;
     const p = this.propFor(c);
     if (!p) return null;
     return {
@@ -574,6 +581,48 @@ export class MeleeModule implements RuleModule {
         m.emit({ type: "prop", id: c.id, prop: p.index, kind: p.kind, how: "take", x: p.x, z: p.z, h: p.h });
       },
     };
+  }
+
+  /** A squad mate c can help up or pull out of a gutter now (what the tap would do), or null. */
+  mateFor(m: Match, c: Contestant): { d: number; take: () => void; how?: "up" | "rescue" } | null {
+    if (this.down[c.index] >= 0 || c.y > 0.1) return null;
+    let best: { d: number; take: () => void; how?: "up" | "rescue" } | null = null;
+    for (const o of m.contestants) {
+      if (o === c || o.status !== "alive" || !m.sameSquad(c, o) || m.seated(o)) continue;
+      const d = Math.hypot(o.x - c.x, o.z - c.z);
+      if (best && best.d <= d) continue;
+      const j = o.index;
+      // In a gutter (a sunk floor) beside you.
+      if (o.h < c.h - MELEE.ringOut.gutterDrop && d <= MELEE.help.rescue) {
+        best = {
+          d,
+          take: () => {
+            o.x = c.x + (o.x - c.x) * (0.5 / Math.max(0.5, d));
+            o.z = c.z + (o.z - c.z) * (0.5 / Math.max(0.5, d));
+            o.h = c.h;
+            o.y = o.vy = 0;
+            o.vx = o.vz = 0;
+            m.world.space.resolve(o, MOVE.radius);
+            o.stun = Math.max(o.stun, MELEE.help.lift);
+            m.emit({ type: "helpup", id: c.id, tg: o.id, how: "rescue" });
+          },
+          how: "rescue",
+        } as { d: number; take: () => void; how: "rescue" };
+      } else if (this.down[j] >= 0 && !this.helped[j] && d <= MELEE.help.reach) {
+        best = {
+          d,
+          take: () => {
+            const left = this.down[j] - m.elapsed;
+            this.down[j] = m.elapsed + left * MELEE.help.cut;
+            o.stun = Math.min(o.stun, left * MELEE.help.cut);
+            this.helped[j] = true;
+            m.emit({ type: "helpup", id: c.id, tg: o.id, how: "up" });
+          },
+          how: "up",
+        } as { d: number; take: () => void; how: "up" };
+      }
+    }
+    return best;
   }
 
   private use(m: Match, c: Contestant, p: GroundProp): void {
