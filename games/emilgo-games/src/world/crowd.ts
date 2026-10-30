@@ -209,6 +209,11 @@ export class Crowd {
     if (!this.hidden[i]) this.people[i]?.act(id);
   }
 
+  /** A colour over body i (an Ojuju, a streak's glow), or null. */
+  setTint(i: number, color: number | null, glow = 0x000000): void {
+    this.people[i]?.tint(color, glow);
+  }
+
   /** In a car (vehicles): seated `lift` metres above the body's floor, the driver's hands on the wheel; null: standing. */
   setSeat(i: number, seat: { lift: number; driver: boolean } | null): void {
     const h = this.people[i];

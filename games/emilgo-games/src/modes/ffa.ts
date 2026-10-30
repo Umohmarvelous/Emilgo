@@ -37,6 +37,7 @@ import { FfaView, PROP_NAME } from "../world/ffa";
 import { randomLook, type Look } from "../world/human/wardrobe";
 import { MatchScene } from "../world/matchScene";
 import { GadgetView } from "../world/gadgets";
+import { ModesView } from "../world/modesView";
 import { VehicleView } from "../world/vehicles";
 import type { GameMode, ModeHost, ModeResult } from "./types";
 
@@ -109,6 +110,7 @@ export class FfaMode implements GameMode {
   private readonly view: FfaView;
   private readonly cars: VehicleView | null;
   private readonly gadgets: GadgetView;
+  private readonly modes6: ModesView;
   /** The car you were in last frame (−1: none), and your radio's station. */
   private inCar = -1;
   private station: RadioId | null = null;
@@ -173,6 +175,8 @@ export class FfaMode implements GameMode {
     if (this.cars) h.scene.add(this.cars.group);
     this.gadgets = new GadgetView({ crowd: h.crowd, hud: h.hud, sound: h.sound, me: me.index });
     h.scene.add(this.gadgets.group);
+    this.modes6 = new ModesView({ crowd: h.crowd, hud: h.hud, sound: h.sound, me: me.index });
+    h.scene.add(this.modes6.group);
 
     // The HUD.
     h.hud.reset(looks.map((l, i) => ({ accent: accentOf(l), me: i === me.index })));
@@ -269,6 +273,7 @@ export class FfaMode implements GameMode {
     this.view.events(events, m, cam);
     this.cars?.events(events, m, cam);
     this.gadgets.events(events, m, cam);
+    this.modes6.events(events, m);
     for (const e of events) this.onEvent(e);
     if (this.endAt > 0 && performance.now() >= this.endAt && !this.over) this.finish();
   }
@@ -446,12 +451,13 @@ export class FfaMode implements GameMode {
     const { inSmoke } = this.gadgets.update(dt, m, cam, this.marks);
     const extra = {
       target: car.target && (!near || car.target.d < near.d) ? car.target : near,
-      objective: m.phase === "play" ? this.view.objectiveLine(m, this.src.measures) : "",
+      objective: m.phase === "play" ? this.view.objectiveLine(m, this.src.measures) || this.modes6.objectiveLine(m) : "",
       car: car.panel,
       smoke: inSmoke,
     };
     const { pin } = this.ms.update(dt, m, cam, this.marks, extra);
-    const { goal } = this.view.update(dt, m, h.camera, this.marks, h.rig.firstPerson && target === me);
+    const { goal: flagGoal } = this.view.update(dt, m, h.camera, this.marks, h.rig.firstPerson && target === me);
+    const goal = flagGoal ?? this.modes6.update(dt, m, this.marks).pin;
     h.hud.setMap({ x: target.x, z: target.z, heading: target.heading, out: me.status !== "alive" }, this.marks, null, h.rig.yaw);
     h.hud.setCompass(h.rig.yaw, target, null, this.world.layout.landmarks, pin, goal);
     h.hud.setTimer(m.phase === "play" ? m.timeLeft : m.settings.time, m.phase === "play" && m.timeLeft <= 30);
@@ -514,6 +520,7 @@ export class FfaMode implements GameMode {
     this.view.dispose();
     this.cars?.dispose();
     this.gadgets.dispose();
+    this.modes6.dispose(this.src.match);
     h.sound.engine(0, 0);
     h.sound.carRadio(null);
     h.rig.arm = 1;
@@ -537,6 +544,7 @@ export class FfaMode implements GameMode {
 /** What the mode's measure is called on the results ("" when it has none). */
 function measureName(m: Match): string {
   const f = m.module<FlagsModule>("flags");
+  if (m.module("tag")) return "Seconds human";
   if (m.module<CaptureModule>("capture")) return "Seconds in the rally point";
   if (!f) return "";
   if (f.claimHold > 0) return "Longest hold (s)";

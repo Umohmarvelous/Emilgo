@@ -19,6 +19,7 @@ import type { Contestant } from "../core/body";
 import type { Match } from "../core/match";
 import type { MatchEvent, RuleModule } from "../core/module";
 import type { GadgetsModule } from "./gadgets";
+import type { TagModule } from "./tag";
 import type { VehiclesModule } from "./vehicles";
 
 export interface GroundItem {
@@ -201,6 +202,8 @@ export class ItemsModule implements RuleModule {
     }
     const fx = ITEM_DEFS[kind].effect;
     if (!fx) return;
+    // Chase & Reverse: the Ojuju can't use items.
+    if (m.module<TagModule>("tag")?.isOjuju(c.index)) return;
     switch (fx.kind) {
       case "speed":
         m.setEffect(c, "speed", fx.s, fx.mult);

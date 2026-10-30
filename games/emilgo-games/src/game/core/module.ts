@@ -89,7 +89,12 @@ export type MatchEvent =
   /** A Talking Drum: who it showed to whom (tg null: nobody near), until when. */
   | { type: "reveal"; id: string; tg: string | null; until: number }
   /** Aso-ebi: the squad someone now wears (−1: their own again). */
-  | { type: "disguise"; id: string; squad: number; until: number };
+  | { type: "disguise"; id: string; squad: number; until: number }
+  // ── Chase & Reverse (Phase 6, tag.ts) ──
+  /** Someone turned Ojuju (by an Ojuju's touch, or at the start), or cured back to human (by a charm's carrier). */
+  | { type: "turn"; id: string; ojuju: boolean; by: string | null }
+  /** A Reverse charm: dropped (the start of them, or by a carrier), taken, used on an Ojuju. */
+  | { type: "charm"; charm: number; how: "drop" | "take" | "use"; id: string | null; x: number; z: number; h: number };
 
 /** Why someone went down: melee's reasons, then a car's (pulled out, thrown by a blast, out at speed). */
 export type DownWhy = "daze" | "trip" | "tackle" | "throw" | "ringout" | "hijack" | "blast" | "tumble";

@@ -14,6 +14,7 @@ import { Space } from "../../src/game/core/space";
 import type { GadgetsModule } from "../../src/game/modules/gadgets";
 import type { ItemsModule } from "../../src/game/modules/items";
 import type { MeleeModule } from "../../src/game/modules/melee";
+import type { TagModule } from "../../src/game/modules/tag";
 import { matchWorldOf } from "../../src/maps/open/matchWorld";
 import { matchXp } from "../../src/rank/xp";
 import { FfaGame } from "../src/ffa";
@@ -266,6 +267,67 @@ console.log("Ranked:");
   const fc = casual.facts("p0")!;
   const fr = ranked.facts("p0")!;
   check(fr.ranked === true && matchXp({ ...fr, seconds: 480 }) === 2 * matchXp({ ...fc, seconds: 480 }), `double XP (${matchXp({ ...fc, seconds: 480 })} → ${matchXp({ ...fr, seconds: 480 })})`);
+}
+
+console.log("Chase & Reverse:");
+{
+  const s = bare("chase-reverse", (x) => {
+    (x.modules.tag as Record<string, unknown>).curesAt = 4;
+  });
+  const m = newMatch(21, s, 6);
+  const ev0 = m.drain();
+  const tag = m.module<TagModule>("tag")!;
+  const first = ev0.filter((e) => e.type === "turn" && e.ojuju);
+  check(first.length === 1 && m.contestants.filter((c) => tag.isOjuju(c.index)).length === 1, "one Ojuju to start, announced");
+  runFor(m, 0.1);
+  const oj = m.contestants.find((c) => tag.isOjuju(c.index))!;
+  const hu = m.contestants.find((c) => !tag.isOjuju(c.index))!;
+  clear(m, [oj.id, hu.id]);
+  // Faster: both run east for 3 s side by side.
+  put(m, oj.id, YX, YZ, EAST);
+  put(m, hu.id, YX, YZ + 6, EAST);
+  m.setInput(oj.id, 1, 0);
+  m.setInput(hu.id, 1, 0);
+  runFor(m, 3);
+  m.setInput(oj.id, 0, 0);
+  m.setInput(hu.id, 0, 0);
+  check(oj.x - YX > (hu.x - YX) * 1.05, `the Ojuju are faster (${(oj.x - YX).toFixed(1)} m vs ${(hu.x - YX).toFixed(1)} m in 3 s)`);
+  // Can't use items.
+  const items = m.module<ItemsModule>("items")!;
+  items.packs[oj.index][0] = "kola";
+  m.setPack(oj.id, ((++packN & 511) << 5) | 0);
+  runFor(m, DT * 2);
+  check(items.packs[oj.index][0] === "kola", "the Ojuju can't use items");
+  // A touch turns a human.
+  runFor(m, 1.5);
+  put(m, oj.id, YX, YZ);
+  put(m, hu.id, YX + 0.7, YZ);
+  const ev = runFor(m, 0.1);
+  check(ev.some((e) => e.type === "turn" && e.id === hu.id && e.ojuju) && tag.isOjuju(hu.index) && tag.turned[oj.index] === 1, "an Ojuju touches a human: they turn");
+  // The charms come; a human carrying one cures an Ojuju.
+  runFor(m, Math.max(0, 4.2 - m.elapsed));
+  check(tag.charms.length === 2, `at ${4} s (3:00 in the mode) two Reverse charms appear`);
+  const h2 = m.contestants.find((c) => !tag.isOjuju(c.index))!;
+  const ch = tag.charms[0];
+  clear(m, [h2.id, hu.id]);
+  put(m, h2.id, ch.x, ch.z);
+  runFor(m, 0.1);
+  check(ch.holder === h2.index, "a human walks onto one: they carry it");
+  put(m, hu.id, h2.x + 0.6, h2.z);
+  const ev2 = runFor(m, 0.1);
+  check(ev2.some((e) => e.type === "charm" && e.how === "use") && !tag.isOjuju(hu.index) && ch.spent, "and touching an Ojuju cures them");
+  // Last human standing wins.
+  const m2 = newMatch(22, bare("chase-reverse"), 3);
+  runFor(m2, 0.1);
+  const t2 = m2.module<TagModule>("tag")!;
+  const [o2] = m2.contestants.filter((c) => t2.isOjuju(c.index));
+  const humans = m2.contestants.filter((c) => !t2.isOjuju(c.index));
+  clear(m2, m2.contestants.map((c) => c.id));
+  put(m2, o2.id, YX, YZ);
+  put(m2, humans[0].id, YX + 0.6, YZ);
+  put(m2, humans[1].id, YX + 30, YZ);
+  const ev3 = runFor(m2, 0.2);
+  check(ev3.some((e) => e.type === "won" && e.id === humans[1].id) && m2.over, "one human left: they win");
 }
 
 void MELEE;

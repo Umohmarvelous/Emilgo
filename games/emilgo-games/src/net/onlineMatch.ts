@@ -26,6 +26,7 @@ import type { CaptureModule } from "../game/modules/capture";
 import type { FlagsModule } from "../game/modules/flags";
 import { driveCar, wrap, type Car } from "../game/modules/drive";
 import type { MeleeModule } from "../game/modules/melee";
+import type { TagModule } from "../game/modules/tag";
 import type { VehiclesModule } from "../game/modules/vehicles";
 import type { NetClient } from "./client";
 import { CAR_STRIDE, decodeEvent, MATCH_PHASES, MSNAP_STRIDE, unpackMeter, type FfaStart, type MatchSnap, type MatchSync, type WireEvent } from "./matchWire";
@@ -247,6 +248,8 @@ export class OnlineMatch {
     }
     const f = this.flags;
     if (f && f.heldBy(me.index) && f.holderSlow > 0) k *= 1 - f.holderSlow;
+    const tag = m.module<TagModule>("tag");
+    if (tag?.isOjuju(me.index)) k *= tag.speed;
     return k;
   }
 

@@ -558,6 +558,16 @@ export class Human {
   }
 
   /** First person: no head in front of the lens. */
+  /**
+   * A colour over the whole body (multiplied) and a glow from it: an Ojuju's
+   * ashen skin (Phase 6), a winning streak's glow. null: as they are.
+   */
+  tint(color: number | null, glow = 0x000000): void {
+    const mat = this.mesh.material as MeshLambertMaterial;
+    mat.color.setHex(color ?? 0xffffff);
+    mat.emissive.setHex(glow);
+  }
+
   hideHead(on: boolean): void {
     const head = this.bone("head");
     const s = on ? 0.001 : 1;
