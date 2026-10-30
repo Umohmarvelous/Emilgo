@@ -447,7 +447,9 @@ export class FfaMode implements GameMode {
     this.marks.length = 0;
     const tg = this.view.target(m);
     const car = this.carFrame(dt, m, me, cam);
-    const near = tg ? { kind: tg.kind, d: tg.d, label: tg.prop ? t(PROP_NAME[tg.prop]) : undefined, progress: 0 } : null;
+    const flagNear = tg ? { kind: tg.kind, d: tg.d, label: tg.prop ? t(PROP_NAME[tg.prop]) : undefined, progress: 0 } : null;
+    const jobNear = this.modes6.target(m);
+    const near = jobNear && (!flagNear || jobNear.d < flagNear.d) ? jobNear : flagNear;
     this.cars?.update(dt, m, cam, this.marks);
     const { inSmoke } = this.gadgets.update(dt, m, cam, this.marks);
     const extra = {
@@ -554,6 +556,7 @@ function measureName(m: Match): string {
   const f = m.module<FlagsModule>("flags");
   if (m.module("tag")) return "Seconds human";
   if (m.module("blackout")) return "Seconds unfound";
+  if (m.module("economy")) return "Owo banked";
   if (m.module<CaptureModule>("capture")) return "Seconds in the rally point";
   if (!f) return "";
   if (f.claimHold > 0) return "Longest hold (s)";

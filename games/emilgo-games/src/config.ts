@@ -486,6 +486,38 @@ export const VEHICLES = {
 export type VehicleKind = keyof typeof VEHICLES.kinds;
 
 /**
+ * Hustle (SPEC-V3 §9 #6; Phase 6). Jobs pay Owo (a score, never ₦); what you
+ * carry isn't safe until it's banked in an Esusu box.
+ */
+export const ECONOMY = {
+  /** Hold-jobs: seconds of work and the pay. Carry-jobs: the pay on delivery, and a load slows you. */
+  jobs: {
+    water: { hold: 3, pay: 15 },
+    wash: { hold: 5, pay: 25 },
+    fix: { hold: 6, pay: 30 },
+    parcel: { pay: 40, slow: 1 },
+    load: { pay: 60, slow: 0.8 },
+  },
+  /** Stations on the map; a station rests this long after a job; a sabotaged one is broken this long. */
+  stations: 14,
+  rest: 12,
+  broken: 30,
+  /** Work within this of a station; deliver within this of the drop; bank within this of a box. */
+  reach: 2.2,
+  drop: 3,
+  /** A carry-job's drop is this far from its station. */
+  dropFrom: [50, 120],
+  /** Esusu boxes. */
+  banks: 4,
+  /** Spilled Owo lies this long; anyone can scoop it. */
+  bagLife: 40,
+  /** Daze the leader: this much from them to you (§10.10's bounty). */
+  bounty: 20,
+} as const;
+
+export type JobKind = keyof typeof ECONOMY.jobs;
+
+/**
  * Lights Out (SPEC-V3 §9 #10; Phase 6). Your lamp lights a cone in front of
  * you; a rival kept in it (in sight) for the mode's `findHold` is found.
  */

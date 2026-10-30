@@ -99,7 +99,15 @@ export type MatchEvent =
   /** Found: id kept tg in their lamp long enough (tg is out). */
   | { type: "found"; id: string; tg: string }
   /** A running generator shocked someone who touched it. */
-  | { type: "shock"; id: string; x: number; z: number };
+  | { type: "shock"; id: string; x: number; z: number }
+  // ── Hustle (Phase 6, economy.ts) ──
+  /** A job: a hold-job started, stopped or done (owo: its pay); a carry-job taken, delivered or lost; a station sabotaged. */
+  | { type: "job"; id: string; station: number; how: "start" | "stop" | "done" | "take" | "deliver" | "lost" | "sabotage"; owo: number }
+  /** Someone's Owo now, and why it changed. */
+  | { type: "owo"; id: string; carried: number; banked: number; why: "job" | "bank" | "spill" | "pick" | "bounty" }
+  /** Spilled Owo on the ground (a bag), and scooped up. */
+  | { type: "spill"; bag: number; x: number; z: number; h: number; owo: number }
+  | { type: "scoop"; bag: number; id: string };
 
 /** Why someone went down: melee's reasons, then a car's (pulled out, thrown by a blast, out at speed). */
 export type DownWhy = "daze" | "trip" | "tackle" | "throw" | "ringout" | "hijack" | "blast" | "tumble";

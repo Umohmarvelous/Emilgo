@@ -18,7 +18,7 @@ export const MODULE_IDS = [
 export type ModuleId = (typeof MODULE_IDS)[number];
 
 /** The modules this build can play. Grows phase by phase (SPEC-V3 §13). */
-export const BUILT: ReadonlySet<ModuleId> = new Set<ModuleId>(["doll", "balls", "zone", "items", "airfall", "vehicles", "melee", "flags", "dropzones", "capture", "gadgets", "tag", "blackout"]);
+export const BUILT: ReadonlySet<ModuleId> = new Set<ModuleId>(["doll", "balls", "zone", "items", "airfall", "vehicles", "melee", "flags", "dropzones", "capture", "gadgets", "tag", "blackout", "economy"]);
 
 export type Family = "ffa" | "survival" | "rlgl";
 export type Text = { en: string; pcm?: string };
@@ -85,8 +85,8 @@ const RANKED = { "zone.scale": 0.85, "items.density": 0.6 };
 export const BUILTIN_MANIFEST: Manifest = {
   format: 1,
   issued: "2026-10-28",
-  // Hustle joins the rotation with its module (economy, Phase 6).
-  rotation: ["find-the-flag", "hold-the-flag", "steal-reposition", "squad-rally"],
+  // Hustle joined with its module (economy, Phase 6); Steal & Reposition rests this week (private rooms still play it).
+  rotation: ["find-the-flag", "hold-the-flag", "squad-rally", "hustle"],
   modes: [
     // ── Free For All (Naija World) ──
     {

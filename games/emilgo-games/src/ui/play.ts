@@ -29,7 +29,7 @@ export interface PlayHudState {
   doomed: boolean;
   pack: readonly (ItemId | null)[];
   /** What interact would do now (Free For All adds: search a stash spot, pick up a street prop, named in `label`). */
-  target: { kind: "item" | "bag" | "crate" | "stash" | "prop" | "car"; item?: ItemId; left?: number; label?: string; progress: number } | null;
+  target: { kind: "item" | "bag" | "crate" | "stash" | "prop" | "car" | "job"; item?: ItemId; left?: number; label?: string; progress: number } | null;
   effects: readonly { key: string; left: number }[];
   /** Out: seconds until back (−1: not coming back); alive: −2. */
   respawn: number;
@@ -236,6 +236,7 @@ export class PlayHud {
       else if (s.target.kind === "prop") tl = `prop:${t("Pick up")} · ${s.target.label ?? ""}`;
       else if (s.target.kind === "bag") tl = `bag:${t("Take from the bag")}`;
       else if (s.target.kind === "car") tl = `car:${s.target.label ?? ""}`;
+      else if (s.target.kind === "job") tl = `job:${s.target.label ?? ""}`;
       else tl = `item:${t("Pick up")} · ${itemName(s.target.item!)}:${s.target.item}`;
     }
     if (tl !== this.lastTarget) {
@@ -243,7 +244,7 @@ export class PlayHud {
       this.act.classList.toggle("visible", !!tl);
       if (tl) {
         const [kind, label, item] = tl.split(":");
-        const ico = kind === "crate" ? "crate" : kind === "bag" || kind === "prop" ? "bundle" : kind === "stash" ? "search" : kind === "car" ? "car" : ITEM_ICON[item as ItemId];
+        const ico = kind === "crate" ? "crate" : kind === "bag" || kind === "prop" ? "bundle" : kind === "stash" ? "search" : kind === "car" ? "car" : kind === "job" ? "hand" : ITEM_ICON[item as ItemId];
         this.act.querySelector("svg")?.remove();
         this.act.insertAdjacentHTML("afterbegin", icon(ico, "", 18));
         this.actText.textContent = label;

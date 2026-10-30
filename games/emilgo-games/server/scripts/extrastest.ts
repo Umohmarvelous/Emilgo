@@ -4,7 +4,7 @@
 //
 //   node server/build-tools.mjs && node server/dist/extrastest.mjs
 
-import { BLACKOUT, GADGETS, MELEE, MOVE } from "../../src/config";
+import { BLACKOUT, ECONOMY, GADGETS, MELEE, MOVE } from "../../src/config";
 import type { ItemId } from "../../src/content/items";
 import { BUILTIN_MANIFEST } from "../../src/content/modes";
 import type { Contestant } from "../../src/game/core/body";
@@ -15,6 +15,7 @@ import type { GadgetsModule } from "../../src/game/modules/gadgets";
 import type { ItemsModule } from "../../src/game/modules/items";
 import type { MeleeModule } from "../../src/game/modules/melee";
 import type { BlackoutModule } from "../../src/game/modules/blackout";
+import type { EconomyModule } from "../../src/game/modules/economy";
 import type { TagModule } from "../../src/game/modules/tag";
 import { matchWorldOf } from "../../src/maps/open/matchWorld";
 import { matchXp } from "../../src/rank/xp";
@@ -407,6 +408,95 @@ console.log("Lights Out:");
   put(m5, "p1", YX + 5, YZ);
   const ev6 = runFor(m5, 2);
   check(ev6.some((e) => e.type === "won" && e.id === "p0") && m5.over, "the last one not found wins");
+}
+
+console.log("Hustle:");
+{
+  const m = newMatch(41, bare("hustle"), 6);
+  runFor(m, 0.1);
+  const eco = m.module<EconomyModule>("economy")!;
+  const kinds = new Set(eco.stations.map((x) => x.kind));
+  const drops = eco.stations.filter((x) => x.to).map((x) => Math.hypot(x.to!.x - x.x, x.to!.z - x.z));
+  check(eco.stations.length >= 10 && kinds.size === 5 && eco.banks.length === ECONOMY.banks, `${eco.stations.length} stations of all 5 jobs, ${eco.banks.length} Esusu boxes`);
+  check(drops.length > 0 && drops.every((d) => d >= ECONOMY.dropFrom[0] - 6 && d <= ECONOMY.dropFrom[1] + 6), `deliveries go ${Math.round(Math.min(...drops))}–${Math.round(Math.max(...drops))} m`);
+  clear(m, ["p0", "p1"]);
+  // A hold-job: let go early, nothing; hold it out, paid.
+  const water = eco.stations.find((x) => x.kind === "water")!;
+  put(m, "p0", water.x + 0.8, water.z);
+  m.setInteract("p0", 1, true);
+  runFor(m, ECONOMY.jobs.water.hold * 0.5);
+  m.setInteract("p0", 1, false);
+  runFor(m, 0.2);
+  check(eco.carried[0] === 0 && eco.work[0] === 0, "let go early: no pay");
+  m.setInteract("p0", 2, true);
+  const ev = runFor(m, ECONOMY.jobs.water.hold + 0.2);
+  m.setInteract("p0", 2, false);
+  check(ev.some((e) => e.type === "job" && e.how === "done") && eco.carried[0] === ECONOMY.jobs.water.pay, `held ${ECONOMY.jobs.water.hold} s at the water stall: +${ECONOMY.jobs.water.pay} Owo`);
+  check(m.elapsed < water.until, "then the station rests");
+  // Sabotage: p1 taps while p0 works the wash.
+  const wash = eco.stations.find((x) => x.kind === "wash")!;
+  put(m, "p0", wash.x + 0.8, wash.z);
+  m.setInteract("p0", 3, true);
+  runFor(m, 1);
+  put(m, "p1", wash.x - 0.8, wash.z);
+  m.setInteract("p1", 1, false);
+  const ev2 = runFor(m, 0.2);
+  check(ev2.some((e) => e.type === "job" && e.how === "sabotage" && e.id === "p1") && wash.broken && eco.work[0] === 0, "a rival taps the station you're working: your work is lost, it's broken");
+  m.setInteract("p0", 3, false);
+  // A carry-job: take it, deliver it.
+  const load = eco.stations.find((x) => x.kind === "load")!;
+  put(m, "p0", load.x + 0.8, load.z);
+  m.setInteract("p0", 4, false);
+  runFor(m, 0.1);
+  check(eco.job[0] === load.index, "tap at the load: you carry it");
+  // Slower with a load.
+  put(m, "p0", -168, -176, EAST);
+  m.setInput("p0", 1, 0);
+  runFor(m, 2);
+  m.setInput("p0", 0, 0);
+  const went = m.get("p0")!.x + 168;
+  check(went < MOVE.run * 2 * 0.9, `a load slows you (${went.toFixed(1)} m in 2 s)`);
+  runFor(m, 0.5);
+  put(m, "p0", load.to!.x, load.to!.z);
+  const before = eco.carried[0];
+  const ev3 = runFor(m, 0.1);
+  check(ev3.some((e) => e.type === "job" && e.how === "deliver") && eco.carried[0] === before + ECONOMY.jobs.load.pay && eco.job[0] < 0, `at the drop: +${ECONOMY.jobs.load.pay} Owo`);
+  // Bank it.
+  const box = eco.banks[0];
+  put(m, "p0", box.x + 0.8, box.z);
+  m.setInteract("p0", 5, false);
+  runFor(m, 0.1);
+  check(eco.banked[0] === before + ECONOMY.jobs.load.pay && eco.carried[0] === 0, `at an Esusu box: banked (${eco.banked[0]})`);
+  check(m.objective(0) === eco.banked[0], "the measure is what's banked");
+  // Dazed with Owo: half spills, anyone scoops it.
+  eco.carried[1] = 100;
+  const p1 = put(m, "p1", -168, -176);
+  m.module<MeleeModule>("melee")!.knockdown(m, p1, 1, "daze", null);
+  const ev4 = runFor(m, 0.05);
+  const spill = ev4.find((e) => e.type === "spill") as Extract<MatchEvent, { type: "spill" }> | undefined;
+  check(!!spill && spill.owo === 50 && eco.carried[1] === 50, "Dazed with 100 Owo: 50 spills");
+  put(m, "p0", spill!.x + 0.5, spill!.z);
+  runFor(m, 0.1);
+  check(eco.carried[0] === 50, "walk over it: it's yours");
+  // The leader shows on the map every leaderPing seconds.
+  const ev5 = runFor(m, eco.leaderPing);
+  check(ev5.some((e) => e.type === "ping" && e.id === "p0"), `the leader shows on everyone's map every ${eco.leaderPing} s`);
+  // The bounty: Daze the leader, take from their pocket.
+  const lead = m.get("p0")!;
+  eco.carried[0] = 60;
+  m.module<MeleeModule>("melee")!.knockdown(m, lead, 1, "daze", m.get("p1")!);
+  runFor(m, 0.05);
+  check(eco.carried[1] >= 50 + ECONOMY.bounty, `Daze the leader: a bounty of ${ECONOMY.bounty} Owo`);
+}
+{
+  // Time up: most banked wins.
+  const m = newMatch(42, bare("hustle", (x) => (x.time = 3)), 3);
+  runFor(m, 0.1);
+  const eco = m.module<EconomyModule>("economy")!;
+  eco.banked[2] = 40;
+  eco.banked[1] = 10;
+  const ev = runFor(m, 4);
+  check(ev.some((e) => e.type === "won" && e.id === "p2"), "time up: the most Owo banked wins");
 }
 
 void MELEE;

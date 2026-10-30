@@ -19,7 +19,7 @@ export interface MapMark {
    * (green), a flag holder's ping (red). Vehicles add a car (r 0: blown
    * up) and a fuel boy still selling.
    */
-  kind: "other" | "out" | "safe" | "ball" | "basket" | "crate" | "flag" | "goal" | "mate" | "ping" | "car" | "fuel";
+  kind: "other" | "out" | "safe" | "ball" | "basket" | "crate" | "flag" | "goal" | "mate" | "ping" | "car" | "fuel" | "job";
   r?: number;
 }
 
@@ -177,6 +177,20 @@ export class Minimap {
       g.strokeStyle = "#000";
       g.lineWidth = r * 0.3;
       g.rect(m.x - r * 0.9, m.z - r * 1.4, r * 1.8, r * 2.8);
+      g.fill();
+      g.stroke();
+      return;
+    }
+    if (m.kind === "job") {
+      // A Hustle station: a green diamond (grey while it rests or is broken: r 0).
+      g.fillStyle = m.r === 0 ? "rgba(150,150,150,0.7)" : "#3ee08a";
+      g.strokeStyle = "#000";
+      g.lineWidth = r * 0.25;
+      g.moveTo(m.x, m.z - r * 1.2);
+      g.lineTo(m.x + r * 1.0, m.z);
+      g.lineTo(m.x, m.z + r * 1.2);
+      g.lineTo(m.x - r * 1.0, m.z);
+      g.closePath();
       g.fill();
       g.stroke();
       return;

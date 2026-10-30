@@ -10,6 +10,7 @@ import { DropzonesModule } from "./dropzones";
 import { FlagsModule } from "./flags";
 import { GadgetsModule } from "./gadgets";
 import { BlackoutModule } from "./blackout";
+import { EconomyModule } from "./economy";
 import { TagModule } from "./tag";
 import { ItemsModule } from "./items";
 import { MeleeModule } from "./melee";
@@ -17,7 +18,7 @@ import { VehiclesModule } from "./vehicles";
 import { ZoneModule } from "./zone";
 
 /** Phase 3: the zone, items and Airfall. Phase 4: melee, flags, drop zones, the rally point. Phase 5: vehicles. */
-export const MATCH_MODULES: ReadonlySet<ModuleId> = new Set<ModuleId>(["zone", "items", "airfall", "melee", "flags", "dropzones", "capture", "vehicles", "gadgets", "tag", "blackout"]);
+export const MATCH_MODULES: ReadonlySet<ModuleId> = new Set<ModuleId>(["zone", "items", "airfall", "melee", "flags", "dropzones", "capture", "vehicles", "gadgets", "tag", "blackout", "economy"]);
 
 /**
  * The modules for a mode's settings, in the order they step: vehicles first
@@ -43,5 +44,6 @@ export function makeModules(mods: Partial<Record<ModuleId, Record<string, unknow
   if (mods.capture) out.push(new CaptureModule(mods.capture));
   if (mods.tag) out.push(new TagModule(mods.tag));
   if (mods.blackout) out.push(new BlackoutModule(mods.blackout));
+  if (mods.economy) out.push(new EconomyModule(mods.economy));
   return out;
 }

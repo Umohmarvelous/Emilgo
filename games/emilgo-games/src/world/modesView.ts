@@ -7,6 +7,9 @@
 //                     world to dim); everyone's lamp: a glow at the hand and
 //                     a cone of light ahead (crouched in a cut, no glow);
 //                     a warning when a rival's light is on you
+//   Hustle            the job stations (a signboard on a post, in its job's
+//                     colour; grey while it rests or is broken), the Esusu
+//                     boxes, spilled Owo, your delivery's drop; Owo on the HUD
 //
 // Each mode's things are one instanced draw.
 
@@ -32,10 +35,12 @@ import {
 import type { Sound } from "../audio/sound";
 import type { Match } from "../game/core/match";
 import type { MatchEvent } from "../game/core/module";
-import { BLACKOUT } from "../config";
+import { BLACKOUT, ECONOMY, type JobKind } from "../config";
 import type { BlackoutModule } from "../game/modules/blackout";
+import type { EconomyModule } from "../game/modules/economy";
 import type { TagModule } from "../game/modules/tag";
 import type { Hud, ItemPin } from "../ui/hud";
+import type { PlayHudState } from "../ui/play";
 import type { MapMark } from "../ui/minimap";
 import { t } from "../ui/i18n";
 import type { Crowd } from "./crowd";
@@ -45,6 +50,9 @@ import { merge, part } from "./geo";
 const OJUJU_TINT = 0x8a7a74;
 const OJUJU_GLOW = 0x2a0606;
 const MAX_CHARMS = 6;
+/** Each job's colour on its station. */
+const JOB_COLOR: Record<JobKind, number> = { water: 0x3a8ee8, wash: 0x3ec6d8, fix: 0xe8a23a, parcel: 0xc08a4a, load: 0x8a6a4a };
+const JOB_NAME: Record<JobKind, string> = { water: "Sell sachet water", wash: "Wash the car", fix: "Fix the generator", parcel: "Take the parcel", load: "Take the load" };
 
 export interface ModesViewOptions {
   crowd: Crowd;
@@ -54,12 +62,28 @@ export interface ModesViewOptions {
 }
 
 const _m = new Matrix4();
+const _c = new Color();
 const _v = new Vector3();
 const _q = new Quaternion();
 const _q2 = new Quaternion();
 const _s = new Vector3();
 const _x = new Vector3(1, 0, 0);
 const _y = new Vector3(0, 1, 0);
+
+function stationGeometry(): BufferGeometry {
+  return merge([
+    part(new CylinderGeometry(0.05, 0.05, 2.2, 6), 0x5a4a3a, { p: [0, 1.1, 0] }),
+    part(new CylinderGeometry(0.5, 0.5, 0.06, 6), 0xffffff, { p: [0, 2.2, 0], r: [Math.PI / 2, 0, 0] }),
+  ]);
+}
+
+function boxGeometry(): BufferGeometry {
+  return merge([
+    part(new CylinderGeometry(0.4, 0.45, 0.8, 8), 0x7a4a24, { p: [0, 0.4, 0] }),
+    part(new CylinderGeometry(0.42, 0.42, 0.08, 8), 0xffc23a, { p: [0, 0.82, 0] }),
+    part(new CylinderGeometry(0.06, 0.06, 0.2, 6), 0xffc23a, { p: [0, 0.95, 0] }),
+  ]);
+}
 
 function charmGeometry(): BufferGeometry {
   return merge([
@@ -76,6 +100,10 @@ export class ModesView {
   private readonly columns: InstancedMesh;
   private tinted: boolean[] = [];
   private readonly lamps: InstancedMesh;
+  private readonly posts: InstancedMesh;
+  private readonly boxes: InstancedMesh;
+  private readonly sacks: InstancedMesh;
+  private readonly drop: InstancedMesh;
   private readonly glows: InstancedMesh;
   /** Lights Out: how dark the city is now (eased), and whether a rival's lamp is on you. */
   dim = 0;
@@ -99,6 +127,11 @@ export class ModesView {
     const cone = new ConeGeometry(Math.tan(BLACKOUT.cone), 1, 16, 1, true).translate(0, -0.5, 0).rotateX(-Math.PI / 2);
     this.lamps = make(cone, new MeshBasicMaterial({ color: 0xffd9a0, transparent: true, opacity: 0.16, blending: AdditiveBlending, depthWrite: false, side: DoubleSide }), 16);
     this.glows = make(new IcosahedronGeometry(0.09, 1), new MeshBasicMaterial({ color: 0xfff1c8 }), 16);
+    this.posts = make(stationGeometry(), new MeshLambertMaterial({ vertexColors: true }), ECONOMY.stations);
+    this.posts.setColorAt(0, new Color(1, 1, 1));
+    this.boxes = make(boxGeometry(), new MeshLambertMaterial({ vertexColors: true }), ECONOMY.banks);
+    this.sacks = make(new IcosahedronGeometry(0.22, 0), new MeshLambertMaterial({ color: 0xffc23a, emissive: new Color(0x4a3200) }), 24);
+    this.drop = make(new CylinderGeometry(1, 1, 1, 24, 1, true).translate(0, 0.5, 0), new MeshBasicMaterial({ color: 0xffd36a, transparent: true, opacity: 0.35, blending: AdditiveBlending, depthWrite: false, side: DoubleSide }), 1);
   }
 
   events(list: readonly MatchEvent[], m: Match): void {
@@ -118,6 +151,19 @@ export class ModesView {
           if (c === me) hud.pushFeed(t("Cured: you're human again"), "safe");
           else hud.pushFeed(`${c.name} ${t("was cured")}`, "safe");
         }
+      } else if (e.type === "owo" && e.id === me.id) {
+        if (e.why === "bank") hud.pushFeed(`${t("Banked")}: ${Math.round(e.banked)} Owo`, "safe");
+        else if (e.why === "spill") hud.pushFeed(t("Your Owo spilled"), "out");
+        else if (e.why === "bounty") hud.pushFeed(t("Bounty: Owo from the leader"), "safe");
+        this.o.sound?.ui?.();
+      } else if (e.type === "job") {
+        if (e.how === "done" || e.how === "deliver") {
+          if (e.id === me.id) hud.pushFeed(`+${e.owo} Owo`, "safe");
+        } else if (e.how === "sabotage") {
+          const c = m.get(e.id);
+          if (c && c !== me) hud.pushFeed(`${c.name} ${t("sabotaged a station")}`, "info");
+        } else if (e.how === "lost" && e.id === me.id) hud.pushFeed(t("Your job is lost"), "out");
+        else if (e.how === "take" && e.id === me.id) hud.pushFeed(t("Take it to the gold ring"), "info");
       } else if (e.type === "found") {
         const a = m.get(e.id);
         const b = m.get(e.tg);
@@ -179,6 +225,57 @@ export class ModesView {
       this.charms.count = this.columns.count = n;
       this.charms.instanceMatrix.needsUpdate = this.columns.instanceMatrix.needsUpdate = true;
     }
+    const eco = m.module<EconomyModule>("economy");
+    if (eco) {
+      let n = 0;
+      for (const s of eco.stations) {
+        _m.makeTranslation(s.x, s.h, s.z);
+        this.posts.setMatrixAt(n, _m);
+        const idle = s.broken || m.elapsed < s.until;
+        this.posts.setColorAt(n, _c.setHex(idle ? 0x777777 : JOB_COLOR[s.kind]));
+        marks.push({ x: s.x, z: s.z, kind: "job", r: idle ? 0 : 1 });
+        n++;
+      }
+      this.posts.count = n;
+      this.posts.instanceMatrix.needsUpdate = true;
+      if (this.posts.instanceColor) this.posts.instanceColor.needsUpdate = true;
+      eco.banks.forEach((b, i) => {
+        _m.makeTranslation(b.x, b.h, b.z);
+        this.boxes.setMatrixAt(i, _m);
+        marks.push({ x: b.x, z: b.z, kind: "basket" });
+      });
+      this.boxes.count = eco.banks.length;
+      this.boxes.instanceMatrix.needsUpdate = true;
+      let k = 0;
+      for (const b of eco.bags) {
+        if (!b || b.owo <= 0 || b.until <= m.elapsed || k >= 24) continue;
+        _m.makeTranslation(b.x, b.h + 0.22 + Math.sin(this.time * 3 + b.index) * 0.05, b.z);
+        this.sacks.setMatrixAt(k++, _m);
+      }
+      this.sacks.count = k;
+      this.sacks.instanceMatrix.needsUpdate = true;
+      // Your delivery: the drop, a gold ring; the compass points at it.
+      const j = eco.job[me.index];
+      const to = j >= 0 ? eco.stations[j]?.to : null;
+      if (to) {
+        _m.makeScale(ECONOMY.drop, 6, ECONOMY.drop).setPosition(to.x, to.h, to.z);
+        this.drop.setMatrixAt(0, _m);
+        marks.push({ x: to.x, z: to.z, kind: "goal", r: ECONOMY.drop });
+        pin = { x: to.x, z: to.z, kind: "goal" };
+      } else if (eco.carried[me.index] > 0) {
+        // Carrying Owo: the nearest Esusu box.
+        let best = Infinity;
+        for (const b of eco.banks) {
+          const d = Math.hypot(b.x - me.x, b.z - me.z);
+          if (d < best) {
+            best = d;
+            pin = { x: b.x, z: b.z, kind: "goal" };
+          }
+        }
+      }
+      this.drop.count = to ? 1 : 0;
+      this.drop.instanceMatrix.needsUpdate = true;
+    }
     const bo = m.module<BlackoutModule>("blackout");
     if (bo) {
       const dark = bo.cut(m);
@@ -213,9 +310,42 @@ export class ModesView {
     return { pin };
   }
 
+  /** What interact would do at a Hustle station or box, and how far it is (the nearest thing wins). */
+  target(m: Match): (NonNullable<PlayHudState["target"]> & { d: number }) | null {
+    const eco = m.module<EconomyModule>("economy");
+    const me = m.contestants[this.o.me];
+    if (!eco || me.status !== "alive" || m.seated(me)) return null;
+    let best: (NonNullable<PlayHudState["target"]> & { d: number }) | null = null;
+    const take = (d: number, label: string, progress = 0) => {
+      if (d <= ECONOMY.reach && (!best || d < best.d)) best = { kind: "job", label, progress, d };
+    };
+    for (const b of eco.banks) if (eco.carried[me.index] > 0) take(Math.hypot(b.x - me.x, b.z - me.z), `${t("Bank")} ${Math.round(eco.carried[me.index])} Owo`);
+    for (const s of eco.stations) {
+      const d = Math.hypot(s.x - me.x, s.z - me.z);
+      if (d > ECONOMY.reach) continue;
+      const w = s.worker >= 0 ? m.contestants[s.worker] : null;
+      if (w && w !== me && !m.sameSquad(w, me)) take(d, t("Sabotage"));
+      else if (s.broken) take(d, t("Broken: wait"));
+      else if (m.elapsed < s.until) take(d, `${t("Resting")} ${Math.ceil(s.until - m.elapsed)} s`);
+      else if (s.kind === "parcel" || s.kind === "load") {
+        if (eco.job[me.index] < 0) take(d, t(JOB_NAME[s.kind]));
+      } else {
+        const spec = ECONOMY.jobs[s.kind];
+        take(d, `${t(JOB_NAME[s.kind])} (${t("hold")})`, s.worker === me.index ? Math.min(1, eco.work[me.index] / spec.hold) : 0);
+      }
+    }
+    return best;
+  }
+
   /** The objective line for these modes ("" when it's none of them). */
   objectiveLine(m: Match): string {
     const me = m.contestants[this.o.me];
+    const eco = m.module<EconomyModule>("economy");
+    if (eco) {
+      const lead = eco.leader(m);
+      const top = lead ? Math.round(eco.banked[lead.index] + eco.carried[lead.index]) : 0;
+      return `Owo: ${Math.round(eco.carried[me.index])} ${t("carried")} · ${Math.round(eco.banked[me.index])} ${t("banked")}${lead && lead !== me ? ` · ${t("leader")} ${top}` : ""}`;
+    }
     const bo = m.module<BlackoutModule>("blackout");
     if (bo) {
       const left = m.contestants.filter((c) => c.status === "alive").length;

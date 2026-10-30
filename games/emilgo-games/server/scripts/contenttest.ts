@@ -61,8 +61,8 @@ check(lockedAt?.state === "locked" && lockedAt.unlocksAt === "Legendary I", "a l
 const now = catalog(BUILTIN_MANIFEST, { xp: 0, ballHaunt: true });
 const stateOf = (id: string) => now.find((e) => e.def.id === id)?.state;
 check(
-  ["find-the-flag", "hold-the-flag", "steal-reposition", "squad-rally"].every((id) => stateOf(id) === "play") && stateOf("scarcity") === "locked" && stateOf("hustle") === "soon" && stateOf("chase-reverse") !== "play",
-  "this build (Phase 4): Free For All's modes 1–4 to play, Scarcity at Pro, Hustle and the rest coming",
+  ["find-the-flag", "hold-the-flag", "steal-reposition", "squad-rally", "hustle"].every((id) => stateOf(id) === "play") && stateOf("scarcity") === "locked" && stateOf("chase-reverse") === "locked" && stateOf("lights-out") === "locked",
+  "this build (Phase 6): modes 1–4 and Hustle to play; Scarcity and Chase & Reverse at Pro, Lights Out at Legendary",
 );
 check(now.some((e) => e.def.id === "ball-haunting" && e.state === "play"), "Ball Haunt on: playable");
 check(!catalog(BUILTIN_MANIFEST, { xp: 0, ballHaunt: false }).some((e) => e.def.family === "rlgl"), "Ball Haunt off: not in the menu at all");

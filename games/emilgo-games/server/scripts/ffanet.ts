@@ -306,9 +306,9 @@ export async function online(url: string, check: Check): Promise<number> {
     g.send({ t: "create", size: 12, m: "scarcity" });
     await g.wait((m) => m.t === "err" && g.errors.length >= 2, 3000);
     ok(g.errors.slice(-2).every((e) => e === "locked"), "a mode the rank hasn't opened: refused in the queue and as a private room");
-    g.send({ t: "fq", m: "hustle" });
+    g.send({ t: "fq", m: "dead-streets" });
     await g.wait((m) => m.t === "err" && g.errors.length >= 3, 3000);
-    ok(g.errors[2] === "mode_off", "a mode this build can't play yet (Hustle): refused");
+    ok(g.errors[2] === "mode_off", "a mode this build can't play yet (Dead Streets): refused");
     g.send({ t: "fq", m: "find-the-flag", r: true });
     await g.wait((m) => m.t === "err" && g.errors.length >= 4, 3000);
     ok(g.errors[3] === "locked", "Ranked before Pro I: refused");
