@@ -3126,6 +3126,7 @@ export class Game {
       haptic: (k) => this.haptic(k),
       myLook: () => this.myLook(),
       onEnd: (r) => this.onFfaEnd(r),
+      saveSettings: () => saveSettings(this.host, this.settings),
     };
     this.hostObj = host;
     return host;

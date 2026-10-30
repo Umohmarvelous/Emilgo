@@ -83,6 +83,8 @@ export interface Settings {
   game: "ffa" | "rlgl";
   ffaMode: string;
   /** The Free For All modes whose "How to play" cards you've seen (ids, comma-separated). */
+  /** The items you've used at least once (their counter shows on the first use, SPEC-V3 §10.16). */
+  itemsSeen: string;
   ffaSeen: string;
   /** Light / dark mode (SPEC-V2 §6.4): full daylight, full night, or the map's own sky. */
   lightMode: "auto" | "light" | "dark";
@@ -176,6 +178,7 @@ export function defaults(host: Host): Settings {
     game: "ffa",
     ffaMode: "find-the-flag",
     ffaSeen: "",
+    itemsSeen: "",
     lightMode: "auto",
     stickSize: "medium",
     stickOpacity: 0.8,
@@ -241,6 +244,7 @@ export function loadSettings(host: Host): Settings {
     if (out.game !== "ffa" && out.game !== "rlgl") out.game = base.game;
     if (!/^[a-z0-9-]{1,40}$/.test(out.ffaMode)) out.ffaMode = base.ffaMode;
     if (!/^[a-z0-9,-]{0,400}$/.test(out.ffaSeen)) out.ffaSeen = base.ffaSeen;
+    if (typeof out.itemsSeen !== "string" || !/^[a-z0-9,-]{0,400}$/.test(out.itemsSeen)) out.itemsSeen = base.itemsSeen;
     if (!["auto", "light", "dark"].includes(out.lightMode)) out.lightMode = base.lightMode;
     if (!["small", "medium", "large"].includes(out.stickSize)) out.stickSize = base.stickSize;
     if (!["small", "medium", "large"].includes(out.mapSize)) out.mapSize = base.mapSize;

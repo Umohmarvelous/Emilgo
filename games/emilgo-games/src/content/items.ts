@@ -30,7 +30,9 @@ export type ItemEffect =
   | { kind: "throw"; back: boolean }
   /** Vehicles (Phase 5): fuel for the car you're in or beside; a danfo called to the nearest road. */
   | { kind: "fuel" }
-  | { kind: "call" };
+  | { kind: "call" }
+  /** The §10 items (Phase 6): what each does is in modules/gadgets.ts. */
+  | { kind: "gadget" };
 
 export interface ItemDef {
   id: ItemId;
@@ -43,6 +45,8 @@ export interface ItemDef {
   rare?: boolean;
   /** Only handed out in modes with this module (melee items need melee). */
   needs?: ModuleId;
+  /** How to beat it (SPEC-V3 §10.1: "every item has a counter"), shown on its first use. */
+  counter?: Text;
 }
 
 const def = (id: ItemId, en: string, pcm: string, what: string, whatPcm: string, effect: ItemEffect | null, rare = false, needs?: ModuleId): ItemDef => ({
@@ -65,13 +69,14 @@ export const ITEM_DEFS: Record<ItemId, ItemDef> = {
   slipper: def("slipper", "Flying Slipper", "Flying Slipper", "A thrown stun", "Throw am, e go stun", { kind: "throw", back: false }, false, "melee"),
   "golden-slipper": def("golden-slipper", "Golden Slipper", "Golden Slipper", "A thrown stun that comes back", "Throw am, e go stun, e go come back", { kind: "throw", back: true }, true, "melee"),
   // The FFA extras (Phase 6), vehicles (Phase 5).
-  "smoke-pot": def("smoke-pot", "Harmattan Smoke Pot", "Harmattan Smoke Pot", "Breaks line of sight", "E go block people eye", null),
-  "banana-peel": def("banana-peel", "Banana Peel", "Banana Peel", "A trip trap", "Trap wey go make person fall", null),
-  "pepper-powder": def("pepper-powder", "Pepper Powder", "Pepper Powder", "A sneeze stagger in a cone", "E go make dem sneeze shake", null),
-  megaphone: def("megaphone", "Megaphone", "Megaphone", "A push wave, slow wind-up", "Push wave, e dey take time", null),
-  "decoy-flag": def("decoy-flag", "Decoy Flag", "Fake Flag", "A flag that isn't", "Flag wey no be flag", null),
-  "talking-drum": def("talking-drum", "Talking Drum", "Talking Drum", "Shows the nearest rival for 5 s", "E go show the person wey near pass for 5 seconds", null),
-  "aso-ebi": def("aso-ebi", "Aso-ebi Disguise", "Aso-ebi Disguise", "Wear a rival squad's colour for 20 s", "Wear another squad colour for 20 seconds", null),
+  // The FFA extras (Phase 6: modules/gadgets.ts).
+  "smoke-pot": { ...def("smoke-pot", "Harmattan Smoke Pot", "Harmattan Smoke Pot", "A cloud nobody sees through, 12 s", "Smoke wey nobody fit see inside, 12 seconds", { kind: "gadget" }), counter: { en: "Walk out of the cloud", pcm: "Waka comot from the smoke" } },
+  "banana-peel": { ...def("banana-peel", "Banana Peel", "Banana Peel", "Dropped behind you: trips whoever runs over it", "Drop am for your back: who run pass am go fall", { kind: "gadget" }, false, "melee"), counter: { en: "Walk or crouch past it, or jump it", pcm: "Waka slow or bend pass am, or jump am" } },
+  "pepper-powder": { ...def("pepper-powder", "Pepper Powder", "Pepper Powder", "A sneeze stagger in a cone in front", "E go make dem sneeze shake for your front", { kind: "gadget" }, false, "melee"), counter: { en: "Brace, or stay behind them", pcm: "Brace, or stay for their back" } },
+  megaphone: { ...def("megaphone", "Megaphone", "Megaphone", "A push wave all round, after a slow wind-up", "Push wave for everywhere, e dey take time", { kind: "gadget" }, false, "melee"), counter: { en: "Hit them while it winds up", pcm: "Hit dem before e ready" } },
+  "decoy-flag": { ...def("decoy-flag", "Decoy Flag", "Fake Flag", "A flag that isn't: whoever grabs it is stunned", "Flag wey no be flag: who carry am go hang", { kind: "gadget" }, false, "flags"), counter: { en: "A decoy isn't on the compass", pcm: "Fake flag no dey for compass" } },
+  "talking-drum": { ...def("talking-drum", "Talking Drum", "Talking Drum", "Shows the nearest rival for 5 s", "E go show the person wey near pass for 5 seconds", { kind: "gadget" }), counter: { en: "Hide in smoke, or drive fast", pcm: "Hide for smoke, or drive fast" } },
+  "aso-ebi": { ...def("aso-ebi", "Aso-ebi Disguise", "Aso-ebi Disguise", "Wear a rival squad's colour for 20 s", "Wear another squad colour for 20 seconds", { kind: "gadget" }), counter: { en: "It ends the moment you attack", pcm: "E go end once you attack" } },
   // Vehicles' (Phase 5).
   jerrycan: def("jerrycan", "Fuel Jerrycan", "Fuel Jerrycan", "+15 s of fuel for the car you're in or beside", "+15 seconds fuel for the motor wey you dey inside or near", { kind: "fuel" }, true, "vehicles"),
   "danfo-key": def("danfo-key", "Danfo Key", "Danfo Key", "Calls a danfo to the road nearby", "E go call danfo come the road wey near", { kind: "call" }, true, "vehicles"),

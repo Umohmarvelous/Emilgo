@@ -484,6 +484,20 @@ export const VEHICLES = {
 } as const;
 
 export type VehicleKind = keyof typeof VEHICLES.kinds;
+
+/** The §10.1 items' numbers (Phase 6: modules/gadgets.ts). Seconds, metres, radians. */
+export const GADGETS = {
+  smoke: { s: 12, r: 6 },
+  /** Dropped `behind` you; trips a rival running over it within r; its dropper is safe for `safe` s. */
+  peel: { s: 60, r: 0.6, behind: 0.9, safe: 1.5, down: 1.2 },
+  /** A cone `cone` radians either side, r deep: a stagger and some wobble (brace halves it). */
+  powder: { r: 4.5, cone: 0.6, stun: 0.9, wobble: 0.25 },
+  /** Winds up, then pushes everyone within r. */
+  wave: { windup: 0.8, r: 6, knock: 2.6, stun: 0.5, wobble: 0.15 },
+  decoy: { s: 60, r: 1.1, stun: 1.2, wobble: 0.2 },
+  drum: { s: 5, range: 160 },
+  disguise: { s: 20 },
+} as const;
 export const VEHICLE_KINDS: readonly VehicleKind[] = ["danfo", "keke", "tokunbo"];
 
 /** Squads in Free For All (SPEC-V3 §7: a squad-coloured trim and a small diamond, no names). */
@@ -512,7 +526,7 @@ export const NET = {
    * and baskets, fist / slap / push, rooms of 20. 3: jump, crouch, prone,
    * sprint, the map, rich looks.)
    */
-  protocol: 13,
+  protocol: 14,
   tickHz: 60,
   /** Server → client state broadcasts per second. */
   snapshotHz: 15,

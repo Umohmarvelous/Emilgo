@@ -10,6 +10,7 @@
 import type { VehicleKind } from "../../config";
 import type { ItemId } from "../../content/items";
 import type { ModuleId } from "../../content/modes";
+import type { GadgetKind } from "../modules/gadgets";
 import type { PropId, SwingKind } from "../modules/melee";
 import type { Cause, Contestant } from "./body";
 import type { Match } from "./match";
@@ -81,7 +82,14 @@ export type MatchEvent =
   /** Somebody in a car's way, pushed aside: their slide and wobble now. */
   | { type: "bump"; car: number; tg: string; kx: number; kz: number; w: number }
   /** The sky's laser missed: they were driving too fast to see. */
-  | { type: "dodge"; id: string };
+  | { type: "dodge"; id: string }
+  // ── The §10 items (Phase 6, gadgets.ts) ──
+  /** Something an item did or left: a smoke cloud, a peel, a decoy (n: its index), the powder, a megaphone's wind-up and wave, a slip, a pop, a sneeze, a wave lost. */
+  | { type: "gadget"; kind: GadgetKind; n: number; id: string | null; x: number; z: number; h: number; hd?: number }
+  /** A Talking Drum: who it showed to whom (tg null: nobody near), until when. */
+  | { type: "reveal"; id: string; tg: string | null; until: number }
+  /** Aso-ebi: the squad someone now wears (−1: their own again). */
+  | { type: "disguise"; id: string; squad: number; until: number };
 
 /** Why someone went down: melee's reasons, then a car's (pulled out, thrown by a blast, out at speed). */
 export type DownWhy = "daze" | "trip" | "tackle" | "throw" | "ringout" | "hijack" | "blast" | "tumble";

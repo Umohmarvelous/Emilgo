@@ -58,6 +58,8 @@ export interface ModeHost {
   myLook(): Look;
   /** The match is over: show its result. */
   onEnd(r: ModeResult): void;
+  /** Remember the settings (a first-use tip seen). */
+  saveSettings(): void;
 }
 
 /** A finished Free For All match, for the results screen. */

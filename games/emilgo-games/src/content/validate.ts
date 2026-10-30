@@ -41,6 +41,7 @@ const SCHEMAS: Record<ModuleId, Record<string, Spec>> = {
   tag: { start: ["int", 1, 4], chaserSpeed: ["num", 0.8, 1.3], cures: ["int", 0, 6], curesAt: ["num", 0, 1200] },
   riddles: { every: ["num", 30, 600], need: ["int", 1, 6], wrongCost: ["num", 0, 120], langs: ["list", ["str", /^(yo|ig|ha|pcm|en)$/], 5] },
   blackout: { every: ["tuple", [["num", 20, 600], ["num", 20, 600]]], dim: ["num", 0, 1], findHold: ["num", 0.5, 5] },
+  gadgets: {},
   survival: { bleedAfter: ["num", 120, 1800], bleedRate: ["num", 0, 0.1], route: ["num", 200, 5000], zombies: ["tuple", [["int", 1, 40], ["int", 1, 40], ["int", 1, 40]]] },
 };
 

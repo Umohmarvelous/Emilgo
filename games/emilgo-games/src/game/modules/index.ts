@@ -8,13 +8,14 @@ import { AirfallModule } from "./airfall";
 import { CaptureModule } from "./capture";
 import { DropzonesModule } from "./dropzones";
 import { FlagsModule } from "./flags";
+import { GadgetsModule } from "./gadgets";
 import { ItemsModule } from "./items";
 import { MeleeModule } from "./melee";
 import { VehiclesModule } from "./vehicles";
 import { ZoneModule } from "./zone";
 
 /** Phase 3: the zone, items and Airfall. Phase 4: melee, flags, drop zones, the rally point. Phase 5: vehicles. */
-export const MATCH_MODULES: ReadonlySet<ModuleId> = new Set<ModuleId>(["zone", "items", "airfall", "melee", "flags", "dropzones", "capture", "vehicles"]);
+export const MATCH_MODULES: ReadonlySet<ModuleId> = new Set<ModuleId>(["zone", "items", "airfall", "melee", "flags", "dropzones", "capture", "vehicles", "gadgets"]);
 
 /**
  * The modules for a mode's settings, in the order they step: vehicles first
@@ -29,7 +30,11 @@ export function makeModules(mods: Partial<Record<ModuleId, Record<string, unknow
   if (mods.vehicles) out.push(new VehiclesModule(mods.vehicles));
   if (mods.zone) out.push(new ZoneModule(mods.zone));
   if (mods.melee) out.push(new MeleeModule(mods.melee));
-  if (mods.items) out.push(new ItemsModule(mods.items));
+  if (mods.items) {
+    out.push(new ItemsModule(mods.items));
+    // What the §10 items do in the world comes with them.
+    out.push(new GadgetsModule());
+  }
   if (mods.airfall) out.push(new AirfallModule(mods.airfall));
   if (mods.dropzones) out.push(new DropzonesModule(mods.dropzones));
   if (mods.flags) out.push(new FlagsModule(mods.flags));

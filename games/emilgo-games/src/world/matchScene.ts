@@ -157,7 +157,7 @@ export class MatchScene {
    * distance — the nearest thing wins the interact prompt, as on the server;
    * and the objective line).
    */
-  update(dt: number, m: Match, cam: Vector3, marks: MapMark[], extra?: { target: (NonNullable<PlayHudState["target"]> & { d: number }) | null; objective: string; car?: PlayHudState["car"] }): { pin: ItemPin | null } {
+  update(dt: number, m: Match, cam: Vector3, marks: MapMark[], extra?: { target: (NonNullable<PlayHudState["target"]> & { d: number }) | null; objective: string; car?: PlayHudState["car"]; smoke?: boolean }): { pin: ItemPin | null } {
     const zone = m.module<ZoneModule>("zone");
     const items = m.module<ItemsModule>("items");
     const air = m.module<AirfallModule>("airfall");
@@ -239,6 +239,7 @@ export class MatchScene {
       heat: this.laser.heat,
       objective: extra?.objective ?? "",
       car: extra?.car ?? null,
+      smoke: extra?.smoke ?? false,
     });
 
     // ── The compass's diamond and the map's crates ──

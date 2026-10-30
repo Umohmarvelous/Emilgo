@@ -78,7 +78,7 @@ check(layout.spawns.every(([x, z]) => reach.at(x, z)), "every start is on it");
 console.log("the match core:");
 {
   const m = newMatch(11);
-  check(m.missing.length === 0 && m.modules.map((x) => x.id).join() === "zone,items,airfall", `the modules run in order: ${m.modules.map((x) => x.id).join(", ")}`);
+  check(m.missing.length === 0 && m.modules.map((x) => x.id).join() === "zone,items,gadgets,airfall", `the modules run in order: ${m.modules.map((x) => x.id).join(", ")}`);
   const ids = new Set(m.contestants.map((c) => `${Math.round(c.x)},${Math.round(c.z)}`));
   check(ids.size === 12, "12 players start on 12 different starts");
   m.setInput("p0", 1, 0);

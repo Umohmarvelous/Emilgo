@@ -36,11 +36,13 @@ import {
 } from "three";
 
 import { DROPZONES, RALLY, SQUAD_COLORS } from "../config";
+import type { Contestant } from "../game/core/body";
 import type { Match } from "../game/core/match";
 import type { MatchEvent } from "../game/core/module";
 import type { CaptureModule } from "../game/modules/capture";
 import type { DropzonesModule } from "../game/modules/dropzones";
 import type { FlagsModule } from "../game/modules/flags";
+import type { GadgetsModule } from "../game/modules/gadgets";
 import { PROP_IDS, type MeleeModule, type PropId, type SwingKind } from "../game/modules/melee";
 import type { Sound } from "../audio/sound";
 import type { Hud, ItemPin, MapMark } from "../ui/hud";
@@ -503,10 +505,19 @@ export class FfaView {
       this.rings.instanceColor!.needsUpdate = this.columns.instanceColor!.needsUpdate = true;
     }
     // Squad mates on the map.
-    for (const c of m.contestants) if (c !== me && c.status === "alive" && m.sameSquad(c, me)) marks.push({ x: c.x, z: c.z, kind: "mate" });
+    for (const c of m.contestants) if (c !== me && c.status === "alive" && this.looksMate(m, c)) marks.push({ x: c.x, z: c.z, kind: "mate" });
 
     this.overheads(m, camera, firstPerson);
     return { goal };
+  }
+
+  /** A squad mate to your eyes: yours, or a rival in your squad's Aso-ebi (Phase 6). */
+  private looksMate(m: Match, c: Contestant): boolean {
+    const me = m.contestants[this.o.me];
+    if (c === me) return false;
+    if (m.sameSquad(c, me)) return true;
+    const g = m.module<GadgetsModule>("gadgets");
+    return !!g && g.wearing[c.index] >= 0 && g.wearing[c.index] === m.squads[me.index];
   }
 
   /** The meters over heads. */
@@ -526,7 +537,7 @@ export class FfaView {
     }
     for (const c of m.contestants) {
       const hd = this.heads[c.index];
-      const mate = c !== me && m.sameSquad(c, me);
+      const mate = this.looksMate(m, c);
       const holder = !!flags?.heldBy(c.index);
       const d = Math.hypot(c.x - camera.position.x, c.z - camera.position.z);
       const wob = mel ? mel.wobble[c.index] : 0;
@@ -539,7 +550,7 @@ export class FfaView {
         if (on) hd.root.style.transform = `translate(${((_v.x + 1) / 2) * w}px, ${((1 - _v.y) / 2) * h}px)`;
       }
       const near = d < HEAD_RANGE;
-      const sig = `${on ? 1 : 0}${mate ? 1 : 0}${holder ? 1 : 0}${near && (wob > 0.02 || brace) ? 1 : 0}${brace ? 1 : 0}${m.squads[c.index]}`;
+      const sig = `${on ? 1 : 0}${mate ? 1 : 0}${holder ? 1 : 0}${near && (wob > 0.02 || brace) ? 1 : 0}${brace ? 1 : 0}${m.squads[c.index]}${m.module<GadgetsModule>("gadgets")?.wearing[c.index] ?? -1}`;
       if (sig !== hd.sig) {
         hd.sig = sig;
         hd.root.classList.toggle("on", on);
@@ -547,7 +558,9 @@ export class FfaView {
         hd.root.classList.toggle("is-holder", holder);
         hd.root.classList.toggle("is-hit", near && (wob > 0.02 || brace));
         hd.root.classList.toggle("is-brace", brace);
-        hd.root.style.setProperty("--sq", SQUAD_COLORS[m.squads[c.index] % SQUAD_COLORS.length]);
+        const g = m.module<GadgetsModule>("gadgets");
+        const shown = g ? g.shownSquad(m, c.index) : m.squads[c.index];
+        hd.root.style.setProperty("--sq", SQUAD_COLORS[shown % SQUAD_COLORS.length]);
       }
       if (on && near) {
         hd.fill.style.transform = `scaleX(${Math.min(1, wob).toFixed(2)})`;

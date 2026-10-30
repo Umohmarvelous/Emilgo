@@ -847,6 +847,9 @@ input { font: inherit; color: inherit; }
 .playhud .pcar span:empty { display: none; }
 .playhud .pwarn { position: absolute; left: 50%; top: 34%; transform: translateX(-50%); display: none; padding: 6px 16px; border-radius: 8px; background: rgba(170,20,10,0.75); font: 800 18px/1.2 var(--head); letter-spacing: 0.06em; color: #fff; text-shadow: 0 1px 3px #000; white-space: nowrap; animation: ico-pulse 0.6s infinite; }
 .playhud .pwarn.visible { display: block; }
+/* Inside a Smoke Pot's cloud. */
+.playhud .psmoke { position: absolute; inset: 0; opacity: 0; background: radial-gradient(ellipse at center, rgba(214, 206, 192, 0.72) 20%, rgba(190, 182, 168, 0.95) 100%); transition: opacity 0.6s; pointer-events: none; }
+.playhud .psmoke.visible { opacity: 1; }
 /* Over heads: the Wobble meter (near), a brace's shield, a squad mate's diamond, the flag's holder. */
 .ffa-heads { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .fhead { position: absolute; left: 0; top: 0; display: none; flex-direction: column; align-items: center; gap: 2px; }

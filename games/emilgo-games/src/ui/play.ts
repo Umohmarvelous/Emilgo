@@ -43,13 +43,15 @@ export interface PlayHudState {
    * the driver out, the radio's station.
    */
   car?: { fuel: number; state: number; blowIn: number; hijack: boolean; radio: string } | null;
+  /** Inside a Smoke Pot's cloud: the screen greys (Phase 6). */
+  smoke?: boolean;
 }
 
 /** An item's icon. */
 export const ITEM_ICON: Record<ItemId, string> = {
   kola: "kola", zobo: "zobo", "big-bag": "bigbag", "zone-shield": "umbrella", "pepper-soup": "bundle", "iron-wrapper": "bundle",
-  "smoke-pot": "bundle", "banana-peel": "bundle", "pepper-powder": "bundle", megaphone: "bundle", slipper: "bundle", "decoy-flag": "flag",
-  "talking-drum": "bundle", "aso-ebi": "bundle", "golden-slipper": "bundle", jerrycan: "fuel", "danfo-key": "car",
+  "smoke-pot": "fog", "banana-peel": "trip", "pepper-powder": "fire", megaphone: "horn", slipper: "bundle", "decoy-flag": "flag",
+  "talking-drum": "signal", "aso-ebi": "outfit", "golden-slipper": "bundle", jerrycan: "fuel", "danfo-key": "car",
 };
 
 export function itemName(k: ItemId): string {
@@ -91,6 +93,7 @@ export class PlayHud {
   private readonly centre = el("div", "centre");
   private readonly fx = el("div", "pfx");
   private readonly tint = el("div", "ptint");
+  private readonly smoke = el("div", "psmoke");
   private readonly heat = el("div", "pheat");
   private readonly dead = el("div", "pdead");
   /** In a car: the tank, its state, the warnings. */
@@ -127,7 +130,7 @@ export class PlayHud {
     this.car.innerHTML = `${icon("fuel", "", 14)}<b class="tank"></b>`;
     this.car.querySelector(".tank")!.append(this.carFuel);
     this.car.append(this.carText);
-    this.root.append(this.tint, this.heat, this.zoneLine, this.obj, this.expo, this.car, this.carWarn, this.act, this.packBtn, this.fx, this.dead, this.radial);
+    this.root.append(this.smoke, this.tint, this.heat, this.zoneLine, this.obj, this.expo, this.car, this.carWarn, this.act, this.packBtn, this.fx, this.dead, this.radial);
 
     // Interact: a tap picks up; holding opens a crate.
     const down = (e: Event) => {
@@ -176,6 +179,7 @@ export class PlayHud {
   }
 
   update(s: PlayHudState): void {
+    this.smoke.classList.toggle("visible", !!s.smoke);
     // ── Your car ──
     const c = s.respawn === -2 ? (s.car ?? null) : null;
     this.car.classList.toggle("visible", !!c);

@@ -11,6 +11,7 @@ import { Vector3 } from "three";
 
 import { RADIO_IDS, RADIO_NAME, type RadioId } from "../audio/radio";
 import { VEHICLES } from "../config";
+import { ITEM_DEFS } from "../content/items";
 import { type ModeDef } from "../content/modes";
 import { Rng } from "../core/rng";
 import type { Contestant } from "../game/core/body";
@@ -35,6 +36,7 @@ import { accentOf } from "../world/crowd";
 import { FfaView, PROP_NAME } from "../world/ffa";
 import { randomLook, type Look } from "../world/human/wardrobe";
 import { MatchScene } from "../world/matchScene";
+import { GadgetView } from "../world/gadgets";
 import { VehicleView } from "../world/vehicles";
 import type { GameMode, ModeHost, ModeResult } from "./types";
 
@@ -106,6 +108,7 @@ export class FfaMode implements GameMode {
   private readonly ms: MatchScene;
   private readonly view: FfaView;
   private readonly cars: VehicleView | null;
+  private readonly gadgets: GadgetView;
   /** The car you were in last frame (−1: none), and your radio's station. */
   private inCar = -1;
   private station: RadioId | null = null;
@@ -168,6 +171,8 @@ export class FfaMode implements GameMode {
     h.scene.add(this.ms.group, this.view.group);
     this.cars = m.module<VehiclesModule>("vehicles") ? new VehicleView({ crowd: h.crowd, sound: h.sound, rig: h.rig, me: me.index, stands: m.world.fuel ?? [] }) : null;
     if (this.cars) h.scene.add(this.cars.group);
+    this.gadgets = new GadgetView({ crowd: h.crowd, hud: h.hud, sound: h.sound, me: me.index });
+    h.scene.add(this.gadgets.group);
 
     // The HUD.
     h.hud.reset(looks.map((l, i) => ({ accent: accentOf(l), me: i === me.index })));
@@ -263,6 +268,7 @@ export class FfaMode implements GameMode {
     this.ms.events(events, m, cam);
     this.view.events(events, m, cam);
     this.cars?.events(events, m, cam);
+    this.gadgets.events(events, m, cam);
     for (const e of events) this.onEvent(e);
     if (this.endAt > 0 && performance.now() >= this.endAt && !this.over) this.finish();
   }
@@ -315,6 +321,17 @@ export class FfaMode implements GameMode {
       case "dodge":
         if (e.id === me.id) h.hud.pushFeed(t("Too fast for the sky"), "safe");
         break;
+      case "use": {
+        // The first time you use an item: how it's beaten (SPEC-V3 §10.16).
+        if (e.id !== me.id) break;
+        const seen = h.settings.itemsSeen.split(",").filter(Boolean);
+        const counter = ITEM_DEFS[e.kind].counter;
+        if (seen.includes(e.kind) || !counter) break;
+        h.settings.itemsSeen = [...seen, e.kind].join(",");
+        h.saveSettings();
+        h.hud.pushFeed(`${t("Beaten by")}: ${getLang() === "pcm" && counter.pcm ? counter.pcm : counter.en}`, "info");
+        break;
+      }
       case "car":
         if (m.phase === "play") h.hud.pushFeed(t("A danfo has come"), "info");
         break;
@@ -425,12 +442,14 @@ export class FfaMode implements GameMode {
     const tg = this.view.target(m);
     const car = this.carFrame(dt, m, me, cam);
     const near = tg ? { kind: tg.kind, d: tg.d, label: tg.prop ? t(PROP_NAME[tg.prop]) : undefined, progress: 0 } : null;
+    this.cars?.update(dt, m, cam, this.marks);
+    const { inSmoke } = this.gadgets.update(dt, m, cam, this.marks);
     const extra = {
       target: car.target && (!near || car.target.d < near.d) ? car.target : near,
       objective: m.phase === "play" ? this.view.objectiveLine(m, this.src.measures) : "",
       car: car.panel,
+      smoke: inSmoke,
     };
-    this.cars?.update(dt, m, cam, this.marks);
     const { pin } = this.ms.update(dt, m, cam, this.marks, extra);
     const { goal } = this.view.update(dt, m, h.camera, this.marks, h.rig.firstPerson && target === me);
     h.hud.setMap({ x: target.x, z: target.z, heading: target.heading, out: me.status !== "alive" }, this.marks, null, h.rig.yaw);
@@ -494,6 +513,7 @@ export class FfaMode implements GameMode {
     this.ms.dispose();
     this.view.dispose();
     this.cars?.dispose();
+    this.gadgets.dispose();
     h.sound.engine(0, 0);
     h.sound.carRadio(null);
     h.rig.arm = 1;
