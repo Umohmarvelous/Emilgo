@@ -295,24 +295,35 @@ MAX_PER_IP=100000 …index.mjs; node server/dist/loadtest.mjs --clients 1200 --s
 
 Everything below needs your accounts; none of it is code.
 
-1. **Host the game** on Cloudflare Pages (free): build with `VITE_GAMES_SERVER`
-  set, upload `games/emilgo-games/dist/` (it includes `_headers`). Check the
-   `content-security-policy: frame-ancestors …` header on the live URL.
-2. **Host the server** with TLS (`wss://`): any Docker host (Fly.io, Railway,
-  Render, a VPS) using `server/Dockerfile`, a **persistent disk** for
-   `DATA_DIR`, and the env above. Point a domain at it; `/health` should say `ok`.
-3. **Get test keys** at `lagoslife.app/developers/keys`: Game URL = the Pages
-  address; Webhook URL = `https://<server>/vatar-webhook`. Put the test secret,
-   results secret and webhook secret into the server's env.
-4. **Create the 5 products** in the dashboard — ids and prices from
+The addresses (decided 30 Oct 2026): players use **https://play.emilgo.app**
+(Cloudflare Pages, project `milgogames`); the server is **api.emilgo.app** on
+Fly.io in London (`fly.toml`). The bare `emilgo.app` is kept for the EMILGO
+app's own site.
+
+1. **Buy `emilgo.app`** (Cloudflare → Domain Registration; DNS stays in Cloudflare).
+2. **Host the server** on Fly.io, from `games/emilgo-games`:
+   `brew install flyctl`, `fly auth login`, `fly apps create emilgo-games`,
+   `fly volumes create emilgo_data --region lhr --size 1`,
+   `fly secrets set TICKET_SECRET=… ADMIN_TOKEN=…`, `fly deploy`,
+   `fly certs add api.emilgo.app` and add the DNS records it prints (grey cloud).
+   `https://api.emilgo.app/health` should say `ok`.
+3. **Host the game**: Cloudflare Pages → `milgogames` → Custom domains →
+   `play.emilgo.app`; then `scripts/deploy-site.sh` (builds the last commit
+   against `wss://api.emilgo.app`). Check the `content-security-policy:
+   frame-ancestors …` header on `https://play.emilgo.app`.
+4. **Get test keys** at `lagoslife.app/developers/keys`: Game URL =
+   `https://play.emilgo.app`; Webhook URL = `https://api.emilgo.app/vatar-webhook`.
+   Put the test secret, results secret and webhook secret in with
+   `fly secrets set VATAR_SECRET=… VATAR_RESULTS_SECRET=… VATAR_WEBHOOK_SECRET=…`.
+5. **Create the 5 products** in the dashboard — ids and prices from
   `listing/LISTING.md`, exactly.
-5. **Tick the sandbox checklist** at `/developers/sandbox/<draft>`: open the game
+6. **Tick the sandbox checklist** at `/developers/sandbox/<draft>`: open the game
   (init seen) → Shop → buy anything with *Pay (test)* (test purchase, server
    verified, delivered) → Multiplayer → Lagos Life match → create a match, let
    the sandbox's test bot join (match created, joined, result posted).
-6. **Listing**: icon, screenshots and descriptions from `listing/`. Agree to the
+7. **Listing**: icon, screenshots and descriptions from `listing/`. Agree to the
   Developer Agreement. **Submit for review.**
-7. After approval: swap in the **live** secrets (`vtr_live_…`), and ask Lagos
+8. After approval: swap in the **live** secrets (`vtr_live_…`), and ask Lagos
   Life to switch on **matches** and then **stakes** for the game (two separate
    approvals; until then the game offers friendlies and says why).
 

@@ -1,0 +1,57 @@
+# The EMILGO Games server on Fly.io: https://api.emilgo.app (wss:// for the
+# game, /vatar-webhook for Lagos Life). Run fly commands from games/emilgo-games.
+#
+#   fly apps create emilgo-games
+#   fly volumes create emilgo_data --region lhr --size 1
+#   fly secrets set TICKET_SECRET=… ADMIN_TOKEN=…            (and the Vatar keys when you have them)
+#   fly deploy
+#   fly certs add api.emilgo.app
+#
+# One machine on purpose: the server is one process, and its volume (the
+# purchases and profiles databases) belongs to one machine. It never sleeps:
+# a stopped machine would drop every match in play.
+#
+# Secrets (VATAR_*, TICKET_SECRET, ADMIN_TOKEN, SUPABASE_*) live only in
+# `fly secrets`, never here.
+
+app = "emilgo-games"
+primary_region = "lhr"
+
+[build]
+  dockerfile = "server/Dockerfile"
+
+[env]
+  PORT = "8787"
+  DATA_DIR = "/data"
+  TRUST_PROXY = "1"
+  MAX_PER_IP = "32"
+  # The pages allowed to connect: the game's site, the test site, and the
+  # copy inside the EMILGO app (its WebView's base URL, app/games/redlight.tsx).
+  GAMES_ORIGINS = "https://play.emilgo.app,https://milgogames.pages.dev,https://games.emilgo.local"
+
+[[mounts]]
+  source = "emilgo_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8787
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "connections"
+    soft_limit = 2000
+    hard_limit = 4000
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/health"
+    interval = "15s"
+    timeout = "3s"
+    grace_period = "10s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
