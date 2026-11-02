@@ -124,7 +124,9 @@ export type MatchEvent =
   /** A squad mate helped tg up (half the Daze left) or pulled them out of a gutter. */
   | { type: "helpup"; id: string; tg: string; how: "up" | "rescue" }
   /** A bounty on the leader (Hold the Flag): id Dazed them and took `v` of their measure. */
-  | { type: "bounty"; id: string; tg: string; v: number };
+  | { type: "bounty"; id: string; tg: string; v: number }
+  /** The danfo sweeping the main road shoved tg: their slide and wobble now. */
+  | { type: "danfo"; tg: string; kx: number; kz: number; w: number };
 
 /** Why someone went down: melee's reasons, then a car's (pulled out, thrown by a blast, out at speed). */
 export type DownWhy = "daze" | "trip" | "tackle" | "throw" | "ringout" | "hijack" | "blast" | "tumble";

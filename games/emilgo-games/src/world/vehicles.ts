@@ -37,10 +37,11 @@ import {
 } from "three";
 
 import type { Sound } from "../audio/sound";
-import { VEHICLES, type VehicleKind } from "../config";
+import { TRAFFIC, VEHICLES, type VehicleKind } from "../config";
 import type { Match } from "../game/core/match";
 import type { MatchEvent } from "../game/core/module";
 import { carPoint, type Car } from "../game/modules/drive";
+import type { TrafficModule } from "../game/modules/traffic";
 import type { VehiclesModule } from "../game/modules/vehicles";
 import type { MapMark } from "../ui/minimap";
 import type { CameraRig } from "./camera";
@@ -302,6 +303,9 @@ export class VehicleView {
   /** Headlights (a sandstorm, a power cut): two cones of light ahead of each car. */
   private readonly beams: InstancedMesh;
   private lights = false;
+  /** The traffic danfo (made when it first runs) and whether this run's horn has gone. */
+  private bus: { root: Group; body: Mesh; far: Mesh } | null = null;
+  private busHorn = false;
   private readonly stands: InstancedMesh;
   private readonly cans: InstancedMesh;
   private readonly smoke: Puff[] = [];
@@ -432,6 +436,7 @@ export class VehicleView {
   /** Every frame: the cars where the match has them, their wheels, their smoke; the riders seated; the map. */
   update(dt: number, m: Match, cam: Vector3, marks: MapMark[]): void {
     this.time += dt;
+    this.busUpdate(m, cam, marks);
     const v = m.module<VehiclesModule>("vehicles");
     const cars = v?.cars ?? [];
     let w = 0;
@@ -585,6 +590,37 @@ export class VehicleView {
     });
     this.bits.count = this.debris.length;
     this.bits.instanceMatrix.needsUpdate = true;
+  }
+
+  /** The danfo that sweeps the main road (§10.14): its horn, then the bus on its way. */
+  private busUpdate(m: Match, cam: Vector3, marks: MapMark[]): void {
+    const tr = m.module<TrafficModule>("traffic");
+    if (!tr) return;
+    const nx = tr.next(m);
+    if (nx >= 0 && nx <= TRAFFIC.horn && !this.busHorn) {
+      this.busHorn = true;
+      const o = tr.road;
+      if (o) this.o.sound?.horn(Math.max(0.25, 1 - Math.hypot((o.x0 + o.x1) / 2 - cam.x, (o.z0 + o.z1) / 2 - cam.z) / 160));
+    }
+    if (nx > TRAFFIC.horn) this.busHorn = false;
+    const b = tr.bus(m);
+    if (!this.bus) {
+      if (!b) return;
+      const g = danfo();
+      const mat = new MeshLambertMaterial({ vertexColors: true });
+      this.bus = { root: new Group(), body: new Mesh(g.body, mat), far: new Mesh(g.far, mat) };
+      this.bus.body.castShadow = true;
+      this.bus.root.add(this.bus.body, new Mesh(g.glass, this.glassMat), this.bus.far);
+      this.group.add(this.bus.root);
+    }
+    this.bus.root.visible = !!b;
+    if (!b) return;
+    this.bus.root.position.set(b.x, b.h, b.z);
+    this.bus.root.rotation.set(0, b.hd, 0);
+    const farOff = Math.hypot(b.x - cam.x, b.z - cam.z) > FAR_M;
+    this.bus.body.visible = !farOff;
+    this.bus.far.visible = farOff;
+    marks.push({ x: b.x, z: b.z, kind: "car", r: 1 });
   }
 
   /** Headlights on (a sandstorm, a power cut) or off. */

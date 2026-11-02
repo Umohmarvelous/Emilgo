@@ -305,6 +305,7 @@ export class OnlineMatch {
         }
         break;
       case "bump":
+      case "danfo":
         this.melee?.setWobble(m.get(e.tg)?.index ?? -1, e.w);
         if (e.tg !== me.id) break;
         // Pushed aside by a car: slide now, as the server has you.

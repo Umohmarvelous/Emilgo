@@ -303,6 +303,7 @@ const PCM: Record<string, string> = {
   Points: "Points",
   "rooms held": "rooms wey you hold",
   "Harmattan! A sandstorm is coming": "Harmattan! Sand breeze dey come",
+  "The danfo shoved you off the road": "Danfo don push you comot for road",
   // The displacement feed, help-ups, the bounty (§10).
   "was blown out of a car": "don blow comot from motor",
   "tumbled out of a moving car": "fall comot from moving motor",

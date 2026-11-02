@@ -534,6 +534,25 @@ export const HARMATTAN = {
   margin: 75,
 } as const;
 
+/** The danfo traffic hazard (SPEC-V3 §10.14; Phase 6): an empty bus sweeps the main road on a schedule. */
+export const TRAFFIC = {
+  /** The first run starts this far in (s); then one every `every` s, each up to `jitter` s late. */
+  first: 50,
+  every: 75,
+  jitter: 12,
+  /** Its speed (m/s) and its horn this long before it sets off (s). */
+  speed: 10,
+  horn: 2.5,
+  /** The bus's footprint (m): a danfo's. */
+  len: 4.8,
+  wid: 2.0,
+  /** Shoved this far (m), with this much wobble, this long stunned; once a body each `every` s. */
+  knock: 3.6,
+  wobble: 0.55,
+  stun: 0.6,
+  again: 0.8,
+} as const;
+
 /** Compound Wars (SPEC-V3 §9 #7; Phase 6): the courtyard's rooms and doors. */
 export const ROOMS = {
   /** Tap a door from this close (either side); hold this long inside to jam it shut, for `jam` s. */

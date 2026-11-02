@@ -4,7 +4,7 @@
 //
 //   node server/build-tools.mjs && node server/dist/extrastest.mjs
 
-import { BLACKOUT, ECONOMY, FLAGS, GADGETS, HARMATTAN, MELEE, MOVE } from "../../src/config";
+import { BLACKOUT, ECONOMY, FLAGS, GADGETS, HARMATTAN, MELEE, MOVE, TRAFFIC } from "../../src/config";
 
 const FLAGS_BOUNTY = FLAGS.bounty;
 import type { ItemId } from "../../src/content/items";
@@ -24,6 +24,7 @@ import type { RoomsModule } from "../../src/game/modules/rooms";
 import type { HarmattanModule } from "../../src/game/modules/harmattan";
 import { RIDDLES, shownLangs } from "../../src/content/riddles";
 import type { TagModule } from "../../src/game/modules/tag";
+import type { TrafficModule } from "../../src/game/modules/traffic";
 import { matchWorldOf } from "../../src/maps/open/matchWorld";
 import { matchXp } from "../../src/rank/xp";
 import { FfaGame } from "../src/ffa";
@@ -746,6 +747,45 @@ console.log("the extras (§10):");
   check(g.start.mu === now && g.match.settings.mutator === now, `the start message carries this week's mutator (${now ?? "none"})`);
   const st = new FfaGame(def("flag-duel"), 5, roster, [0, 1]);
   check(!st.start.mu && !st.match.settings.mutator, "a staked match: no mutator, ever");
+}
+
+{
+  // §10.14: the danfo traffic hazard.
+  const mk = (seed: number) => {
+    const st = settingsOf(def("find-the-flag"));
+    st.time = 600;
+    return newMatch(seed, st, 4);
+  };
+  const m = mk(95);
+  runFor(m, 0.1);
+  const tr = m.module<TrafficModule>("traffic")!;
+  const twin = mk(95);
+  runFor(twin, 0.1);
+  const tw = twin.module<TrafficModule>("traffic")!;
+  check(!!tr && tr.runs.length >= 5 && tr.runs.every((r, i) => Math.abs(r.at - tw.runs[i].at) < 1e-9), `a danfo runs the main road ${tr?.runs.length} times a 10-minute match, on the seed's schedule (a phone knows it too)`);
+  const noCars = newMatch(95, bare("find-the-flag", (s) => (s.modules.zone = settingsOf(def("find-the-flag")).modules.zone)), 2);
+  runFor(noCars, 0.1);
+  check(!noCars.module("traffic"), "no cars in the mode: no danfo");
+  const duel = newMatch(96, settingsOf(def("flag-duel")), 2);
+  check(!duel.module<TrafficModule>("traffic")?.runs.length, "the staked duel's market: no danfo");
+  // Stand in its way.
+  const r0 = tr.runs[0];
+  runFor(m, r0.at - m.elapsed + 1);
+  const b = tr.bus(m)!;
+  const ahead = 6;
+  const vic = m.contestants[0];
+  const ev: MatchEvent[] = [];
+  const keep = () => {
+    for (const c of m.contestants) if (c !== vic) put(m, c.id, 60 + c.index * 8, 160);
+  };
+  keep();
+  put(m, vic.id, b.x + Math.sin(b.hd) * ahead, b.z + Math.cos(b.hd) * ahead);
+  runFor(m, 1.2, ev, keep);
+  const hit = ev.find((e) => e.type === "danfo" && e.tg === vic.id);
+  const nb = tr.bus(m)!;
+  const lx = (vic.x - nb.x) * Math.cos(nb.hd) - (vic.z - nb.z) * Math.sin(nb.hd);
+  check(!!hit && Math.abs(lx) > TRAFFIC.wid / 2, `in its way: shoved aside (${Math.abs(lx).toFixed(1)} m off its middle)`);
+  check(!m.contestants.some((c) => c.status !== "alive"), "it never hurts anyone");
 }
 
 void MELEE;

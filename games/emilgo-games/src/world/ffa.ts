@@ -321,6 +321,13 @@ export class FfaView {
           else if (a === me) this.o.hud.pushFeed(e.how === "rescue" ? t("You pulled them out") : t("You helped them up"), "safe");
           break;
         }
+        case "danfo": {
+          const c = body(e.tg);
+          if (!c) break;
+          this.o.sound?.thud(near(c.x, c.z, 40));
+          if (c === me) this.o.hud.pushFeed(t("The danfo shoved you off the road"), "out");
+          break;
+        }
         case "bounty": {
           const a = body(e.id);
           const b = body(e.tg);
