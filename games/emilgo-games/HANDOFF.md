@@ -14,7 +14,7 @@
 > 1–5 and their "How to play" cards, the `GameMode` seam, the staked Flag Duel;
 > Ball Haunt hidden) is built and committed (29 Oct 2026)**. **Phase 5
 > (vehicles) is done (30 Oct)** and **Phase 6 (FFA modes 6–10, Ranked, the
-> Harmattan, all 22 §10 extras) is done (2 Nov 2026)**; **Phase 7 (Spooky World, Dead Streets' core) is done (2 Nov 2026)**. On 2 Nov the owner
+> Harmattan, all 22 §10 extras) is done (2 Nov 2026)**; **Phase 7 (Spooky World, Dead Streets' core) is done (2 Nov 2026)**; **Phase 8 (Dead Streets' extras, rank rewards, the loading screen) is done (2 Nov 2026)**. On 2 Nov the owner
 > said to build every remaining phase (7–11) **without waiting for approval**,
 > committing **and pushing** each change. See SPEC-V3 "Status".
 >
@@ -219,6 +219,13 @@ npm run game:embed     # typecheck + single-file build → the app's copy (run a
 npm run game:build     # typecheck + dist/ (Lagos Life site)
 npm --prefix games/emilgo-games run typecheck   # client + server
 ```
+
+## v3 Phase 8: where things are
+
+- The run's extras are in `src/game/modules/survival.ts` (kinds, the beam, noise, finds, the Last Stand; loadout params `weapon`, `perks`, `charms`, `mods`, `mutator`; `runMutator`, `dailySeed`, `medalOf`), numbers in `SURVIVAL` (`src/config.ts`), lore in `src/content/lore.ts`. Screen side: `world/deadView.ts`; the ghost: `src/game/ghost.ts`; the loadout: `Screens.playRun`; the summary map and photo: `Screens.ffaResults`, `drawRunMap`.
+- Server: `runstart {daily}`, `runend {wp, charm}`; the daily board in `server/src/runs.ts` (`putDaily`, `topDaily`).
+- Rank rewards: `HOODIE_DESIGNS[].rank` (`world/human/wardrobe.ts`), painted in `scanpaint.ts` (`rankTorso`, the sleeves), checked by `allowedLook(want, owned, xp)`.
+- Loading screen: `Screens.matchLoading`, `Session.showLoading`.
 
 ## v3 Phase 7: where things are
 
