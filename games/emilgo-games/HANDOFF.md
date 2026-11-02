@@ -14,7 +14,7 @@
 > 1–5 and their "How to play" cards, the `GameMode` seam, the staked Flag Duel;
 > Ball Haunt hidden) is built and committed (29 Oct 2026)**. **Phase 5
 > (vehicles) is done (30 Oct)** and **Phase 6 (FFA modes 6–10, Ranked, the
-> Harmattan, all 22 §10 extras) is done (2 Nov 2026)**; **Phase 7 (Spooky World, Dead Streets' core) is done (2 Nov 2026)**; **Phase 8 (Dead Streets' extras, rank rewards, the loading screen) is done (2 Nov 2026)**. On 2 Nov the owner
+> Harmattan, all 22 §10 extras) is done (2 Nov 2026)**; **Phase 7 (Spooky World, Dead Streets' core) is done (2 Nov 2026)**; **Phase 8 (Dead Streets' extras, rank rewards, the loading screen) is done (2 Nov 2026)**. **Phase 9 (billboards: the boards in both cities, house boards, the ads feed and seconds seen, the Supabase migration, the advertiser portal, checkouts and the review queue) is done (2 Nov 2026)**; the migration and the keys are the owner's to apply (see "Billboards: the owner's steps"). On 2 Nov the owner
 > said to build every remaining phase (7–11) **without waiting for approval**,
 > committing **and pushing** each change. See SPEC-V3 "Status".
 >
@@ -220,6 +220,24 @@ npm run game:build     # typecheck + dist/ (Lagos Life site)
 npm --prefix games/emilgo-games run typecheck   # client + server
 ```
 
+## v3 Phase 9: where things are
+
+- The boards in the cities: `src/maps/open/billboards.ts` (`placeBoards`, `BoardSlot`, `faceOf`; sizes `BOARD_SIZE` in `prefabs.ts`, prefab `billboard`, drawn in `art.ts`). Wishes: `BOARD_WISHES` in `naija.ts`; Spooky World's along the route in `spooky.ts`. **New boards go on the end of a wish list** (a board's id is its place there, and ads are booked by id), then add the row to `game_billboard_slots` in the migration (adstest fails until the two lists agree).
+- On screen: `src/world/billboards.ts` (`BillboardView`: the atlas, house boards, the rotation, the film, the seconds seen), created in `FfaMode` (`boards`); the feed and the report: `src/net/ads.ts` (`adsUrl`, `fetchFeed`, `reportSeen`); the session's side: `Session.adFeed`, `houseInfo`, ModeHost `boardFeed` / `houseInfo` / `boardsSeen`; `OpenWorld.cellOn`. Settings `adsAudio`, `adsVol` (Audio tab; hidden in Lagos Life).
+- Game server: `server/src/ads.ts` (`Billboards`: `/ads/v1/match`, `/ads/v1/seen`, the one-use tokens, the minute's flush; `SupabaseAds`), routes in `server/src/index.ts`, counts in `/metrics` (`ads`).
+- The ad stack: `supabase/migrations/migration_game_billboards.sql`, its test `supabase/tests/test_game_billboards.sql` (not yet run: run it in the SQL editor after the migration).
+- The app: the portal `app/advertise/index.tsx`, `src/services/billboards.ts`; checkouts and webhooks `server/adBilling.ts` (registered in `server/routes.ts`; Paystack's webhook in `server/paystack.ts` hands billboard charges to it); the review queue `components/admin/BillboardReviews.tsx` (the Ad console's Billboards tab).
+
+### Billboards: the owner's steps (nothing here is done for you)
+
+1. Run `supabase/migrations/migration_game_billboards.sql`, then `supabase/tests/test_game_billboards.sql` (it rolls itself back; every row should say PASS).
+2. Make two long random secrets (32+ characters each). In the SQL editor:
+   `UPDATE public.game_ads_config SET game_key_hash = encode(extensions.digest('<GAME_ADS_KEY>', 'sha256'), 'hex'), billing_key_hash = encode(extensions.digest('<AD_BILLING_KEY>', 'sha256'), 'hex');`
+3. Game server (Fly): `fly secrets set SUPABASE_URL=… SUPABASE_ANON_KEY=… GAME_ADS_KEY=…`, then `fly deploy`. Without them every board shows house boards.
+4. App server: `AD_BILLING_KEY`, and each provider's keys as you get them (`PAYSTACK_SECRET_KEY`, `FLUTTERWAVE_SECRET_KEY` + `FLUTTERWAVE_WEBHOOK_HASH`, `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET`), `ADS_RETURN_URL` (the portal's address, e.g. `https://<your site>/advertise`) and `ADS_RETURN_ORIGINS`. Point the providers' webhooks at `/api/webhooks/paystack`, `/api/webhooks/flutterwave`, `/api/webhooks/stripe`. Stripe must be able to charge in NGN on your account; if it can't, leave Stripe off.
+5. Set the real prices: `UPDATE public.ad_billboard_prices SET rotation_cpm = …, premium_cpm = …, min_budget_naira = …, placeholder = FALSE;`
+6. Make yourself an admin (service role) to see the queue: `UPDATE public.users SET is_admin = true WHERE username = '<you>';`
+
 ## v3 Phase 8: where things are
 
 - The run's extras are in `src/game/modules/survival.ts` (kinds, the beam, noise, finds, the Last Stand; loadout params `weapon`, `perks`, `charms`, `mods`, `mutator`; `runMutator`, `dailySeed`, `medalOf`), numbers in `SURVIVAL` (`src/config.ts`), lore in `src/content/lore.ts`. Screen side: `world/deadView.ts`; the ghost: `src/game/ghost.ts`; the loadout: `Screens.playRun`; the summary map and photo: `Screens.ffaResults`, `drawRunMap`.
@@ -263,6 +281,8 @@ node server/dist/sharedtest.mjs                         # 59 checks (Phase 3: th
 node server/dist/cartest.mjs                            # 50 checks (Phase 5: vehicles)
 node server/dist/extrastest.mjs                         # 121 checks (Phase 6: items, Ranked, modes 6–10, the Harmattan, the extras)
 GAME=ws://localhost:8797 node server/dist/survivaltest.mjs  # Phase 7: Spooky World, the route walked, the run's rules, the server's check
+GAME=ws://localhost:8797 node server/dist/adstest.mjs   # Phase 9: 46 checks offline (boards, the feed, the server), 7 online
+(cd ../.. && npx tsx server/adBilling.check.ts)          # Phase 9: 31 checks, the billboards' checkouts (no network)
 GAME=ws://localhost:8797 node server/dist/ffatest.mjs   # Phase 4: melee and the five modes offline, then 12 phones online
 GAME=ws://localhost:8797 node server/dist/ranktest.mjs  # 42 checks (needs SUPABASE_JWT_SECRET on the server, as above)
 GAME=ws://localhost:8797 node server/dist/matchtest.mjs
