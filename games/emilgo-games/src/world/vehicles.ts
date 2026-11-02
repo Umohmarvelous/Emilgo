@@ -604,8 +604,8 @@ export class VehicleView {
     }
     if (nx > TRAFFIC.horn) this.busHorn = false;
     const b = tr.bus(m);
+    // Made at the start (hidden), so its first run doesn't stall a frame building it.
     if (!this.bus) {
-      if (!b) return;
       const g = danfo();
       const mat = new MeshLambertMaterial({ vertexColors: true });
       this.bus = { root: new Group(), body: new Mesh(g.body, mat), far: new Mesh(g.far, mat) };
