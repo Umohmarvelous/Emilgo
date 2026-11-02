@@ -13,6 +13,9 @@
 //   node server/build-tools.mjs && node server/dist/ranktest.mjs
 //   GAME=ws://localhost:8797 RANK_SECRET=<the server's SUPABASE_JWT_SECRET> node server/dist/ranktest.mjs
 
+import { allowedLook } from "../../src/shop/catalog";
+import { HOODIE_DESIGNS } from "../../src/world/human/wardrobe";
+import { divisionIndex } from "../../src/content/validate";
 import { createHmac } from "node:crypto";
 import WebSocket from "ws";
 
@@ -65,6 +68,16 @@ check(store.get("em:abc")!.streak === 3, "three wins in a row: a streak of 3 (§
 check(store.award("em:abc", 10, false, "2026-10-30").streak === 0, "a loss ends it");
 check(store.commend("em:abc") === 1 && store.commend("em:abc") === 2 && store.commend("em:new") === 1, "commends count up, and a first commend makes the profile (§10.12)");
 check(store.remove("em:abc") && store.get("em:abc") === null, "deleted on request");
+
+console.log("\nrank rewards (§2.4):");
+{
+  const want = { hd: 0, ds: "armour", g: "m", s: 2, h: "afro", hc: 0, ht: 100 };
+  const xpAt = (id: string) => divisionStart(divisionIndex(id));
+  check(allowedLook(want, new Set(), 0).ds === undefined, "a Rookie can't wear the Armour design (the server strips it)");
+  check(allowedLook(want, new Set(), xpAt("master-1")).ds === "armour", "from Master I it shows");
+  check(allowedLook({ ...want, ds: "plain" }, new Set(), 0).ds === "plain", "the plain hoodie for everyone");
+  check(HOODIE_DESIGNS.filter((d) => d.rank).length === 8, "eight rank designs, Rookie to Titan");
+}
 
 console.log("\nEMILGO tokens:");
 const SECRET = process.env.RANK_SECRET ?? "test-supabase-jwt-secret-0123456789abcdef";

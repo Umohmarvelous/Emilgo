@@ -25,6 +25,7 @@ import { POSES } from "../world/human/animator";
 import { HOODIE_COLORS, HOODIE_DESIGNS, type HoodieDesign, type Look } from "../world/human/wardrobe";
 import { esc, fmtTime, ordinal } from "./dom";
 import { SPOOKY_ROUTE } from "../maps/open/spooky";
+import { divisionIndex } from "../content/validate";
 import { t, translateTree } from "./i18n";
 import { icon } from "./icons";
 
@@ -428,7 +429,7 @@ export class Screens {
   }
 
   /** Character editor: the hoodie (colour and design: the only clothes there are) and the body. Paid ones show their price and a lock. */
-  customize(look: Look, tab: string, owned: ReadonlySet<string>, canBuy: boolean): void {
+  customize(look: Look, tab: string, owned: ReadonlySet<string>, canBuy: boolean, rankK = 0): void {
     const tabs = [
       ["hoodie", "Hoodie"],
       ["body", "Body"],
@@ -456,8 +457,9 @@ export class Screens {
         </button>`;
       }).join("");
       const designs = HOODIE_DESIGNS.map((d) => {
-        const locked = lock(d.product);
-        return `<button class="tile ${look.design === d.id ? "on" : ""} ${locked ? "locked" : ""}" data-act="look" data-key="design" data-val="${d.id}" ${locked ? `data-locked="${d.product}"` : ""}>
+        const rankLocked = !!d.rank && rankK < divisionIndex(d.rank);
+        const locked = lock(d.product) || rankLocked;
+        return `<button class="tile ${look.design === d.id ? "on" : ""} ${locked ? "locked" : ""}" data-act="look" data-key="design" data-val="${d.id}" ${lock(d.product) ? `data-locked="${d.product}"` : rankLocked ? `data-rank="${d.rank}"` : ""}>
           ${locked ? `<span class="lock">${icon("lock", "", 14)}</span>` : ""}<span class="swatch" style="background:${designSwatch(d.id, main, alt)}"></span><span class="t">${esc(d.name)}</span>${price(d.product, locked)}
         </button>`;
       }).join("");
@@ -1376,6 +1378,22 @@ function designSwatch(id: HoodieDesign, main: string, alt: string): string {
       return `radial-gradient(circle at 30% 72%, #e85d04 0 14%, #ffba08 15% 22%, transparent 23%), radial-gradient(circle at 70% 72%, #0f4c5c 0 14%, #ffba08 15% 22%, transparent 23%), ${main}`;
     case "block":
       return `linear-gradient(180deg, ${main} 0 52%, ${alt} 52%)`;
+    case "tracksuit":
+      return `linear-gradient(90deg, ${main} 0 40%, #efeee9 40% 46%, ${main} 46% 54%, #efeee9 54% 60%, ${main} 60%)`;
+    case "adire":
+      return `radial-gradient(circle, rgba(200,215,240,0.6) 0 18%, transparent 20%) 0 0 / 10px 10px, #1f2f5c`;
+    case "bomber":
+      return `linear-gradient(90deg, #4b5530 0 48%, #c46a1c 48% 52%, #4b5530 52%)`;
+    case "tactical":
+      return `linear-gradient(180deg, ${main} 0 20%, #25231f 20% 80%, ${main} 80%)`;
+    case "armour":
+      return `linear-gradient(180deg, #3c4045 0 20%, #4a4f55 20% 80%, #3c4045 80%)`;
+    case "asooke":
+      return `repeating-linear-gradient(180deg, #e8dcc0 0 6px, #8a2b2b 6px 8px, #e8dcc0 8px 14px, #2b4a8a 14px 16px)`;
+    case "royal":
+      return `radial-gradient(circle at 50% 40%, #d4a017 0 12%, transparent 14%), #3a1f5c`;
+    case "titan":
+      return `linear-gradient(180deg, #4a4236 0 30%, #d4a017 30% 36%, #5a5040 36%)`;
     default:
       return main;
   }

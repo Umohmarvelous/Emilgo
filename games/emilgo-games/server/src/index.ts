@@ -409,7 +409,7 @@ function handle(peer: Peer, msg: ClientMsg): void {
       // Only what a genuine ticket says you own is ever shown to anyone.
       const t = msg.ticket ? shop?.verify(msg.ticket) : null;
       peer.owned = new Set(t?.o ?? []);
-      peer.look = withStreak(allowedLook(msg.look, peer.owned), peer.streak);
+      peer.look = withStreak(allowedLook(msg.look, peer.owned, peer.profile ? (profiles.get(peer.profile)?.xp ?? 0) : 0), peer.streak);
       // The room shows everyone's look while they wait together.
       lobby.roomOf(peer)?.broadcastRoom();
       break;

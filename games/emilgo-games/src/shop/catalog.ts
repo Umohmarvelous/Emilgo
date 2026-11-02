@@ -15,6 +15,8 @@
 //    with Lagos Life (GET /purchases/{id}), given it once per purchaseId, and
 //    marked it delivered. The game's word is never enough.
 
+import { divisionIndex } from "../content/validate";
+import { rankOf } from "../rank/ladder";
 import { cleanLook, DEFAULT_LOOK, DESIGN_BY_ID, EXTRA_BY_ID, HOODIE_COLORS, OUTFIT_BY_ID, type ExtraId, type HoodieDesign, type Look } from "../world/human/wardrobe";
 
 export type ProductKind = "hoodie" | "emotes" | "badge";
@@ -70,7 +72,7 @@ export interface WireLook {
 }
 
 /** Keep only what is valid and, for paid items, owned. Used by the server on everything a phone claims. */
-export function allowedLook(want: WireLook | null | undefined, owned: ReadonlySet<string>): WireLook {
+export function allowedLook(want: WireLook | null | undefined, owned: ReadonlySet<string>, xp = 0): WireLook {
   if (!want) return {};
   const look = cleanLook(fromWire(want));
   const out: WireLook = {
@@ -85,7 +87,8 @@ export function allowedLook(want: WireLook | null | undefined, owned: ReadonlySe
   const hc = HOODIE_COLORS[look.hoodie];
   if (hc && (!hc.product || owned.has(hc.product))) out.hd = look.hoodie;
   const d = DESIGN_BY_ID[look.design];
-  if (d && (!d.product || owned.has(d.product))) out.ds = look.design;
+  // A rank design (SPEC-V3 §2.4) only from its rank, on the server's own count of your XP.
+  if (d && (!d.product || owned.has(d.product)) && (!d.rank || rankOf(xp).k >= divisionIndex(d.rank))) out.ds = look.design;
   const x = look.extras.filter((e) => !EXTRA_BY_ID[e].product || owned.has(EXTRA_BY_ID[e].product!));
   if (x.length) out.x = x;
   if (want.b && owned.has("badge_gold")) out.b = 1;

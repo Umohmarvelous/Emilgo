@@ -88,6 +88,7 @@ import { buildNaijaWorld } from "../maps/open/naija";
 import { buildSpookyWorld } from "../maps/open/spooky";
 import { dailySeed, medalOf, runMutator } from "../game/modules/survival";
 import { divisionIndex } from "../content/validate";
+import { divisionStart } from "../rank/ladder";
 import { WEAPON_RANK, type RunWeapon } from "../config";
 import { RUN_MUTATOR_NAME } from "../world/deadView";
 import { saveGhost } from "./ghost";
@@ -736,7 +737,7 @@ export class Game {
 
   private showCustomize(): void {
     this.frame("left-panel");
-    this.screens.customize(this.tryOn ?? this.settings.look, this.customizeTab, this.owned(), !!this.shop);
+    this.screens.customize(this.tryOn ?? this.settings.look, this.customizeTab, this.owned(), !!this.shop, rankOf(this.rankXp).k);
   }
 
   private showEmotes(): void {
@@ -2652,9 +2653,12 @@ export class Game {
           const id = val as ExtraId;
           next = { ...base, extras: base.extras.includes(id) ? base.extras.filter((e) => e !== id) : [...base.extras.filter((e) => !conflicts(e, id)), id] };
         }
-        // Locked (paid, not owned): try it on, don't keep it.
+        // Locked (paid, not owned; or a rank reward above your rank): try it on, don't keep it.
         const locked = d.locked && !this.owned().has(d.locked);
-        if (locked) {
+        if (d.rank && rankOf(this.rankXp).k < divisionIndex(d.rank)) {
+          this.setLook(next, true);
+          this.screens.toast(`${t("Unlocks at")} ${rankOf(divisionStart(divisionIndex(d.rank))).name}`);
+        } else if (locked) {
           this.setLook(next, true);
           this.screens.toast(this.shop ? "Trying it on. Buy it in the Store to keep it." : "Trying it on. Shop items are bought inside Lagos Life.");
         } else {

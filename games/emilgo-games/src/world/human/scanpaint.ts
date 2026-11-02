@@ -141,6 +141,96 @@ const TORSO_H = 0.64;
 /** Heights on the torso region (metres from the hem). */
 const BAND = 0.065;
 
+/**
+ * The rank designs (SPEC-V3 §2.4), painted over the hoodie's torso in its
+ * own 0…TORSO_W × 0…TORSO_H space (front in the middle, the back at the edges).
+ */
+function rankTorso(g: Ctx, design: HoodieDesign, main: string, alt: string, rnd: () => number): void {
+  const front = TORSO_W / 2;
+  switch (design) {
+    case "adire": {
+      // Indigo resist-dye: deep blue, pale circles and lines in a grid.
+      g.fillStyle = "#1f2f5c";
+      g.fillRect(0, BAND, TORSO_W, TORSO_H - BAND);
+      g.strokeStyle = "rgba(200,215,240,0.55)";
+      g.lineWidth = 0.006;
+      for (let x = 0.02; x < TORSO_W; x += 0.09) for (let y = BAND + 0.03; y < TORSO_H - 0.03; y += 0.09) {
+        g.beginPath();
+        if ((Math.round(x * 100) + Math.round(y * 100)) % 2) g.arc(x, y, 0.025, 0, Math.PI * 2);
+        else {
+          g.moveTo(x - 0.03, y);
+          g.lineTo(x + 0.03, y);
+        }
+        g.stroke();
+      }
+      break;
+    }
+    case "bomber":
+      // Olive shell, a ribbed collar band, a zip down the front.
+      g.fillStyle = "#4b5530";
+      g.fillRect(0, BAND, TORSO_W, TORSO_H - BAND);
+      g.fillStyle = "#c46a1c";
+      g.fillRect(front - 0.004, BAND, 0.008, TORSO_H - BAND);
+      break;
+    case "tactical":
+    case "armour":
+    case "titan": {
+      // A plate carrier on the chest and back (armour: gunmetal plates; Titan: gold over plate).
+      const vest = design === "tactical" ? "#25231f" : design === "armour" ? "#4a4f55" : "#5a5040";
+      for (const cx of [front, 0, TORSO_W]) {
+        g.fillStyle = vest;
+        g.fillRect(cx - 0.17, BAND + 0.04, 0.34, TORSO_H * 0.62);
+        g.fillStyle = design === "titan" ? "#d4a017" : "rgba(255,255,255,0.08)";
+        g.fillRect(cx - 0.17, BAND + 0.04 + TORSO_H * 0.6, 0.34, 0.02);
+        if (design !== "tactical") {
+          g.strokeStyle = design === "titan" ? "#f2d27a" : "rgba(0,0,0,0.4)";
+          g.lineWidth = 0.005;
+          g.strokeRect(cx - 0.15, BAND + 0.08, 0.3, TORSO_H * 0.25);
+          g.strokeRect(cx - 0.15, BAND + 0.08 + TORSO_H * 0.28, 0.3, TORSO_H * 0.22);
+        } else {
+          // Pouches.
+          g.fillStyle = "#1a1916";
+          for (const px of [-0.11, 0, 0.11]) g.fillRect(cx + px - 0.04, BAND + 0.06, 0.08, 0.07);
+        }
+      }
+      // Straps over the shoulders.
+      g.fillStyle = vest;
+      for (const sx of [TORSO_W * 0.25, TORSO_W * 0.75]) g.fillRect(sx - 0.03, TORSO_H * 0.62, 0.06, TORSO_H * 0.38);
+      break;
+    }
+    case "asooke":
+    case "royal": {
+      // The agbada's cloth: Aso-oke's woven bands, or deep purple with gold thread.
+      const base = design === "asooke" ? "#e8dcc0" : "#3a1f5c";
+      g.fillStyle = base;
+      g.fillRect(0, BAND, TORSO_W, TORSO_H - BAND);
+      if (design === "asooke") {
+        for (let y = BAND; y < TORSO_H; y += 0.05) {
+          g.fillStyle = rnd() < 0.5 ? "#8a2b2b" : "#2b4a8a";
+          g.fillRect(0, y, TORSO_W, 0.012);
+        }
+      } else {
+        g.strokeStyle = "#d4a017";
+        g.lineWidth = 0.008;
+        g.beginPath();
+        g.moveTo(front - 0.12, TORSO_H - 0.04);
+        g.quadraticCurveTo(front, TORSO_H * 0.45, front + 0.12, TORSO_H - 0.04);
+        g.stroke();
+        for (let k = 0; k < 9; k++) {
+          g.beginPath();
+          g.arc(front + (k - 4) * 0.03, TORSO_H * 0.55 - Math.abs(k - 4) * 0.02, 0.008, 0, Math.PI * 2);
+          g.stroke();
+        }
+      }
+      break;
+    }
+    default:
+      break;
+  }
+  void main;
+  void alt;
+}
+
 function paintTorso(g: Ctx, size: number, look: Look, main: string, alt: string, design: HoodieDesign, trim: string, rnd: () => number, detail: number, sheen: boolean): void {
   const R = new Region(g, size, SUV.torso, TORSO_W, TORSO_H);
   const front = TORSO_W / 2;
@@ -154,6 +244,7 @@ function paintTorso(g: Ctx, size: number, look: Look, main: string, alt: string,
       g.fillRect(0, 0, TORSO_W, TORSO_H * 0.55);
       stitch(g, shade(main, 0.7), [[0, TORSO_H * 0.55], [TORSO_W, TORSO_H * 0.55]]);
     }
+    rankTorso(g, design, main, alt, rnd);
     if (design === "stripe") {
       g.fillStyle = alt;
       g.fillRect(0, TORSO_H * 0.66, TORSO_W, 0.055);
@@ -251,6 +342,16 @@ function paintSleeves(g: Ctx, size: number, main: string, alt: string, design: H
     R.draw((g) => {
       fleece(g, main, ARM_W, ARM_H, rnd, detail);
       if (sheen) satin(g, ARM_W, ARM_H);
+      // Rank designs: the sleeve's cloth and stripes.
+      const sleeve = design === "adire" ? "#1f2f5c" : design === "bomber" ? "#4b5530" : design === "asooke" ? "#e8dcc0" : design === "royal" ? "#3a1f5c" : design === "armour" ? "#3c4045" : design === "titan" ? "#4a4236" : null;
+      if (sleeve) {
+        g.fillStyle = sleeve;
+        g.fillRect(0, 0.04, ARM_W, ARM_H - 0.04);
+      }
+      if (design === "tracksuit" || design === "royal" || design === "titan") {
+        g.fillStyle = design === "tracksuit" ? "#efeee9" : "#d4a017";
+        for (const x of [ARM_W * 0.47, ARM_W * 0.53]) g.fillRect(x - 0.006, 0.04, 0.012, ARM_H - 0.08);
+      }
       if (design === "block") {
         g.fillStyle = alt;
         g.fillRect(0, ARM_H * 0.62, ARM_W, ARM_H * 0.38);

@@ -363,13 +363,26 @@ export const HOODIE_COLORS: readonly HoodieColor[] = [
   { id: "midnight", name: "Midnight", hex: "#1c1733", product: "outfit_midnight", satin: true },
 ];
 
-export type HoodieDesign = "plain" | "twotone" | "stripe" | "ankara" | "block";
-export const HOODIE_DESIGNS: { id: HoodieDesign; name: string; product?: string }[] = [
+export type HoodieDesign = "plain" | "twotone" | "stripe" | "ankara" | "block" | "tracksuit" | "adire" | "bomber" | "tactical" | "armour" | "asooke" | "royal" | "titan";
+/**
+ * The hoodie's designs. `rank`: a reward of the rank ladder (SPEC-V3 §2.4), worn
+ * from that division on (the game server strips it from anyone below):
+ * streetwear low, tactical gear, armour and the agbada's weaves high.
+ */
+export const HOODIE_DESIGNS: { id: HoodieDesign; name: string; product?: string; rank?: string }[] = [
   { id: "plain", name: "Plain" },
   { id: "twotone", name: "Two-tone" },
   { id: "stripe", name: "Chest stripe" },
   { id: "ankara", name: "Ankara", product: "outfit_ankara" },
   { id: "block", name: "Colour block" },
+  { id: "tracksuit", name: "Tracksuit stripes", rank: "rookie-3" },
+  { id: "adire", name: "Adire indigo", rank: "pro-1" },
+  { id: "bomber", name: "Bomber and cargo", rank: "pro-3" },
+  { id: "tactical", name: "Tactical gear", rank: "legendary-1" },
+  { id: "armour", name: "Armour", rank: "master-1" },
+  { id: "asooke", name: "Agbada: Aso-oke weave", rank: "grandmaster-1" },
+  { id: "royal", name: "Royal Agbada", rank: "mythic-1" },
+  { id: "titan", name: "Titan armour", rank: "titan-1" },
 ];
 export const DESIGN_BY_ID = Object.fromEntries(HOODIE_DESIGNS.map((d) => [d.id, d])) as Record<HoodieDesign, (typeof HOODIE_DESIGNS)[number]>;
 const FREE_HOODIES = HOODIE_COLORS.map((c, i) => (c.product ? -1 : i)).filter((i) => i >= 0);
