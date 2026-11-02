@@ -605,7 +605,49 @@ export const SURVIVAL = {
   finish: 6,
   /** The sky laser at 0 health: this long after. */
   laser: 1.2,
+  // ── Phase 8 (§3.4) ──
+  /** The eight kinds: walk and lunge (m/s), health, and how the director weighs them early and late in the run. */
+  kinds: {
+    shambler: { walk: 1.7, lunge: 3.6, hp: 100, early: 10, late: 4 },
+    runner: { walk: 3.8, lunge: 5.2, hp: 70, early: 1, late: 3 },
+    crawler: { walk: 1.1, lunge: 2.4, hp: 60, early: 1, late: 2 },
+    bloater: { walk: 1.2, lunge: 1.8, hp: 60, early: 0.5, late: 1.5 },
+    screamer: { walk: 1.6, lunge: 3, hp: 50, early: 0.3, late: 1 },
+    brute: { walk: 1.5, lunge: 6.5, hp: 240, early: 0, late: 1 },
+    lurker: { walk: 0.8, lunge: 1.5, hp: 80, early: 0, late: 0 },
+    masked: { walk: 1.9, lunge: 3.8, hp: 100, early: 0, late: 1 },
+  },
+  /** Torch stun: the beam on a Runner's face this long staggers it this long, for this much battery. */
+  beam: { hold: 0.6, stagger: 1.6, cost: 3, range: 12, cone: 0.42 },
+  /** A Bloater's gas: within r when it bursts, slowed ×k for s. A Screamer screams after `scream` s awake, bringing `brings`. A Brute charges from 4–14 m and is stunned by a wall. */
+  gas: { r: 2.6, s: 4, k: 0.6 },
+  scream: { after: 4, brings: 4 },
+  brute: { from: 4, to: 14, stun: 3, dmg: 25 },
+  /** Noise: what each thing adds, how fast it fades (a second), and the spawn gap it takes off at most. */
+  noise: { sprint: 0.6, shot: 4, blow: 2, fade: 0.35, most: 0.7 },
+  /** The bounty zombie: about this far along it carries the gold key; the vault is a little further on. */
+  bounty: { at: 0.35, vault: 0.5 },
+  caches: 8,
+  /** The Last Stand at the Mast: hold within r for s while the gate grinds open. */
+  stand: { s: 45, r: 15 },
+  /** Medals: finish in under these (s); flawless is no damage taken. */
+  medals: { gold: 540, silver: 660, bronze: 780 },
+  /** Rank weapons (§3.4 #8). Dane gun: a spread at close range, slow; Thunder Pestle: knocks a group down, slow; Gen-Set Torch: a flame jet, loud. */
+  dane: { range: 12, cone: 0.6, dmg: 70, every: 1.1, most: 3, rounds: 2 },
+  pestle: { reach: 2.4, cone: 1.4, dmg: 45, every: 1.2, stagger: 1.5, knock: 2.5 },
+  flame: { range: 7, cone: 0.5, dmg: 35, every: 0.4 },
 } as const;
+
+export type ZombieKind = keyof typeof SURVIVAL.kinds;
+export const ZOMBIE_KINDS = Object.keys(SURVIVAL.kinds) as ZombieKind[];
+export type RunWeapon = "pistol" | "dane" | "pestle" | "flame";
+export type RunPerk = "breath" | "quiet" | "eagle" | "mule" | "steady";
+export type RunCharm = "notorch" | "melee" | "six";
+export type RunMutator = "haze" | "runners" | "onebullet" | "notorch";
+/** Juju charms' XP (§3.4 #21), multiplied, ×1.5 at most. */
+export const CHARM_XP: Record<RunCharm, number> = { notorch: 1.15, melee: 1.2, six: 1.15 };
+/** The rank each weapon needs (§2.4): Dane gun Pro, Thunder Pestle Legendary, Gen-Set Torch Master. */
+export const WEAPON_RANK: Record<RunWeapon, string> = { pistol: "rookie-1", dane: "pro-1", pestle: "legendary-1", flame: "master-1" };
 
 /** Compound Wars (SPEC-V3 §9 #7; Phase 6): the courtyard's rooms and doors. */
 export const ROOMS = {

@@ -53,6 +53,11 @@ export type Target = { item: GroundItem; bag?: undefined } | { bag: LootBag; ite
 export class ItemsModule implements RuleModule {
   readonly id = "items" as const;
   readonly items: GroundItem[] = [];
+
+  /** A backpack's slots in this match (Dead Streets' Pack Mule and the six-slot charm change it). */
+  private size(m: Match): number {
+    return m.module<SurvivalModule>("survival")?.slots(LOOT.slots) ?? LOOT.slots;
+  }
   readonly bags: LootBag[] = [];
   packs: Pack[] = [];
   readonly table: string;
@@ -64,7 +69,7 @@ export class ItemsModule implements RuleModule {
   }
 
   init(m: Match): void {
-    this.packs = m.contestants.map(() => new Array<ItemId | null>(LOOT.slots).fill(null));
+    this.packs = m.contestants.map(() => new Array<ItemId | null>(this.size(m)).fill(null));
     this.scatter(m);
   }
 
@@ -122,14 +127,14 @@ export class ItemsModule implements RuleModule {
       const c = m.get(e.id);
       if (!c) return;
       const kinds = this.packs[c.index].filter((k): k is ItemId => k !== null);
-      this.packs[c.index] = new Array<ItemId | null>(LOOT.slots).fill(null);
+      this.packs[c.index] = new Array<ItemId | null>(this.size(m)).fill(null);
       if (!kinds.length) return;
       const bag: LootBag = { index: this.bags.length, id: c.id, x: e.x, z: e.z, h: e.h, at: m.elapsed, kinds };
       this.bags.push(bag);
       m.emit({ type: "bag", bag: bag.index, id: c.id, x: bag.x, z: bag.z, h: bag.h, kinds: kinds.slice() });
     } else if (e.type === "respawn") {
       const c = m.get(e.id);
-      if (c) this.packs[c.index] = new Array<ItemId | null>(LOOT.slots).fill(null);
+      if (c) this.packs[c.index] = new Array<ItemId | null>(this.size(m)).fill(null);
     }
   }
 
@@ -296,7 +301,7 @@ export class ItemsModule implements RuleModule {
       }
       case "eliminated":
       case "respawn":
-        if (c && e.type === "respawn") this.packs[c.index] = new Array<ItemId | null>(LOOT.slots).fill(null);
+        if (c && e.type === "respawn") this.packs[c.index] = new Array<ItemId | null>(this.size(m)).fill(null);
         break;
     }
   }

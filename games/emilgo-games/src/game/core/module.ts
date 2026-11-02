@@ -135,7 +135,7 @@ export type MatchEvent =
   | { type: "zip"; id: string; zip: number; how: "on" | "off"; at: number }
   // ── Dead Streets (Phase 7, survival.ts) ──
   /** A zombie rises out of the ground (it can't move for SURVIVAL.rise s). */
-  | { type: "zrise"; id: string; x: number; z: number; h: number }
+  | { type: "zrise"; id: string; x: number; z: number; h: number; kind?: string; bounty?: boolean }
   /** A zombie is put down (by whom; a head shot). */
   | { type: "zdie"; id: string; by: string | null; head: boolean }
   /** A zombie's claw lands: tg's health and armour now. */
@@ -149,7 +149,20 @@ export type MatchEvent =
   /** An obstacle's hazard caught someone (health now). */
   | { type: "hazard"; hz: number; id: string; hp: number }
   /** Health back (an item, a sanctuary), armour on, ammo, battery: the runner's numbers now. */
-  | { type: "kit"; id: string; hp: number; armour: number; ammo: number; torch: number; why: "item" | "sanctuary" };
+  | { type: "kit"; id: string; hp: number; armour: number; ammo: number; torch: number; why: "item" | "sanctuary" }
+  // ── Dead Streets' extras (Phase 8) ──
+  /** A find: a cache opened, lore read (n: which piece), the vault opened, the bounty's gold key (k −1); the items it gave. */
+  | { type: "find"; id: string; k: number; kind: "cache" | "lore" | "vault" | "key" | "egg"; n: number; items: ItemId[] }
+  /** The torch staggered a Runner (or a wall stopped a Brute). */
+  | { type: "beam"; id: string }
+  /** A Bloater burst; a Screamer screamed; a Brute charges; a Lurker has your legs; a horde comes (the drum). */
+  | { type: "gas"; id: string; x: number; z: number }
+  | { type: "scream"; id: string }
+  | { type: "charge"; id: string }
+  | { type: "grabbed"; id: string }
+  | { type: "horde"; id: string }
+  /** The Last Stand at the Mast: hold until `until` (seconds of play). */
+  | { type: "stand"; id: string; until: number };
 
 /** Why someone went down: melee's reasons, then a car's (pulled out, thrown by a blast, out at speed). */
 export type DownWhy = "daze" | "trip" | "tackle" | "throw" | "ringout" | "hijack" | "blast" | "tumble";

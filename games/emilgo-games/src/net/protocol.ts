@@ -63,9 +63,9 @@ export type ClientMsg =
   /** A spectator's vote on where the next Airfall lands (SPEC-V3 §10.6): spot c of the three offered. */
   | { t: "mvote"; c: number }
   /** Dead Streets (Phase 7): ask for a run (the server gives its seed), send where it went in parts, then what it claims. */
-  | { t: "runstart" }
+  | { t: "runstart"; daily?: boolean }
   | { t: "runpart"; id: string; pts: number[] }
-  | { t: "runend"; id: string; secs: number; fin: boolean; kills: number; heads: number; route: number }
+  | { t: "runend"; id: string; secs: number; fin: boolean; kills: number; heads: number; route: number; wp?: string; charm?: number }
   /** Commend a player I just played with (SPEC-V3 §10.12): once a match, soon after it ends. */
   | { t: "commend"; id: string }
   /** A squad ping (SPEC-V3 §10.7): go, help, item, danger, here (k 0–4), at x, z. Only my squad sees it. */
@@ -276,7 +276,7 @@ export type ServerMsg =
   /** A run's id and seed (Dead Streets). */
   | { t: "runtok"; id: string; seed: number }
   /** The server's word on a run: counted (the XP, your best and place, the board's best times) or not, and why. */
-  | { t: "runres"; ok: boolean; why?: string; gain?: number; best?: number; place?: number; board?: { secs: number; you: boolean }[] }
+  | { t: "runres"; ok: boolean; why?: string; gain?: number; best?: number; place?: number; board?: { secs: number; you: boolean }[]; daily?: boolean }
   /** Someone commended you (§10.12); n: your commends now (none for a guest). */
   | { t: "honour"; by: string; n?: number };
 
@@ -410,7 +410,7 @@ export function parseClient(raw: string): ClientMsg | null {
     case "chat":
       return typeof o.text === "string" && o.text.length <= 400 ? { t: "chat", text: o.text } : null;
     case "runstart":
-      return { t: "runstart" };
+      return { t: "runstart", ...(o.daily === true ? { daily: true } : {}) };
     case "runpart": {
       const pts = Array.isArray(o.pts) && o.pts.length <= 600 && o.pts.every((v) => typeof v === "number" && Number.isFinite(v) && Math.abs(v) < 1e4) ? (o.pts as number[]) : null;
       return typeof o.id === "string" && o.id.length <= 32 && pts ? { t: "runpart", id: o.id, pts } : null;
@@ -422,7 +422,7 @@ export function parseClient(raw: string): ClientMsg | null {
       const heads = num(o.heads, 10000);
       const route = num(o.route, 1);
       return typeof o.id === "string" && o.id.length <= 32 && secs !== null && kills !== null && heads !== null && route !== null && typeof o.fin === "boolean"
-        ? { t: "runend", id: o.id, secs, fin: o.fin, kills: Math.floor(kills), heads: Math.floor(heads), route }
+        ? { t: "runend", id: o.id, secs, fin: o.fin, kills: Math.floor(kills), heads: Math.floor(heads), route, ...(typeof o.wp === "string" && o.wp.length <= 12 ? { wp: o.wp } : {}), ...(typeof o.charm === "number" && Number.isFinite(o.charm) ? { charm: Math.max(1, Math.min(1.5, o.charm)) } : {}) }
         : null;
     }
     case "mvote": {

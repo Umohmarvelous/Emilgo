@@ -139,6 +139,12 @@ export class RunBoard {
         at    INTEGER NOT NULL
       );
       CREATE INDEX IF NOT EXISTS runs_secs ON runs (secs);
+      CREATE TABLE IF NOT EXISTS daily (
+        key  TEXT NOT NULL,
+        day  TEXT NOT NULL,
+        secs REAL NOT NULL,
+        PRIMARY KEY (key, day)
+      );
     `);
     this.q = {
       get: this.db.prepare("SELECT secs FROM runs WHERE key = ?"),
@@ -149,6 +155,12 @@ export class RunBoard {
       top: this.db.prepare("SELECT key, secs FROM runs ORDER BY secs ASC LIMIT ?"),
       place: this.db.prepare("SELECT COUNT(*) AS n FROM runs WHERE secs < ?"),
       remove: this.db.prepare("DELETE FROM runs WHERE key = ?"),
+      dput: this.db.prepare(
+        `INSERT INTO daily (key, day, secs) VALUES (?, ?, ?) ON CONFLICT(key, day) DO UPDATE SET secs = excluded.secs WHERE excluded.secs < daily.secs`,
+      ),
+      dtop: this.db.prepare("SELECT key, secs FROM daily WHERE day = ? ORDER BY secs ASC LIMIT ?"),
+      dplace: this.db.prepare("SELECT COUNT(*) AS n FROM daily WHERE day = ? AND secs < (SELECT secs FROM daily WHERE key = ? AND day = ?)"),
+      dremove: this.db.prepare("DELETE FROM daily WHERE key = ?"),
     };
   }
 
@@ -164,7 +176,18 @@ export class RunBoard {
     return (this.q.top.all(n) as { key: string; secs: number }[]).map((r) => ({ secs: Number(r.secs), you: r.key === key }));
   }
 
+  /** The Daily Run's board (§3.4 #10): one per UTC day. */
+  putDaily(key: string, day: string, secs: number): number {
+    this.q.dput.run(key, day, secs);
+    return Number((this.q.dplace.get(day, key, day) as { n: number }).n) + 1;
+  }
+
+  topDaily(day: string, key: string | null, n = 10): BoardEntry[] {
+    return (this.q.dtop.all(day, n) as { key: string; secs: number }[]).map((r) => ({ secs: Number(r.secs), you: r.key === key }));
+  }
+
   remove(key: string): boolean {
+    this.q.dremove.run(key);
     return Number(this.q.remove.run(key).changes) > 0;
   }
 

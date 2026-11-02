@@ -56,6 +56,10 @@ import { Identity, SqliteProfiles, utcDay, type ProfileStore } from "./profiles"
 import { Room } from "./room";
 import { matchXp, runXp } from "../../src/rank/xp";
 import { RunBoard, verifyRun } from "./runs";
+import { dailySeed } from "../../src/game/modules/survival";
+import { rankOf } from "../../src/rank/ladder";
+import { divisionIndex } from "../../src/content/validate";
+import { WEAPON_RANK, type RunWeapon } from "../../src/config";
 import { BOOST_IDS, BOOST_SLOTS } from "../../src/shop/boosts";
 import { allowedLook, type WireLook } from "../../src/shop/catalog";
 import { Shop } from "./shop";
@@ -110,13 +114,18 @@ function withStreak(look: WireLook, streak: number): WireLook {
 
 // Dead Streets runs (Phase 7): asked for, sent in parts, checked (runs.ts), counted.
 const runBoard = new RunBoard(`${process.env.DATA_DIR ?? "./data"}/runs.db`);
-const runs = new Map<string, { id: string; seed: number; at: number; pts: number[] }>();
+const runs = new Map<string, { id: string; seed: number; at: number; pts: number[]; daily: string | null }>();
 
 function runEnd(peer: Peer, msg: Extract<ClientMsg, { t: "runend" }>): void {
   const r = runs.get(peer.id);
   if (!r || r.id !== msg.id) return void peer.send({ t: "runres", ok: false, why: "unknown run" });
   runs.delete(peer.id);
   const claim = { secs: msg.secs, fin: msg.fin, kills: msg.kills, heads: msg.heads, route: msg.route };
+  // A rank weapon only from the rank that gives it (§2.4).
+  const wp = (msg.wp ?? "pistol") as RunWeapon;
+  const need = WEAPON_RANK[wp];
+  const xpNow = peer.profile ? (profiles.get(peer.profile)?.xp ?? 0) : 0;
+  if (!need || rankOf(xpNow).k < divisionIndex(need)) return void peer.send({ t: "runres", ok: false, why: "weapon" });
   const v = verifyRun(r.pts, claim, (Date.now() - r.at) / 1000);
   if (!v.ok) {
     console.log(`run refused: ${v.why}`);
@@ -124,15 +133,17 @@ function runEnd(peer: Peer, msg: Extract<ClientMsg, { t: "runend" }>): void {
   }
   const day = utcDay();
   const had = peer.profile ? profiles.get(peer.profile) : null;
-  const gain = runXp({ finished: msg.fin, seconds: msg.secs, route: msg.fin ? 1 : msg.route, kills: msg.kills, headshots: msg.heads, lore: 0, firstToday: !!peer.profile && had?.lastDay !== day });
+  const gain = runXp({ finished: msg.fin, seconds: msg.secs, route: msg.fin ? 1 : msg.route, kills: msg.kills, headshots: msg.heads, lore: 0, charm: msg.charm ?? 1, firstToday: !!peer.profile && had?.lastDay !== day });
   let best: number | undefined;
   let place: number | undefined;
   if (peer.profile) {
     const p = profiles.award(peer.profile, gain, msg.fin, day);
     peer.send({ t: "rank", xp: p.xp, gain, st: p.streak });
-    if (msg.fin) ({ best, place } = runBoard.put(peer.profile, Math.round(msg.secs * 10) / 10, gain, day));
+    if (msg.fin && r.daily) place = runBoard.putDaily(peer.profile, r.daily, Math.round(msg.secs * 10) / 10);
+    else if (msg.fin) ({ best, place } = runBoard.put(peer.profile, Math.round(msg.secs * 10) / 10, gain, day));
   } else peer.send({ t: "rank", gain, off: 1 });
-  peer.send({ t: "runres", ok: true, gain, ...(best !== undefined ? { best, place } : {}), board: runBoard.top(peer.profile) });
+  const board = r.daily ? runBoard.topDaily(r.daily, peer.profile) : runBoard.top(peer.profile);
+  peer.send({ t: "runres", ok: true, gain, ...(best !== undefined ? { best } : {}), ...(place !== undefined ? { place } : {}), board, ...(r.daily ? { daily: true } : {}) });
 }
 
 // Commends (§10.12): counted on the commended player's profile (a guest just hears it).
@@ -359,8 +370,10 @@ function handle(peer: Peer, msg: ClientMsg): void {
       break;
     case "runstart": {
       const id = randomBytes(6).toString("hex");
-      const seed = randomInt(1, 2 ** 31 - 1);
-      runs.set(peer.id, { id, seed, at: Date.now(), pts: [] });
+      // The Daily Run: one seed for everyone today, its own board.
+      const daily = msg.daily ? utcDay() : null;
+      const seed = daily ? dailySeed(daily) : randomInt(1, 2 ** 31 - 1);
+      runs.set(peer.id, { id, seed, at: Date.now(), pts: [], daily });
       peer.send({ t: "runtok", id, seed });
       break;
     }
