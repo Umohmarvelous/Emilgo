@@ -1,0 +1,57 @@
+# EMILGO Games v4 "Max Mode"
+
+The brief, word for word: [SPEC-V4-ORIGINAL.md](SPEC-V4-ORIGINAL.md). The
+pictures and the first plan: [concepts/index.html](concepts/index.html),
+[concepts/PLAN.md](concepts/PLAN.md) (commit `696b67f`).
+
+**2 Nov 2026: the owner answered and said to build every phase to completion
+without waiting for approval**, keeping performance in mind, testing with
+about 10,000 users, committing and pushing each change, and carrying on by
+itself after each usage-limit reset. Further upgrades come after this build.
+
+v4 wins over SPEC-V3 where they disagree. Everything in SPEC-V3 that v4
+doesn't touch stays (the Lagos Life rules, blood behind the setting, no
+made-up brands, no child zombies, religious sites respected, Ball Haunt
+hidden and untouched).
+
+## Owner's answers (2 Nov 2026)
+
+| # | Question | Answer |
+|---|---|---|
+| 1 | HUD | **A Field Kit**, plus from C (Pulse): the screen edge reddens when hurt; the zone is an orange heat at the edges; C's health and armour arc moves into A, **at the centre** round the crosshair. The minimap stays top right in **the old game's design**. |
+| 1 | Welcome | **Welcome A**, with lobby B's background (the next location, full-bleed). |
+| 1 | Lobby | **Lobby A**, plus from lobby B: the next location full-bleed, this week's rotation, your squad's four slots; READY is styled like the PLAY button and still says PLAY; lobby A's loadout section restyled in HUD A's style. |
+| 2 | FFA damage | 100 health + armour, gun kills, respawns per each mode's rules, the zone laser kept. **Anything shootable can be destroyed.** |
+| 3 | Staked Flag Duel | **Guns too.** |
+| 4 | Loadout | Spawn with a pistol; the bigger guns are loot. |
+| 5 | World | **Bigger, with more players.** |
+| 6 | Hosting | The big world's assets on a CDN (the owner's Cloudflare R2). The app's offline copy keeps the lobby, Practice and a Dead Streets lite. |
+| 7 | Assets | **Free (CC0) first.** Set up Megascans (Fab) and Sketchfab ingestion for when the owner has the accounts. |
+| 8 | Giants | **No giants.** Armour makes you strong and look strong; no growth. The armour's look gets refined later. |
+| 9 | Ball Haunt | Stays hidden and untouched. |
+| 10 | Zombies | A health bar over a zombie while it's being shot, showing its remaining life. |
+| 11 | Size | Compress the heavy assets, keeping the detail; keep only the vital assets, everything else low-poly and compressed. Built to scale towards 1 million players at once. |
+
+## Decisions (made while building; change any by saying so)
+
+| Topic | Decision |
+|---|---|
+| Phase order | Guns before the HUD (the HUD shows ammo, reloads and hit markers), so a phase never redoes another's work. |
+| "1 million users at once" | One server process can't hold that. The build makes each room server stateless between matches and adds a room directory so many machines share the load. Tested here at **10,000 simulated players** (the owner's number); the 1M path is described in README (machines × rooms), not tested. |
+
+## Phases (built back to back, no waiting; each tested, committed, pushed, the test site republished)
+
+1. **Look control.** The touchpad look: anywhere on the right half outside the buttons, invisible by default (a setting shows a faint touch point), a dead zone and an acceleration curve, no snap-back or auto-centring, dragging from FIRE also aims. The move stick gets a fixed 1 px white outline. Settings: sensitivity, vertical ratio, acceleration, dead zone, presets.
+2. **Guns.** Free For All (and the staked Flag Duel) becomes a shooter: spawn with a pistol; assault rifle, SMG and shotgun as loot in six rarities; ADS, recoil, spread, reload; hitscan refereed by the server with the lag rewind; melee stays as backup; 100 health + armour; destructible props (anything shootable breaks). Dead Streets' gun gets the same feel.
+3. **HUD A (Field Kit) hybrid.** For Free For All and Dead Streets: the wrist watch, the plates, the magazine counter, the radio feed; C's arc round the crosshair; the hurt edge; the zone heat; the old minimap top right; hit markers; **zombie health bars**.
+4. **Operators and armour.** Tactical gear on the scanned bodies (helmet, balaclava with the eye slit, plate carrier, gloves, boots), LODs per tier; items fill armour; armour tiers show (heavier plates, no growth).
+5. **Zombies.** The rot material, the eight kinds, emerge / lunge / claw / stagger.
+6. **Max Mode graphics.** A fourth tier, Max (GTAO, god rays, depth of field when aiming, chromatic aberration, a grade per location); helmet and wet-ground reflections; Low still fakes the look.
+7. **The world.** A bigger Free For All world with more players, streamed in cells, new locations, more billboards; the asset pipeline (compression, LODs, the CDN loader, Fab and Sketchfab ingestion waiting for the owner's keys); only the vital assets kept.
+8. **Sound.** A CC0 sample layer, spatial emitters (turbines, the club), music states.
+9. **Screens.** Welcome A, lobby A, the pre-match screen, victory and defeat.
+10. **Scale and performance.** The room directory, the 10,000-player load test, frame rate on throttled CPUs, the whole regression suite, docs and the handoff.
+
+## Status
+
+Nothing built yet. Phase 1 starts next.
