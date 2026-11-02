@@ -112,6 +112,11 @@ const P: Record<string, string> = {
   throw: `<circle cx="8" cy="5" r="2"/><path d="M8 7.5v6l-2.5 6M8 13.5l3 6M8 9.5l4-1.5"/><path d="M13 8.5c3-3 6.5-2.5 8-0.5M21 8l.2-3.2-3 .7"/>`,
   trip: `<circle cx="16" cy="5" r="2"/><path d="M16 7.5l-1.5 6-4.5 2M14.5 13.5l2.5 6"/><path d="M3 20.5h9l-3-3"/>`,
   drag: `<circle cx="17" cy="5" r="2"/><path d="M17 7.5V14l-2 6.5M17 14l2 6.5M17 9.5l-4 2"/><path d="M11 11.5H3.5M6.5 8.5l-3 3 3 3"/>`,
+  heal: `<rect x="4.5" y="4.5" width="15" height="15" rx="3"/><path d="M12 8.5v7M8.5 12h7"/>`,
+  ammo: `<path d="M7 20V9.5a2 2 0 0 1 4 0V20M13 20V9.5a2 2 0 0 1 4 0V20M5.5 20h13M7 12h4M13 12h4"/>`,
+  gun: `<path d="M3.5 9h15l1.5 2h-4v2.5h-3.5l-1 4.5H8l1-4.5H6.5L5.5 11H3.5z"/>`,
+  cutlass: `<path d="M5 19l3-3M7 21l-4-4M8 16 19.5 4.5c.5 3-1 6.5-4.5 9.5L10.5 18"/>`,
+  torch: `<path d="M9 3.5h6l-1 5h-4zM10 8.5h4v11.5h-4zM6.5 2l2 1.5M17.5 2l-2 1.5"/>`,
   bundle: `<path d="M6 11c0-2.5 2.7-4 6-4s6 1.5 6 4l1.5 7a2 2 0 0 1-2 2.5h-11a2 2 0 0 1-2-2.5z"/><path d="M10 7l-1.5-3h7L14 7"/>`,
 };
 

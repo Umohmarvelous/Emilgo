@@ -3,8 +3,11 @@
 //
 //   node server/build-tools.mjs && node server/dist/survivaltest.mjs
 
-import { MOVE } from "../../src/config";
-import { Match, type MatchSettings } from "../../src/game/core/match";
+import { MOVE, SURVIVAL } from "../../src/config";
+import { BUILTIN_MANIFEST } from "../../src/content/modes";
+import { Match, settingsOf, type MatchSettings } from "../../src/game/core/match";
+import type { MatchEvent } from "../../src/game/core/module";
+import type { SurvivalModule } from "../../src/game/modules/survival";
 import { Space } from "../../src/game/core/space";
 import { SURFACE_OF } from "../../src/maps/open/naija";
 import { buildSpookyWorld, routeAt, routeProgress, type Obstacle } from "../../src/maps/open/spooky";
@@ -92,11 +95,204 @@ function walkRoute(): { ok: boolean; seconds: number; stuck: string } {
   }
   const done = k >= pts.length && Math.hypot(me.x - run.finish[0], me.z - run.finish[1]) < 8;
   const stuckAt = obs.find((o) => Math.abs(o.d - lastD) < 15);
-  for (const g of run.gates) layout.solids[g.solid].y0 = g.kind === "floor" ? -0.3 : 0;
+  for (const g of run.gates) [layout.solids[g.solid].y0, layout.solids[g.solid].y1] = g.shut;
   return { ok: done, seconds: m.elapsed, stuck: done ? "" : `stuck ${best.toFixed(0)} m in at (${me.x.toFixed(1)}, ${me.z.toFixed(1)}, h ${me.h.toFixed(1)})${stuckAt ? ` near #${stuckAt.n} ${stuckAt.name}` : ""}` };
 }
 const w = walkRoute();
 check(w.ok, `a body walks the whole route, every obstacle its own way (${(w.seconds / 60).toFixed(1)} min)${w.stuck ? `: ${w.stuck}` : ""}`);
+
+console.log("\nthe run's rules:");
+const DS = BUILTIN_MANIFEST.modes.find((d) => d.id === "dead-streets")!;
+const world = matchWorldOf(layout, space);
+function newRun(seed: number): { m: Match; sv: SurvivalModule; me: ReturnType<Match["get"]> & object } {
+  const st = settingsOf(DS);
+  delete st.modules.items;
+  const m = new Match({ seed, world, settings: st, contestants: [{ id: "me", name: "Me", bot: false }, ...Array.from({ length: SURVIVAL.cap }, (_, i) => ({ id: `z${i}`, name: "Zombie", bot: true, squad: 1 }))], countdown: 0 });
+  while (m.phase !== "play") m.step(DT);
+  return { m, sv: m.module<SurvivalModule>("survival")!, me: m.get("me")! };
+}
+function runFor(m: Match, s: number, out: MatchEvent[] = [], each?: () => void): MatchEvent[] {
+  const end = m.elapsed + s;
+  while (m.elapsed < end - 1e-9 && !m.over) {
+    each?.();
+    m.step(DT);
+    out.push(...m.drain());
+  }
+  return out;
+}
+const put = (m: Match, id: string, x: number, z: number, hd = 0) => {
+  const c = m.get(id)!;
+  c.x = x;
+  c.z = z;
+  c.h = space.floorAt(x, z, 0).h;
+  c.vx = c.vz = c.y = 0;
+  c.heading = hd;
+  return c;
+};
+/** A stretch of street with no obstacle within 25 m, from about `d` metres in. */
+function clearAt(d: number): ReturnType<typeof routeAt> {
+  for (let e = d; e < run.length; e += 3) {
+    const leg = routeAt(run, e).leg;
+    if (e - run.at[leg] > 14 && run.at[leg + 1] - e > 14 && !run.obstacles.some((o) => Math.abs(o.d - e) < 25)) return routeAt(run, e);
+  }
+  return routeAt(run, d);
+}
+let atkN = 0;
+const swing = (m: Match, kind: 1 | 2 | 3) => m.setActions("me", ((++atkN & 63) << 2) | kind, 0);
+{
+  const { m, sv, me } = newRun(11);
+  check(Math.hypot(me.x - run.start[0], me.z - run.start[1]) < 1 && m.contestants.slice(1).every((z) => z.status !== "alive"), "you start at the Motor Park; the zombies sleep in the pool");
+  const ev = runFor(m, 45);
+  const rises = ev.filter((e) => e.type === "zrise") as Extract<MatchEvent, { type: "zrise" }>[];
+  const seen = rises.filter((r) => space.lineClear(me.x, me.z, r.x, r.z, me.h + 1.6)).length;
+  const far = Math.max(...rises.map((r) => Math.hypot(r.x - run.start[0], r.z - run.start[1])));
+  check(rises.length >= 4 && far <= SURVIVAL.spawn.far + 4, `the director raises ${rises.length} in 45 s, 16–34 m off (the furthest ${far.toFixed(0)} m)`);
+  check(seen <= Math.ceil(rises.length * 0.25), `mostly out of your sight (${seen} of ${rises.length} in view)`);
+  const hp0 = sv.hp;
+  const claws = ev.filter((e) => e.type === "claw").length;
+  check(claws > 0 && sv.hp < hp0 + 1, `standing still, they reach you and claw (${claws} claws, health ${Math.round(sv.hp)})`);
+}
+{
+  // A zombie behind a building finds its way round (the flow field).
+  const { m, me } = newRun(12);
+  const p = routeAt(run, 300);
+  put(m, "me", p.x, p.z);
+  const z = m.get("z0")!;
+  // A free cell 20 m off with no straight line to you.
+  let spot: [number, number] | null = null;
+  for (let a = 0; a < 64 && !spot; a++) {
+    const x = p.x + Math.sin(a) * 18;
+    const zz = p.z + Math.cos(a) * 18;
+    const k = m.reach.cell(x, zz);
+    if (k >= 0 && m.reach.free[k] && !space.lineClear(p.x, p.z, x, zz, 1.4)) spot = [x, zz];
+  }
+  const sv = m.module<SurvivalModule>("survival")!;
+  (sv as unknown as { rise(m: Match, z: object, x: number, zz: number): void }).rise(m, z, spot![0], spot![1]);
+  const d0 = Math.hypot(z.x - me.x, z.z - me.z);
+  runFor(m, 20, [], () => { me.inX = me.inZ = 0; });
+  const d1 = Math.hypot(z.x - me.x, z.z - me.z);
+  check(!!spot && d1 < 2.5, `a zombie out of sight ${d0.toFixed(0)} m off, round the walls, reaches you (${d1.toFixed(1)} m)`);
+}
+{
+  // The gun: two body shots or one head; the cutlass; a shove.
+  const { m, sv } = newRun(13);
+  const p = clearAt(520);
+  put(m, "me", p.x, p.z, Math.atan2(p.ux, p.uz));
+  const z = m.get("z1")!;
+  (sv as unknown as { rise(m: Match, z: object, x: number, zz: number): void }).rise(m, z, p.x + p.ux * 10, p.z + p.uz * 10);
+  runFor(m, SURVIVAL.rise + 0.1, [], () => { z.inX = z.inZ = 0; });
+  const ammo0 = sv.ammo;
+  sv.hp = 100;
+  const ev: MatchEvent[] = [];
+  for (let k = 0; k < 3 && z.status === "alive"; k++) {
+    swing(m, 2);
+    runFor(m, 0.4, ev);
+  }
+  const shots = ev.filter((e) => e.type === "shot") as Extract<MatchEvent, { type: "shot" }>[];
+  check(shots.length >= 1 && shots.length <= 2 && z.status !== "alive" && sv.ammo === ammo0 - shots.length && sv.tally.kills === 1, `the gun: down in ${shots.length} shot${shots.length > 1 ? "s" : ""}${shots.some((s) => s.head) ? " (a head shot)" : ""}, ${shots.length} rounds gone`);
+  const z2 = m.get("z2")!;
+  (sv as unknown as { rise(m: Match, z: object, x: number, zz: number): void }).rise(m, z2, p.x + p.ux * 1.4, p.z + p.uz * 1.4);
+  runFor(m, SURVIVAL.rise + 0.05);
+  const ev2: MatchEvent[] = [];
+  for (let k = 0; k < 8 && z2.status === "alive"; k++) {
+    swing(m, 1);
+    runFor(m, 0.6, ev2);
+  }
+  check(z2.status !== "alive" && ev2.filter((e) => e.type === "blow" && e.tg === "z2").length === 3, "the cutlass: three blows that land put one down");
+  // Out of ammo: no shot.
+  sv.ammo = 0;
+  const ev3 = runFor(m, 0.4, [], () => {});
+  swing(m, 2);
+  runFor(m, 0.4, ev3);
+  check(!ev3.some((e) => e.type === "shot"), "no rounds: the gun clicks (no shot)");
+}
+{
+  // The gates: three blows, a key, the generator, the floor.
+  const { m, sv, me } = newRun(14);
+  const byKind = (k: string) => run.gates.find((g) => g.kind === k)!;
+  const bar = byKind("barricade");
+  put(m, "me", bar.x, bar.z);
+  const s = layout.solids[bar.solid];
+  me.x -= Math.sin(s.rot) * 1.4;
+  me.z -= Math.cos(s.rot) * 1.4;
+  const ev: MatchEvent[] = [];
+  for (let k = 0; k < 3; k++) {
+    swing(m, 1);
+    runFor(m, 0.6, ev);
+  }
+  check(sv.open.has(bar.id) && s.y0 > 50, "a barricaded door: three blows and it's open");
+  const kg = byKind("key");
+  put(m, "me", kg.key![0], kg.key![1]);
+  runFor(m, 0.1);
+  put(m, "me", kg.x - Math.sin(layout.solids[kg.solid].rot) * 1.3, kg.z - Math.cos(layout.solids[kg.solid].rot) * 1.3);
+  m.setInteract("me", 1, false);
+  runFor(m, 0.1);
+  check(sv.keys.has(kg.id) && sv.open.has(kg.id), "the gateman's gate: his keys from the post, then it opens");
+  const gg = byKind("generator");
+  put(m, "me", gg.sw![0], gg.sw![1]);
+  m.setInteract("me", 2, false);
+  runFor(m, 0.1);
+  const shut = !sv.open.has(gg.id);
+  put(m, "me", gg.fuel![0], gg.fuel![1]);
+  runFor(m, 0.1);
+  put(m, "me", gg.sw![0], gg.sw![1]);
+  m.setInteract("me", 3, false);
+  runFor(m, 0.1);
+  check(shut && sv.fuel.has(gg.id) && sv.open.has(gg.id), "the generator gate: the switch does nothing until the fuel is in");
+  const fl = byKind("floor");
+  put(m, "me", fl.x, fl.z);
+  runFor(m, 0.5);
+  check(sv.open.has(fl.id) && me.h < -2, `the floor gives way: down to the basement (${me.h.toFixed(1)} m)`);
+}
+{
+  // Hazards, sanctuary, bleed, the laser, the Mast.
+  const { m, sv, me } = newRun(15);
+  const spark = run.hazards.find((h) => h.kind === "spark")!;
+  put(m, "me", spark.x, spark.z);
+  const ev = runFor(m, spark.period + 0.2, [], () => { me.inX = me.inZ = 0; });
+  check(ev.some((e) => e.type === "hazard" && e.hz === spark.id), `a live power line catches you on its beat (health ${Math.round(sv.hp)})`);
+  const sa = run.sanctuaries[0];
+  put(m, "me", sa.x, sa.z);
+  sv.hp = 50;
+  const ev2 = runFor(m, 12, [], () => { me.inX = me.inZ = 0; });
+  check(sv.hp > 60 && sv.hp <= 50 + SURVIVAL.heal.most + 0.01 && !ev2.some((e) => e.type === "claw"), `a sanctuary: quiet, health back (${Math.round(sv.hp)}), no claws`);
+  swing(m, 2);
+  check(!runFor(m, 0.2).some((e) => e.type === "shot"), "no weapons in a sanctuary");
+}
+{
+  const { m, sv, me } = newRun(16);
+  const p = routeAt(run, 200);
+  put(m, "me", p.x, p.z);
+  // Time on to the bleed (the zombies held off).
+  const zs = m.contestants.slice(1);
+  runFor(m, 725, [], () => {
+    for (const z of zs) if (z.status === "alive") { z.status = "eliminated"; }
+    sv.hp = Math.max(sv.hp, 100);
+  });
+  const h0 = sv.hp;
+  runFor(m, 5, [], () => { for (const z of zs) z.status = "eliminated"; });
+  check(h0 - sv.hp > 4 && h0 - sv.hp < 6, `after 12:00 the bleed: ${(h0 - sv.hp).toFixed(1)}% in 5 s`);
+  sv.hp = 0.5;
+  const ev = runFor(m, 3);
+  check(ev.some((e) => e.type === "laser") && me.status === "eliminated" && m.over && !sv.tally.finished, "at 0 health the sky laser, and the run is over");
+}
+{
+  const { m, sv } = newRun(17);
+  put(m, "me", run.finish[0] - 3, run.finish[1]);
+  const ev = runFor(m, 0.2);
+  check(ev.some((e) => e.type === "won") && sv.tally.finished && m.over, "at the Mast: the run is won");
+}
+{
+  const { m, sv } = newRun(18);
+  const p = routeAt(run, 600);
+  put(m, "me", p.x, p.z);
+  runFor(m, 60, [], () => (sv.hp = 100));
+  const t1 = performance.now();
+  runFor(m, 10, [], () => (sv.hp = 100));
+  const us = ((performance.now() - t1) / 600) * 1000;
+  const awake = m.contestants.slice(1).filter((z) => z.status === "alive").length;
+  check(us < 400, `a step with ${awake} awake: ${us.toFixed(0)} µs`);
+}
 void MOVE;
 
 console.log(failures ? `\n${failures} FAILED` : "\nall passed");

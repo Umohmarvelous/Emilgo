@@ -573,6 +573,40 @@ export const ZIPS = {
   apart: 90,
 } as const;
 
+/** Dead Streets (SPEC-V3 §3; Phase 7): the rules' numbers. */
+export const SURVIVAL = {
+  /** Zombies awake at once (the rules: the same for everyone, whatever the phone draws). */
+  cap: 20,
+  /** A zombie: rises over `rise` s; shambles at `walk`, lunges at `lunge` m/s within `lungeR` m for `lungeS` s. */
+  rise: 2.5,
+  walk: 1.7,
+  lunge: 3.6,
+  lungeR: 2.6,
+  lungeS: 0.55,
+  hp: 100,
+  /** Its claw: within `reach` m, every `every` s, this much health. */
+  claw: { reach: 1.15, every: 1.3, dmg: 9 },
+  /** The flow field: rebuilt this often (s) within this radius (m) of you. */
+  flow: { every: 0.25, r: 40 },
+  /** The director: spawns `near`–`far` m from you, out of sight. Build, peak, relief (s), and the gap between spawns in each. */
+  spawn: { near: 16, far: 34, build: 40, peak: 18, relief: 20, gaps: [3.2, 1.1, 9] },
+  /** You: health, armour takes `armourShare` of a hit; the bleed after `bleedAfter` s (the mode can say). */
+  you: { hp: 100, armourShare: 0.5, ammo: 24, torch: 100 },
+  /** Weapons. Gun: within `range` m and `cone` rad of where you face; `dmg` a body shot, a head kills (likelier close). Cutlass and shove. */
+  gun: { range: 28, cone: 0.35, dmg: 50, every: 0.32, headNear: 0.6, headFar: 0.15 },
+  cutlass: { reach: 1.9, cone: 1.0, dmg: 40, every: 0.55, stagger: 0.6, knock: 0.6 },
+  shove: { reach: 1.7, cone: 1.2, dmg: 5, every: 0.8, stagger: 1.2, knock: 3 },
+  /** A barricade or a hedge breaks after this many blows; a gate's things are picked up from this close. */
+  blows: 3,
+  reach: 1.6,
+  /** Sanctuary: health back a second, at most this much a visit. */
+  heal: { rate: 1.5, most: 15 },
+  /** At the Mast: the run is done this close. */
+  finish: 6,
+  /** The sky laser at 0 health: this long after. */
+  laser: 1.2,
+} as const;
+
 /** Compound Wars (SPEC-V3 §9 #7; Phase 6): the courtyard's rooms and doors. */
 export const ROOMS = {
   /** Tap a door from this close (either side); hold this long inside to jam it shut, for `jam` s. */

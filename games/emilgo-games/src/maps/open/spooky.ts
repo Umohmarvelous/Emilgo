@@ -68,8 +68,9 @@ export type GateKind = "barricade" | "hedge" | "key" | "generator" | "floor";
 export interface Gate {
   id: number;
   kind: GateKind;
-  /** Index into the layout's solids. */
+  /** Index into the layout's solids, and its bottom and top while shut. */
   solid: number;
+  shut: [number, number];
   x: number;
   z: number;
   /** Where its key or the generator's fuel lies, and the switch. */
@@ -350,7 +351,7 @@ function obstacles(run: SpookyRun, solids: Solid[], rng: Rng): { obstacles: Obst
     };
     const gate = (kind: GateKind, solid: number, extra: Partial<Gate> = {}): void => {
       const [x, z] = [solids[solid].x, solids[solid].z];
-      gates.push({ id: gates.length, kind, solid, x, z, ...extra });
+      gates.push({ id: gates.length, kind, solid, shut: [solids[solid].y0, solids[solid].y1], x, z, ...extra });
     };
     const ob: Obstacle = { n, name: NAMES[n], x: c.x, z: c.z, d, how: "walk" };
     switch (n) {

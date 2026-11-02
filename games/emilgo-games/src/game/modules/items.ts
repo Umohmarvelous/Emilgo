@@ -19,6 +19,7 @@ import type { Contestant } from "../core/body";
 import type { Match } from "../core/match";
 import type { MatchEvent, RuleModule } from "../core/module";
 import type { GadgetsModule } from "./gadgets";
+import type { SurvivalModule } from "./survival";
 import type { TagModule } from "./tag";
 import type { VehiclesModule } from "./vehicles";
 
@@ -233,6 +234,10 @@ export class ItemsModule implements RuleModule {
         break;
       case "call":
         if (!m.module<VehiclesModule>("vehicles")?.canCall(m, c)) return;
+        break;
+      case "survival":
+        // Dead Streets': survival.ts does it when it hears the "use" (if it would do anything now).
+        if (!m.module<SurvivalModule>("survival")?.can(m, c, kind)) return;
         break;
       case "gadget":
         // The §10 items: gadgets.ts does it when it hears the "use" (if it can be done now).

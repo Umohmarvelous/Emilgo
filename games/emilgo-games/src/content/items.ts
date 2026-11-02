@@ -13,7 +13,8 @@ export type ItemId =
   | "kola" | "pepper-soup" | "zobo" | "iron-wrapper" | "big-bag" | "smoke-pot" | "banana-peel"
   | "pepper-powder" | "megaphone" | "slipper" | "decoy-flag" | "talking-drum" | "aso-ebi"
   | "golden-slipper" | "zone-shield" | "jerrycan" | "danfo-key"
-  | "zanku" | "shaku" | "odogwu" | "breakdance";
+  | "zanku" | "shaku" | "odogwu" | "breakdance"
+  | "bandage" | "medkit" | "ammo" | "armour" | "battery" | "nv";
 
 export type ItemEffect =
   /** Faster for a while: run and sprint × mult. */
@@ -33,7 +34,9 @@ export type ItemEffect =
   | { kind: "fuel" }
   | { kind: "call" }
   /** The §10 items (Phase 6): what each does is in modules/gadgets.ts. */
-  | { kind: "gadget" };
+  | { kind: "gadget" }
+  /** Dead Streets' (Phase 7): what each does is in modules/survival.ts. */
+  | { kind: "survival" };
 
 export interface ItemDef {
   id: ItemId;
@@ -83,6 +86,13 @@ export const ITEM_DEFS: Record<ItemId, ItemDef> = {
   shaku: { ...def("shaku", "Shaku Shield", "Shaku Shield", "2 s nobody can knock you back, then 2 s slow", "2 seconds nobody fit push you, then 2 seconds slow", { kind: "gadget" }, false, "melee"), counter: { en: "Wait it out, then hit them while they're slow", pcm: "Wait make e finish, then hit dem as dem slow" } },
   odogwu: { ...def("odogwu", "Odogwu Pose", "Odogwu Pose", "At an objective: +10% for your squad for 4 s; you're rooted", "For objective: +10% for your squad for 4 seconds; you no fit move", { kind: "gadget" }, false, "melee"), counter: { en: "A posing body can't move: push them off it", pcm: "Person wey dey pose no fit move: push am comot" } },
   breakdance: { ...def("breakdance", "Breakdance Sweep", "Breakdance Sweep", "Trips everyone round you; you're Dazed after", "E go trip everybody round you; you go hang after", { kind: "gadget" }, false, "melee"), counter: { en: "Jump it, brace, or stand back and hit them after", pcm: "Jump am, brace, or stand far then hit dem after" } },
+  // Dead Streets' (Phase 7: modules/survival.ts).
+  bandage: def("bandage", "Bandage", "Bandage", "+25 health", "+25 health", { kind: "survival" }, false, "survival"),
+  medkit: def("medkit", "First-aid Kit", "First-aid Box", "+60 health", "+60 health", { kind: "survival" }, false, "survival"),
+  ammo: def("ammo", "Ammo Box", "Bullet Box", "+12 rounds", "+12 bullets", { kind: "survival" }, false, "survival"),
+  armour: def("armour", "Armour Vest", "Armour Vest", "+50 armour: takes half of every hit", "+50 armour: e go take half of every hit", { kind: "survival" }, false, "survival"),
+  battery: def("battery", "Battery", "Battery", "Fills your torch", "E go full your torch", { kind: "survival" }, false, "survival"),
+  nv: def("nv", "Night Vision", "Night Vision", "See in the dark for 60 s", "See for dark for 60 seconds", { kind: "survival" }, false, "survival"),
   // Vehicles' (Phase 5).
   jerrycan: def("jerrycan", "Fuel Jerrycan", "Fuel Jerrycan", "+15 s of fuel for the car you're in or beside", "+15 seconds fuel for the motor wey you dey inside or near", { kind: "fuel" }, true, "vehicles"),
   "danfo-key": def("danfo-key", "Danfo Key", "Danfo Key", "Calls a danfo to the road nearby", "E go call danfo come the road wey near", { kind: "call" }, true, "vehicles"),
@@ -98,6 +108,7 @@ export const LOOT_TABLES: Record<string, LootTable> = {
     ["zanku", 1], ["shaku", 1], ["odogwu", 1], ["breakdance", 0.8],
   ],
   airfall: [["golden-slipper", 1], ["zone-shield", 1], ["jerrycan", 1], ["danfo-key", 1]],
+  "ds-core": [["bandage", 5], ["medkit", 1.5], ["ammo", 6], ["armour", 1.2], ["battery", 3], ["nv", 0.8]],
 };
 
 /**

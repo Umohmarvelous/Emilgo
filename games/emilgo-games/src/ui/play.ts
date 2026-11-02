@@ -55,6 +55,7 @@ export const ITEM_ICON: Record<ItemId, string> = {
   "smoke-pot": "fog", "banana-peel": "trip", "pepper-powder": "fire", megaphone: "horn", slipper: "bundle", "decoy-flag": "flag",
   "talking-drum": "signal", "aso-ebi": "outfit", "golden-slipper": "bundle", jerrycan: "fuel", "danfo-key": "car",
   zanku: "dance", shaku: "fire", odogwu: "crown", breakdance: "dance",
+  bandage: "heal", medkit: "heal", ammo: "ammo", armour: "brace", battery: "bolt", nv: "eye",
 };
 
 export function itemName(k: ItemId): string {

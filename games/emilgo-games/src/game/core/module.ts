@@ -132,7 +132,24 @@ export type MatchEvent =
   /** The danfo sweeping the main road shoved tg: their slide and wobble now. */
   | { type: "danfo"; tg: string; kx: number; kz: number; w: number }
   /** Onto a rooftop zip-line, or off at its foot (at: seconds of play). */
-  | { type: "zip"; id: string; zip: number; how: "on" | "off"; at: number };
+  | { type: "zip"; id: string; zip: number; how: "on" | "off"; at: number }
+  // ── Dead Streets (Phase 7, survival.ts) ──
+  /** A zombie rises out of the ground (it can't move for SURVIVAL.rise s). */
+  | { type: "zrise"; id: string; x: number; z: number; h: number }
+  /** A zombie is put down (by whom; a head shot). */
+  | { type: "zdie"; id: string; by: string | null; head: boolean }
+  /** A zombie's claw lands: tg's health and armour now. */
+  | { type: "claw"; id: string; tg: string; hp: number; armour: number }
+  /** A shot (tg: who it hit, or nobody), and the rounds left. */
+  | { type: "shot"; id: string; tg: string | null; head: boolean; ammo: number }
+  /** A melee blow (the cutlass or a shove) on a zombie, or on a gate. */
+  | { type: "blow"; id: string; tg: string | null; gate: number; kind: "cutlass" | "shove" }
+  /** A gate: hit (blows so far), a key or fuel picked up, opened. */
+  | { type: "dgate"; gate: number; how: "hit" | "key" | "fuel" | "open"; id: string | null; n: number }
+  /** An obstacle's hazard caught someone (health now). */
+  | { type: "hazard"; hz: number; id: string; hp: number }
+  /** Health back (an item, a sanctuary), armour on, ammo, battery: the runner's numbers now. */
+  | { type: "kit"; id: string; hp: number; armour: number; ammo: number; torch: number; why: "item" | "sanctuary" };
 
 /** Why someone went down: melee's reasons, then a car's (pulled out, thrown by a blast, out at speed). */
 export type DownWhy = "daze" | "trip" | "tackle" | "throw" | "ringout" | "hijack" | "blast" | "tumble";

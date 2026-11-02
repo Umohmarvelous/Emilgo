@@ -38,6 +38,7 @@ import type { MatchEvent, MatchPhase, RuleModule } from "./module";
 import { reachOf, type Reach } from "./reach";
 import type { CourtRoom } from "../../maps/open/prefabs";
 import type { Space } from "./space";
+import type { SpookyRun } from "../../maps/open/spooky";
 
 export interface Zip {
   /** The roof's floor at the anchor. */
@@ -69,6 +70,8 @@ export interface MatchWorld {
   readonly named?: readonly { id: string; x: number; z: number; r: number }[];
   /** The street generators (Lights Out: they run in a power cut, light what's near, and shock what touches them). */
   readonly generators?: readonly { x: number; z: number }[];
+  /** Dead Streets' route, obstacles, sanctuaries and the Mast (Spooky World only). */
+  readonly run?: SpookyRun;
   /** Rooftop zip-lines (§10.21): from a roof (x0, z0 on a roof at `roof`; cable height h0) down to the street (x1, z1, h1). One way. */
   readonly zips?: readonly Zip[];
   /** A mode played on part of the world (the Flag Duel): that circle is the zone's first. */

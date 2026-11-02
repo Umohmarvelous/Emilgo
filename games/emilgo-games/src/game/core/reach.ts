@@ -25,6 +25,8 @@ export interface Reach {
   readonly open: Int32Array;
   /** 1 for the cells in `open`. */
   readonly ground: Uint8Array;
+  /** 1 where a standing body fits, joined to the start or not (a shut gate can cut a world in two). */
+  readonly free: Uint8Array;
   /** Is (x, z) walkable ground joined to the rest? */
   at(x: number, z: number): boolean;
   /** The cell (x, z) falls in, or −1 off the grid. */
@@ -116,6 +118,7 @@ export function reachOf(space: Space, from: readonly [number, number]): Reach {
     h,
     open: Int32Array.from(open),
     ground,
+    free,
     at: (x, z) => {
       const i = cell(x, z);
       return i >= 0 && ok[i] === 1;

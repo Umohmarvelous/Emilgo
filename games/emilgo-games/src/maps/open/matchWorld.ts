@@ -8,6 +8,7 @@ import type { MatchWorld, Zip } from "../../game/core/match";
 import type { Space } from "../../game/core/space";
 import type { OpenLayout } from "./naija";
 import { courtyardRooms, storeyP, type PrefabId } from "./prefabs";
+import type { SpookyRun } from "./spooky";
 
 /** Where a flag can be hidden: inside a danfo, a water tank, under a stall, by the bell tower … */
 const STASH_PREFABS: ReadonlySet<PrefabId> = new Set<PrefabId>(["danfo", "kiosk", "wreck", "generator", "busstop", "borehole", "carriage", "okada", "hut", "watertower", "church", "market", "suya", "mechanic", "carpenter", "barber"]);
@@ -137,5 +138,8 @@ export function matchWorldOf(layout: OpenLayout, space: Space, map = layout.id):
   const court = layout.placements.find((p) => p.prefab === "courtyard");
   const rooms = court ? courtyardRooms(court) : [];
   const named = [...layout.landmarks.map((l) => ({ id: l.id, x: l.x, z: l.z, r: 18 })), ...layout.areas.map((a) => ({ id: a.id, x: a.x, z: a.z, r: a.r }))];
+  // Spooky World: Dead Streets' run, from the Motor Park.
+  const run = (layout as { run?: SpookyRun }).run;
+  if (run) return { space, spawns: [run.start], places, roads, named, run };
   return { space, spawns, places, stash, route: NAIJA_ROUTE, roads, fuel: fuelStands(layout), generators, named, rooms, ...(arena ? { arena } : { zips: zipLines(layout, space) }) };
 }
