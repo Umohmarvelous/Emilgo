@@ -63,24 +63,8 @@ export interface Find {
 }
 
 /** A medal for a finished run (§3.4 #16). */
-export function medalOf(t: Pick<RunTally, "finished" | "seconds">): "gold" | "silver" | "bronze" | null {
-  if (!t.finished) return null;
-  const M = SURVIVAL.medals;
-  return t.seconds <= M.gold ? "gold" : t.seconds <= M.silver ? "silver" : t.seconds <= M.bronze ? "bronze" : null;
-}
-
-/** This week's run mutator (§3.4 #11): none, Harmattan Haze, Double Runners, One Bullet, No Torch in turn (Monday to Sunday, UTC). */
-export function runMutator(ms: number): RunMutator | undefined {
-  const week = Math.floor((ms / 86_400_000 + 3) / 7);
-  return ([undefined, "haze", "runners", "onebullet", "notorch"] as const)[((week % 5) + 5) % 5];
-}
-
-/** The Daily Run's seed (§3.4 #10): one for everyone, from the UTC day. */
-export function dailySeed(day: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < day.length; i++) h = Math.imul(h ^ day.charCodeAt(i), 16777619);
-  return ((h >>> 0) % 2147483646) + 1;
-}
+// medalOf, runMutator and dailySeed live in weekly.ts (the lobby uses them without this module).
+export { dailySeed, medalOf, runMutator } from "../weekly";
 
 export class SurvivalModule implements RuleModule {
   readonly id = "survival" as const;

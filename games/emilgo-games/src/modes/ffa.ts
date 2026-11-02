@@ -23,6 +23,7 @@ import type { MeleeModule } from "../game/modules/melee";
 import type { HarmattanModule } from "../game/modules/harmattan";
 import type { VehiclesModule } from "../game/modules/vehicles";
 import { LOOKS } from "../graphics/grade";
+import { MUTATOR_NAME } from "../game/weekly";
 import type { OpenWorld } from "../maps/open/build";
 import { matchWorldOf } from "../maps/open/matchWorld";
 import type { NetClient } from "../net/client";
@@ -820,7 +821,7 @@ export class FfaMode implements GameMode {
 }
 
 /** The weekly mutators' names (§10.13). */
-export const MUTATOR_NAME = { juju: "Juju Day: low gravity", rainy: "Rainy Season: slippery ground", market: "Market Day: double items" } as const;
+export { MUTATOR_NAME };
 
 /** What the mode's measure is called on the results ("" when it has none). */
 function measureName(m: Match): string {

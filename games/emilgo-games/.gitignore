@@ -1,6 +1,7 @@
 node_modules/
 dist/
 dist-emilgo/
+dist-web/
 server/dist/
 # The purchases database (player ids): never commit it.
 data/

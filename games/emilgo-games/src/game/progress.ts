@@ -2,6 +2,12 @@
 // No currency, no rewards that cost money, no streak pressure: a level is just
 // a number next to your name, and the day's three challenges are something to
 // aim at (UPGRADE.md: lobby2's challenge column).
+//
+// Two lists: Ball Haunt's (Red Light, Green Light: crossing, stares) while it
+// can be played, and v3's (Free For All and Dead Streets) while it's hidden
+// (FEATURES.ballHaunt), so nobody is given a challenge no mode can finish.
+
+import { FEATURES } from "../config";
 
 /** XP needed to go from level n to n+1. */
 export function xpForLevel(n: number): number {
@@ -23,7 +29,7 @@ export function xpForRound(r: { finished: boolean; first: boolean; watches: numb
   return 40 + (r.finished ? 120 : 0) + (r.first ? 60 : 0) + Math.min(10, r.watches) * 6 + (r.online ? 30 : 0);
 }
 
-export type ChallengeKind = "rounds" | "cross" | "first" | "watches" | "emotes" | "online" | "sprint";
+export type ChallengeKind = "rounds" | "cross" | "first" | "watches" | "emotes" | "online" | "sprint" | "matches" | "wins" | "runs" | "zombies";
 
 export interface ChallengeDef {
   kind: ChallengeKind;
@@ -31,7 +37,8 @@ export interface ChallengeDef {
   goal: number;
 }
 
-const POOL: ChallengeDef[] = [
+/** Ball Haunt's (Red Light, Green Light), while it can be played. */
+const RLGL_POOL: ChallengeDef[] = [
   { kind: "rounds", label: "Play 3 rounds", goal: 3 },
   { kind: "cross", label: "Cross the line 2 times", goal: 2 },
   { kind: "first", label: "Cross first once", goal: 1 },
@@ -40,6 +47,18 @@ const POOL: ChallengeDef[] = [
   { kind: "online", label: "Play 1 online round", goal: 1 },
   { kind: "sprint", label: "Sprint 100 m", goal: 100 },
 ];
+
+/** Free For All's and Dead Streets' (SPEC-V3), while Ball Haunt is hidden. */
+const V3_POOL: ChallengeDef[] = [
+  { kind: "matches", label: "Play 3 matches", goal: 3 },
+  { kind: "wins", label: "Win a Free For All match", goal: 1 },
+  { kind: "online", label: "Play 1 online match", goal: 1 },
+  { kind: "emotes", label: "Use 3 emotes", goal: 3 },
+  { kind: "runs", label: "Play a Dead Streets run", goal: 1 },
+  { kind: "zombies", label: "Down 15 zombies", goal: 15 },
+];
+
+const POOL = FEATURES.ballHaunt ? RLGL_POOL : V3_POOL;
 
 export function today(): string {
   const d = new Date();

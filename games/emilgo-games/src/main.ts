@@ -40,6 +40,10 @@ function hideBoot(): void {
 function showArt(): void {
   const art = document.getElementById("boot-art");
   if (!art) return;
+  // A slow connection (the script itself took seconds to come) or data saver:
+  // the picture would arrive after the lobby and take bandwidth from it.
+  const conn = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
+  if (performance.now() > 2000 || conn?.saveData) return;
   const img = new Image();
   img.onload = () => {
     art.style.backgroundImage = `url(${img.src})`;

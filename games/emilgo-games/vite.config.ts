@@ -3,6 +3,9 @@
 //   vite build                → dist/          the HTTPS site Lagos Life frames
 //   vite build --mode emilgo  → dist-emilgo/   ONE self-contained HTML file that
 //                                             the EMILGO app embeds (offline play)
+//   vite build --mode web     → dist-web/      the game on its own web site: split
+//                                             like dist/ (the matches' code comes
+//                                             after the lobby), no Lagos Life SDK
 //
 // The Lagos Life build must be served with the frame-ancestors header below and
 // never with X-Frame-Options DENY/SAMEORIGIN (docs, Quick start 02). The dev and
@@ -79,6 +82,7 @@ function escapeRe(s: string): string {
 
 export default defineConfig(({ mode }) => {
   const emilgo = mode === "emilgo";
+  const web = mode === "web";
   return {
     base: "./",
     define: {
@@ -89,7 +93,7 @@ export default defineConfig(({ mode }) => {
     build: {
       // Old Android WebViews and iOS 14 Safari still out there: transpile down.
       target: "es2019",
-      outDir: emilgo ? "dist-emilgo" : "dist",
+      outDir: emilgo ? "dist-emilgo" : web ? "dist-web" : "dist",
       emptyOutDir: true,
       sourcemap: false,
       reportCompressedSize: true,
@@ -103,6 +107,6 @@ export default defineConfig(({ mode }) => {
           }
         : {}),
     },
-    plugins: emilgo ? [stripVatarSdk(), singleFile()] : [preloadScans()],
+    plugins: emilgo ? [stripVatarSdk(), singleFile()] : web ? [stripVatarSdk(), preloadScans()] : [preloadScans()],
   };
 });

@@ -18,17 +18,14 @@ import { Rng } from "../../core/rng";
 import type { Solid } from "../../game/core/space";
 import { EDGE, rectOf, Taken, type GroundKind, type Landmark, type OpenLayout, type Road } from "./naija";
 import { placeBoards, type BoardWish } from "./billboards";
+import { SPOOKY_ROUTE } from "./route";
 import { footprint, solidsOf, type Placement, type PrefabId } from "./prefabs";
 
 const HALF = 160;
 const ROAD_W = 8;
 
-/** The route, corner by corner (each leg is a street). */
-export const SPOOKY_ROUTE: readonly [number, number][] = [
-  [-130, -135], [-130, -95], [-70, -95], [-70, -140], [0, -140], [0, -100], [60, -100], [60, -140], [130, -140], [130, -70],
-  [80, -70], [80, -20], [130, -20], [130, 40], [60, 40], [0, 40], [0, -30], [-60, -30], [-60, 40], [-130, 40], [-130, 110],
-  [-40, 110], [-40, 140], [60, 140], [125, 140],
-];
+/** The route, corner by corner (each leg is a street): route.ts. */
+export { SPOOKY_ROUTE };
 
 /** The twelve districts (SPEC-V3 §3.1), all fictional names. */
 export const SPOOKY_LANDMARKS: Landmark[] = [

@@ -87,19 +87,9 @@ export interface MatchSettings {
   mutator?: Mutator;
 }
 
-/** The weekly mutators (§10.13): Juju Day (low gravity), Rainy Season (slippery), Market Day (double items). */
-export type Mutator = "juju" | "rainy" | "market";
-export const MUTATORS: readonly Mutator[] = ["juju", "rainy", "market"];
-
-/**
- * This week's mutator: none, Market Day, Juju Day, Rainy Season in turn, by
- * the week of the year (UTC). The server says which in a match's start, so a
- * phone's copy plays the same week.
- */
-export function weeklyMutator(ms: number): Mutator | undefined {
-  const week = Math.floor((ms / 86_400_000 + 3) / 7);
-  return ([undefined, "market", "juju", "rainy"] as const)[((week % 4) + 4) % 4];
-}
+// The weekly mutators and which this week has: weekly.ts (the lobby reads them without the match code).
+export { MUTATORS, weeklyMutator, type Mutator } from "../weekly";
+import type { Mutator } from "../weekly";
 
 /** How a mutator changes the ground and the air. */
 export function envOf(mu: Mutator | undefined): MoveEnv {

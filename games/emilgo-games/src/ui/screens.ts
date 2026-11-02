@@ -24,7 +24,7 @@ import { EMOTES, EMOTE_BY_ID, type EmoteId } from "../social/emotes";
 import { POSES } from "../world/human/animator";
 import { HOODIE_COLORS, HOODIE_DESIGNS, type HoodieDesign, type Look } from "../world/human/wardrobe";
 import { esc, fmtTime, ordinal } from "./dom";
-import { SPOOKY_ROUTE } from "../maps/open/spooky";
+import { SPOOKY_ROUTE } from "../maps/open/route";
 import { divisionIndex } from "../content/validate";
 import { t, translateTree } from "./i18n";
 import { icon } from "./icons";
@@ -103,6 +103,8 @@ export interface FfaResultView {
   /** The play of the game (§10.11), and where you went (§10.22). */
   play?: string;
   trail?: readonly [number, number, number][];
+  /** Today's challenges this match finished. */
+  completed?: string[];
 }
 
 /** Honour's cosmetic title (§10.12) for this many commends, or null. */
@@ -901,6 +903,7 @@ export class Screens {
          ${r.trail && r.trail.length > 4 && !r.runMap ? `<div class="pm-heat"><span class="label">${t("Where you went")}</span><canvas width="120" height="120" data-heat></canvas></div>` : ""}
          <div class="pm-xp" data-rank-line>${r.online ? rankLine(r) : `<span class="small">Practice: no XP. Play online to rank up.</span>`}</div>
          ${r.online === "match" ? `<div class="status" data-match-outcome>${esc(r.matchNote ?? "Sending the result to Lagos Life…")}</div>` : ""}
+         ${r.completed?.length ? `<div class="status ok">${icon("check", "", 14)} Daily done: ${r.completed.map((c) => esc(t(c))).join(", ")}</div>` : ""}
          <div class="pm-actions">
            ${primary}
            ${r.runMap ? `<button class="btn secondary" data-act="photo">${icon("fpv", "", 16)}Photo</button>` : ""}

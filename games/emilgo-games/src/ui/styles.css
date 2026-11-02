@@ -320,6 +320,8 @@ input { font: inherit; color: inherit; }
 @media (orientation: portrait) {
   .lb-tabs { top: calc(var(--safe-t) + 84px); left: var(--gap); right: var(--gap); transform: none; max-width: none; }
   .lb-right { display: none; }
+  /* Today's challenges sat over the tabs and the face: landscape shows them. */
+  .lb-center-right { display: none; }
   .lb-bar { left: var(--gap); right: var(--gap); transform: none; flex-wrap: wrap; justify-content: center; }
   .lb-bar .act { flex: 1 1 22%; min-width: 0; }
   .lb-bar .act.play { flex: 1 1 100%; order: -1; height: 48px; }

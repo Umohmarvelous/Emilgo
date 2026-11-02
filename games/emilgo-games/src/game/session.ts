@@ -85,18 +85,17 @@ import { addProgress, ensureDaily } from "./progress";
 import { DIVISIONS, rankOf, rankUp } from "../rank/ladder";
 import { catalog, games } from "../content/catalog";
 import type { ModeDef } from "../content/modes";
-import { buildOpenWorldIdle, type OpenWorld } from "../maps/open/build";
-import { buildNaijaWorld } from "../maps/open/naija";
-import { buildSpookyWorld } from "../maps/open/spooky";
-import { dailySeed, medalOf, runMutator } from "../game/modules/survival";
+import type { OpenWorld } from "../maps/open/build";
+import { dailySeed, medalOf, MUTATOR_NAME, RUN_MUTATOR_NAME, runMutator, weeklyMutator } from "./weekly";
 import { divisionIndex } from "../content/validate";
 import { divisionStart } from "../rank/ladder";
 import { WEAPON_RANK, type RunWeapon } from "../config";
-import { RUN_MUTATOR_NAME } from "../world/deadView";
 import { saveGhost } from "./ghost";
 import type { MatchSnap, WireEvent } from "../net/matchWire";
-import { FfaMode, MUTATOR_NAME } from "../modes/ffa";
-import { weeklyMutator } from "./core/match";
+import type { FfaMode } from "../modes/ffa";
+
+/** The matches' chunk (modes/v3.ts). */
+type V3 = typeof import("../modes/v3");
 import { FfaCards } from "../ui/ffaCards";
 import type { ModeHost, ModeResult } from "../modes/types";
 import { Content } from "../content/load";
@@ -164,7 +163,9 @@ export class Game {
   private readonly bubbles: Bubbles;
   private readonly spectateBtn: HTMLButtonElement;
   private readonly stage: LobbyStage;
-  private readonly atlas;
+  /** Ball Haunt's courses' textures: painted the first time a course is built (the lobby never uses them). */
+  private atlas: ReturnType<typeof buildAtlas> | null = null;
+  private readonly aniso: number;
   private spec: TierSpec;
   private world: World | null = null;
   private worldKey = "";
@@ -309,6 +310,11 @@ export class Game {
   private ffaRes: FfaResultView | null = null;
   private party: { code: string; members: { id: string; name: string }[]; lead: string } | null = null;
   private hostObj: ModeHost | null = null;
+  /** start() has run: until then a resize draws nothing (the boot cover is up). */
+  private started = false;
+  /** The matches' code, once loaded (loadV3). */
+  private v3: V3 | null = null;
+  private v3p: Promise<V3> | null = null;
   private readonly cards: FfaCards;
 
   // Lagos Life matches
@@ -344,7 +350,7 @@ export class Game {
     // The shop needs Lagos Life (to pay) and our server (to check and deliver).
     this.shop = host.shop && this.server ? new ShopClient(host as Host & { shop: NonNullable<Host["shop"]> }, this.server) : null;
 
-    this.atlas = buildAtlas(aniso);
+    this.aniso = aniso;
     this.props = new PropsView(this.spec);
     this.scene.add(this.crowd.group, this.fx.group, this.props.group);
     this.crowd.tier = this.spec.tier;
@@ -457,11 +463,11 @@ export class Game {
     // Quick chat: online it's a chat line to the room; in practice a bubble over you.
     this.controls.onQuick = () => {
       // In Free For All: the squad ping wheel (§10.7).
-      this.quick.setPings(this.gm instanceof FfaMode, t);
+      this.quick.setPings(!!this.gm, t);
       this.quick.toggle();
     };
     this.quick.onPing((k) => {
-      const gm = this.gm instanceof FfaMode ? this.gm : null;
+      const gm = this.gm;
       const spot = gm?.pingSpot(k);
       if (!gm || !spot) return;
       if (this.mode === "online" && this.net) this.net.send({ t: "sping", k, x: spot.x, z: spot.z });
@@ -561,6 +567,7 @@ export class Game {
   }
 
   start(): void {
+    this.started = true;
     // The scanned people's finer detail, if this tier draws it, after the lobby is up.
     ensureScanLevels(this.spec.tier);
     if (this.host.blocked) {
@@ -578,6 +585,8 @@ export class Game {
     // Get the (silent) audio engine ready while the lobby is idle, make Mama,
     // and paint a few CPU outfits ahead so the first round starts without a stall.
     later(() => this.sound.prepare(), 2500);
+    // The matches' code (its own chunk): fetched while the lobby is idle, so a match starts without waiting.
+    later(() => void this.loadV3().catch(() => undefined), 1500);
     // Ball Haunt switched off (SPEC-V3): Mama is never made.
     if (FEATURES.ballHaunt) later(() => void this.doll, 3000);
     later(() => {
@@ -1204,7 +1213,7 @@ export class Game {
       this.world.dispose();
     }
     const t0 = performance.now();
-    this.world = buildWorld(mapId, sky, this.spec, this.atlas, course);
+    this.world = buildWorld(mapId, sky, this.spec, (this.atlas ??= buildAtlas(this.aniso)), course);
     this.worldMs = performance.now() - t0;
     this.worldKey = key;
     this.scene.add(this.world.group);
@@ -3249,17 +3258,44 @@ export class Game {
 
   // ── Free For All (SPEC-V3 Phase 4) ──────────────────────────────────────────
 
+  /**
+   * The matches' code (modes/v3.ts): its own chunk, fetched once the lobby is
+   * up (or when a world is first wanted). Every match starts after a world is
+   * built through it, so `v3` is there by then.
+   */
+  private loadV3(): Promise<V3> {
+    return (this.v3p ??= import("../modes/v3").then(
+      (m) => (this.v3 = m),
+      (e) => {
+        this.v3p = null;
+        throw e;
+      },
+    ));
+  }
+
+  /** The matches' code or a world couldn't load (offline since the lobby came up): back to Play, saying so. */
+  private matchLoadFailed(): void {
+    if (this.gm) return;
+    this.toLobby();
+    this.playError = "Couldn't load the match. Check your connection and try again.";
+    this.showPlay();
+  }
+
   /** Naija World for this graphics tier: built once, in slices between frames, then kept. */
   private ensureNaija(): Promise<OpenWorld> {
     const tier = this.spec.tier;
     if (this.naija && this.naija.tier === tier) return this.naija.p;
     if (this.naija?.w && !this.gm) this.naija.w.dispose();
     const slot: { tier: Tier; p: Promise<OpenWorld>; w: OpenWorld | null } = { tier, p: Promise.resolve(null as unknown as OpenWorld), w: null };
-    slot.p = buildOpenWorldIdle(buildNaijaWorld(), this.spec, {}).then((w) => {
+    slot.p = this.loadV3().then((v) => v.buildOpenWorldIdle(v.buildNaijaWorld(), this.spec, {})).then((w) => {
       // Low has no grade pass: the look reaches the lights instead.
       if (tier === 0) gradeLights(w.group, LOOKS.naija);
       slot.w = w;
       return w;
+    });
+    // Couldn't load (offline since boot): forget it, so the next try fetches again.
+    slot.p.catch(() => {
+      if (this.naija === slot) this.naija = null;
     });
     this.naija = slot;
     return slot.p;
@@ -3398,9 +3434,12 @@ export class Game {
     if (this.spooky && this.spooky.tier === tier) return this.spooky.p;
     if (this.spooky?.w && !this.gm) this.spooky.w.dispose();
     const slot: { tier: Tier; p: Promise<OpenWorld>; w: OpenWorld | null } = { tier, p: Promise.resolve(null as unknown as OpenWorld), w: null };
-    slot.p = buildOpenWorldIdle(buildSpookyWorld(), this.spec, { night: true }).then((w) => {
+    slot.p = this.loadV3().then((v) => v.buildOpenWorldIdle(v.buildSpookyWorld(), this.spec, { night: true })).then((w) => {
       slot.w = w;
       return w;
+    });
+    slot.p.catch(() => {
+      if (this.spooky === slot) this.spooky = null;
     });
     this.spooky = slot;
     return slot.p;
@@ -3436,8 +3475,8 @@ export class Game {
       const runDef = { ...def, modules: { ...def.modules, survival: { ...def.modules.survival, ...loadout } } };
       this.runWeapon = weapon;
       const seed = k?.seed ?? (st.runDaily ? dailySeed(new Date().toISOString().slice(0, 10)) : randomSeed());
-      this.beginFfa(FfaMode.run(this.modeHost(), w, runDef, seed, this.host.player.name || "You"));
-    });
+      this.beginFfa(this.v3!.FfaMode.run(this.modeHost(), w, runDef, seed, this.host.player.name || "You"));
+    }, () => this.matchLoadFailed());
   }
 
   /** Practice: the mode on your own (there are no bots in Free For All, ever). */
@@ -3449,8 +3488,8 @@ export class Game {
     void this.ensureNaija().then((w) => {
       // Cancelled while it built.
       if (this.screens.name !== "room" || this.room || this.gm) return;
-      this.beginFfa(FfaMode.practice(this.modeHost(), w, def, randomSeed(), this.host.player.name || "You"));
-    });
+      this.beginFfa(this.v3!.FfaMode.practice(this.modeHost(), w, def, randomSeed(), this.host.player.name || "You"));
+    }, () => this.matchLoadFailed());
   }
 
   /** An online Free For All match starts (or is rejoined): now, or once Naija World is built. */
@@ -3471,12 +3510,18 @@ export class Game {
       const def = this.content.manifest.modes.find((d) => d.id === start.ffa?.mode);
       if (def) this.showLoading("ffa", def, start.roster.map((r, i) => ({ name: r.name, rank: "", squad: start.ffa?.sq[i] ?? i, me: r.id === this.meId })));
       else this.showWaiting("Building Naija World…");
-      void this.ensureNaija().then(() => {
-        const wait = this.ffaWait;
-        if (!wait || !this.naija?.w) return;
-        this.ffaWait = null;
-        this.openFfa(wait.start, wait.log, wait.snap);
-      });
+      void this.ensureNaija().then(
+        () => {
+          const wait = this.ffaWait;
+          if (!wait || !this.naija?.w) return;
+          this.ffaWait = null;
+          this.openFfa(wait.start, wait.log, wait.snap);
+        },
+        () => {
+          this.ffaWait = null;
+          this.matchLoadFailed();
+        },
+      );
       return;
     }
     this.openFfa(start, log, snap);
@@ -3487,7 +3532,7 @@ export class Game {
     const w = this.naija?.w;
     if (!net || !w) return;
     try {
-      this.beginFfa(FfaMode.online(this.modeHost(), w, start, this.meId, net, log, snap));
+      this.beginFfa(this.v3!.FfaMode.online(this.modeHost(), w, start, this.meId, net, log, snap));
     } catch {
       // A mode this build doesn't have in the same version: the copy would disagree with the server.
       this.toLobby();
@@ -3571,6 +3616,14 @@ export class Game {
     };
     this.pendingGain = null;
     if (r.won) this.settings.wins++;
+    // Today's challenges (v3's list while Ball Haunt is hidden).
+    const d = this.settings.daily;
+    this.ffaRes.completed = [
+      ...addProgress(d, "matches", 1),
+      ...(r.won && !r.run ? addProgress(d, "wins", 1) : []),
+      ...(r.online && !r.run ? addProgress(d, "online", 1) : []),
+      ...(r.run ? [...addProgress(d, "runs", 1), ...addProgress(d, "zombies", r.run.tally.kills)] : []),
+    ];
     // A Dead Streets run: its line, your best here, and the server's check.
     if (r.run) {
       const ty = r.run.tally;
@@ -3727,7 +3780,8 @@ export class Game {
     this.camera.updateProjectionMatrix();
     if (this.stage) this.stage.aspect = w / h;
     if (this.world) this.sizeParticles();
-    if (!this.loop?.isRunning) this.renderOnce();
+    // Before start() nothing is on screen yet (the boot cover is up): the first frame draws it.
+    if (!this.loop?.isRunning && this.started) this.renderOnce();
   }
 
   /**

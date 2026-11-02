@@ -67,7 +67,7 @@ const BOUNTY_GLOW = 0x6a4a00;
 const REVEAL_GLOW = 0xff4a20;
 const _m = new Matrix4();
 /** The run's weekly mutators by name (§3.4 #11). */
-export const RUN_MUTATOR_NAME: Record<string, string> = { haze: "Harmattan Haze", runners: "Double Runners", onebullet: "One Bullet", notorch: "No Torch" };
+export { RUN_MUTATOR_NAME } from "../game/weekly";
 const REDDENED = new WeakSet<Fog>();
 
 export interface DeadViewOptions {

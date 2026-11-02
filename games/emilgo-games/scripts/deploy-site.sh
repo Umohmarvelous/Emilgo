@@ -15,7 +15,8 @@ trap 'rm -rf "$SRC" "$OUT"' EXIT
 
 git -C "$G" archive --format=tar HEAD . | tar -x -C "$SRC"
 ln -s "$G/node_modules" "$SRC/node_modules"
-(cd "$SRC" && VITE_GAMES_SERVER="$SERVER" npx vite build --mode emilgo --outDir "$OUT/site" --emptyOutDir > /dev/null)
+# The web build: split (the matches' code loads after the lobby), no Lagos Life SDK.
+(cd "$SRC" && VITE_GAMES_SERVER="$SERVER" npx vite build --mode web --outDir "$OUT/site" --emptyOutDir > /dev/null)
 (cd "$OUT" && wrangler pages deploy site --project-name $PROJECT --branch main --commit-dirty=true \
   --commit-message "deploy $(git -C "$G" rev-parse --short HEAD) → $SERVER" | tail -1)
 echo "play: https://$PROJECT.pages.dev"
