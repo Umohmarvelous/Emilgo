@@ -32,9 +32,9 @@ import { BONES, BONE_INDEX, LID_CLOSE, type BoneName } from "./skeleton";
 
 export type { EmoteId } from "../../social/emotes";
 export type PoseId = "relaxed" | "hip" | "hair" | "hero" | "arms";
-export type ActionId = "fist" | "slap" | "push" | "grab";
+export type ActionId = "fist" | "slap" | "push" | "grab" | "claw" | "lunge" | "emerge";
 /** How long each action takes to play, seconds. */
-export const ACTION_SECONDS: Record<ActionId, number> = { fist: 0.45, slap: 0.4, push: 0.5, grab: 0.55 };
+export const ACTION_SECONDS: Record<ActionId, number> = { fist: 0.45, slap: 0.4, push: 0.5, grab: 0.55, claw: 0.5, lunge: 0.6, emerge: 2.5 };
 const HIT_SECONDS = 0.6;
 export const POSES: { id: PoseId; label: string }[] = [
   { id: "relaxed", label: "Relaxed" },
@@ -170,10 +170,13 @@ export interface AnimState {
   sitWant: number;
   steer: boolean;
   seed: number;
+  /** A zombie (v4 Phase 5): the arms reach ahead, the chest hunches, the head lolls, the gait drags. */
+  undead: boolean;
 }
 
 export function newAnimState(seed: number): AnimState {
   return {
+    undead: false,
     time: seed * 3.7,
     phase: seed * 1.7,
     amp: 0,
@@ -496,6 +499,21 @@ export function computePose(a: AnimState, out: Pose): void {
     out.rootY *= 1 - w;
   }
 
+  // ── A zombie: arms out ahead (each its own height, twitching), the chest hunched, the head lolling ──
+  if (a.undead) {
+    const s = a.seed;
+    const tw = Math.sin(t * 7.3 + s) * 0.06 + Math.sin(t * 2.1 + s * 3) * 0.04;
+    out.set("upperArmL", -1.25 + 0.18 * Math.sin(s * 1.7) + tw, 0, 0.12);
+    out.set("upperArmR", -1.1 + 0.2 * Math.cos(s * 2.3) - tw, 0, -0.1);
+    out.set("foreArmL", -0.35 + 0.15 * Math.sin(t * 1.3 + s));
+    out.set("foreArmR", -0.5 + 0.15 * Math.cos(t * 1.1 + s));
+    out.add("spine", 0.16);
+    out.add("chest", 0.2, 0, 0.06 * Math.sin(t * 0.9 + s));
+    out.add("head", -0.12, 0.15 * Math.sin(t * 0.7 + s), 0.28 * Math.sin(s * 5.1));
+    out.curlL = 0.55;
+    out.curlR = 0.6;
+  }
+
   // ── A one-off action over everything ──
   if (a.action) actionPose(a.action, a.actionT, out);
 
@@ -694,6 +712,42 @@ function actionPose(id: ActionId, t: number, out: Pose): void {
       out.add("spine", 0.12 * shove - 0.05 * load);
       out.add("chest", 0.12 * shove);
       out.curlL = out.curlR = lerp(out.curlL, 0.1, Math.max(load, shove));
+      break;
+    }
+    case "claw": {
+      // A zombie's swipe: the right arm high, then raked down and across.
+      const up = bell(t, 0, 0.12, 0.14, 0.22);
+      const rake = bell(t, 0.12, 0.22, 0.3, 0.5);
+      out.set("upperArmR", lerp(lerp(out.get("upperArmR", 0), -2.4, up), -0.8, rake), lerp(0, 0.6, rake), lerp(-0.4, 0.3, rake));
+      out.set("foreArmR", lerp(out.get("foreArmR", 0), -0.5, Math.max(up, rake)));
+      out.add("chest", 0.2 * rake, -0.3 * rake + 0.2 * up);
+      out.curlR = lerp(out.curlR, 0.35, Math.max(up, rake));
+      break;
+    }
+    case "lunge": {
+      // Both arms thrust ahead, the body thrown forward after them.
+      const w = bell(t, 0, 0.12, 0.35, 0.6);
+      for (const b of ["L", "R"] as const) {
+        out.set(`upperArm${b}`, lerp(out.get(`upperArm${b}`, 0), -1.55, w), 0, lerp(out.get(`upperArm${b}`, 2), b === "L" ? 0.05 : -0.05, w));
+        out.set(`foreArm${b}`, lerp(out.get(`foreArm${b}`, 0), -0.1, w));
+      }
+      out.add("spine", 0.3 * w);
+      out.add("chest", 0.25 * w);
+      out.add("head", -0.3 * w);
+      out.curlL = out.curlR = lerp(out.curlL, 0.45, w);
+      break;
+    }
+    case "emerge": {
+      // Out of the ground: the arms reach up and claw at the air, the head thrown back, then settles.
+      const w = bell(t, 0, 0.3, 1.8, 2.5);
+      const claw = Math.sin(t * 6.5) * 0.25 * w;
+      out.set("upperArmL", lerp(out.get("upperArmL", 0), -2.6 + claw, w), 0, lerp(out.get("upperArmL", 2), 0.3, w));
+      out.set("upperArmR", lerp(out.get("upperArmR", 0), -2.5 - claw, w), 0, lerp(out.get("upperArmR", 2), -0.3, w));
+      out.set("foreArmL", lerp(out.get("foreArmL", 0), -0.4, w));
+      out.set("foreArmR", lerp(out.get("foreArmR", 0), -0.5, w));
+      out.add("chest", -0.25 * w);
+      out.add("head", 0.4 * w);
+      out.curlL = out.curlR = lerp(out.curlL, 0.7, w);
       break;
     }
     case "grab": {

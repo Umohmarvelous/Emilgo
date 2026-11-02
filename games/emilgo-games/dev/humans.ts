@@ -57,6 +57,8 @@ if (set === "outfits") {
 } else if (set === "uniform") {
   const hs = ["afro", "lowcut", "braids", "fade", "bun"] as const;
   for (let i = 0; i < 5; i++) looks.push(uniformLook(base({ body: i % 2 ? "f" : "m", hair: hs[i], skin: (i * 3) % 8 }), [7, 18, 3, 12, 20][i]));
+} else if (set === "eight") {
+  for (let i = 0; i < 8; i++) looks.push(base({ body: i % 3 === 1 ? "f" : "m", hair: (["lowcut", "afro", "braids", "fade"] as const)[i % 4], skin: (i * 3) % 8 }));
 } else if (set === "poses") {
   for (const p of ["relaxed", "hip", "hair", "hero", "arms"]) looks.push(base({ body: p === "hero" || p === "arms" ? "m" : "f", hair: "afro", outfit: p === "hero" ? "hero" : "patch_dress", skin: 3 }));
 }
@@ -76,6 +78,13 @@ looks.forEach((l, i) => {
   // v4: the operator's gear (?gear=ladder: tiers 0–4 across; ?gear=0..4 for all; ?kit=0..2).
   const gq = q.get("gear");
   if (gq !== null) h.setGear(KITS[Number(q.get("kit") ?? i) % KITS.length], gq === "ladder" ? i % 5 : Number(gq));
+  // v4: zombies (?zombie=all: the eight kinds across; ?zombie=<kind>; &blood=1).
+  const zq = q.get("zombie");
+  if (zq !== null) {
+    const kinds = ["shambler", "runner", "crawler", "bloater", "screamer", "brute", "lurker", "masked"];
+    h.setZombie(zq === "all" ? kinds[i % kinds.length] : zq, q.get("blood") === "1");
+    if (q.get("still") !== "1") h.anim.undead = true;
+  }
   scene.add(h.mesh);
   people.push(h);
 });

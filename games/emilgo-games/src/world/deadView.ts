@@ -50,19 +50,22 @@ import { getLang, t } from "../ui/i18n";
 import type { MapMark } from "../ui/minimap";
 import type { Crowd } from "./crowd";
 
-const ZOMBIE_TINT = 0x8a9878;
-const ZOMBIE_GLOW = 0x200404;
-/** Each kind's paint (§3.4 #2): tint and glow. The bounty zombie glows gold. */
+// v4: the rot shader (human/rot.ts) gives the skin and clothes; a kind's tint only shifts it.
+const ZOMBIE_TINT = 0xdce4d4;
+const ZOMBIE_GLOW = 0x120202;
+/** Each kind's paint (§3.4 #2): tint and glow over the rot. The bounty zombie glows gold. */
 const KIND_PAINT: Record<string, [number, number]> = {
-  shambler: [0x8a9878, 0x200404],
-  runner: [0x9aa58a, 0x300808],
-  crawler: [0x6f7a60, 0x180303],
-  bloater: [0xb0b070, 0x2a2a00],
-  screamer: [0xc8c8b8, 0x301010],
-  brute: [0x7a6a5a, 0x401008],
-  lurker: [0x5f8070, 0x002018],
-  masked: [0x5a5048, 0x3a2a10],
+  shambler: [0xdce4d4, 0x120202],
+  runner: [0xe6e8d8, 0x1a0404],
+  crawler: [0xc2cab8, 0x0c0202],
+  bloater: [0xeee6b0, 0x161600],
+  screamer: [0xf4f2ea, 0x1a0808],
+  brute: [0xd6c4b4, 0x200804],
+  lurker: [0xb8d4c8, 0x00120c],
+  masked: [0xd6cec4, 0x1c1408],
 };
+/** A brute stands this much bigger (the others as they are: adults, all of them). */
+const BRUTE_SCALE = 1.14;
 const BOUNTY_GLOW = 0x6a4a00;
 const REVEAL_GLOW = 0xff4a20;
 const _m = new Matrix4();
@@ -77,6 +80,8 @@ export interface DeadViewOptions {
   me: number;
   layer: HTMLElement;
   tier: Tier;
+  /** Blood on (Settings): the rot's blood round the mouths and in the wounds. */
+  blood?: boolean;
 }
 
 export class DeadView {
@@ -88,6 +93,8 @@ export class DeadView {
   private readonly hudEl = el("div", "dshud glass");
   private readonly nvEl = el("div", "nvwash");
   private readonly rising = new Map<number, number>();
+  /** When each zombie last lunged (the view's clock). */
+  private readonly lungedAt: number[] = [];
   private hidden: boolean[] = [];
   private hudKey = "";
   private time = 0;
@@ -152,6 +159,7 @@ export class DeadView {
     }
     for (let i = 1; i < m.contestants.length; i++) {
       this.paint[i] = [ZOMBIE_TINT, ZOMBIE_GLOW];
+      this.o.crowd.setZombie(i, "shambler", !!this.o.blood);
       this.o.crowd.setTint(i, ZOMBIE_TINT, ZOMBIE_GLOW);
       this.o.crowd.setHidden(i, true);
       this.hidden[i] = true;
@@ -170,9 +178,14 @@ export class DeadView {
           this.hidden[z.index] = false;
           const p = KIND_PAINT[e.kind ?? "shambler"] ?? KIND_PAINT.shambler;
           this.paint[z.index] = [p[0], e.bounty ? BOUNTY_GLOW : p[1]];
+          this.o.crowd.setZombie(z.index, e.kind ?? "shambler", !!this.o.blood);
           this.o.crowd.setTint(z.index, p[0], e.bounty ? BOUNTY_GLOW : p[1]);
+          const hz = this.o.crowd.human(z.index);
+          if (hz) hz.mesh.scale.setScalar(hz.look.height * (e.kind === "brute" ? BRUTE_SCALE : 1));
           if (e.bounty) this.o.hud.pushFeed(t("A zombie with a gold key: put it down"), "info");
           this.o.crowd.revive(z.index);
+          // Out of the ground, clawing at the air.
+          this.o.crowd.act(z.index, "emerge");
           this.rising.set(z.index, 0);
           break;
         }
@@ -182,15 +195,22 @@ export class DeadView {
           if (e.head) this.o.hud.pushFeed(t("Head shot"), "safe");
           break;
         }
-        case "claw":
+        case "claw": {
           this.o.hud.flashRed();
           s?.thud(1);
+          const z = m.get(e.id);
+          if (z) this.o.crowd.act(z.index, "claw");
           break;
-        case "shot":
+        }
+        case "shot": {
           s?.crack(true);
           this.o.crowd.act(this.o.me, "slap");
+          // The zombie hit staggers back from where the shot came.
+          const z = e.tg ? m.get(e.tg) : null;
+          if (z && z.status === "alive") this.o.crowd.hit(z.index, z, z.x - me.x, z.z - me.z);
           if (e.ammo === 0) this.o.hud.pushFeed(t("Out of rounds"), "out");
           break;
+        }
         case "blow":
           this.o.crowd.act(this.o.me, e.kind === "cutlass" ? "fist" : "push");
           s?.strike(e.kind === "cutlass" ? "fist" : "push", !!e.tg || e.gate >= 0);
@@ -266,6 +286,11 @@ export class DeadView {
           this.rising.delete(i);
           this.o.crowd.setLift(i, 0);
         } else this.rising.set(i, r + dt);
+      }
+      // A lunge: when one suddenly closes fast, its arms go out ahead (not again for a second).
+      if (z.status === "alive" && r === undefined && Math.hypot(z.vx, z.vz) > SURVIVAL.walk * 1.6 && this.time - (this.lungedAt[i] ?? -9) > 1.2) {
+        this.lungedAt[i] = this.time;
+        this.o.crowd.act(i, "lunge");
       }
       const asleep = sv.state[i] === 0 && z.status !== "alive" && z.x < -m.world.space.bounds.x1 + 20;
       if (asleep !== !!this.hidden[i]) {
@@ -412,7 +437,18 @@ export class DeadView {
     this.hudEl.classList.toggle("fieldkit", on);
   }
 
+  /** The crowd outlives the run: the zombies back to people. */
+  private unrot(): void {
+    for (let i = 0; i < 128; i++) {
+      const h = this.o.crowd.human(i);
+      if (!h) continue;
+      h.setZombie(null);
+      h.mesh.scale.setScalar(h.look.height);
+    }
+  }
+
   dispose(): void {
+    this.unrot();
     this.hudEl.remove();
     this.nvEl.remove();
     this.gasEl.remove();

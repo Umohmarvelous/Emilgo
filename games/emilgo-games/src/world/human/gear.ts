@@ -313,10 +313,14 @@ const merged = new Map<string, BufferGeometry>();
  * geometry, the tier and the kit). Same bones, same skin attributes.
  */
 export function dressedGeometry(body: BufferGeometry, rest: Record<BoneName, V3>, tier: number, level: Detail, kit: Kit): BufferGeometry {
-  const key = `${body.uuid}|${tier}|${kit.id}`;
+  return mergeInto(body, `${body.uuid}|${tier}|${kit.id}`, () => buildGear(fitOf(body, rest), tier, level, kit));
+}
+
+/** The body's geometry with extra pieces written after it (cached by `key`). */
+function mergeInto(body: BufferGeometry, key: string, make: () => Acc): BufferGeometry {
   let g = merged.get(key);
   if (g) return g;
-  const a = buildGear(fitOf(body, rest), tier, level, kit);
+  const a = make();
   const n0 = body.attributes.position.count;
   const n1 = a.pos.length / 3;
   const cat = (name: string, extra: number[], size: number, fill?: (i: number) => number[]) => {
@@ -357,4 +361,58 @@ export function dressedGeometry(body: BufferGeometry, rest: Record<BoneName, V3>
 /** Triangles the gear adds at a tier and level (for the crowd's budget; measured once). */
 export function gearTriangles(g: BufferGeometry, body: BufferGeometry): number {
   return ((g.index?.count ?? 0) - (body.index?.count ?? 0)) / 3;
+}
+
+// ── Zombie pieces (v4 Phase 5): what rot alone can't show ─────────────────────
+
+/** A zombie kind's extra pieces: a gas mask (Masked), a swollen belly (Bloater), ribs or a forearm bone showing. */
+function buildZombie(fit: Fit, kind: string, level: Detail): Acc {
+  const a = new Acc();
+  const R = fit.rest;
+  const hb = fit.box.head;
+  const cb = fit.box.chest;
+  if (!hb || !cb || level === 0) return a;
+  const bone = lin("#c9c2ac");
+  const gore = lin("#2a0806");
+  const fleshC = lin("#5e6148");
+  const eyeY = (R.eyeL.y + R.eyeR.y) / 2;
+  const eyeZ = Math.max(R.eyeL.z, R.eyeR.z);
+  const hc = new Vector3().addVectors(hb.min, hb.max).multiplyScalar(0.5);
+  if (kind === "masked") {
+    // A cracked modern gas mask (never a traditional mask): a face seal, two lenses, a filter, the straps.
+    const rubber = lin("#1c1c1a");
+    a.add(new SphereGeometry(1, 10, 6, 0, Math.PI, 0, Math.PI), M(hc.x, eyeY - 0.035, eyeZ - 0.035, 0, -Math.PI / 2, 0, (hb.max.x - hb.min.x) * 0.5, 0.075, 0.07), "head", rubber);
+    for (const e of [R.eyeL, R.eyeR]) a.add(new CylinderGeometry(0.019, 0.02, 0.012, 10), M(e.x, e.y, eyeZ + 0.032, Math.PI / 2), "head", lin("#3d4a45"));
+    a.add(new CylinderGeometry(0.026, 0.03, 0.05, 10), M(hc.x, eyeY - 0.07, eyeZ + 0.035, Math.PI / 2 - 0.5), "head", lin("#2b2b29"));
+    a.add(new TorusGeometry((hb.max.x - hb.min.x) * 0.52, 0.006, 4, 16), M(hc.x, eyeY + 0.02, hc.z, 0.1, 0, 0, 1, 1, 1.05), "head", rubber);
+  }
+  if (kind === "bloater") {
+    // A swollen belly over the hoodie's front.
+    const sb = fit.box.spine ?? cb;
+    a.add(new SphereGeometry(1, 10, 8), M((cb.min.x + cb.max.x) / 2, (sb.min.y + cb.min.y) / 2 + 0.03, cb.max.z - 0.02, 0, 0, 0, (cb.max.x - cb.min.x) * 0.42, 0.17, 0.13), "spine", fleshC, "chest", 0.3);
+  }
+  if (kind === "runner" || kind === "screamer" || kind === "lurker" || kind === "brute") {
+    // Ribs showing through a hole on the chest's left: the dark wound, four ribs across it.
+    const x = (cb.min.x + cb.max.x) / 2 + (cb.max.x - cb.min.x) * 0.18;
+    const y = (cb.min.y + cb.max.y) / 2;
+    const z = cb.max.z + 0.004;
+    a.add(new BoxGeometry(0.11, 0.13, 0.008), M(x, y, z), "chest", gore);
+    for (let k = 0; k < 4; k++) a.add(new BoxGeometry(0.105, 0.012, 0.012), M(x, y - 0.045 + k * 0.03, z + 0.008, 0, 0, (k - 1.5) * 0.06), "chest", bone);
+  }
+  if (kind === "shambler" || kind === "brute") {
+    // A forearm torn open to the bone (the left).
+    const e = R.foreArmL;
+    const hnd = R.handL;
+    const mid = new Vector3((e.x * 0.6 + hnd.x * 0.4), (e.y * 0.6 + hnd.y * 0.4), (e.z * 0.6 + hnd.z * 0.4));
+    const dir = new Vector3(hnd.x - e.x, hnd.y - e.y, hnd.z - e.z).normalize();
+    const mm = new Matrix4().compose(mid, new Quaternion().setFromUnitVectors(new Vector3(0, 1, 0), dir), new Vector3(1, 1, 1));
+    a.add(new CylinderGeometry(0.036, 0.034, 0.12, 7), mm.clone(), "foreArmL", gore);
+    a.add(new CylinderGeometry(0.012, 0.012, 0.16, 6), mm.clone().multiply(new Matrix4().makeTranslation(0.022, 0, 0.02)), "foreArmL", bone);
+  }
+  return a;
+}
+
+/** A zombie's geometry: the body with its kind's pieces in it (cached). */
+export function zombieGeometry(body: BufferGeometry, rest: Record<BoneName, V3>, kind: string, level: Detail): BufferGeometry {
+  return mergeInto(body, `${body.uuid}|z:${kind}`, () => buildZombie(fitOf(body, rest), kind, level));
 }

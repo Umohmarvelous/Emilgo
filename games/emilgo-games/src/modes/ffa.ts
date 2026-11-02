@@ -265,7 +265,7 @@ export class FfaMode implements GameMode {
     this.gunsView = guns ? new GunsView({ crowd: h.crowd, sound: h.sound, tier: h.spec.tier, me: me.index, blood: h.settings.blood }) : null;
     this.combat = guns || m.module("survival") ? new CombatHud() : null;
     if (this.gunsView) h.scene.add(this.gunsView.group);
-    this.dead = m.module("survival") ? new DeadView({ crowd: h.crowd, hud: h.hud, sound: h.sound, me: me.index, layer: h.ui, tier: h.spec.tier }) : null;
+    this.dead = m.module("survival") ? new DeadView({ crowd: h.crowd, hud: h.hud, sound: h.sound, me: me.index, layer: h.ui, tier: h.spec.tier, blood: h.settings.blood }) : null;
     if (this.dead) {
       h.scene.add(this.dead.group);
       this.dead.setup(m, world.fog, world.clear);

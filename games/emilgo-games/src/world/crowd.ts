@@ -245,6 +245,11 @@ export class Crowd {
     this.people[i]?.setGear(kit, tier);
   }
 
+  /** A zombie's rot and pieces (v4 Phase 5), or null. */
+  setZombie(i: number, kind: string | null, blood = false): void {
+    this.people[i]?.setZombie(kind, blood);
+  }
+
   setCarry(i: number, on: boolean): void {
     this.people[i]?.setCarry(on);
   }

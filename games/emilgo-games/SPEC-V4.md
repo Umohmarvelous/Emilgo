@@ -56,6 +56,8 @@ hidden and untouched).
 | Gear and LODs | Helmet (rails, comms, NVG mount), plate carrier (straps, cummerbund, mag pouches), belt, holster, knee pads, boot shells: low-poly pieces weighted to their bones and written into the body's own geometry, so a dressed body is still one draw; each detail level gets its own gear (the far level: helmet, plates and boots only). |
 | The armour ladder's look | By armour points (guns: 0–150): T0 Operator, T1 Plated from 25 (pauldrons, vambraces, greaves), T2 Juggernaut from 60 (heavier plates, a collar, a visor with a slit), T3 Warlord from 100 (black plate, spikes, ember glow), T4 Titan from 140 (obsidian and gold, horns, a crown, a glowing core). **No growth** (the owner). Dead Streets' runner by its armour × 1.5. To be refined later (the owner). |
 | "Every item becomes armour" | Every backpack item taken also gives 10 armour (up to 150); the items still do what they do. |
+| Zombies' look | A rot shader on the scanned bodies (every tier): grey-green mottled skin with veins and lesions, sunken bruised sockets, milky glowing eyes, blood round the mouth (blood on), filthy dark clothes torn through to the flesh with wound edges (red only with blood on). Pieces per kind in the body's own mesh: the Masked a cracked modern gas mask (never a traditional mask), the Bloater a swollen belly, Runners, Screamers, Lurkers and Brutes ribs showing, Shamblers and Brutes a forearm open to the bone; a Brute stands 1.14× (adults only, no child zombies). The kinds' tints now only shift the rot. |
+| Zombies' moves | A shambling idle and walk (arms reaching ahead, each its own height, twitching; the chest hunched; the head lolling); emerge (out of the ground clawing at the air, 2.5 s, with the rise), lunge (both arms thrust out when one suddenly closes fast), claw (a raking swipe when it lands one), stagger (the existing hit, from the shot's side). Procedural keys like the rest of the animator. |
 | "1 million users at once" | One server process can't hold that. The build makes each room server stateless between matches and adds a room directory so many machines share the load. Tested here at **10,000 simulated players** (the owner's number); the 1M path is described in README (machines × rooms), not tested. |
 
 ## Phases (built back to back, no waiting; each tested, committed, pushed, the test site republished)
@@ -113,3 +115,14 @@ Not done in Phase 3: a real phone.
 | Builds | EMILGO embed |
 
 Not done in Phase 4: a real phone; the armour's look refined (the owner: later).
+
+### Phase 5: Zombies (done 3 Nov 2026)
+
+| Check | Result |
+|---|---|
+| In headless Chrome (real GPU) | `dev/humans.html?set=eight&zombie=all&blood=1`: the eight kinds side by side, arms out; `set=face&zombie=all&still=1`: the sockets, the eyes, the mouth. A night run: zombies by the runner, lit by the torch. |
+| Frame rate, Dead Streets, CPU 4× | Low lowest 60, mean 60.2 (39 draws, 43K) · Medium 40–58 from moment to moment (47–51 draws, 79–96K), the same with the rot shader off in A/B (44.9 / 48.1 / 58.2 as the horde moved): v3's Medium range for a run was 39–59. |
+| Tests | survivaltest (online, the server's check of a run); typecheck. |
+| Builds | EMILGO embed |
+
+Not done in Phase 5: a real phone; sculpted zombie meshes (an art job, PLAN.md §1).

@@ -38,8 +38,9 @@ import { FALL_TIME, type FallKind } from "./ragdoll";
 import { packMesh } from "./pack";
 import { BONES, PARENT, type BoneName } from "./skeleton";
 import { applyHold, type Hold } from "./hold";
-import { dressedGeometry, type Kit } from "./gear";
+import { dressedGeometry, zombieGeometry, type Kit } from "./gear";
 import { dress } from "./dress";
+import { rot } from "./rot";
 import { normalMapFor } from "./normals";
 import { loadScanLevel, onScanLevel, scanReady, scanStamp } from "./scanbody";
 import { OUTFIT_BY_ID, paintKey, scanPaintKey, shapeKey, type Look } from "./wardrobe";
@@ -358,6 +359,17 @@ export class Human {
 
   /** The operator's kit and armour tier (v4), or null: as they are. */
   private gear: { kit: Kit; tier: number } | null = null;
+  /** A zombie's kind (v4 Phase 5), or null. */
+  private zkind: string | null = null;
+
+  /** Rot the body as a zombie of `kind` (its pieces, the shuffle), or null: as they are. */
+  setZombie(kind: string | null, blood = false): void {
+    if (kind === this.zkind && (kind === null || (this.mesh.material as Material).userData.rotted === `rot:${blood}`)) return;
+    this.zkind = kind;
+    this.anim.undead = !!kind;
+    rot(this.mesh.material as Material, !!kind, this.body.rest, blood);
+    this.showGeometry();
+  }
 
   /** Dress as a tactical operator (kit), with the armour tier's gear; null takes it all off. */
   setGear(kit: Kit | null, tier = 0): void {
@@ -374,6 +386,7 @@ export class Human {
 
   /** The geometry for the body at this level: dressed with the gear, or bare. */
   private geometryFor(b: Body, level: Detail): BufferGeometry {
+    if (this.zkind) return zombieGeometry(b.geometry, b.rest, this.zkind, level);
     return this.gear ? dressedGeometry(b.geometry, b.rest, this.gear.tier, level, this.gear.kit) : b.geometry;
   }
 
@@ -391,7 +404,7 @@ export class Human {
   /** Triangles this person would cost at a detail level (builds it if needed, cached). */
   trianglesAt(level: Detail): number {
     const b = bodyFor(this.look, level);
-    if (!this.gear) return b.triangles;
+    if (!this.gear && !this.zkind) return b.triangles;
     return (this.geometryFor(b, level).index?.count ?? 0) / 3;
   }
 
