@@ -1,10 +1,10 @@
 // Dev only: a line-up of people, for screenshots. Not in any build.
 //   /dev/humans.html?tier=1&set=outfits|hair|tiers|face|poses&pose=hair&cam=front|back|face
-// Players are the scanned people; &gen=1 shows the generated ones instead (Mama, and the fallback).
+// Players are the scanned people; &gen=1 shows the generated ones instead (the fallback).
 import { ACESFilmicToneMapping, AmbientLight, Color, DirectionalLight, HemisphereLight, Mesh, MeshStandardMaterial, PerspectiveCamera, PlaneGeometry, Scene, SRGBColorSpace, WebGLRenderer } from "three";
 import { Human, loadScans, type Tier } from "../src/world/human";
 import { loadScanLevel } from "../src/world/human/scanbody";
-import { DOLL_LOOK, FREE_OUTFITS, HAIRS, OUTFITS, cleanLook, uniformLook, type Look } from "../src/world/human/wardrobe";
+import { FREE_OUTFITS, HAIRS, OUTFITS, cleanLook, uniformLook, type Look } from "../src/world/human/wardrobe";
 
 const q = new URLSearchParams(location.search);
 if (!q.get("gen")) {
@@ -53,8 +53,6 @@ if (set === "outfits") {
 } else if (set === "face") {
   looks.push(base({ body: "f", hair: "bun", outfit: "office", skin: 3, extras: ["earrings"] }));
   looks.push(base({ body: "m", hair: "lowcut", outfit: "sweater", skin: 5 }));
-} else if (set === "doll") {
-  looks.push(DOLL_LOOK, DOLL_LOOK);
 } else if (set === "uniform") {
   const hs = ["afro", "lowcut", "braids", "fade", "bun"] as const;
   for (let i = 0; i < 5; i++) looks.push(uniformLook(base({ body: i % 2 ? "f" : "m", hair: hs[i], skin: (i * 3) % 8 }), [7, 18, 3, 12, 20][i]));
@@ -73,10 +71,6 @@ looks.forEach((l, i) => {
   if (set === "poses") h.setPose((["relaxed", "hip", "hair", "hero", "arms"] as const)[i]);
   if (q.get("pose")) h.setPose(q.get("pose") as never);
   if (q.get("emote")) h.emote(q.get("emote") as never);
-  if (set === "doll") {
-    h.bone("head").scale.setScalar(1.28);
-    if (i === 1) h.mesh.rotation.y = Math.PI * 0.75;
-  }
   if (q.get("nonormal")) ((h.mesh.material as unknown) as { normalMap: unknown }).normalMap = null;
   scene.add(h.mesh);
   people.push(h);

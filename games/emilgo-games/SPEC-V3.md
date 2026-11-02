@@ -124,6 +124,13 @@ Green Light build (Ball Haunt), SPEC-V2 still applies until Phase 11.
 | The web build (Phase 10) | Three builds: **Lagos Life** (`dist/`, its SDK tag), **the EMILGO app's** single file (`dist-emilgo/`, the chunk inlined) and now **the web** (`vite build --mode web`, `dist-web/`: split like `dist/`, no Lagos Life SDK, so a web visitor's browser never asks lagoslife.app for anything). The test site deploys the web build; `BUILD=lagoslife scripts/deploy-site.sh` deploys the one Lagos Life frames. | §13 Phase 10 "the three builds". |
 | Dailies (Phase 10) | While Ball Haunt is hidden, two of the day's three could be "cross the line" challenges nobody could finish. Today's three now come from **a v3 list** (play 3 matches, win a Free For All match, play an online match, use 3 emotes, play a Dead Streets run, down 15 zombies), counted at the end of a match or run and shown on its results; Ball Haunt's list comes back with it. | A Phase 10 regression. |
 | Real phones (Phase 10) | **Not done here**: a Tecno or Infinix and an iPhone need the owner's hands. Everything in Status was measured in headless Chrome on this Mac (real GPU, CPU throttled 4× and 6×). | §13 Phase 10. |
+| The eye in the sky (Phase 11) | Mama is gone. **An eye** (`world/skyWatcher.ts`) hangs high over the far end of the field, about 20° up from the line, and is drawn over the world, so the skyline and the trees never hide it. It is shut while the song plays, opens when the song cuts, and glows hot while it watches. | §1.2; the owner's Phase 11 answer. |
+| The song from the sky (Phase 11) | The songs play through an echo (a short pre-delay, a long reverb, high-passed), so they sound as if they come from above, not from a speaker. The echo stops with the song, so a cut stays sharp. The 3 s warning hum and its fakes are unchanged. | §1.2. |
+| The sky laser (Phase 11) | Anyone caught moving is struck by **the shared sky laser** (`world/skyLaser.ts`, the one Free For All uses). The tower lasers, Mama's spotlight and the doll's look are deleted. The kill cam films the strike from 16 m along the line toward the eye. Text in English and Pidgin says "the sky sings", "the song cuts", "the eye". | §1.2. |
+| No made-up brands (Phase 11) | Shop signs on Ball Haunt's streets name trades ("SUYA SPOT", "VULCANISER", "PHONE REPAIRS"…), not invented shops. The one EMILGO GAMES sign reads BALL HAUNT. | The owner's rule. |
+| Ball Haunt's code loads on demand (Phase 11) | `modes/rlgl.ts` is a chunk of its own: the referee, the world builder, the eye, the songs, the walkout, the tutorial and replays. `Session.loadRl` fetches it when Ball Haunt starts (and in idle time when the flag is on). The lobby fetches none of it. **Boot script 363 → 311 KB gzipped.** | §1.2. |
+| Ball Haunt on the shared core (Phase 11) | `RedLightRound` is now **`Match` + the `doll` module** (`game/modules/doll.ts`: the cycle, the line, the swings, the judging) **+ the `balls` module** (`game/modules/balls.ts`). Match gained the corridor (`MatchWorld.course`: bodies move inside the course's edges and pens; those over the line keep walking and are still bumped) and `skipWalkout`. `RedLightRound` stays the round everything reads (the server's rooms, practice, the tutorial, the wire), so the protocol is unchanged. The 115 rules checks run unchanged. | §1.1: "the 115 rules tests must still pass". |
+| Still hidden (Phase 11) | `FEATURES.ballHaunt` stays `false`, and vehicles stay Free For All only. Flipping the flag shows Ball Haunt; the client and the server read the same file. | §1.2; the owner. |
 
 
 ## Context (from the plan)
@@ -1159,3 +1166,15 @@ Not done in Phase 9: the migration on the real project, prices, provider keys an
 | Builds | Lagos Life `dist/`: 362 KB JS gzipped plus a 120 KB chunk (was 481 in one) · EMILGO embed: 2,832 KB · web `dist-web/` · server |
 
 Not done in Phase 10: **the real phones** (a Tecno or Infinix and an iPhone, the owner's); Medium's 60 in a Dead Streets run (about 6% of a frame goes on three.js looking up programs every frame there, cause not found yet); the lobby under 4 s every time (Phase 11 moves Ball Haunt's code out of the boot script).
+
+### Phase 11: Ball Haunt rebuilt (done 2 Nov 2026)
+
+| Check | Result |
+| --- | --- |
+| Tests | rules **115** (unchanged, now on the match core) · balls · matchtest · **fairness 7/7** · survival · ffa · ads · shop · social · extras · shared · cars · space · world · content · rank: **all pass**. ballstest and matchtest failed once while running straight after the other online suites on a loaded Mac; both passed when run on their own, against the old server and the new. |
+| Load, 300 clients for 60 s (Ball Haunt rooms, on the match core) | 300/300 connected, snapshots p50 67 ms / p99 73 ms, 6.6 KB/s a player, tick p50 2.6 ms / p99 4.9 ms (max 7.1), 78 MB. |
+| Boot A/B against Stage 1's build (slow 4G 1.6 Mb/s, 150 ms, CPU 4×, 844×390, three runs each) | Script ready **3.42 s** against 4.17 s (mean). Lobby's first frame **7.82 s** against 8.22 s. Both figures are about double Phase 10's because the Mac was busy (load average 14). The comparison holds; the absolute times need a re-run on a quiet Mac. |
+| In the browser (headless Chrome, real GPU, 844×390) | Ball Haunting at 100 m in the desert: the eye opens on the cut and the sky laser strikes whoever moves. The lobby and Free For All fetch no Ball Haunt code. Free For All after Ball Haunt works, and its HUD no longer shows Ball Haunt's lines (fixed in this phase). No console errors. |
+| Builds (web) | Boot 309 KB JS gzipped · Ball Haunt 40 KB · the match core, shared by the matches and Ball Haunt, 74 KB · the matches 59 KB · EMILGO embed 2,828 KB. |
+
+Not done in Phase 11: **the real phones** (as in Phase 10); the boot re-measured on a quiet Mac; Ball Haunt online with real people. It stays hidden until the owner flips `FEATURES.ballHaunt`.

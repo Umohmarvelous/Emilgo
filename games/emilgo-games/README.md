@@ -8,8 +8,9 @@ Games SDK) and **inside the EMILGO app** (embedded, offline). One web codebase,
 two hosts.
 
 First game: **Red Light, Green Light** — a race down a closed-off Lagos street.
-Waka while Mama Gele sings; freeze when she turns; cross the line before the
-clock runs out.
+Waka while the sky sings; freeze when the song cuts; cross the line before the
+clock runs out. (Since SPEC-V3 it is **Ball Haunt**, hidden behind
+`FEATURES.ballHaunt`; the v3 games are Free For All and Dead Streets.)
 
 > **Status (14 Oct 2026): all six phases built and tested locally.** Practice,
 > online friendly rounds, Lagos Life matches with stakes, chat/emotes, the
@@ -121,6 +122,11 @@ signal words and the traffic lights were removed by SPEC-V2: the doll is the
 only cue.)
 
 ## 3. How the game plays
+
+> **SPEC-V3 Phase 11 (2 Nov 2026):** Mama is gone. The song comes from the sky,
+> an eye in the sky opens when it cuts, and the sky laser strikes whoever
+> moves. Where this section says "she", read "the eye"; the timings are the
+> same. [SPEC-V3.md](SPEC-V3.md) wins where they differ.
 
 > **The COD-style upgrade (Oct 2026)** — welcome poster, Call of Duty Mobile
 > lobby, generated five-fingered characters, jump / crouch / prone / sprint,

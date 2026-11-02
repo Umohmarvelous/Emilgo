@@ -14,7 +14,7 @@
 > 1–5 and their "How to play" cards, the `GameMode` seam, the staked Flag Duel;
 > Ball Haunt hidden) is built and committed (29 Oct 2026)**. **Phase 5
 > (vehicles) is done (30 Oct)** and **Phase 6 (FFA modes 6–10, Ranked, the
-> Harmattan, all 22 §10 extras) is done (2 Nov 2026)**; **Phase 7 (Spooky World, Dead Streets' core) is done (2 Nov 2026)**; **Phase 8 (Dead Streets' extras, rank rewards, the loading screen) is done (2 Nov 2026)**. **Phase 9 (billboards: the boards in both cities, house boards, the ads feed and seconds seen, the Supabase migration, the advertiser portal, checkouts and the review queue) is done (2 Nov 2026)**; the migration and the keys are the owner's to apply (see "Billboards: the owner's steps"). On 2 Nov the owner
+> Harmattan, all 22 §10 extras) is done (2 Nov 2026)**; **Phase 7 (Spooky World, Dead Streets' core) is done (2 Nov 2026)**; **Phase 8 (Dead Streets' extras, rank rewards, the loading screen) is done (2 Nov 2026)**. **Phase 9 (billboards: the boards in both cities, house boards, the ads feed and seconds seen, the Supabase migration, the advertiser portal, checkouts and the review queue) is done (2 Nov 2026)**; the migration and the keys are the owner's to apply (see "Billboards: the owner's steps"). **Phase 10 (performance and regression: the faster boot, the web build) is done (2 Nov 2026)**. **Phase 11 (Ball Haunt rebuilt: no Mama, the song from the sky, the eye and the shared sky laser, its own chunk, on the shared match core) is done (2 Nov 2026)**; Ball Haunt is still hidden (`FEATURES.ballHaunt`). **All 11 phases are done.** On 2 Nov the owner
 > said to build every remaining phase (7–11) **without waiting for approval**,
 > committing **and pushing** each change. See SPEC-V3 "Status".
 >
@@ -27,7 +27,7 @@
 Read these in order:
 1. This file.
 2. [SPEC-V3.md](SPEC-V3.md): the owner's answers, Decisions, the 11 phases and Status (v3 wins over everything below). The brief word for word: [SPEC-V3-ORIGINAL.md](SPEC-V3-ORIGINAL.md).
-3. [SPEC-V2.md](SPEC-V2.md) (still the rules for Ball Haunt until Phase 11):
+3. [SPEC-V2.md](SPEC-V2.md) (Ball Haunt's rules; SPEC-V3's Phase 11 decisions change the doll, the song and the lasers):
    - the owner's answers, the Decisions table and the 8 phases;
    - the **Status** section for what each finished phase built.
 4. [SPEC-ORIGINAL.md](SPEC-ORIGINAL.md): the owner's own full spec (§1–§11), word for word. Every `§` in this file and in SPEC-V2 points into it. Where it disagrees with SPEC-V2's Answers and Decisions, SPEC-V2 wins.
@@ -48,7 +48,7 @@ Read these in order:
 - **After any change under `src/`**, run `npm run game:embed` from the repo root. It writes the app's copy, `src/games/emilgo-games/redlightHtml.generated.ts`, which is committed.
 - **Never use Squid Game's music, doll voice, score, doll design or colours.** They are Netflix IP and Vatar Agreement §3.3 / §4(i) forbids them.
   - The song is the traditional, public-domain playground chant "Mugunghwa kkochi pieotseumnida", synthesised.
-  - The doll is our own giant schoolgirl in a green pinafore.
+  - Since v3 Phase 11 there is no doll: the song comes from the sky and an eye in the sky watches (`world/skyWatcher.ts`).
   - No words, lyrics or song title on screen.
 - **Real test keys live only in `server/.env`**, which is git-ignored. Never print them or put them in the game.
 - **Lagos Life rules that are easy to break:**
@@ -69,7 +69,7 @@ Read these in order:
 | Fighting | Never automatic. Players fight only when they tap fist, slap or push. A bump just stops you. CPUs only swing at whoever holds the ball they want. |
 | Hits during red light | Only the attacker is shot. |
 | Song | The traditional Mugunghwa chant, and (18 Oct 2026) our own lullaby: she takes turns with the two. No other songs, no picker. |
-| Doll | The giant schoolgirl doll: pigtails, green pinafore, about 12 m tall. |
+| Doll | Replaced in v3 Phase 11 (the owner's answer): no doll; the song comes from the sky, an eye watches, the sky laser strikes. |
 
 ## Phase status
 
@@ -138,8 +138,8 @@ Where things are:
   CPU skinning (`getVertexPosition`) already returns world positions.
 - Tiers: `graphics/tiers.ts` (`LOW_END_GPU`, `autoTier`); Auto's step down:
   `session.ts` `stepDownIfStruggling`; the governor: `core/quality.ts`.
-- Mama is made after boot: `session.ts` `doll` (a getter; `dollObj` is null
-  until then).
+- The eye in the sky is made on first use: `session.ts` `doll` (a getter;
+  `dollObj` is null until then; it comes from Ball Haunt's chunk).
 - Poor connections: `net/client.ts` (the watchdog, `online` retry).
 - Measuring: `dev/cdp.mjs`, with `CPU_RATE`, `NET_KBPS`/`NET_RTT`, and the
   `profile` (+ `reload`, `tree`), `offline` and `net` steps.
@@ -170,7 +170,7 @@ Where things are:
 - The bake: `tools/scan/bake.mjs` then `pack.mjs` → `world/human/scan/*.bin`
   (the header of bake.mjs says what it needs).
 - Review sheets: `dev/scan.html?body=m|f&level=0..3&set=moves|emotes|poses`.
-  `dev/humans.html?gen=1` shows the generated people (Mama).
+  `dev/humans.html?gen=1` shows the generated people.
 - Shadow stand-ins: `graphics/shadowOnly.ts`; `Human.castShadows`.
 - The ground solver lying down skins its points by all four weights
   (`Body.contactsAll`, stride 20).
@@ -219,6 +219,13 @@ npm run game:embed     # typecheck + single-file build → the app's copy (run a
 npm run game:build     # typecheck + dist/ (Lagos Life site)
 npm --prefix games/emilgo-games run typecheck   # client + server
 ```
+
+## v3 Phase 11: where things are
+
+- **No Mama.** `world/skyWatcher.ts` is the eye (same calls the doll had: `setSinging`, `setWatching`, `caught`, `placeAt`); `world/skyLaser.ts` strikes whoever is caught (`session.ts` on a "moved" elimination, and `rlgl/replayView.ts` in replays). `world/doll.ts`, `world/lasers.ts` and the doll's look in `world/human/*` are deleted. The song's echo is `sound.ts` `skySend`.
+- **Ball Haunt's chunk**: `src/modes/rlgl.ts`, loaded by `Session.loadRl` (`withRl` runs a start once it's here; `rlgl` is the module, null until then). **Don't import Ball Haunt's modules (rules, world, walkout, tutorial, replays, songs, the eye) from the lobby's code**; take types with `import type`. Light pieces the lobby needs: `game/phases.ts`, `flow/walkoutButtons.ts`.
+- **On the shared core**: `game/rules.ts` `RedLightRound` wraps a `Match` with `game/modules/doll.ts` (the cycle, the line, swings, judging) and `game/modules/balls.ts`. `Match` moves bodies by `MatchWorld.course` when there is one (the corridor), not its `space`. The wire, the rooms and `OnlineRound` are unchanged. The rules tests set `phase`/`phaseTime`/`phaseDuration` through the wrapper's setters.
+- To show Ball Haunt: `FEATURES.ballHaunt = true` in `src/config.ts` (the server reads it too), then `npm run game:embed` and redeploy.
 
 ## v3 Phase 10: where things are
 
@@ -321,7 +328,7 @@ VIEW=844x390 node dev/cdp.mjs "http://localhost:5173/" <outdir> <steps.json>   #
 - Check every UI change in two layouts:
   - landscape 844×390 and portrait 390×844;
   - right-handed and left-handed ("Swap sticks").
-- `dev/humans.html?set=doll&tier=2&cam=face` shows the character and doll line-ups.
+- `dev/humans.html?set=face&tier=2` shows the character line-ups.
 
 ## Open items (not code; the owner's)
 
