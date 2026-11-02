@@ -46,8 +46,9 @@ import {
   type AdPartner,
   type AdCreativeRow,
 } from "@/src/services/adAdmin";
+import { BillboardReviews } from "@/components/admin/BillboardReviews";
 
-type Tab = "creatives" | "partners";
+type Tab = "creatives" | "partners" | "billboards";
 
 const naira = (n: number) => `₦${n.toLocaleString("en-NG", { maximumFractionDigits: 2 })}`;
 
@@ -285,6 +286,7 @@ export default function AdConsoleScreen() {
             segments={[
               { key: "creatives", label: `Ads (${creatives.length})` },
               { key: "partners", label: `Partners (${partners.length})` },
+              { key: "billboards", label: "Billboards" },
             ]}
             active={tab}
             onChange={(k) => {
@@ -295,8 +297,11 @@ export default function AdConsoleScreen() {
           />
         </View>
 
+        {/* ── The billboards' review queue (EMILGO Games) ─────────────────── */}
+        {tab === "billboards" ? <BillboardReviews /> : null}
+
         {/* ── The composer ────────────────────────────────────────────────── */}
-        {editing ? (
+        {tab === "billboards" ? null : editing ? (
           <View style={[styles.card, { backgroundColor: t.secondarySystemGroupedBackground }]}>
             <Text style={[styles.cardTitle, { color: t.label }]}>
               {formId ? "Edit" : "New"} {editing}
@@ -418,7 +423,9 @@ export default function AdConsoleScreen() {
         )}
 
         {/* ── The list ────────────────────────────────────────────────────── */}
-        {tab === "partners"
+        {tab === "billboards"
+          ? null
+          : tab === "partners"
           ? partners.map((p) => (
               <View
                 key={p.id}

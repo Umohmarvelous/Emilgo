@@ -19,6 +19,7 @@
 
 import type { Express, Request, Response } from "express";
 import crypto from "node:crypto";
+import { adBilling } from "./adBilling";
 
 const PAYSTACK_BASE = "https://api.paystack.co";
 const SECRET = process.env.PAYSTACK_SECRET_KEY || "";
@@ -289,6 +290,10 @@ export function registerPaystackRoutes(app: Express): void {
     }
     const event = req.body;
     console.log("[Paystack webhook]", event?.event, event?.data?.reference);
+    // A billboard's budget (EMILGO Games): settled only on a signed event (live mode).
+    if (isLive && event?.data?.metadata?.kind === "game_billboard") {
+      adBilling().paystackEvent(event).catch((e) => console.warn("[Paystack webhook] billboard settle:", e?.message));
+    }
     // TODO: persist the transaction / update trip or subscription state in Supabase.
     return res.sendStatus(200);
   });

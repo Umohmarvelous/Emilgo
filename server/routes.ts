@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "node:http";
 import { registerPaystackRoutes } from "./paystack";
 import { registerKycRoutes } from "./kyc";
+import { registerAdBillingRoutes } from "./adBilling";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/health", (_req, res) => {
@@ -12,6 +13,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // mock-by-default and go live automatically when their env keys are set.
   registerPaystackRoutes(app);
   registerKycRoutes(app);
+  // Billboards in EMILGO Games: the advertiser portal's checkouts (Paystack,
+  // Flutterwave, Stripe), mock until their keys are set.
+  registerAdBillingRoutes(app);
 
   app.post("/api/webhooks/scan-success", async (req, res) => {
     try {
