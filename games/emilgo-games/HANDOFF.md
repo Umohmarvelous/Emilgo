@@ -12,8 +12,11 @@
 > committed (28 Oct 2026)**. **Phase 4 (Free For All's core: Gidigbo melee,
 > 12-player rooms, squads and parties, the rotation, results with XP, modes
 > 1–5 and their "How to play" cards, the `GameMode` seam, the staked Flag Duel;
-> Ball Haunt hidden) is built and committed (29 Oct 2026)**. Phase 5
-> (vehicles) waits for the go-ahead. See SPEC-V3 "Status".
+> Ball Haunt hidden) is built and committed (29 Oct 2026)**. **Phase 5
+> (vehicles) is done (30 Oct)** and **Phase 6 (FFA modes 6–10, Ranked, the
+> Harmattan, all 22 §10 extras) is done (2 Nov 2026)**. On 2 Nov the owner
+> said to build every remaining phase (7–11) **without waiting for approval**,
+> committing **and pushing** each change. See SPEC-V3 "Status".
 >
 > Before v3: Red Light, Green Light v2 was built to [SPEC-V2.md](SPEC-V2.md)
 > in 8 phases, all done and committed, then the owner's scanned people
@@ -36,10 +39,10 @@ Read these in order:
 
 ## How the owner works (follow these)
 
-- **One phase at a time.** Finish it, test it, report it, then **stop and wait for the go-ahead**. Never start the next phase on your own.
+- **One phase at a time.** Finish it, test it, report it, then **stop and wait for the go-ahead**. Never start the next phase on your own. *Exception (2 Nov 2026): the owner said "continue building all other remaining phases until completion without my approval": phases 7–11 run back to back.*
 - **Short, plain replies.** No repetition.
 - **Build only what the spec says** (SPEC-V3 now). Nothing extra. If the spec is unclear, add a row to its Decisions table and say so in the report.
-- **Commit after every finished update, without asking** (the owner, 18 Oct 2026: "always commit every new update"). Stage only that change's files. End commit messages with the `Co-Authored-By` line. Don't push.
+- **Commit after every finished update, without asking** (the owner, 18 Oct 2026: "always commit every new update"). Stage only that change's files. End commit messages with the `Co-Authored-By` line. **Push each commit** (`git push origin <branch>`; 2 Nov 2026: "keep commiting and pushing to repository for every change made"). Never force-push.
 - **The permanent home (30 Oct 2026):** no domain yet, so players use **https://milgogames.pages.dev** (published by `scripts/deploy-site.sh`) and the server is **https://emilgo-games.fly.dev** (Fly.io, London; `fly.toml`, `fly deploy`; the owner pays Fly). Later, with emilgo.app: play.emilgo.app and api.emilgo.app. The owner buys the domain, makes the Fly account and sets every secret with `fly secrets set` — never in the repo or the chat. README §6 has the steps.
 - **Deploys are paused, except the owner's test site** (30 Oct 2026: "deploy this on cloudflare so i can play with my mobile phone"): **https://milgogames.pages.dev** (Cloudflare Pages project `milgogames`, wrangler is logged in). Republish it after each phase. `scripts/play-live.sh` builds the last commit, starts the game server on this Mac (port 8799, data in `data/live/`) behind a Cloudflare quick tunnel and republishes the site pointing at it; `scripts/play-live.sh stop` ends it. The owner runs it (Claude's permission check blocks opening the tunnel). Without it the site plays Practice only. Everything else (Lagos Life, EAS, the Docker server) stays paused.
 - **After any change under `src/`**, run `npm run game:embed` from the repo root. It writes the app's copy, `src/games/emilgo-games/redlightHtml.generated.ts`, which is committed.
@@ -217,6 +220,15 @@ npm run game:build     # typecheck + dist/ (Lagos Life site)
 npm --prefix games/emilgo-games run typecheck   # client + server
 ```
 
+## v3 Phase 6: where things are
+
+- Modes 6–10 are rule modules: `economy.ts` (Hustle), `tag.ts` (Chase & Reverse), `rooms.ts` (Compound Wars; the courtyard is `prefabs.ts` `courtyard`), `riddles.ts` (+ `content/riddles.ts`), `blackout.ts` (Lights Out). Their screen side: `world/modesView.ts`.
+- The §10 items' effects and the power-emote cards: `modules/gadgets.ts` (+ `world/gadgets.ts`). The Harmattan: `modules/harmattan.ts`. The danfo hazard: `modules/traffic.ts` (drawn in `world/vehicles.ts`). Zip-lines: `modules/zips.ts`, placed by `zipLines()` in `maps/open/matchWorld.ts` (`Space.topNear` checks the path). The Airfall vote: `modules/airfall.ts` (`ballot`, `vote`; the panel in `modes/ffa.ts`).
+- Weekly mutators: `weeklyMutator`, `envOf`, `settingsOf(def, ranked, mutator)` in `game/core/match.ts`; `MoveEnv` in `body.ts`. The server puts `mu` in the start (none when staked).
+- Server-only bits: squad pings (`Room.squadPing`, to squad mates only), commends (`Room.commend`, `profiles.commend`), the streak (`profiles` column `streak`; `withStreak` adds `st` to the look in `server/src/index.ts`).
+- Client-only: the ping wheel (`ui/quickchat.ts` `setPings`), Form badge and streak in the lobby (`ui/screens.ts`), the unlock ceremony (`Screens.ceremony`), the practice dummy (`LobbyStage.setDummy`, `shoveDummy`).
+- Tests: `extrastest` (121 checks, offline); `ffatest`'s network half checks pings and commends; `ranktest` checks streak and commends.
+
 ### The test suite
 
 Run it from `games/emilgo-games/`. It uses ports **:8797** (game server) and **:8790** (fake platform), so the Docker server on :8787 is left alone.
@@ -234,6 +246,7 @@ node server/dist/spacetest.mjs                          # 19 checks (Phase 2: gr
 node server/dist/worldtest.mjs                          # 15 checks (Phase 2: Naija World)
 node server/dist/sharedtest.mjs                         # 59 checks (Phase 3: the match core, zone, items, Airfall)
 node server/dist/cartest.mjs                            # 50 checks (Phase 5: vehicles)
+node server/dist/extrastest.mjs                         # 121 checks (Phase 6: items, Ranked, modes 6–10, the Harmattan, the extras)
 GAME=ws://localhost:8797 node server/dist/ffatest.mjs   # Phase 4: melee and the five modes offline, then 12 phones online
 GAME=ws://localhost:8797 node server/dist/ranktest.mjs  # 42 checks (needs SUPABASE_JWT_SECRET on the server, as above)
 GAME=ws://localhost:8797 node server/dist/matchtest.mjs
