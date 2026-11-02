@@ -54,8 +54,17 @@ export interface Settings {
   autoCam: boolean;
   /** Move on the right, look on the left. */
   leftHanded: boolean;
-  /** Right stick: always drawn, or only while touched. */
-  lookStick: "always" | "touch";
+  /**
+   * Touch look (v4 Phase 1): the right half is a touchpad. A faint touch point
+   * (off by default: invisible), the acceleration (0 = linear), the dead zone
+   * in px (a tap stays a tap), and whether a drag that starts on FIRE also aims.
+   */
+  lookDot: boolean;
+  lookAccel: number;
+  lookDead: number;
+  fireAim: boolean;
+  /** The move stick: fixed in the corner (default) or wherever the thumb lands. */
+  moveStick: "fixed" | "float";
   /** Desktop mouse: pointer lock (default) or a virtual look stick (SPEC-V3). */
   mouseLook: "lock" | "stick";
   /** Camera sensitivity, fraction of the maximum (180°/s). */
@@ -170,7 +179,11 @@ export function defaults(host: Host): Settings {
     shake: true,
     autoCam: false,
     leftHanded: false,
-    lookStick: "touch",
+    lookDot: false,
+    lookAccel: 1.4,
+    lookDead: 3,
+    fireAim: true,
+    moveStick: "fixed",
     mouseLook: "lock",
     // Reduced sensitivity: 0.3 of the maximum (SPEC-V2 §4.2).
     sensH: 0.3,
@@ -255,6 +268,9 @@ export function newFid(): string {
 
 export const FID_RE = /^[A-Za-z0-9_-]{16}$/;
 
+/** Touch look presets (v4): [camera sensitivity, acceleration]. */
+export const LOOK_PRESETS: Record<string, [number, number]> = { precise: [0.8, 0.6], classic: [1, 1.4], fast: [1.3, 2.4], linear: [1, 0] };
+
 export function loadSettings(host: Host): Settings {
   const base = defaults(host);
   const raw = host.load(KEY);
@@ -271,7 +287,11 @@ export function loadSettings(host: Host): Settings {
     // One choice now: whatever an older save chose becomes the default.
     out.song = base.song;
     if (!["auto", "low", "medium", "high"].includes(out.graphics)) out.graphics = base.graphics;
-    if (out.lookStick !== "always" && out.lookStick !== "touch") out.lookStick = base.lookStick;
+    // Before v4 the look stick could be drawn "always": that now shows the touch point.
+    if (typeof saved.lookDot !== "boolean" && (saved as { lookStick?: string }).lookStick === "always") out.lookDot = true;
+    if (out.moveStick !== "fixed" && out.moveStick !== "float") out.moveStick = base.moveStick;
+    out.lookAccel = clamp(Number(out.lookAccel), 0, 3);
+    out.lookDead = Math.round(clamp(Number(out.lookDead), 0, 12));
     if (out.mouseLook !== "lock" && out.mouseLook !== "stick") out.mouseLook = base.mouseLook;
     if (!MODES.includes(out.mode)) out.mode = base.mode;
     if (!DISTANCES.includes(out.distance)) out.distance = base.distance;

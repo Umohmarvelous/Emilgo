@@ -223,6 +223,21 @@ export class CameraRig {
     this.idle = 0;
   }
 
+  /**
+   * The touchpad (v4): turn by exactly this much (radians; x + turns right,
+   * y + looks down), already scaled by the thumb's travel and speed. The
+   * view follows almost at once (a touchpad mustn't feel like it lags).
+   */
+  turn(x: number, y: number): void {
+    if (!x && !y) return;
+    this.yaw -= x;
+    this.pitch += y * (this.invertY ? -1 : 1);
+    this.pitch = Math.max(PITCH_MIN, Math.min(PITCH_MAX, this.pitch));
+    this.idle = 0;
+    this.padAt = this.time;
+  }
+  private padAt = -1e9;
+
   kick(amount: number): void {
     if (this.shakeEnabled) this.shake = Math.min(1.2, this.shake + amount);
   }
@@ -231,7 +246,8 @@ export class CameraRig {
     this.time += dt;
     this.idle += dt;
     // Smoothing: about 15% of the way each 60th of a second.
-    const k = 1 - Math.pow(1 - SMOOTH, dt * 60);
+    // The touchpad follows within a frame or two; the stick and keys keep the calm 0.15.
+    const k = 1 - Math.pow(1 - (this.time - this.padAt < 0.3 ? 0.6 : SMOOTH), dt * 60);
     let dy = this.yaw - this.viewYaw;
     dy = Math.atan2(Math.sin(dy), Math.cos(dy));
     this.viewYaw += dy * k;

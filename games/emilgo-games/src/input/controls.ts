@@ -5,8 +5,13 @@
 //   move   left half — appears wherever the thumb lands, gone when it lifts;
 //          a small push walks, a full push runs; LET GO = FREEZE; a quick
 //          double-tap of the stick starts a sprint
-//   look   right half — rotates the camera at a rate (calm by default);
-//          drawn always or only while touched (settings)
+//   look   right half — a touchpad (v4 Phase 1): the camera turns by how far
+//          the thumb travels, faster for a quick flick (an acceleration
+//          curve), after a small dead zone so a tap stays a tap. Nothing is
+//          drawn unless "show touch point" is on; nothing snaps back or
+//          re-centres; a drag that starts on FIRE also aims.
+//   v4: the move stick sits fixed in the corner (1 px white outline), or
+//   floats where the thumb lands (Settings).
 // "Swap sticks" mirrors the halves and the buttons.
 //
 // Buttons, icons only (SPEC-V2 §3.1): sprint above the move stick, with your
@@ -42,6 +47,21 @@ export interface Vec2 {
 
 const SIZES = { small: 100, medium: 120, large: 144 } as const;
 const DEAD = 0.1;
+/** Touch look: radians per px of thumb travel at sensitivity 1 with a slow thumb (0.12°). */
+const PAD_BASE = (0.12 * Math.PI) / 180;
+/** Thumb speed (px per ms): below V0 no boost, from V1 the full boost (smoothstep between). */
+const PAD_V0 = 0.15;
+const PAD_V1 = 1.6;
+
+/** One finger on the touchpad. */
+interface PadTouch {
+  x: number;
+  y: number;
+  t: number;
+  /** Travel so far while still inside the dead zone. */
+  travelled: number;
+  live: boolean;
+}
 const DOUBLE_TAP_MS = 320;
 const PRONE_HOLD_MS = 420;
 
@@ -64,6 +84,7 @@ export class Controls {
   set enabled(on: boolean) {
     this.on = on;
     if (!on) this.unlockPointer();
+    this.placeMoveHome();
   }
   /**
    * Desktop mouse (SPEC-V3): "lock" takes the pointer on a click (the cursor
@@ -74,8 +95,10 @@ export class Controls {
   /** Called when the pointer is taken or given back. */
   onPointerLock: ((locked: boolean) => void) | null = null;
   leftHanded = false;
-  /** Right stick drawn when idle ("always") or only while touched. */
-  lookAlways = false;
+  /** Touch look: sensitivity (both axes, and each), acceleration, dead zone (px), the touch point, aim from FIRE. */
+  readonly pad = { sens: 1, h: 1, v: 1, accel: 1.4, dead: 3, dot: false, fireAim: true };
+  /** The move stick sits fixed in the corner, or floats where the thumb lands. */
+  moveFixed = true;
   readonly move: Vec2 = { x: 0, y: 0 };
   readonly look: Vec2 = { x: 0, y: 0 };
   /** Sprint toggled on (button, double-tap or Shift). */
@@ -133,6 +156,11 @@ export class Controls {
   private crouchDownAt = 0;
   private crouchTimer = 0;
   private mouseLook: { id: number; x: number; y: number } | null = null;
+  /** Fingers on the touchpad, and the turn they've made since the last frame (radians). */
+  private readonly pads = new Map<number, PadTouch>();
+  private padYaw = 0;
+  private padPitch = 0;
+  private padAt = -1e9;
   onPauseKey: (() => void) | null = null;
   onFirstPerson: (() => void) | null = null;
   onChat: (() => void) | null = null;
@@ -209,10 +237,16 @@ export class Controls {
         } catch {
           /* fine */
         }
+        // FIRE (and the gun): a drag that starts here also aims.
+        if (b.dataset.aim === "1" && this.pad.fireAim) this.padStart(e.pointerId, toGame(e.clientX, e.clientY));
         down(e);
+      });
+      b.addEventListener("pointermove", (e) => {
+        if (this.pads.has(e.pointerId)) this.padMove(e.pointerId, toGame(e.clientX, e.clientY));
       });
       const end = (e: PointerEvent) => {
         b.classList.remove("down");
+        this.padEnd(e.pointerId);
         up?.(e);
       };
       b.addEventListener("pointerup", end);
@@ -271,6 +305,7 @@ export class Controls {
     window.addEventListener("keydown", this.keyDown);
     window.addEventListener("keyup", this.keyUp);
     window.addEventListener("blur", () => this.reset());
+    window.addEventListener("resize", () => this.placeMoveHome());
     surface.addEventListener("contextmenu", (e) => e.preventDefault());
     document.addEventListener("mousemove", this.lockedMove);
     // Free For All with the mouse taken: left click a fist, right click a brace.
@@ -348,12 +383,87 @@ export class Controls {
     return Math.hypot(this.move.x, this.move.y) > 0.01;
   }
 
-  setLayout(leftHanded: boolean, lookAlways: boolean): void {
+  setLayout(leftHanded: boolean, moveFixed: boolean): void {
     this.leftHanded = leftHanded;
-    this.lookAlways = lookAlways;
+    this.moveFixed = moveFixed;
     this.actions.classList.toggle("lefty", leftHanded);
     this.moveSide.classList.toggle("lefty", leftHanded);
-    this.placeLookHome();
+    this.placeMoveHome();
+  }
+
+  /** The touch look's feel (Settings): sensitivity × each axis, acceleration, dead zone px, the touch point, aim from FIRE. */
+  setPad(sens: number, h: number, v: number, accel: number, dead: number, dot: boolean, fireAim: boolean): void {
+    Object.assign(this.pad, { sens, h, v, accel, dead, dot, fireAim });
+    this.sticks.look.el.classList.add("pad");
+  }
+
+  /** Mark a button whose drag also aims (FIRE, the gun). */
+  aimFrom(b: HTMLElement): void {
+    b.dataset.aim = "1";
+  }
+
+  /** Turn per px for a thumb moving at v px/ms: flat for slow aim, rising for a flick. */
+  padGain(v: number): number {
+    const t = Math.min(1, Math.max(0, (v - PAD_V0) / (PAD_V1 - PAD_V0)));
+    return PAD_BASE * this.pad.sens * (1 + this.pad.accel * t * t * (3 - 2 * t));
+  }
+
+  /** The touchpad's turn since the last call (radians: x sideways, + right; y, + down). */
+  consumePad(): Vec2 {
+    const d = { x: this.padYaw, y: this.padPitch };
+    this.padYaw = this.padPitch = 0;
+    return d;
+  }
+
+  /** Someone is turning the camera: a finger on the touchpad, a look key, or the touchpad's last move under 0.6 s ago. */
+  get looking(): boolean {
+    return this.pads.size > 0 || Math.abs(this.look.x) > 0.05 || Math.abs(this.look.y) > 0.05 || performance.now() - this.padAt < 600;
+  }
+
+  private padStart(id: number, p: Vec2): void {
+    if (this.pads.has(id)) return;
+    this.pads.set(id, { x: p.x, y: p.y, t: performance.now(), travelled: 0, live: this.pad.dead <= 0 });
+    this.showDot(p);
+  }
+
+  private padMove(id: number, p: Vec2): void {
+    const f = this.pads.get(id);
+    if (!f) return;
+    const now = performance.now();
+    const dx = p.x - f.x;
+    const dy = p.y - f.y;
+    const dt = Math.max(1, now - f.t);
+    f.x = p.x;
+    f.y = p.y;
+    f.t = now;
+    const step = Math.hypot(dx, dy);
+    // The dead zone swallows the first few px (a tap stays a tap); the rest of the step that crosses it counts.
+    let part = 1;
+    if (!f.live) {
+      f.travelled += step;
+      if (f.travelled < this.pad.dead) return;
+      f.live = true;
+      part = step > 0 ? (f.travelled - this.pad.dead) / step : 0;
+    }
+    if (!this.enabled) return;
+    const k = this.padGain(step / dt) * part;
+    this.padYaw += dx * k * this.pad.h;
+    this.padPitch += dy * k * this.pad.v;
+    this.padAt = now;
+    this.showDot(p);
+  }
+
+  private padEnd(id: number): void {
+    if (!this.pads.delete(id)) return;
+    if (this.pads.size === 0) this.sticks.look.el.classList.remove("on");
+  }
+
+  /** The faint touch point (only with "show touch point" on). */
+  private showDot(p: Vec2): void {
+    const l = this.sticks.look;
+    if (!this.pad.dot) return;
+    l.el.style.transform = `translate(${p.x}px, ${p.y}px)`;
+    l.el.classList.add("on");
   }
 
   /** Stick size and opacity (Settings), and how sprint works. */
@@ -388,7 +498,7 @@ export class Controls {
     this.moveSide.hidden = !on;
     this.vitals.hidden = !on;
     if (!on) this.setNear(false, false);
-    this.placeLookHome();
+    this.placeMoveHome();
   }
 
   /** Which bottom-centre buttons apply right now: someone in reach to attack, a ball to grab (Free For All: brace with the attacks). */
@@ -444,6 +554,9 @@ export class Controls {
     });
     this.grabBtn.hidden = on;
     this.braceBtn.hidden = on;
+    // The gun: a drag that starts on it also aims (v4).
+    if (on) this.aimFrom(this.attackBtns[1]);
+    else delete this.attackBtns[1].dataset.aim;
   }
 
   /** Free For All: holding someone, the attacks finish the clinch (fist Throw, slap Trip, push Drag). */
@@ -497,13 +610,15 @@ export class Controls {
       s.el.classList.remove("on", "run", "sprint");
     }
     this.mouseLook = null;
+    this.pads.clear();
+    this.padYaw = this.padPitch = 0;
     this.keys.clear();
     this.shiftSprint = false;
     this.braceKey = this.braceTouch = this.braceMouse = false;
     this.setFinisher(false);
     this.setSprint(false);
     this.setStance(0);
-    this.placeLookHome();
+    this.placeMoveHome();
     this.update();
   }
 
@@ -532,11 +647,11 @@ export class Controls {
     if (!mx && !my && this.sprint && !this.shiftSprint) this.setSprint(false);
     m.el.classList.toggle("sprint", this.sprint && m.id !== null);
 
-    const l = this.sticks.look;
     // Q and E turn the camera in Red Light, Green Light; Free For All gives them to grab and interact.
+    // (Touch look is the touchpad: consumePad.)
     const kl = this.layout === "ffa" ? 0 : (this.key("e") ? 1 : 0) - (this.key("q") ? 1 : 0);
-    this.look.x = this.enabled ? kl || l.x : 0;
-    this.look.y = this.enabled ? l.y : 0;
+    this.look.x = this.enabled ? kl : 0;
+    this.look.y = 0;
   }
 
   /** Mouse drag on desktop: pixels moved since the last frame (added to the look rate). */
@@ -561,18 +676,27 @@ export class Controls {
     }
   }
 
-  /** The idle right stick, at its home position (when "always"). */
-  private placeLookHome(): void {
-    const l = this.sticks.look;
-    if (l.id !== null) return;
-    const show = this.enabled && this.lookAlways && !this.actions.hidden;
-    l.el.classList.toggle("idle", show);
-    if (!show) return;
+  /** The fixed move stick's centre (game px): the bottom corner, mirrored for left hands. */
+  private moveHome(): Vec2 {
     const g = gameSize();
-    const x = this.leftHanded ? 120 : g.w - 250;
-    const y = g.h - 110;
-    l.el.style.transform = `translate(${x}px, ${y}px)`;
-    l.knob.style.transform = "translate(-50%, -50%)";
+    const portrait = g.h > g.w;
+    const x = 40 + this.radius;
+    const y = g.h - (portrait ? 150 : 40) - this.radius;
+    return { x: this.leftHanded ? g.w - x : x, y };
+  }
+
+  /** The move stick at rest: drawn at home when fixed (in play), hidden when floating. */
+  private placeMoveHome(): void {
+    const m = this.sticks.move;
+    if (m.id !== null) return;
+    const show = this.enabled && this.moveFixed && !this.actions.hidden;
+    m.el.classList.toggle("idle", show);
+    m.knob.style.transform = "translate(-50%, -50%)";
+    if (!show) return;
+    const h = this.moveHome();
+    m.ox = h.x;
+    m.oy = h.y;
+    m.el.style.transform = `translate(${h.x}px, ${h.y}px)`;
   }
 
   private down = (e: PointerEvent): void => {
@@ -591,7 +715,7 @@ export class Controls {
       this.lockPointer();
       return;
     }
-    // "stick": a mouse drag on the look side is a virtual stick, like a thumb (below).
+    // "stick": a mouse drag on the look side is the touchpad, exactly as a thumb (below).
     if (e.pointerType === "mouse" && !isMove && this.mouseMode !== "stick") {
       this.mouseLook = { id: e.pointerId, x: p.x, y: p.y };
       try {
@@ -601,12 +725,28 @@ export class Controls {
       }
       return;
     }
-    const s = isMove ? this.sticks.move : this.sticks.look;
+    if (!isMove) {
+      // The touchpad: any number of fingers, each one turns the camera by its own travel.
+      e.preventDefault();
+      try {
+        this.surface.setPointerCapture(e.pointerId);
+      } catch {
+        /* fine */
+      }
+      this.padStart(e.pointerId, p);
+      return;
+    }
+    const s = this.sticks.move;
     if (s.id !== null) return;
     e.preventDefault();
     s.id = e.pointerId;
-    s.ox = p.x;
-    s.oy = p.y;
+    // Fixed: the stick stays home and the thumb pushes it from there; a thumb
+    // landing well away from it (or the floating stick) puts the base under the thumb.
+    const home = this.moveHome();
+    const far = Math.hypot(p.x - home.x, p.y - home.y) > this.radius * 2;
+    const base = this.moveFixed && !far ? home : p;
+    s.ox = base.x;
+    s.oy = base.y;
     s.x = s.y = 0;
     try {
       this.surface.setPointerCapture(e.pointerId);
@@ -617,11 +757,10 @@ export class Controls {
     s.knob.style.transform = "translate(-50%, -50%)";
     s.el.classList.remove("idle");
     s.el.classList.add("on");
-    if (isMove) {
-      const t = performance.now();
-      if (t - this.lastMoveTap < DOUBLE_TAP_MS && this.stance === 0) this.setSprint(true);
-      this.lastMoveTap = t;
-    }
+    const t = performance.now();
+    if (t - this.lastMoveTap < DOUBLE_TAP_MS && this.stance === 0) this.setSprint(true);
+    this.lastMoveTap = t;
+    if (base !== p) this.moveEv(e);
   };
 
   private moveEv = (e: PointerEvent): void => {
@@ -633,15 +772,24 @@ export class Controls {
       this.mouseLook.y = p.y;
       return;
     }
-    for (const s of [this.sticks.move, this.sticks.look]) {
+    if (this.pads.has(e.pointerId)) {
+      e.preventDefault();
+      this.padMove(e.pointerId, p);
+      return;
+    }
+    for (const s of [this.sticks.move]) {
       if (s.id !== e.pointerId) continue;
       e.preventDefault();
       let dx = p.x - s.ox;
       let dy = p.y - s.oy;
       const d = Math.hypot(dx, dy);
       const R = this.radius;
-      if (d > R) {
-        // Drag the base along: the thumb never runs out of stick.
+      if (d > R && this.moveFixed) {
+        // Fixed: the knob stops at the rim (the stick never wanders off).
+        dx *= R / d;
+        dy *= R / d;
+      } else if (d > R) {
+        // Floating: drag the base along, so the thumb never runs out of stick.
         const pull = d - R;
         s.ox += (dx / d) * pull;
         s.oy += (dy / d) * pull;
@@ -669,13 +817,14 @@ export class Controls {
       this.mouseLook = null;
       return;
     }
-    for (const s of [this.sticks.move, this.sticks.look]) {
-      if (s.id !== e.pointerId) continue;
+    this.padEnd(e.pointerId);
+    const s = this.sticks.move;
+    if (s.id === e.pointerId) {
       s.id = null;
       s.x = s.y = 0;
       s.el.classList.remove("on", "run", "sprint");
     }
-    this.placeLookHome();
+    this.placeMoveHome();
   };
 
   private keyDown = (e: KeyboardEvent): void => {

@@ -676,6 +676,10 @@ input { font: inherit; color: inherit; }
 .stick .bar { position: absolute; left: 50%; bottom: calc(100% + 10px); width: 64px; height: 3px; margin-left: -32px; border-radius: 2px; background: rgba(255, 255, 255, 0.25); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35); opacity: 0; transition: opacity 0.2s; }
 .stick .bar.show { opacity: 1; }
 .stick .bar b { position: absolute; left: 0; top: 0; bottom: 0; width: calc(var(--v, 1) * 100%); border-radius: 2px; background: var(--white); }
+/* v4 touch look: no stick, only an optional faint touch point under the thumb. */
+.stick.pad { width: 34px; height: 34px; margin: -17px 0 0 -17px; background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.55); transition: opacity 0.2s; }
+.stick.pad.on { opacity: 0.4; }
+.stick.pad .knob, .stick.pad .bar { display: none; }
 
 .touch { position: absolute; inset: 0; touch-action: none; pointer-events: none; }
 .touch.live { pointer-events: auto; }

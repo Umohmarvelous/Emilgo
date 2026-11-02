@@ -16,7 +16,7 @@ import type { RoomInfo } from "../net/protocol";
 import type { Rank } from "../rank/ladder";
 import type { Host, Leaderboard, MatchView } from "../platform/types";
 import { errorText } from "../platform/vatarErrors";
-import type { Settings } from "../settings";
+import { LOOK_PRESETS, type Settings } from "../settings";
 import { BOOSTS, BOOST_BY_ID, BOOST_ROUNDS, BOOST_SLOTS, type Boost, type BoostId } from "../shop/boosts";
 import { PRODUCTS, PRODUCT_BY_ID } from "../shop/catalog";
 import type { FriendState } from "../social/friends";
@@ -168,7 +168,7 @@ export interface LobbyState {
 
 type Action = (name: string, el: HTMLElement, ev: Event) => void;
 
-type RangeKey = "sensH" | "sensV" | "stickOpacity" | "sens" | "master" | "musicVol" | "sfxVol" | "adsVol";
+type RangeKey = "sensH" | "sensV" | "stickOpacity" | "sens" | "master" | "musicVol" | "sfxVol" | "adsVol" | "lookAccel";
 
 export interface StoreState {
   tab: "boosts" | "cosmetics";
@@ -1014,7 +1014,7 @@ export class Screens {
         <span class="switch"><input type="checkbox" data-act="toggle" data-key="${key}" ${s[key] ? "checked" : ""} /><i></i></span></label>`;
     const seg = (key: string, cur: string, opts: [string, string][]) =>
       `<span class="seg">${opts.map(([v, l]) => `<button class="${cur === v ? "on" : ""}" data-act="set" data-key="${key}" data-val="${v}">${l}</button>`).join("")}</span>`;
-    const RANGE: Record<RangeKey, [number, number]> = { sensH: [5, 100], sensV: [5, 100], stickOpacity: [30, 100], sens: [50, 200], master: [0, 100], musicVol: [0, 100], sfxVol: [0, 100], adsVol: [0, 100] };
+    const RANGE: Record<RangeKey, [number, number]> = { sensH: [5, 100], sensV: [5, 100], stickOpacity: [30, 100], sens: [50, 200], master: [0, 100], musicVol: [0, 100], sfxVol: [0, 100], adsVol: [0, 100], lookAccel: [0, 300] };
     const range = (key: RangeKey, label: string, sub: string, off = false) =>
       `<div class="row-set${off ? " off" : ""}"><span class="lbl"><b>${label}</b><small>${sub}</small></span><input class="slider" type="range" min="${RANGE[key][0]}" max="${RANGE[key][1]}" step="1" value="${Math.round(s[key] * 100)}" data-act="range" data-key="${key}" aria-label="${label}" ${off ? "disabled" : ""} /><span class="num pct" data-pct="${key}">${Math.round(s[key] * 100)}%</span></div>`;
     const tabs = [
@@ -1045,15 +1045,22 @@ export class Screens {
         <label class="row-set off"><span class="lbl"><b>Voice chat</b><small>Not available: games in Lagos Life have no microphone. Use text chat and quick chat</small></span><span class="switch"><input type="checkbox" disabled /><i></i></span></label>
         <div class="row-set off"><span class="lbl"><b>Voice chat volume</b><small>Not available</small></span><input class="slider" type="range" min="0" max="100" value="0" disabled aria-label="Voice chat volume" /></div>`;
     } else if (tab === "controls") {
-      body = `${range("sens", "Camera sensitivity", "Both look speeds together")}
+      const preset = Object.entries(LOOK_PRESETS).find(([, [v, acc]]) => Math.abs(s.sens - v) < 0.005 && Math.abs(s.lookAccel - acc) < 0.005)?.[0] ?? "";
+      body = `<p class="note" style="margin:0 0 8px">Look: drag anywhere on the ${s.leftHanded ? "left" : "right"} half. The camera turns as far as your thumb travels, more for a quick flick. Nothing re-centres.</p>
+        <div class="row-set"><span class="lbl"><b>Look feel</b><small>Precise: slow and steady. Classic: the default. Fast: quick flicks turn round. Linear: no acceleration</small></span>${seg("lookPreset", preset, [["precise", "Precise"], ["classic", "Classic"], ["fast", "Fast"], ["linear", "Linear"]])}</div>
+        ${range("sens", "Camera sensitivity", "Both look speeds together")}
         ${range("sensH", "Horizontal sensitivity", "Looking sideways. Lower is calmer")}
         ${range("sensV", "Vertical sensitivity", "Looking up and down. Lower is calmer")}
-        ${sw("invertY", "Invert Y axis", "Push up to look down")}
+        ${range("lookAccel", "Acceleration", "How much a quick flick turns on top. 0: the same for any speed")}
+        <div class="row-set"><span class="lbl"><b>Dead zone</b><small>How far a finger moves before the camera turns, so a tap stays a tap</small></span><input class="slider" type="range" min="0" max="12" step="1" value="${s.lookDead}" data-act="range" data-key="lookDead" aria-label="Dead zone" /><span class="num pct" data-pct="lookDead">${s.lookDead} px</span></div>
+        ${sw("lookDot", "Show touch point", "A faint circle under your look finger. Off: nothing drawn")}
+        ${sw("fireAim", "Aim while firing", "A drag that starts on the fire button also turns the camera")}
+        ${sw("invertY", "Invert Y axis", "Drag up to look down")}
+        <div class="row-set"><span class="lbl"><b>Move stick</b><small>Fixed: always in the corner. Floating: appears where your thumb lands</small></span>${seg("moveStick", s.moveStick, [["fixed", "Fixed"], ["float", "Floating"]])}</div>
         <div class="row-set"><span class="lbl"><b>Stick size</b></span>${seg("stickSize", s.stickSize, [["small", "Small"], ["medium", "Medium"], ["large", "Large"]])}</div>
-        ${range("stickOpacity", "Stick opacity", "How solid the sticks look while you hold them")}
+        ${range("stickOpacity", "Stick opacity", "How solid the move stick looks")}
         ${sw("leftHanded", "Left-handed", "Move on the right, look on the left")}
         <div class="row-set"><span class="lbl"><b>Sprint</b><small>Toggle: tap on, tap off. Hold: sprint while held. Auto: a full push sprints</small></span>${seg("sprintMode", s.sprintMode, [["toggle", "Toggle"], ["hold", "Hold"], ["auto", "Auto"]])}</div>
-        <div class="row-set"><span class="lbl"><b>Look stick</b><small>Always drawn, or only while touched</small></span>${seg("lookStick", s.lookStick, [["touch", "On touch"], ["always", "Always"]])}</div>
         <div class="row-set"><span class="lbl"><b>Mouse</b><small>Computer: click to take the mouse (Esc gives it back), or drag as a stick</small></span>${seg("mouseLook", s.mouseLook, [["lock", "Mouse look"], ["stick", "Joystick"]])}</div>
         ${sw("autoCam", "Camera drifts back behind you", "Off: the camera stays where you leave it")}
         ${sw("firstPerson", "Start in first person", "Switch any time with the eye button")}
@@ -1090,9 +1097,9 @@ export class Screens {
   }
 
   /** A slider moved: its number follows without redrawing the sheet. */
-  settingPct(key: string, pct: number): void {
+  settingPct(key: string, pct: number, unit = "%"): void {
     const el = this.root.querySelector<HTMLElement>(`[data-pct="${key}"]`);
-    if (el) el.textContent = `${pct}%`;
+    if (el) el.textContent = `${pct}${unit}`;
   }
 
   // ── How to play ────────────────────────────────────────────────────────────

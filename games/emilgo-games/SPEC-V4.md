@@ -37,6 +37,9 @@ hidden and untouched).
 | Topic | Decision |
 |---|---|
 | Phase order | Guns before the HUD (the HUD shows ammo, reloads and hit markers), so a phase never redoes another's work. |
+| Touch look numbers | 0.12° per px of thumb travel at sensitivity 1 for a slow thumb; the boost rises (smoothstep) from 0.15 to 1.6 px/ms up to ×(1 + acceleration); default acceleration 1.4, dead zone 3 px (the step that crosses it counts only past it). Vertical = 0.8 × horizontal at the default sliders. The view chases the touchpad at 0.6 a frame (the stick and keys keep 0.15). Presets: Precise 0.8/0.6, Classic 1/1.4, Fast 1.3/2.4, Linear 1/0. |
+| Fixed move stick | Centred 40 px + its radius in from the bottom corner (150 px higher in portrait). A thumb landing more than two radii away gets the stick under it for that touch; Settings has Floating for the old behaviour. |
+| The old look-stick settings | "Look stick: always drawn" becomes "Show touch point: on". The horizontal and vertical sliders now scale the touchpad (30% = 1×); the mouse keeps its own feel. |
 | "1 million users at once" | One server process can't hold that. The build makes each room server stateless between matches and adds a room directory so many machines share the load. Tested here at **10,000 simulated players** (the owner's number); the 1M path is described in README (machines × rooms), not tested. |
 
 ## Phases (built back to back, no waiting; each tested, committed, pushed, the test site republished)
@@ -54,4 +57,11 @@ hidden and untouched).
 
 ## Status
 
-Nothing built yet. Phase 1 starts next.
+### Phase 1: Look control (done 2 Nov 2026)
+
+| Check | Result |
+|---|---|
+| In headless Chrome (real GPU, 844×390, Free For All practice) | A tap on the right half (2 px): no turn. A 140 px drag: the camera turned 19° and pitched up; held still for 0.8 s afterwards: no drift, no re-centring. The touch point shows only with its setting on. The move stick sits fixed bottom left with its 1 px white ring; a push from inside it runs; left-handed mirrors both. The Controls tab: presets, the three sensitivities, acceleration, dead zone, touch point, aim while firing, fixed/floating. |
+| Builds | typecheck · EMILGO embed 2,832 KB |
+
+Not done in Phase 1: a real phone.

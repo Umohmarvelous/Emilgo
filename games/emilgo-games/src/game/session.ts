@@ -51,7 +51,7 @@ import { fetchFeed, reportSeen, type AdFeed } from "../net/ads";
 import type { HouseInfo } from "../world/billboards";
 import type { Host, MatchView } from "../platform/types";
 import { errorCode, errorText } from "../platform/vatarErrors";
-import { DEFAULT_WHEEL, resetPrefs, saveSettings, type Settings } from "../settings";
+import { DEFAULT_WHEEL, LOOK_PRESETS, resetPrefs, saveSettings, type Settings } from "../settings";
 import { BOOST_BY_ID, BOOST_ROUNDS, BOOST_SLOTS, boostsFromWire, boostsToWire, cpForRound, type BoostId } from "../shop/boosts";
 import { Friends, type Notice } from "../social/friends";
 import { fmtTime, ordinal } from "../ui/dom";
@@ -2271,6 +2271,8 @@ export class Game {
       if (this.my === "playing" && !this.paused) {
         const md = this.controls.consumeMouse();
         this.rig.orbit(this.controls.look.x, this.controls.look.y, frameDt, md.x, md.y);
+        const pd = this.controls.consumePad();
+        this.rig.turn(pd.x, pd.y);
       }
       const target = this.watching ? this.leader() ?? me : me;
       if (this.rig.firstPerson && !this.watching) this.rig.eyeValid = !!this.crowd.eye(me.index, this.rig.eye);
@@ -3156,7 +3158,8 @@ export class Game {
       case "set": {
         const key = d.key;
         if (key === "graphics" && ["auto", "low", "medium", "high"].includes(d.val ?? "")) this.settings.graphics = d.val as Settings["graphics"];
-        if (key === "lookStick" && (d.val === "always" || d.val === "touch")) this.settings.lookStick = d.val;
+        if (key === "moveStick" && (d.val === "fixed" || d.val === "float")) this.settings.moveStick = d.val;
+        if (key === "lookPreset" && d.val && LOOK_PRESETS[d.val]) [this.settings.sens, this.settings.lookAccel] = LOOK_PRESETS[d.val];
         if (key === "mouseLook" && (d.val === "lock" || d.val === "stick")) this.settings.mouseLook = d.val;
         if (key === "stickSize" && (d.val === "small" || d.val === "medium" || d.val === "large")) this.settings.stickSize = d.val;
         if (key === "mapSize" && (d.val === "small" || d.val === "medium" || d.val === "large")) this.settings.mapSize = d.val;
@@ -3174,8 +3177,16 @@ export class Game {
         break;
       }
       case "range": {
-        const LIMITS: Record<string, [number, number]> = { sensH: [0.05, 1], sensV: [0.05, 1], stickOpacity: [0.3, 1], sens: [0.5, 2], master: [0, 1], musicVol: [0, 1], sfxVol: [0, 1], adsVol: [0, 1] };
-        const key = d.key as "sensH" | "sensV" | "stickOpacity" | "sens" | "master" | "musicVol" | "sfxVol" | "adsVol";
+        const LIMITS: Record<string, [number, number]> = { sensH: [0.05, 1], sensV: [0.05, 1], stickOpacity: [0.3, 1], sens: [0.5, 2], master: [0, 1], musicVol: [0, 1], sfxVol: [0, 1], adsVol: [0, 1], lookAccel: [0, 3] };
+        const key = d.key as "sensH" | "sensV" | "stickOpacity" | "sens" | "master" | "musicVol" | "sfxVol" | "adsVol" | "lookAccel" | "lookDead";
+        if (key === "lookDead") {
+          // The dead zone is whole px (0–12), not a percentage.
+          this.settings.lookDead = Math.max(0, Math.min(12, Math.round(Number((node as HTMLInputElement).value))));
+          this.screens.settingPct(key, this.settings.lookDead, " px");
+          this.applySettings();
+          saveSettings(this.host, this.settings);
+          break;
+        }
         const lim = LIMITS[key];
         if (!lim) break;
         this.settings[key] = Math.max(lim[0], Math.min(lim[1], Number((node as HTMLInputElement).value) / 100));
@@ -3794,7 +3805,9 @@ export class Game {
     this.rig.sensH = s.sensH * s.sens;
     this.rig.sensV = s.sensV * s.sens;
     this.stage?.setLightMode(s.lightMode);
-    this.controls.setLayout(s.leftHanded, s.lookStick === "always");
+    this.controls.setLayout(s.leftHanded, s.moveStick === "fixed");
+    // Touch look: "Camera sensitivity" scales both axes; the horizontal and vertical sliders (0.3 = 1×) each axis.
+    this.controls.setPad(s.sens, s.sensH / 0.3, (s.sensV / 0.3) * 0.8, s.lookAccel, s.lookDead, s.lookDot, s.fireAim);
     this.controls.mouseMode = s.mouseLook;
     this.controls.setStyle(s.stickSize, s.stickOpacity, s.sprintMode);
     this.hud.map.setSize(s.mapSize);

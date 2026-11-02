@@ -577,7 +577,7 @@ export class FfaMode implements GameMode {
     h.rig.arm += ((car ? 2.6 : 1) - h.rig.arm) * k;
     h.rig.lift += ((car ? 0.7 : 0) - h.rig.lift) * k;
     const c = h.controls;
-    if (car && car.speed > 1 && Math.hypot(c.look.x, c.look.y) < 0.05) {
+    if (car && car.speed > 1 && !c.looking) {
       const want = car.heading + Math.PI;
       const d = Math.atan2(Math.sin(want - h.rig.yaw), Math.cos(want - h.rig.yaw));
       h.rig.yaw += d * (1 - Math.exp(-dt * 2.2));
@@ -630,7 +630,11 @@ export class FfaMode implements GameMode {
     const me = this.src.me!;
     const cam = h.camera.position;
     const md = c.consumeMouse();
-    if (c.enabled) h.rig.orbit(c.look.x, c.look.y, dt, md.x, md.y);
+    const pd = c.consumePad();
+    if (c.enabled) {
+      h.rig.orbit(c.look.x, c.look.y, dt, md.x, md.y);
+      h.rig.turn(pd.x, pd.y);
+    }
     h.crowd.update(dt, m.contestants, cam);
 
     // Who the camera follows: you; out for good, someone still in (your squad first).
