@@ -222,6 +222,30 @@ export class Screens {
     this.toastEl.setAttribute("role", "status");
   }
 
+  /**
+   * The unlock ceremony (SPEC-V3 §10.15): a new rank's name rises in gold,
+   * then each mode it unlocks flips in as a card. Over whatever is showing;
+   * a tap, or a few seconds, ends it.
+   */
+  ceremony(rank: string, modes: { name: string; blurb: string }[]): void {
+    document.querySelector(".ceremony")?.remove();
+    const node = document.createElement("div");
+    node.className = "ceremony";
+    node.setAttribute("role", "dialog");
+    node.setAttribute("aria-label", `${t("Rank up")}: ${rank}`);
+    node.innerHTML = `<div class="cer-rays"></div>
+      <div class="cer-head"><span class="cer-small">${esc(t("Rank up"))}</span><span class="cer-rank">${esc(rank.toUpperCase())}</span></div>
+      ${modes.length ? `<div class="cer-cards">${modes.map((m, i) => `<div class="cer-card glass" style="animation-delay:${1.1 + i * 0.35}s"><span class="cer-new">${esc(t("Unlocked"))}</span><b>${esc(t(m.name))}</b><small>${esc(t(m.blurb))}</small></div>`).join("")}</div>` : ""}
+      <span class="cer-tap">${esc(t("Tap to continue"))}</span>`;
+    const close = () => {
+      node.classList.add("out");
+      setTimeout(() => node.remove(), 400);
+    };
+    node.addEventListener("click", close);
+    setTimeout(close, 4500 + modes.length * 600);
+    document.body.append(node);
+  }
+
   /** The toast lives outside the screens (it shows over play too). */
   get toastNode(): HTMLDivElement {
     return this.toastEl;

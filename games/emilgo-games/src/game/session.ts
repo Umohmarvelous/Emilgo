@@ -667,7 +667,13 @@ export class Game {
     }
     saveSettings(this.host, this.settings);
     const up = rankUp(before, this.rankXp);
-    if (up) this.screens.toast(`Rank up: ${up.name}`);
+    if (up) {
+      // The unlock ceremony (§10.15): the new rank, and the modes it opens.
+      const had = new Set(catalog(this.content.manifest, { xp: before }).filter((e) => e.state === "play").map((e) => e.def.id));
+      const opened = catalog(this.content.manifest, { xp: this.rankXp }).filter((e) => e.state === "play" && !had.has(e.def.id));
+      this.screens.ceremony(up.name, opened.map((e) => ({ name: e.def.name.en, blurb: e.def.blurb.en })));
+      this.sound.win();
+    }
     const f = this.ffaRes;
     if (f && f.online && f.xp === null) {
       f.xp = m.gain;

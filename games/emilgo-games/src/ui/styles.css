@@ -954,3 +954,23 @@ input { font: inherit; color: inherit; }
 .profile .meta .form i.w { color: #59d98e; }
 .profile .meta .form i.l { color: #ff7a6a; opacity: 0.8; }
 .profile .meta .streak b { color: var(--yellow); }
+
+/* The unlock ceremony (SPEC-V3 §10.15). */
+.ceremony { position: fixed; inset: 0; z-index: 60; display: grid; place-content: center; justify-items: center; gap: 18px; background: radial-gradient(circle at 50% 42%, rgba(60, 40, 0, 0.85), rgba(0, 0, 0, 0.94)); color: #fff; text-align: center; animation: cer-in 0.35s ease-out; perspective: 900px; }
+.ceremony.out { opacity: 0; transition: opacity 0.35s; }
+.cer-rays { position: absolute; left: 50%; top: 42%; width: 140vmax; height: 140vmax; margin: -70vmax 0 0 -70vmax; background: repeating-conic-gradient(rgba(255, 194, 58, 0.07) 0 6deg, transparent 6deg 18deg); animation: cer-spin 14s linear infinite; pointer-events: none; }
+.cer-head { position: relative; display: grid; gap: 4px; }
+.cer-small { font: 700 12px var(--head); letter-spacing: 0.3em; text-transform: uppercase; opacity: 0.8; animation: cer-up 0.5s 0.1s both; }
+.cer-rank { font: 900 clamp(34px, 9vw, 64px) var(--head); letter-spacing: 0.04em; color: var(--yellow); text-shadow: 0 0 24px rgba(255, 194, 58, 0.7); animation: cer-pop 0.7s 0.25s cubic-bezier(0.2, 1.6, 0.4, 1) both; }
+.cer-cards { position: relative; display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; max-width: 92vw; }
+.cer-card { width: 150px; padding: 10px 12px; border-radius: 12px; display: grid; gap: 4px; text-align: left; transform-origin: 50% 50%; animation: cer-flip 0.6s both; backface-visibility: hidden; }
+.cer-card b { font: 800 14px var(--head); }
+.cer-card small { font: 500 11px/1.35 var(--body); opacity: 0.85; }
+.cer-new { font: 700 9px var(--head); letter-spacing: 0.12em; color: #59d98e; text-transform: uppercase; }
+.cer-tap { position: relative; font: 600 11px var(--body); opacity: 0.6; animation: cer-up 0.5s 2s both; }
+@keyframes cer-in { from { opacity: 0; } }
+@keyframes cer-spin { to { transform: rotate(360deg); } }
+@keyframes cer-up { from { opacity: 0; transform: translateY(10px); } }
+@keyframes cer-pop { from { opacity: 0; transform: scale(0.4); } }
+@keyframes cer-flip { from { opacity: 0; transform: rotateY(-180deg) scale(0.8); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .ceremony, .cer-rays, .cer-small, .cer-rank, .cer-card, .cer-tap { animation: none; } }
