@@ -15,8 +15,8 @@ import { DEFAULT_DISTANCE, DISTANCES, MODES, NET, type Distance, type Mode } fro
 import { EMOTE_IDS, type EmoteId } from "../social/emotes";
 import { filterChat } from "../social/filter";
 import type { WireLook } from "../shop/catalog";
-import type { Cause, Phase } from "../game/rules";
-import { PHASES } from "../game/rules";
+import type { Cause } from "../game/rules";
+import { PHASES, type Phase } from "../game/phases";
 import type { FfaStart, MatchEvents, MatchSnap, MatchSync } from "./matchWire";
 
 // ── Client → server ──────────────────────────────────────────────────────────

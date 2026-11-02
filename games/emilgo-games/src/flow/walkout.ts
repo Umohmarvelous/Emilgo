@@ -15,7 +15,6 @@
 
 import { FLOW } from "../config";
 import type { Contestant } from "../game/rules";
-import { icon } from "../ui/icons";
 import { TUNNEL } from "../world/tunnel";
 import { Reel, follow, settle, type Frame, type Shot } from "./cinema";
 
@@ -203,31 +202,3 @@ export class Walkout {
     this.reel.at(this.skippedAt >= 0 ? this.reel.length : t, out);
   }
 }
-
-/** The two buttons over the walkout: skip (after the walk) and, the first time on a field, the tutorial. */
-export class WalkoutButtons {
-  readonly skipBtn: HTMLButtonElement;
-  readonly tutorialBtn: HTMLButtonElement;
-
-  constructor(ui: HTMLElement) {
-    this.skipBtn = document.createElement("button");
-    this.skipBtn.className = "flow-btn flow-skip glass";
-    this.skipBtn.dataset.ui = "1";
-    this.skipBtn.setAttribute("aria-label", "Skip");
-    this.skipBtn.innerHTML = `${icon("skip", "", 18)}`;
-    this.tutorialBtn = document.createElement("button");
-    this.tutorialBtn.className = "flow-btn flow-tutorial glass";
-    this.tutorialBtn.dataset.ui = "1";
-    this.tutorialBtn.setAttribute("aria-label", "Tutorial");
-    this.tutorialBtn.innerHTML = `${icon("help", "", 18)}<span>Tutorial</span>`;
-    ui.append(this.skipBtn, this.tutorialBtn);
-  }
-
-  /** `up`: the HUD is showing (the countdown), so the tutorial button moves clear of the controls. */
-  show(skip: boolean, tutorial: boolean, up = false): void {
-    this.skipBtn.classList.toggle("visible", skip);
-    this.tutorialBtn.classList.toggle("visible", tutorial);
-    this.tutorialBtn.classList.toggle("up", up);
-  }
-}
-

@@ -44,11 +44,12 @@ import { inPlay, nearestBasket, placeBalls, placeBaskets, type Ball, type Basket
 import { attackTarget, canAttack, knock } from "./combat";
 import { clearOfWalls } from "./pens";
 import { freshMotion, isMoving, moveContestant, setBoosts, type Cause, type Contestant } from "./core/body";
+import { prePlay, type Phase } from "./phases";
 
 // The shared body (SPEC-V3): every importer of rules.ts keeps working.
 export { clampToField, freshMotion, isMoving, moveContestant, setBoosts, type Cause, type Contestant, type Status } from "./core/body";
+export { PHASES, prePlay, type Phase } from "./phases";
 
-export type Phase = "walkout" | "countdown" | "sing" | "hum" | "turning" | "watch" | "turningBack" | "ended";
 /**
  * What the session reads from a round. The local referee implements it for
  * practice; the online client implements it from the server's snapshots.
@@ -76,13 +77,6 @@ export interface RoundView {
   setActions(id: string, attack: number, grab: number): void;
   step(dt: number): void;
   drain(): RoundEvent[];
-}
-
-export const PHASES: readonly Phase[] = ["walkout", "countdown", "sing", "hum", "turning", "watch", "turningBack", "ended"];
-
-/** Before play: nobody moves and the clock doesn't run. */
-export function prePlay(p: Phase): boolean {
-  return p === "walkout" || p === "countdown";
 }
 
 /**

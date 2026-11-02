@@ -21,6 +21,7 @@
 import { CanvasTexture, CircleGeometry, DoubleSide, Group, Mesh, MeshBasicMaterial, RingGeometry, SRGBColorSpace, Vector3 } from "three";
 
 import { DOLL_Z } from "../config";
+import { REFLECT_LAYER } from "../maps/potholes";
 import type { DollPose } from "../game/replay";
 
 /** How high the eye hangs (m), how far beyond the stage (11 m past the line), and its radius. */
@@ -88,6 +89,8 @@ export class SkyWatcher {
     this.pupil.renderOrder = ON_TOP + 4;
     this.root.add(this.halo, this.ring, this.iris, this.pupil);
     for (const m of [this.halo, this.ring, this.iris, this.pupil]) m.frustumCulled = false;
+    // It shows in the puddles' mirror (High).
+    this.root.traverse((o) => o.layers.enable(REFLECT_LAYER));
     this.placeAt(DOLL_Z);
   }
 

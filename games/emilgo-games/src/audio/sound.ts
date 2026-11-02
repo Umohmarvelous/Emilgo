@@ -14,7 +14,7 @@
 
 import type { Surface } from "../maps/registry";
 import { RADIO, type RadioId } from "./radio";
-import { SONGS, type Hit, type Song, type SongId, type SungNote, type VoiceKind } from "./songs";
+import type { Hit, Song, SungNote, VoiceKind } from "./songs";
 
 type Ctx = AudioContext;
 
@@ -244,9 +244,13 @@ export class Sound {
 
   // ── The song ───────────────────────────────────────────────────────────────
 
-  /** Start (or resume) `id` from `fromBeat`. Loops until stopSong(). It comes from the sky (`skySend`). */
-  playSong(id: SongId, fromBeat: number): void {
-    this.playLoop(SONGS[id], fromBeat);
+  /**
+   * Start (or resume) Ball Haunt's `song` from `fromBeat`. Loops until
+   * stopSong(). It comes from the sky (`skySend`). (The songs live in Ball
+   * Haunt's chunk, modes/rlgl.ts: the caller hands one over.)
+   */
+  playSong(song: Song, fromBeat: number): void {
+    this.playLoop(song, fromBeat);
     if (this.songBus) this.skySend(this.songBus);
   }
 

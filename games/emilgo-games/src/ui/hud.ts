@@ -118,6 +118,12 @@ export class Hud {
     this.lastCount = -1;
   }
 
+  /** Matches draw their own lines: drop the last Ball Haunt round's. */
+  clearCourse(): void {
+    this.modeLine.textContent = this.aliveLine.textContent = this.runLine.textContent = "";
+    this.lastAlive = this.lastRun = "";
+  }
+
   /** The round's field: the minimap and the match line follow it. */
   setCourse(c: Course): void {
     this.course = c;

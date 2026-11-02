@@ -2,7 +2,7 @@
 // Lagos Life, AsyncStorage via the bridge in EMILGO). Each host keeps its own
 // copy — nothing crosses between Lagos Life and EMILGO.
 
-import { SONG_IDS, type SongChoice } from "./audio/songs";
+import type { SongChoice } from "./audio/songs";
 import { DEFAULT_DISTANCE, DISTANCES, MODES, type Distance, type Mode } from "./config";
 import { levelOf } from "./game/progress";
 import { EMOTE_IDS, type EmoteId } from "./social/emotes";
@@ -268,8 +268,8 @@ export function loadSettings(host: Host): Settings {
     for (const k of Object.keys(base) as (keyof Settings)[]) {
       if (typeof saved[k] === typeof base[k] && !Array.isArray(base[k])) (out as Record<string, unknown>)[k] = saved[k];
     }
-    // One song now: whatever an older save chose becomes it.
-    out.song = SONG_IDS[0];
+    // One choice now: whatever an older save chose becomes the default.
+    out.song = base.song;
     if (!["auto", "low", "medium", "high"].includes(out.graphics)) out.graphics = base.graphics;
     if (out.lookStick !== "always" && out.lookStick !== "touch") out.lookStick = base.lookStick;
     if (out.mouseLook !== "lock" && out.mouseLook !== "stick") out.mouseLook = base.mouseLook;

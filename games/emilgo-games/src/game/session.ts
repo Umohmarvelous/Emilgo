@@ -25,7 +25,7 @@ import { ACESFilmicToneMapping, OrthographicCamera, PCFShadowMap, PCFSoftShadowM
 
 import { Sound } from "../audio/sound";
 import { ATTACK, BALLS, DISTANCES, FEATURES, FINAL, FLOW, MODES, MOVE, NET, PRACTICE, RULES, courseFor, scoreFor, walkoutLength, type AttackKind, type Course, type Distance, type Mode, type Stance } from "../config";
-import { SONGS, songFor, type SongId } from "../audio/songs";
+import type { SongId } from "../audio/songs";
 import { Loop } from "../core/loop";
 import { QualityGovernor } from "../core/quality";
 import { Rng, randomSeed } from "../core/rng";
@@ -36,17 +36,15 @@ import { frame as cinemaFrame } from "../flow/cinema";
 import { Countdown } from "../flow/countdown";
 import { MatchFlow } from "../flow/machine";
 import { TutorialPlayer } from "../flow/tutorial";
-import { Walkout, WalkoutButtons } from "../flow/walkout";
-import { ReplayView } from "../rlgl/replayView";
-import { behindShot, finalTwoLens, killCamLens, potgLens, previewShots } from "../rlgl/shots";
-import { DEMO, TutorialScript, tutorialPeople, tutorialSteps } from "../rlgl/tutorial";
+import type { Walkout } from "../flow/walkout";
+import { WalkoutButtons } from "../flow/walkoutButtons";
+import type { ReplayView } from "../rlgl/replayView";
+import type { TutorialScript } from "../rlgl/tutorial";
 import { tierSpec, type Tier, type TierSpec } from "../graphics/tiers";
-import { REFLECT_LAYER } from "../maps/potholes";
 import { Controls } from "../input/controls";
-import { buildWorld, type World } from "../maps/world";
+import type { World } from "../maps/world";
 import { DEFAULT_MAP, SKY_STATES, fieldHalfWidth, groundSurface, mapOf, withMode, type MapCategory, type SkyState, type Surface } from "../maps/registry";
 import { NetClient } from "../net/client";
-import { OnlineRound } from "../net/onlineRound";
 import { ERROR_TEXT, normalizeCode, type ClientMsg, type RoomInfo, type ServerMsg, type StartInfo, type SyncInfo } from "../net/protocol";
 import { serverUrl } from "../net/serverUrl";
 import { fetchFeed, reportSeen, type AdFeed } from "../net/ads";
@@ -71,17 +69,17 @@ import { ReplayOverlay } from "../ui/replay";
 import { Bubbles, ChatPanel, EmoteWheel } from "../ui/social";
 import { CameraRig } from "../world/camera";
 import { Crowd, accentOf } from "../world/crowd";
-import { SkyWatcher } from "../world/skyWatcher";
-import { SkyLaser } from "../world/skyLaser";
+import type { SkyWatcher } from "../world/skyWatcher";
+import type { SkyLaser } from "../world/skyLaser";
 import { Effects } from "../world/fx";
 import { ensureScanLevels, setMaxAnisotropy, warmLook } from "../world/human";
 import { cleanLook, ownedOnly, randomLook, uniformLook, wearProduct, type ExtraId, type HoodieDesign, type Look } from "../world/human/wardrobe";
 import type { PoseId } from "../world/human/animator";
 import { LobbyStage, type Framing } from "../world/lobbyStage";
-import { PropsView } from "../world/props";
+import type { PropsView } from "../world/props";
 import { setTextureAnisotropy } from "../world/tex";
-import { buildAtlas } from "../world/textures";
-import { BOT_NAMES, BotBrain } from "./bots";
+import type { buildAtlas } from "../world/textures";
+import type { BotBrain } from "./bots";
 import { addProgress, ensureDaily } from "./progress";
 import { DIVISIONS, rankOf, rankUp } from "../rank/ladder";
 import { catalog, games } from "../content/catalog";
@@ -97,13 +95,15 @@ import type { FfaMode } from "../modes/ffa";
 
 /** The matches' chunk (modes/v3.ts). */
 type V3 = typeof import("../modes/v3");
+/** Ball Haunt's chunk (modes/rlgl.ts; SPEC-V3 §1.2). */
+type Rl = typeof import("../modes/rlgl");
 import { FfaCards } from "../ui/ffaCards";
 import type { ModeHost, ModeResult } from "../modes/types";
 import { Content } from "../content/load";
-import { attackTarget, canAttack } from "./combat";
-import { CLIP, Highlights, type Moment, type MomentKind } from "./highlights";
-import { Recorder, type Clip, type DollPose } from "./replay";
-import { PHASES, prePlay, type Cause, type Contestant, RedLightRound, type RoundEvent, type RoundView } from "./rules";
+import type { Highlights, Moment, MomentKind } from "./highlights";
+import { PHASES, prePlay } from "./phases";
+import type { Clip, DollPose, Recorder } from "./replay";
+import type { Cause, Contestant, RedLightRound, RoundEvent, RoundView } from "./rules";
 
 const ME = "me";
 const MATCH_STILL_ON = "The match is still on. The result comes when the round ends.";
@@ -147,7 +147,8 @@ export class Game {
   private skyLaser: SkyLaser | null = null;
   private readonly crowd = new Crowd(MAX_PEOPLE);
   private readonly fx = new Effects();
-  private readonly props: PropsView;
+  /** Ball Haunt's balls and baskets (made with its chunk). */
+  private props: PropsView | null = null;
   /** High only: bloom, grade, vignette. */
   private post: Post | null = null;
   /** Medium's grade pass; Low grades through the lights, the exposure and the veil. */
@@ -256,7 +257,8 @@ export class Game {
   private readonly quick: QuickChat;
 
   // Elimination and highlights (SPEC-V2 §2.6–2.9)
-  private readonly replay: ReplayView;
+  /** The kill cam and the play of the game (made with Ball Haunt's chunk). */
+  private replay: ReplayView | null = null;
   private readonly replayUi: ReplayOverlay;
   private readonly resultsBtn: HTMLButtonElement;
   /** What this phone shows, the last 12 s of it: the kill cam and the play of the game are cut from it. */
@@ -318,6 +320,9 @@ export class Game {
   /** The matches' code, once loaded (loadV3). */
   private v3: V3 | null = null;
   private v3p: Promise<V3> | null = null;
+  /** Ball Haunt's code, once loaded (loadRl). */
+  private rl: Rl | null = null;
+  private rlp: Promise<Rl> | null = null;
   private readonly cards: FfaCards;
 
   // Lagos Life matches
@@ -354,8 +359,7 @@ export class Game {
     this.shop = host.shop && this.server ? new ShopClient(host as Host & { shop: NonNullable<Host["shop"]> }, this.server) : null;
 
     this.aniso = aniso;
-    this.props = new PropsView(this.spec);
-    this.scene.add(this.crowd.group, this.fx.group, this.props.group);
+    this.scene.add(this.crowd.group, this.fx.group);
     this.crowd.tier = this.spec.tier;
     this.crowd.setShadows(this.spec.shadows);
     this.rig = new CameraRig(this.camera);
@@ -412,7 +416,6 @@ export class Game {
       this.showResults();
     });
     ui.append(this.resultsBtn);
-    this.replay = new ReplayView(this.crowd, () => this.doll, () => this.skyLaser, this.props, this.fx);
     this.replayUi = new ReplayOverlay(ui);
     this.replayUi.skipBtn.addEventListener("click", () => {
       this.sound.ui();
@@ -555,14 +558,43 @@ export class Game {
    */
   private get doll(): SkyWatcher {
     if (!this.dollObj) {
-      this.dollObj = new SkyWatcher();
+      this.dollObj = new this.rlgl.SkyWatcher();
       this.scene.add(this.dollObj.root);
-      // It shows in the puddles' mirror (High).
-      this.dollObj.root.traverse((o) => o.layers.enable(REFLECT_LAYER));
-      this.skyLaser = new SkyLaser(this.spec.tier);
+      this.skyLaser = new this.rlgl.SkyLaser(this.spec.tier);
       this.scene.add(this.skyLaser.group);
     }
     return this.dollObj;
+  }
+
+  /** Ball Haunt's chunk: only read on its own paths, which run after loadRl (a round of it exists). */
+  private get rlgl(): Rl {
+    return this.rl!;
+  }
+
+  /**
+   * Ball Haunt's code (modes/rlgl.ts), fetched once: with its first round, or
+   * while the lobby is idle when it's switched on. Never while it's off.
+   */
+  private loadRl(): Promise<Rl> {
+    return (this.rlp ??= import("../modes/rlgl").then(
+      (m) => {
+        this.rl = m;
+        this.props = new m.PropsView(this.spec);
+        this.scene.add(this.props.group);
+        this.replay = new m.ReplayView(this.crowd, () => this.doll, () => this.skyLaser, this.props, this.fx);
+        return m;
+      },
+      (e) => {
+        this.rlp = null;
+        throw e;
+      },
+    ));
+  }
+
+  /** `fn` with Ball Haunt's code: now if it's here, else when it comes (Play says so if it can't). */
+  private withRl(fn: (rl: Rl) => void): void {
+    if (this.rl) fn(this.rl);
+    else this.loadRl().then(fn, () => this.matchLoadFailed());
   }
 
   /** Budgets, for testing (draw calls, triangles, memory, how long the map took to build). */
@@ -592,8 +624,8 @@ export class Game {
     later(() => this.sound.prepare(), 2500);
     // The matches' code (its own chunk): fetched while the lobby is idle, so a match starts without waiting.
     later(() => void this.loadV3().catch(() => undefined), 1500);
-    // Ball Haunt switched off (SPEC-V3): its eye is never made.
-    if (FEATURES.ballHaunt) later(() => void this.doll, 3000);
+    // Ball Haunt switched off (SPEC-V3): its code is never fetched, its eye never made.
+    if (FEATURES.ballHaunt) later(() => void this.loadRl().then(() => this.doll, () => undefined), 3000);
     later(() => {
       const rng = new Rng(1234);
       for (let i = 0; i < 6; i++) warmLook(randomLook(rng), this.spec.tier);
@@ -951,7 +983,7 @@ export class Game {
   /** Stop whatever round is running and put the world back to idle. */
   private endRound(): void {
     this.endFfa();
-    if (this.round instanceof OnlineRound) this.round.dispose();
+    if (this.rl && this.round instanceof this.rl.OnlineRound) this.round.dispose();
     this.round = null;
     this.brains = [];
     this.watching = false;
@@ -975,7 +1007,7 @@ export class Game {
     this.crowd.hideMyHead = false;
     this.hud.setFirstPerson(false);
     // Elimination and highlights.
-    this.replay.stop();
+    this.replay?.stop();
     this.replayUi.hide();
     this.replaying = null;
     this.rec = null;
@@ -1003,6 +1035,10 @@ export class Game {
   }
 
   private startPractice(): void {
+    this.withRl((rl) => this.practiceWith(rl));
+  }
+
+  private practiceWith(rl: Rl): void {
     this.leaveOnline();
     this.flow.reset("loading");
     const seed = randomSeed();
@@ -1010,14 +1046,14 @@ export class Game {
     const people: { id: string; name: string; bot: boolean; boosts?: BoostId[] }[] = [{ id: ME, name: "You", bot: false }];
     // No CPU shares your name: "Ada · CPU caught" must never read as you.
     const mine = this.host.player.name.trim().toLowerCase();
-    const names = rng.shuffle(BOT_NAMES.filter((n) => n.toLowerCase() !== mine));
+    const names = rng.shuffle(rl.BOT_NAMES.filter((n) => n.toLowerCase() !== mine));
     for (let i = 0; i < PRACTICE.bots; i++) people.push({ id: `cpu${i}`, name: names[i], bot: true });
 
     const info = mapOf(this.settings.map);
     const course = courseFor(this.settings.mode, this.settings.distance, fieldHalfWidth(info, this.settings.mode));
     const boosts = this.boostsReady();
     people[0].boosts = boosts;
-    const round = new RedLightRound({ seed, contestants: people, featuredId: ME, course, walkout: walkoutLength(course.mode) });
+    const round = new rl.RedLightRound({ seed, contestants: people, featuredId: ME, course, walkout: walkoutLength(course.mode) });
     this.mode = "practice";
     this.meId = ME;
     // The first time on a field: the tutorial button (SPEC-V2 §1.5).
@@ -1025,16 +1061,20 @@ export class Game {
     if (first) this.settings.tutorialSeen = true;
     this.beginRound(round, rng, this.settings.map, this.skyPick, []);
     this.offerTutorial = first;
-    this.brains = people.slice(1).map((p, i) => new BotBrain(p.id, i, rng));
+    this.brains = people.slice(1).map((p, i) => new rl.BotBrain(p.id, i, rng));
     this.spendBoosts(boosts);
   }
 
   private startOnline(info: StartInfo | SyncInfo, sync: boolean): void {
+    this.withRl((rl) => this.onlineWith(rl, info, sync));
+  }
+
+  private onlineWith(rl: Rl, info: StartInfo | SyncInfo, sync: boolean): void {
     const net = this.net;
     if (!net) return;
     this.endRound(); // dispose the old round before the new one subscribes
     const me = this.seatId ?? net.id;
-    const round = sync ? OnlineRound.fromSync(info as SyncInfo, me, net) : new OnlineRound(info, me, net);
+    const round = sync ? rl.OnlineRound.fromSync(info as SyncInfo, me, net) : new rl.OnlineRound(info, me, net);
     this.mode = "online";
     this.flow.reset("loading");
     this.meId = me;
@@ -1067,7 +1107,7 @@ export class Game {
     this.rig.dollZ = course.dollZ;
     this.rig.wallX = course.halfWidth + 1.4;
     this.hud.setCourse(course);
-    this.props.setup(round.balls, round.baskets);
+    this.props!.setup(round.balls, round.baskets);
     const meIndex = round.get(this.meId)?.index ?? -1;
 
     const mine = this.myLook();
@@ -1087,15 +1127,15 @@ export class Game {
     this.paused = false;
     this.sound.hush(false);
     this.recorded = null;
-    this.rec = new Recorder(round.contestants.length, round.balls.length);
+    this.rec = new this.rlgl.Recorder(round.contestants.length, round.balls.length);
     // Solo scores its own highlights; online the server does (the tutorial has none).
-    this.hl = this.mode === "practice" && !this.tut ? new Highlights() : null;
+    this.hl = this.mode === "practice" && !this.tut ? new this.rlgl.Highlights() : null;
     this.turnNo = 0;
     this.zoomTurn = -1;
     this.watchesSurvived = 0;
     this.sprintMetres = 0;
     this.songTurn = 0;
-    this.songId = songFor(round.seed, 0);
+    this.songId = this.rlgl.songFor(round.seed, 0);
     this.songBeat = 0;
     this.lastPhase = "";
 
@@ -1142,7 +1182,7 @@ export class Game {
     this.hud.show(false);
     this.setLive(false);
     const me = round.get(this.meId) ?? round.contestants[0];
-    const preview = previewShots({
+    const preview = this.rlgl.previewShots({
       course: round.course,
       balls: round.balls,
       baskets: round.baskets,
@@ -1151,7 +1191,7 @@ export class Game {
         return out.addVectors(_eyeL, _eyeR).multiplyScalar(0.5);
       },
     });
-    this.walkout = new Walkout(round.contestants, preview, behindShot((p, l) => this.rig.restPose(me, p, l)));
+    this.walkout = new this.rlgl.Walkout(round.contestants, preview, this.rlgl.behindShot((p, l) => this.rig.restPose(me, p, l)));
   }
 
   /** Skip: your lens jumps behind the players; the referee starts the countdown when everyone has. */
@@ -1162,11 +1202,15 @@ export class Game {
     this.sound.ui();
     w.skip(round.phaseTime);
     if (this.mode === "online") this.net?.send({ t: "skip" });
-    else if (round instanceof RedLightRound) round.skip(this.meId);
+    else if (this.rl && round instanceof this.rl.RedLightRound) round.skip(this.meId);
   }
 
   /** The tutorial: a real round on the short field, played by a model (rlgl/tutorial.ts). */
   private startTutorial(after: "solo" | "menu"): void {
+    this.withRl((rl) => this.tutorialWith(rl, after));
+  }
+
+  private tutorialWith(rl: Rl, after: "solo" | "menu"): void {
     if (this.tut) return;
     this.leaveOnline();
     this.endRound();
@@ -1174,15 +1218,15 @@ export class Game {
     const info = mapOf(this.settings.map);
     const course = courseFor(mode, 100, fieldHalfWidth(info, mode));
     const seed = randomSeed();
-    const script = new TutorialScript(mode);
+    const script = new rl.TutorialScript(mode);
     this.tut = { script, after, wrapAt: 0 };
     this.settings.tutorialSeen = true;
-    const round = new RedLightRound({ seed, contestants: tutorialPeople(mode), featuredId: DEMO, course });
+    const round = new rl.RedLightRound({ seed, contestants: rl.tutorialPeople(mode), featuredId: rl.DEMO, course });
     this.mode = "practice";
-    this.meId = DEMO;
+    this.meId = rl.DEMO;
     this.flow.reset("play");
     this.beginRound(round, new Rng(seed ^ 0xa5a5a5a5), this.settings.map, this.skyPick, []);
-    this.tutorial.start(mode === "balls" ? "Ball Haunting" : "Classic Run", tutorialSteps(mode));
+    this.tutorial.start(mode === "balls" ? "Ball Haunting" : "Classic Run", rl.tutorialSteps(mode));
   }
 
   private closeTutorial(): void {
@@ -1217,7 +1261,7 @@ export class Game {
       this.world.dispose();
     }
     const t0 = performance.now();
-    this.world = buildWorld(mapId, sky, this.spec, (this.atlas ??= buildAtlas(this.aniso)), course);
+    this.world = this.rlgl.buildWorld(mapId, sky, this.spec, (this.atlas ??= this.rlgl.buildAtlas(this.aniso)), course);
     this.worldMs = performance.now() - t0;
     this.worldKey = key;
     this.scene.add(this.world.group);
@@ -1294,10 +1338,10 @@ export class Game {
     const me = round.get(this.meId);
     if (me?.sprinting) this.sprintMetres += Math.hypot(me.vx, me.vz) * dt;
     // The song plays on under the hum.
-    if (round.phase === "sing" || round.phase === "hum") this.songBeat += (dt * SONGS[this.songId].bpm) / 60;
+    if (round.phase === "sing" || round.phase === "hum") this.songBeat += (dt * this.rlgl.SONGS[this.songId].bpm) / 60;
     const events = round.drain();
     // Solo: the play of the game is scored here (online it arrives from the server as a "moment").
-    if (this.hl && round instanceof RedLightRound) {
+    if (this.hl && round instanceof this.rlgl.RedLightRound) {
       const m = this.hl.observe(round, events);
       if (m) events.splice(events[events.length - 1]?.type === "ended" ? events.length - 1 : events.length, 0, { type: "moment", ...m });
     }
@@ -1315,6 +1359,7 @@ export class Game {
   private keepPotgClip(force: boolean): void {
     const next = this.potgNext;
     if (!next || !this.rec) return;
+    const CLIP = this.rlgl.CLIP;
     if (!force && this.rec.latest < next.t + CLIP.after) return;
     this.potgNext = null;
     const clip = this.rec.clip(next.t - CLIP.before, next.t + CLIP.after);
@@ -1428,9 +1473,9 @@ export class Game {
         // After a fake hum the song never stopped: it just carries on.
         if (from === "hum") break;
         // A fresh call: the next of her two songs (the seed decides which comes first, so a room hears the same).
-        this.songId = songFor(this.round?.seed ?? 0, this.songTurn++);
+        this.songId = this.rlgl.songFor(this.round?.seed ?? 0, this.songTurn++);
         this.songBeat = 0;
-        this.sound.playSong(this.songId, this.songBeat);
+        this.sound.playSong(this.rlgl.SONGS[this.songId], this.songBeat);
         this.hud.setSignal("none"); // the countdown's done: nothing on screen but the run
         this.doll.setSinging(true);
         this.doll.setWatching(false);
@@ -1639,13 +1684,13 @@ export class Game {
     if (!clip) return false;
     const idx = me.index;
     const shotAt = KILLCAM_BEFORE / (KILLCAM_BEFORE + KILLCAM_AFTER);
-    this.replay.start(
+    this.replay!.start(
       clip,
       round.course.dollZ,
       (pos, look, at) => {
         const c = at.people[idx];
         this.crowd.chest(c, _a);
-        return killCamLens((l, r) => this.doll.eyes(l, r), _a, at.u, pos, look);
+        return this.rlgl.killCamLens((l, r) => this.doll.eyes(l, r), _a, at.u, pos, look);
       },
       // As it was, then the shot and the fall at half speed (about 2 s in all).
       (u) => (u < shotAt ? 1 : 0.5),
@@ -1661,14 +1706,15 @@ export class Game {
     if (!round || !p) return false;
     const who = round.contestants[p.m.who];
     if (!who) return false;
+    const { CLIP } = this.rlgl;
     const key = CLIP.before / (CLIP.before + CLIP.after);
     const side = who.x > 0 ? -1 : 1;
-    this.replay.start(
+    this.replay!.start(
       p.clip,
       round.course.dollZ,
       (pos, look, at) => {
         this.crowd.chest(at.people[p.m.who], _a);
-        return potgLens(_a, at.u, side, pos, look);
+        return this.rlgl.potgLens(_a, at.u, side, pos, look);
       },
       // Slow motion round the moment itself.
       (u) => (Math.abs(u - key) < 0.14 ? 0.35 : 1),
@@ -1694,7 +1740,7 @@ export class Game {
   private endReplay(): void {
     const kind = this.replaying;
     if (!kind) return;
-    this.replay.stop(this.round?.contestants);
+    this.replay?.stop(this.round?.contestants);
     this.replaying = null;
     this.replayUi.hide();
     if (kind === "potg") {
@@ -1766,7 +1812,7 @@ export class Game {
     r.survivors = round.contestants.filter((c) => c.status === "finished").length;
     r.canWatch = round.phase !== "ended" && round.aliveCount > 0;
     // Whatever was on: a replay, a sequence, the final two's music.
-    if (this.replaying) this.replay.stop(round.contestants);
+    if (this.replaying) this.replay?.stop(round.contestants);
     this.replaying = null;
     this.replayUi.hide();
     this.outSeq = null;
@@ -2012,8 +2058,12 @@ export class Game {
           const map = r.map!;
           setTimeout(() => {
             if (this.room !== r || this.round) return;
-            this.ensureWorld(map, null, courseFor(r.mode, r.dist, fieldHalfWidth(mapOf(map), r.mode)));
-            this.warmUp();
+            // (If Ball Haunt's code can't come, the round's start says so.)
+            this.loadRl().then(() => {
+              if (this.room !== r || this.round) return;
+              this.ensureWorld(map, null, courseFor(r.mode, r.dist, fieldHalfWidth(mapOf(map), r.mode)));
+              this.warmUp();
+            }, () => undefined);
           }, 60);
         }
         break;
@@ -2038,7 +2088,7 @@ export class Game {
         if (this.screens.name === "play") this.showPlay();
         break;
       case "sync":
-        if (!(this.round instanceof OnlineRound) || this.round.seed !== m.sync.seed) this.startOnline(m.sync, true);
+        if (!this.rl || !(this.round instanceof this.rl.OnlineRound) || this.round.seed !== m.sync.seed) this.startOnline(m.sync, true);
         break;
       case "left":
         this.room = null;
@@ -2204,7 +2254,7 @@ export class Game {
 
     this.crowd.update(vdt, list, this.camera.position);
     for (const c of list) this.crowd.setCarry(c.index, c.ball >= 0 && c.status !== "eliminated");
-    if (round.balls.length) this.props.update(vdt, round.balls, (h, out) => this.crowd.hands(h, out));
+    if (round.balls.length) this.props!.update(vdt, round.balls, (h, out) => this.crowd.hands(h, out));
     this.doll.update(vdt);
     this.skyLaser?.update(vdt, this.camera.position);
     this.fx.update(vdt);
@@ -2281,8 +2331,9 @@ export class Game {
 
   /** A replay frame: the clip on the field, the lens it asks for, the overlay's progress. */
   private renderReplay(round: RoundView, frameDt: number): void {
-    const r = this.replay.update(frameDt, round.contestants, this.camera.position, _lensPos, _lensLook);
-    this.replayUi.progress(this.replay.progress);
+    const replay = this.replay!;
+    const r = replay.update(frameDt, round.contestants, this.camera.position, _lensPos, _lensLook);
+    this.replayUi.progress(replay.progress);
     if (!r.done) this.rig.shot(_lensPos, _lensLook, r.fov);
     this.rig.update(frameDt, null);
     this.world?.update(frameDt, _lensLook, this.camera.position);
@@ -2306,7 +2357,7 @@ export class Game {
       if (this.watching) this.resultsBtn.classList.add("visible");
       return;
     }
-    const fov = finalTwoLens(this.crowd.chest(a, _a), this.crowd.chest(b, _b), f.t / FINAL.seconds, _lensPos, _lensLook);
+    const fov = this.rlgl.finalTwoLens(this.crowd.chest(a, _a), this.crowd.chest(b, _b), f.t / FINAL.seconds, _lensPos, _lensLook);
     this.rig.shot(_lensPos, _lensLook, fov);
   }
 
@@ -2328,7 +2379,7 @@ export class Game {
     if (t >= FLOW.walk) this.flow.go("preview");
     w.update(t, this.shotFrame);
     this.crowd.update(vdt, w.walk.walkers, this.camera.position);
-    if (round.balls.length) this.props.update(vdt, round.balls, (h, out) => this.crowd.hands(h, out));
+    if (round.balls.length) this.props!.update(vdt, round.balls, (h, out) => this.crowd.hands(h, out));
     this.doll.update(vdt);
     this.skyLaser?.update(vdt, this.camera.position);
     this.rig.shot(this.shotFrame.pos, this.shotFrame.look, this.shotFrame.fov);
@@ -2406,7 +2457,7 @@ export class Game {
     this.hud.setAlive(inPlay, list.length);
     this.hud.setDistance(me.progress / round.course.distance);
     // Fist, slap and push with someone in reach; grab with a free ball in reach.
-    if (this.my === "playing" && !this.paused && !this.tut) this.controls.setNear(canAttack(me) && !!attackTarget(me, round.contestants, ATTACK.range + me.bst.reach), this.canGrab(round, me));
+    if (this.my === "playing" && !this.paused && !this.tut) this.controls.setNear(this.rlgl.canAttack(me) && !!this.rlgl.attackTarget(me, round.contestants, ATTACK.range + me.bst.reach), this.canGrab(round, me));
     else this.controls.setNear(false, false);
     this.controls.setStamina(me.stamina, me.sprinting);
     const watching = round.phase === "watch" || round.phase === "turning";
@@ -3545,7 +3596,8 @@ export class Game {
   private beginFfa(gm: FfaMode): void {
     if (this.world) this.scene.remove(this.world.group);
     if (this.dollObj) this.dollObj.root.visible = false;
-    this.props.setup([], []);
+    this.props?.setup([], []);
+    this.hud.clearCourse();
     this.gm = gm;
     this.ffaRes = null;
     this.recorded = null;
@@ -3805,7 +3857,7 @@ export class Game {
     cam.updateMatrixWorld();
     const rt = new WebGLRenderTarget(w, h);
     rt.texture.colorSpace = SRGBColorSpace;
-    const hide = [this.crowd.group, this.fx.group, this.props.group];
+    const hide = [this.crowd.group, this.fx.group, ...(this.props ? [this.props.group] : [])];
     const was = hide.map((o) => o.visible);
     for (const o of hide) o.visible = false;
     const fog = this.scene.fog;
