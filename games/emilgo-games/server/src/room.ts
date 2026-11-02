@@ -580,6 +580,11 @@ export class Room {
     for (const m of this.members) if (!m.blockedWith(peer)) m.sendRaw(msg);
   }
 
+  /** A spectator's Airfall vote (§10.6): the match decides whether it counts. */
+  airfallVote(peer: Peer, c: number): void {
+    if (this.game && this.state === "playing") this.game.vote(this.seatOf(peer), c);
+  }
+
   /** Commend someone from the match just played (§10.12): once each, within COMMEND_MS of its end. */
   commend(peer: Peer, id: string): void {
     const seat = this.seatOf(peer);

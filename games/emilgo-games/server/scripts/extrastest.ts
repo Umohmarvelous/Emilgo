@@ -4,7 +4,7 @@
 //
 //   node server/build-tools.mjs && node server/dist/extrastest.mjs
 
-import { BLACKOUT, ECONOMY, FLAGS, GADGETS, HARMATTAN, MELEE, MOVE, TRAFFIC, ZIPS } from "../../src/config";
+import { AIRFALL, BLACKOUT, ECONOMY, FLAGS, GADGETS, HARMATTAN, MELEE, MOVE, TRAFFIC, ZIPS } from "../../src/config";
 
 const FLAGS_BOUNTY = FLAGS.bounty;
 import type { ItemId } from "../../src/content/items";
@@ -27,6 +27,7 @@ import type { TagModule } from "../../src/game/modules/tag";
 import type { TrafficModule } from "../../src/game/modules/traffic";
 import type { ZipsModule } from "../../src/game/modules/zips";
 import type { ZoneModule } from "../../src/game/modules/zone";
+import type { AirfallModule } from "../../src/game/modules/airfall";
 import { matchWorldOf } from "../../src/maps/open/matchWorld";
 import { matchXp } from "../../src/rank/xp";
 import { FfaGame } from "../src/ffa";
@@ -898,6 +899,30 @@ console.log("the extras (§10):");
   const downs = ev.filter((e) => e.type === "down").map((e) => (e as { id: string }).id);
   check(downs.includes("p1") && !downs.includes("p2") && !downs.includes("p3") && !downs.includes("p4"), "Breakdance Sweep: trips the one beside you; a jump, a brace or standing back beats it");
   check(downs.includes("p0") && mel(m).isDown(0), "and leaves you Dazed");
+}
+
+{
+  // §10.6: spectators vote where the next Airfall lands.
+  const st = settingsOf(def("scarcity"));
+  const m = newMatch(102, st, 6);
+  runFor(m, 0.1);
+  const air = m.module<AirfallModule>("airfall")!;
+  const t0 = air.times[0];
+  const ev: MatchEvent[] = [];
+  runFor(m, t0 - AIRFALL.flare - AIRFALL.vote + 0.5 - m.elapsed, ev);
+  const v = ev.find((e) => e.type === "vote") as Extract<MatchEvent, { type: "vote" }> | undefined;
+  check(!!v && v.xs.length === AIRFALL.options && !!air.ballot, `${AIRFALL.vote} s before the flare: ${AIRFALL.options} spots to vote on`);
+  const alive = m.contestants[0];
+  check(!air.vote(m, alive, 0), "someone still playing can't vote");
+  const outs = m.contestants.slice(1, 4);
+  for (const c of outs) c.status = "eliminated";
+  check(air.vote(m, outs[0], 2) && !air.vote(m, outs[0], 1), "a spectator votes once");
+  air.vote(m, outs[1], 2);
+  air.vote(m, outs[2], 0);
+  const ev2: MatchEvent[] = [];
+  runFor(m, t0 - AIRFALL.flare + 0.2 - m.elapsed, ev2);
+  const f = ev2.find((e) => e.type === "flare") as Extract<MatchEvent, { type: "flare" }> | undefined;
+  check(!!f && Math.hypot(f.x - v!.xs[2], f.z - v!.zs[2]) < 0.01 && f.votes?.[2] === 2, "the flare goes up on the spot with the most votes (2 of 3)");
 }
 
 void MELEE;

@@ -6,6 +6,11 @@
 // you again); the first to finish gets the loot: AIRFALL.rare items from the
 // Airfall table and AIRFALL.core from the mode's own, straight into the
 // backpack (what doesn't fit lands round you).
+//
+// The spectators' vote (§10.6): AIRFALL.vote seconds before each flare, three
+// spots inside the closing circle are offered; anyone out of the match (a
+// spectator) can vote once; the flare goes up on the spot with the most votes
+// (a tie, or no votes, by the seed). Losing is still fun.
 
 import { AIRFALL } from "../../config";
 import { builtLoot, type ItemId } from "../../content/items";
@@ -39,6 +44,8 @@ export class AirfallModule implements RuleModule {
   private places!: Rng;
   private progress = new Float64Array(0);
   private on = new Int32Array(0);
+  /** The open vote, if any: for which crate, the spots, the counts, who has voted. */
+  ballot: { crate: number; spots: { x: number; z: number; h: number }[]; votes: number[]; cast: Set<number>; until: number } | null = null;
 
   constructor(params: Record<string, unknown>) {
     this.max = typeof params.max === "number" ? Math.max(0, Math.min(3, Math.floor(params.max))) : 3;
@@ -62,6 +69,8 @@ export class AirfallModule implements RuleModule {
 
   step(m: Match, dt: number): void {
     const t = m.elapsed;
+    const next = this.crates.length;
+    if (next < this.times.length && !this.ballot && t >= this.times[next] - AIRFALL.flare - AIRFALL.vote) this.openVote(m, next);
     while (this.crates.length < this.times.length && t >= this.times[this.crates.length] - AIRFALL.flare) this.place(m, this.times[this.crates.length]);
     for (const c of this.crates) {
       if (c.landed || t < c.land) continue;
@@ -85,8 +94,41 @@ export class AirfallModule implements RuleModule {
     }
   }
 
-  /** Where it will land: inside the circle being closed into, on open ground. */
+  /** Three spots for the spectators to choose from. */
+  private openVote(m: Match, crate: number): void {
+    const spots = Array.from({ length: AIRFALL.options }, () => this.spot(m));
+    const until = this.times[crate] - AIRFALL.flare;
+    this.ballot = { crate, spots, votes: spots.map(() => 0), cast: new Set(), until };
+    m.emit({ type: "vote", crate, xs: spots.map((s) => s.x), zs: spots.map((s) => s.z), until });
+  }
+
+  /** A spectator (out of the match) votes for spot `pick` of the open vote: once. True: counted. */
+  vote(m: Match, c: Contestant, pick: number): boolean {
+    const b = this.ballot;
+    if (!b || c.status === "alive" || b.cast.has(c.index) || pick < 0 || pick >= b.spots.length || m.elapsed >= b.until) return false;
+    b.cast.add(c.index);
+    b.votes[pick]++;
+    m.emit({ type: "ballot", crate: b.crate, id: c.id, pick, votes: b.votes.slice() });
+    return true;
+  }
+
+  /** Where it will land: the spectators' choice if they voted, else inside the circle being closed into, on open ground. */
   private place(m: Match, land: number): void {
+    const b = this.ballot && this.ballot.crate === this.crates.length ? this.ballot : null;
+    let at: { x: number; z: number; h: number };
+    if (b) {
+      const most = Math.max(...b.votes);
+      const top = b.spots.filter((_, k) => b.votes[k] === most);
+      at = top[this.places.int(0, top.length - 1)];
+    } else at = this.spot(m);
+    this.ballot = null;
+    const crate: Crate = { index: this.crates.length, x: at.x, z: at.z, h: at.h, land, landed: false, opened: false };
+    this.crates.push(crate);
+    m.emit({ type: "flare", crate: crate.index, x: at.x, z: at.z, h: at.h, land, ...(b ? { votes: b.votes.slice() } : {}) });
+  }
+
+  /** A spot inside the circle being closed into, on open ground. */
+  private spot(m: Match): { x: number; z: number; h: number } {
     const reach = m.reach;
     const zone = m.module<ZoneModule>("zone");
     const circle = zone ? zone.safe() : null;
@@ -101,10 +143,7 @@ export class AirfallModule implements RuleModule {
     }
     if (cell < 0 && reach.open.length) cell = reach.open[this.places.int(0, reach.open.length - 1)];
     const [x, z] = cell >= 0 ? reach.centre(cell) : [0, 0];
-    const h = cell >= 0 ? reach.h[cell] : 0;
-    const crate: Crate = { index: this.crates.length, x, z, h, land, landed: false, opened: false };
-    this.crates.push(crate);
-    m.emit({ type: "flare", crate: crate.index, x, z, h, land });
+    return { x, z, h: cell >= 0 ? reach.h[cell] : 0 };
   }
 
   /** The landed, unopened crate within reach of c, or null. */
@@ -154,7 +193,13 @@ export class AirfallModule implements RuleModule {
     }
   }
 
-  apply(_m: Match, e: MatchEvent): void {
+  apply(m: Match, e: MatchEvent): void {
+    if (e.type === "vote") this.ballot = { crate: e.crate, spots: e.xs.map((x, k) => ({ x, z: e.zs[k], h: 0 })), votes: e.xs.map(() => 0), cast: new Set(), until: e.until };
+    else if (e.type === "ballot" && this.ballot?.crate === e.crate) {
+      this.ballot.votes = e.votes.slice();
+      const c = m.get(e.id);
+      if (c) this.ballot.cast.add(c.index);
+    } else if (e.type === "flare") this.ballot = null;
     if (e.type === "flare") this.crates[e.crate] = { index: e.crate, x: e.x, z: e.z, h: e.h, land: e.land, landed: false, opened: false };
     else if (e.type === "landed" && this.crates[e.crate]) this.crates[e.crate].landed = true;
     else if (e.type === "open" && this.crates[e.crate]) this.crates[e.crate].opened = true;

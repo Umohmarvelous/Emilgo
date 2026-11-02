@@ -323,6 +323,9 @@ function handle(peer: Peer, msg: ClientMsg): void {
     case "commend":
       room?.commend(peer, msg.id);
       break;
+    case "mvote":
+      room?.airfallVote(peer, msg.c);
+      break;
     case "sping":
       room?.squadPing(peer, msg.k, msg.x, msg.z);
       break;

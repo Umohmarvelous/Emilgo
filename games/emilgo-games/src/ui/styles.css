@@ -974,3 +974,9 @@ input { font: inherit; color: inherit; }
 @keyframes cer-pop { from { opacity: 0; transform: scale(0.4); } }
 @keyframes cer-flip { from { opacity: 0; transform: rotateY(-180deg) scale(0.8); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .ceremony, .cer-rays, .cer-small, .cer-rank, .cer-card, .cer-tap { animation: none; } }
+
+/* The spectators' Airfall vote (SPEC-V3 §10.6). */
+.airvote { position: absolute; left: 50%; bottom: 120px; transform: translateX(-50%); z-index: 6; display: grid; gap: 8px; padding: 10px 12px; border-radius: 12px; max-width: min(92vw, 420px); pointer-events: auto; }
+.airvote .label { font: 700 11px var(--head); letter-spacing: 0.06em; text-align: center; }
+.airvote .opts { display: grid; gap: 6px; }
+.airvote .btn { font-size: 12px; padding: 8px 10px; justify-content: space-between; }

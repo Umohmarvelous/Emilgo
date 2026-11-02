@@ -34,7 +34,11 @@ export type MatchEvent =
   | { type: "loot"; id: string; bag: number; kinds: ItemId[]; left: number }
   | { type: "full"; id: string }
   // Airfall: the flare goes up where it will land; it lands; someone opens it.
-  | { type: "flare"; crate: number; x: number; z: number; h: number; land: number }
+  | { type: "flare"; crate: number; x: number; z: number; h: number; land: number; votes?: number[] }
+  /** The spectators' vote on where crate lands (§10.6): the spots offered, open until `until` (seconds of play). */
+  | { type: "vote"; crate: number; xs: number[]; zs: number[]; until: number }
+  /** A spectator's vote cast (counts so far). */
+  | { type: "ballot"; crate: number; id: string; pick: number; votes: number[] }
   | { type: "landed"; crate: number }
   | { type: "open"; crate: number; id: string; kinds: ItemId[] }
   // ── Melee (Gidigbo, Phase 4) ──

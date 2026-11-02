@@ -60,6 +60,8 @@ export type ClientMsg =
   // ── Social (Phase 4) ──
   | { t: "chat"; text: string }
   | { t: "emote"; e: EmoteId }
+  /** A spectator's vote on where the next Airfall lands (SPEC-V3 §10.6): spot c of the three offered. */
+  | { t: "mvote"; c: number }
   /** Commend a player I just played with (SPEC-V3 §10.12): once a match, soon after it ends. */
   | { t: "commend"; id: string }
   /** A squad ping (SPEC-V3 §10.7): go, help, item, danger, here (k 0–4), at x, z. Only my squad sees it. */
@@ -399,6 +401,10 @@ export function parseClient(raw: string): ClientMsg | null {
     }
     case "chat":
       return typeof o.text === "string" && o.text.length <= 400 ? { t: "chat", text: o.text } : null;
+    case "mvote": {
+      const c = int(o.c, 0, 2);
+      return c === null ? null : { t: "mvote", c };
+    }
     case "commend":
       return typeof o.id === "string" && o.id.length > 0 && o.id.length <= 64 ? { t: "commend", id: o.id } : null;
     case "sping": {

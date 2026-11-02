@@ -305,6 +305,8 @@ const PCM: Record<string, string> = {
   "Harmattan! A sandstorm is coming": "Harmattan! Sand breeze dey come",
   "The danfo shoved you off the road": "Danfo don push you comot for road",
   "New title": "New title",
+  "Where should the next Airfall land?": "Where the next Airfall go land?",
+  near: "near",
   "Down in": "E fall after",
   shoves: "push",
   "Shove the dummy": "Push the dummy",

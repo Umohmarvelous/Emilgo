@@ -306,6 +306,9 @@ export const AIRFALL = {
   /** What a crate holds: rare items, then core items. */
   rare: 1,
   core: 2,
+  /** Spectators' vote (SPEC-V3 §10.6): three spots offered this long before the flare; the most votes wins it. */
+  vote: 25,
+  options: 3,
 } as const;
 
 /** Respawning in the open worlds: a start this far from everyone else when one exists, metres. */

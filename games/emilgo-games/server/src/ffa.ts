@@ -12,6 +12,7 @@ import { buildable } from "../../src/content/catalog";
 import { actCode } from "../../src/game/combat";
 import { Match, settingsOf, weeklyMutator, type MatchWorld, type Standing } from "../../src/game/core/match";
 import { Space } from "../../src/game/core/space";
+import type { AirfallModule } from "../../src/game/modules/airfall";
 import type { FlagsModule } from "../../src/game/modules/flags";
 import type { MeleeModule } from "../../src/game/modules/melee";
 import type { VehiclesModule } from "../../src/game/modules/vehicles";
@@ -234,6 +235,12 @@ export class FfaGame {
   }
 
   /** "draw", or the winning seat (a staked duel: first to claim the flag; a timeout is a draw). */
+  /** A spectator's vote on the next Airfall's spot (§10.6). */
+  vote(seat: string, c: number): void {
+    const body = this.match.get(seat);
+    if (body) this.match.module<AirfallModule>("airfall")?.vote(this.match, body, c);
+  }
+
   /** The other seats in seat's squad (none in a solo match). */
   squadMates(seat: string): string[] {
     const m = this.match;

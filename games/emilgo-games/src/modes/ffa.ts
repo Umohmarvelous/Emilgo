@@ -31,13 +31,14 @@ import { OnlineMatch } from "../net/onlineMatch";
 import type { ServerMsg, StartInfo } from "../net/protocol";
 import { fromWire, type WireLook } from "../shop/catalog";
 import type { MapMark } from "../ui/hud";
+import type { AirfallModule } from "../game/modules/airfall";
 import type { ItemsModule } from "../game/modules/items";
 import { getLang, t } from "../ui/i18n";
 import { PING_LINES } from "../ui/quickchat";
 import { PlayHud } from "../ui/play";
 import { accentOf } from "../world/crowd";
 import { displacement, FfaView, PLAY_SCORE, PROP_NAME } from "../world/ffa";
-import { fmtTime } from "../ui/dom";
+import { el, esc, fmtTime } from "../ui/dom";
 import { randomLook, type Look } from "../world/human/wardrobe";
 import { MatchScene } from "../world/matchScene";
 import { GadgetView } from "../world/gadgets";
@@ -146,6 +147,10 @@ export class FfaMode implements GameMode {
   private trailAt = 0;
   private lastCount = -1;
   private spectate = -1;
+  /** The spectators' Airfall vote panel (§10.6), and which vote it shows (−1: hidden). */
+  private readonly voteEl = el("div", "airvote glass");
+  private voteFor = -1;
+  private voteKey = "";
   /** Squad pings on the map (§10.7): what, where, until when (seconds of play). */
   private readonly pings: { k: number; x: number; z: number; until: number }[] = [];
 
@@ -271,6 +276,51 @@ export class FfaMode implements GameMode {
     this.src.dispose();
     this.src = next;
     return true;
+  }
+
+  // ── The spectators' Airfall vote (§10.6) ───────────────────────────────────
+
+  private votePanel(m: Match, me: Contestant): void {
+    const air = m.module<AirfallModule>("airfall");
+    const b = air?.ballot;
+    if (!b || me.status === "alive" || m.elapsed >= b.until) {
+      if (this.voteFor >= 0) {
+        this.voteFor = -1;
+        this.voteEl.remove();
+      }
+      return;
+    }
+    b.spots.forEach((s) => this.marks.push({ x: s.x, z: s.z, kind: "crate" }));
+    const voted = b.cast.has(me.index);
+    const key = `${b.crate}:${voted}:${b.votes.join(",")}:${Math.ceil(b.until - m.elapsed)}`;
+    if (key === this.voteKey) return;
+    this.voteKey = key;
+    if (this.voteFor < 0) {
+      this.voteFor = b.crate;
+      this.host.ui.append(this.voteEl);
+    }
+    const near = (x: number, z: number) => {
+      let best = "";
+      let bd = Infinity;
+      for (const l of this.world.layout.landmarks) {
+        const d = Math.hypot(l.x - x, l.z - z);
+        if (d < bd) {
+          bd = d;
+          best = l.name;
+        }
+      }
+      return best;
+    };
+    this.voteEl.innerHTML = `<span class="label">${esc(t("Where should the next Airfall land?"))} <span class="num">${Math.max(0, Math.ceil(b.until - m.elapsed))} s</span></span>
+      <div class="opts">${b.spots.map((s, k) => `<button class="btn ${voted ? "secondary" : "primary"}" data-vote="${k}" ${voted ? "disabled" : ""}>${"ABC"[k]} · ${esc(t("near"))} ${esc(near(s.x, s.z))}${voted ? ` <b class="num">${b.votes[k]}</b>` : ""}</button>`).join("")}</div>`;
+    for (const btn of this.voteEl.querySelectorAll<HTMLButtonElement>("[data-vote]")) {
+      btn.onclick = () => {
+        const k = Number(btn.dataset.vote);
+        if (this.online) this.online.net.send({ t: "mvote", c: k });
+        else air?.vote(m, me, k);
+        btn.disabled = true;
+      };
+    }
   }
 
   // ── Squad pings (§10.7) ────────────────────────────────────────────────────
@@ -531,6 +581,7 @@ export class FfaMode implements GameMode {
 
     // The map: your squad and the objectives only (rivals aren't shown: a holder's ping is the point).
     this.marks.length = 0;
+    this.votePanel(m, me);
     for (let k = this.pings.length - 1; k >= 0; k--) {
       const p = this.pings[k];
       if (p.until <= m.elapsed) this.pings.splice(k, 1);
@@ -660,6 +711,7 @@ export class FfaMode implements GameMode {
     h.rig.arm = 1;
     h.rig.lift = 0;
     this.play.root.remove();
+    this.voteEl.remove();
     const c = h.controls;
     c.layout = "rlgl";
     c.onInteract = c.onPack = c.onRadio = null;
