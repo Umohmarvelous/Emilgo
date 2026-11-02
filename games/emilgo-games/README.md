@@ -235,8 +235,9 @@ they move arms, never feet, so emoting while she watches is safe.
 
 ```bash
 npm run game:dev        # Vite dev server (add ?mockvatar to play as a fake Lagos Life player)
-npm run game:build      # typecheck + dist/ for hosting
+npm run game:build      # typecheck + dist/: the site Lagos Life frames (its SDK tag included)
 npm run game:embed      # typecheck + single-file build → the EMILGO app's copy
+(cd games/emilgo-games && npx vite build --mode web)   # dist-web/: the game on its own site (no SDK)
 npm run game:preview    # serve dist/ with the frame-ancestors header
 npm run game:sim        # balance check
 ```
@@ -309,7 +310,9 @@ api.emilgo.app (steps 1 and the `certs`/custom-domain parts below); the bare
    `https://emilgo-games.fly.dev/health` should say `ok`. (With the domain:
    `fly certs add api.emilgo.app` and the DNS records it prints, grey cloud.)
 3. **Host the game**: `scripts/deploy-site.sh` (builds the last commit against
-   `wss://emilgo-games.fly.dev`). Check the `content-security-policy:
+   `wss://emilgo-games.fly.dev`; the web build, with no Lagos Life SDK). **For
+   the site Lagos Life frames, deploy with `BUILD=lagoslife`**: the web build
+   can't talk to Lagos Life. Check the `content-security-policy:
    frame-ancestors …` header on the live URL. (With the domain: Pages →
    `milgogames` → Custom domains → `play.emilgo.app`, and
    `SERVER=wss://api.emilgo.app scripts/deploy-site.sh`.)

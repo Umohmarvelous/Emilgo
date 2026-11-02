@@ -220,6 +220,14 @@ npm run game:build     # typecheck + dist/ (Lagos Life site)
 npm --prefix games/emilgo-games run typecheck   # client + server
 ```
 
+## v3 Phase 10: where things are
+
+- **Three builds**: `npm run game:build` → `dist/` (the site Lagos Life frames: its SDK tag, the matches' code in its own chunk); `npm run game:embed` → the EMILGO app's single file (the chunk inlined); `npx vite build --mode web` → `dist-web/` (the game on its own site: split, no Lagos Life SDK). `scripts/deploy-site.sh` deploys the web build; `BUILD=lagoslife scripts/deploy-site.sh` the one Lagos Life frames.
+- **The matches' chunk**: `src/modes/v3.ts` (FfaMode and the open worlds' builders), loaded by `Session.loadV3` (in idle time after the lobby is up, and by `ensureNaija` / `ensureSpooky`). **Don't import `modes/ffa`, `maps/open/*` builders, `game/modules/*` or `world/{ffa,deadView,billboards,…}` from the lobby's code** (session, screens, hud): it pulls them back into the boot script. The lobby's needs live in `game/weekly.ts` and `maps/open/route.ts`. If the chunk can't load, `matchLoadFailed` says so on Play.
+- Boot: Ball Haunt's course textures are painted on first use (`Session.atlas`); no render before `start()` (`Session.started`); the welcome picture only when the script came quickly (`main.ts` `showArt`).
+- Dailies: `game/progress.ts` (`V3_POOL` while `FEATURES.ballHaunt` is off), counted in `Session.onFfaEnd`, shown on the results (`FfaResultView.completed`).
+- Measuring the boot fairly: build the last commit into a scratch folder, serve both (`vite preview --outDir …`), and alternate (`dev/cdp.mjs` with `CPU_RATE=4 NET_KBPS=1600 NET_RTT=150`, the `eg:` marks). Single runs swing by a second on this Mac.
+
 ## v3 Phase 9: where things are
 
 - The boards in the cities: `src/maps/open/billboards.ts` (`placeBoards`, `BoardSlot`, `faceOf`; sizes `BOARD_SIZE` in `prefabs.ts`, prefab `billboard`, drawn in `art.ts`). Wishes: `BOARD_WISHES` in `naija.ts`; Spooky World's along the route in `spooky.ts`. **New boards go on the end of a wish list** (a board's id is its place there, and ads are booked by id), then add the row to `game_billboard_slots` in the migration (adstest fails until the two lists agree).
