@@ -33,20 +33,22 @@ import {
   InstancedMesh,
   Matrix4,
   MeshBasicMaterial,
+  Mesh,
   MeshLambertMaterial,
   TorusGeometry,
   Vector3,
 } from "three";
 
 import type { Sound } from "../audio/sound";
-import type { Match } from "../game/core/match";
+import type { Match, Zip } from "../game/core/match";
 import type { MatchEvent } from "../game/core/module";
-import { BLACKOUT, ECONOMY, RIDDLES_CFG, ROOMS, SQUAD_COLORS, type JobKind } from "../config";
+import { BLACKOUT, ECONOMY, RIDDLES_CFG, ROOMS, SQUAD_COLORS, ZIPS, type JobKind } from "../config";
 import type { BlackoutModule } from "../game/modules/blackout";
 import type { EconomyModule } from "../game/modules/economy";
 import type { RiddlesModule } from "../game/modules/riddles";
 import { ROOM_NAMES, type RoomsModule } from "../game/modules/rooms";
 import type { TagModule } from "../game/modules/tag";
+import type { ZipsModule } from "../game/modules/zips";
 import type { Hud, ItemPin } from "../ui/hud";
 import type { PlayHudState } from "../ui/play";
 import type { MapMark } from "../ui/minimap";
@@ -78,6 +80,35 @@ const _q2 = new Quaternion();
 const _s = new Vector3();
 const _x = new Vector3(1, 0, 0);
 const _y = new Vector3(0, 1, 0);
+
+/** The zip-lines: a steel frame on each roof, the cable down to a post at its foot. */
+function zipGeometry(zips: readonly Zip[]): BufferGeometry {
+  const STEEL = 0x6e7479;
+  const out: BufferGeometry[] = [];
+  for (const z of zips) {
+    const dx = z.x1 - z.x0;
+    const dz = z.z1 - z.z0;
+    const dy = z.h1 - z.h0;
+    const len = Math.hypot(dx, dy, dz);
+    const yaw = Math.atan2(dx, dz);
+    // The cable: a thin cylinder along the line (YXZ: pitch it down, turn it to face the foot).
+    const cable = new CylinderGeometry(0.022, 0.022, len, 5).rotateX(Math.PI / 2);
+    cable.applyMatrix4(new Matrix4().makeRotationX(-Math.atan2(dy, Math.hypot(dx, dz))));
+    cable.applyMatrix4(new Matrix4().makeRotationY(yaw));
+    out.push(part(cable, 0x2b2b2b, { p: [(z.x0 + z.x1) / 2, (z.h0 + z.h1) / 2, (z.z0 + z.z1) / 2] }));
+    // The frame: two legs across the line and a beam over the top.
+    const top = z.h0 - z.roof;
+    const sx = Math.cos(yaw) * 0.7;
+    const sz = -Math.sin(yaw) * 0.7;
+    for (const k of [-1, 1]) out.push(part(new CylinderGeometry(0.05, 0.06, top + 0.1, 6), STEEL, { p: [z.x0 + sx * k, z.roof + top / 2, z.z0 + sz * k] }));
+    out.push(part(new BoxGeometry(1.5, 0.08, 0.08), STEEL, { p: [z.x0, z.h0 + 0.04, z.z0], r: [0, yaw, 0] }));
+    // The post at the foot, a little past where you drop off.
+    const fx = z.x1 + Math.sin(yaw) * 1.2;
+    const fz = z.z1 + Math.cos(yaw) * 1.2;
+    out.push(part(new CylinderGeometry(0.07, 0.08, z.h1 + 0.4, 6), STEEL, { p: [fx, (z.h1 + 0.4) / 2, fz] }));
+  }
+  return merge(out);
+}
 
 function stationGeometry(): BufferGeometry {
   return merge([
@@ -151,6 +182,9 @@ export class ModesView {
   lit = false;
   private litSaid = -9;
   private time = 0;
+  /** The rooftop zip-lines (drawn once), and whether you've been told how to ride one. */
+  private zipMesh: Mesh | null = null;
+  private zipTold = false;
 
   constructor(o: ModesViewOptions) {
     this.o = o;
@@ -252,6 +286,21 @@ export class ModesView {
     this.time += dt;
     let pin: ItemPin | null = null;
     const me = m.contestants[this.o.me];
+    const zm = m.module<ZipsModule>("zips");
+    const zips = m.world.zips ?? [];
+    if (zm && zips.length) {
+      if (!this.zipMesh) {
+        this.zipMesh = new Mesh(zipGeometry(zips), new MeshLambertMaterial({ vertexColors: true }));
+        this.group.add(this.zipMesh);
+      }
+      for (const z of zips) marks.push({ x: z.x0, z: z.z0, kind: "goal", r: 1.5 });
+      // Near an anchor on its roof, once a match: how to ride.
+      const near = zips.find((z) => Math.hypot(me.x - z.x0, me.z - z.z0) < ZIPS.reach + 2 && Math.abs(me.h - z.roof) < 0.6);
+      if (near && !this.zipTold && me.status === "alive") {
+        this.zipTold = true;
+        this.o.hud.pushFeed(zm.open(m, me, near) ? t("Zip-line: tap interact to ride down") : t("Zip-line shut: its foot is outside the zone"), "info");
+      }
+    }
     const tag = m.module<TagModule>("tag");
     if (tag) {
       // The Ojuju's skin.

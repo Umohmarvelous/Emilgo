@@ -16,13 +16,14 @@ import { HarmattanModule } from "./harmattan";
 import { RoomsModule } from "./rooms";
 import { TagModule } from "./tag";
 import { TrafficModule } from "./traffic";
+import { ZipsModule } from "./zips";
 import { ItemsModule } from "./items";
 import { MeleeModule } from "./melee";
 import { VehiclesModule } from "./vehicles";
 import { ZoneModule } from "./zone";
 
 /** Phase 3: the zone, items and Airfall. Phase 4: melee, flags, drop zones, the rally point. Phase 5: vehicles. */
-export const MATCH_MODULES: ReadonlySet<ModuleId> = new Set<ModuleId>(["zone", "items", "airfall", "melee", "flags", "dropzones", "capture", "vehicles", "gadgets", "tag", "blackout", "economy", "riddles", "rooms", "harmattan", "traffic"]);
+export const MATCH_MODULES: ReadonlySet<ModuleId> = new Set<ModuleId>(["zone", "items", "airfall", "melee", "flags", "dropzones", "capture", "vehicles", "gadgets", "tag", "blackout", "economy", "riddles", "rooms", "harmattan", "traffic", "zips"]);
 
 /**
  * The modules for a mode's settings, in the order they step: vehicles first
@@ -41,6 +42,8 @@ export function makeModules(mods: Partial<Record<ModuleId, Record<string, unknow
     if (mods.melee) out.push(new HarmattanModule());
     // So does the danfo that sweeps the main road, where there are cars (§10.14).
     if (mods.melee && mods.vehicles) out.push(new TrafficModule());
+    // And the rooftop zip-lines (§10.21; none on part of the city: the world has none).
+    if (mods.melee) out.push(new ZipsModule());
   }
   if (mods.melee) out.push(new MeleeModule(mods.melee));
   if (mods.items) {

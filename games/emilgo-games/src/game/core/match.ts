@@ -39,6 +39,17 @@ import { reachOf, type Reach } from "./reach";
 import type { CourtRoom } from "../../maps/open/prefabs";
 import type { Space } from "./space";
 
+export interface Zip {
+  /** The roof's floor at the anchor. */
+  roof: number;
+  x0: number;
+  z0: number;
+  h0: number;
+  x1: number;
+  z1: number;
+  h1: number;
+}
+
 /** The world a match is played in: its solids, its starts and the places worth finding. */
 export interface MatchWorld {
   readonly space: Space;
@@ -58,6 +69,8 @@ export interface MatchWorld {
   readonly named?: readonly { id: string; x: number; z: number; r: number }[];
   /** The street generators (Lights Out: they run in a power cut, light what's near, and shock what touches them). */
   readonly generators?: readonly { x: number; z: number }[];
+  /** Rooftop zip-lines (§10.21): from a roof (x0, z0 on a roof at `roof`; cable height h0) down to the street (x1, z1, h1). One way. */
+  readonly zips?: readonly Zip[];
   /** A mode played on part of the world (the Flag Duel): that circle is the zone's first. */
   readonly arena?: { x: number; z: number; r: number };
 }

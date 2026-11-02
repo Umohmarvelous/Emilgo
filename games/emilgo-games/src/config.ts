@@ -553,6 +553,23 @@ export const TRAFFIC = {
   again: 0.8,
 } as const;
 
+/** Rooftop zip-lines (SPEC-V3 §10.21; Phase 6): two in the city, roof to street, one way. */
+export const ZIPS = {
+  /** How many, and their length on the ground (m). */
+  count: 2,
+  min: 22,
+  max: 42,
+  /** Grab it from this close on the roof (m); ride at this speed (m/s), hanging this far under the cable. */
+  reach: 1.6,
+  speed: 11,
+  hang: 1.9,
+  /** The frame on the roof the cable starts from: your feet this high off the roof as you set off (m). */
+  frame: 2.6,
+  /** The cable clears what's under it by this much plus the hang (m); the two lines at least this far apart. */
+  clear: 0.5,
+  apart: 90,
+} as const;
+
 /** Compound Wars (SPEC-V3 §9 #7; Phase 6): the courtyard's rooms and doors. */
 export const ROOMS = {
   /** Tap a door from this close (either side); hold this long inside to jam it shut, for `jam` s. */

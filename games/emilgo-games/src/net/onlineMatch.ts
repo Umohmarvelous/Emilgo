@@ -27,6 +27,7 @@ import type { FlagsModule } from "../game/modules/flags";
 import { driveCar, wrap, type Car } from "../game/modules/drive";
 import type { MeleeModule } from "../game/modules/melee";
 import type { HarmattanModule } from "../game/modules/harmattan";
+import type { ZipsModule } from "../game/modules/zips";
 import type { RoomsModule } from "../game/modules/rooms";
 import type { TagModule } from "../game/modules/tag";
 import type { VehiclesModule } from "../game/modules/vehicles";
@@ -174,7 +175,9 @@ export class OnlineMatch {
     if (me && me.status === "alive" && m.phase === "play" && !m.seated(me)) {
       if (this.net.state !== "open") me.inX = me.inZ = 0;
       const follow = this.following();
-      if (!follow) {
+      const zips = m.module<ZipsModule>("zips");
+      if (zips?.riding(m, me)) zips.place(m, me);
+      else if (!follow) {
         m.predict(me, dt, this.share(me));
         // Compound Wars: a shut door is solid on the phone too; the Harmattan's wind pushes you here as there.
         m.module<RoomsModule>("rooms")?.keepOut(m, me);
@@ -188,7 +191,7 @@ export class OnlineMatch {
       me.z += dz;
       this.corrX -= dx;
       this.corrZ -= dz;
-      if (follow) me.h = m.world.space.floorAt(me.x, me.z, me.h + me.y + 0.05).h;
+      if (follow && !zips?.riding(m, me)) me.h = m.world.space.floorAt(me.x, me.z, me.h + me.y + 0.05).h;
       // History moves with the correction, so the next comparison isn't double-counted.
       for (const h of this.hist) {
         h.x += dx;

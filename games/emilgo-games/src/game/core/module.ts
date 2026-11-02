@@ -126,7 +126,9 @@ export type MatchEvent =
   /** A bounty on the leader (Hold the Flag): id Dazed them and took `v` of their measure. */
   | { type: "bounty"; id: string; tg: string; v: number }
   /** The danfo sweeping the main road shoved tg: their slide and wobble now. */
-  | { type: "danfo"; tg: string; kx: number; kz: number; w: number };
+  | { type: "danfo"; tg: string; kx: number; kz: number; w: number }
+  /** Onto a rooftop zip-line, or off at its foot (at: seconds of play). */
+  | { type: "zip"; id: string; zip: number; how: "on" | "off"; at: number };
 
 /** Why someone went down: melee's reasons, then a car's (pulled out, thrown by a blast, out at speed). */
 export type DownWhy = "daze" | "trip" | "tackle" | "throw" | "ringout" | "hijack" | "blast" | "tumble";

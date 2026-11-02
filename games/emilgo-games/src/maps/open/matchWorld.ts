@@ -3,10 +3,11 @@
 // Squad Rally's route and, for a mode on part of the world, its arena. Pure:
 // the server and the phones build the same one from the same layout.
 
-import type { MatchWorld } from "../../game/core/match";
+import { ZIPS } from "../../config";
+import type { MatchWorld, Zip } from "../../game/core/match";
 import type { Space } from "../../game/core/space";
 import type { OpenLayout } from "./naija";
-import { courtyardRooms, type PrefabId } from "./prefabs";
+import { courtyardRooms, storeyP, type PrefabId } from "./prefabs";
 
 /** Where a flag can be hidden: inside a danfo, a water tank, under a stall, by the bell tower … */
 const STASH_PREFABS: ReadonlySet<PrefabId> = new Set<PrefabId>(["danfo", "kiosk", "wreck", "generator", "busstop", "borehole", "carriage", "okada", "hut", "watertower", "church", "market", "suya", "mechanic", "carpenter", "barber"]);
@@ -61,6 +62,60 @@ export function fuelStands(layout: OpenLayout): { x: number; z: number; rot: num
   return out;
 }
 
+/**
+ * The rooftop zip-lines (§10.21): from the roof of a two-storey building with
+ * stairs, down to open street, over nothing taller than the cable allows.
+ * The longest clear lines, ZIPS.apart from each other. Fixed by the layout.
+ */
+export function zipLines(layout: OpenLayout, space: Space): Zip[] {
+  const top = (x: number, z: number) => space.floorAt(x, z, 1e3).h;
+  const cands: (Zip & { len: number })[] = [];
+  for (const p of layout.placements) {
+    if (p.prefab !== "storey") continue;
+    const q = storeyP(p.v);
+    if (!q.stairs) continue;
+    const roof = q.floors * q.fh + 0.3;
+    // On the roof, the corner away from the tank (bx − w/4, −d/4), a metre in from the parapet.
+    const c = Math.cos(p.rot);
+    const s = Math.sin(p.rot);
+    const lx = -0.8 + q.w / 2 - 1.4;
+    const lz = q.d / 2 - 1.4;
+    const x0 = p.x + lx * c + lz * s;
+    const z0 = p.z - lx * s + lz * c;
+    if (Math.abs(top(x0, z0) - roof) > 0.2) continue;
+    // From the top of a frame on the roof: the rider's feet clear the parapet and the roof's far edge.
+    const h0 = roof + ZIPS.hang + ZIPS.frame;
+    for (let k = 0; k < 16; k++) {
+      const a = (k / 16) * Math.PI * 2;
+      for (let len = ZIPS.max; len >= ZIPS.min; len -= 4) {
+        const x1 = x0 + Math.sin(a) * len;
+        const z1 = z0 + Math.cos(a) * len;
+        if (Math.abs(x1) > layout.half - 6 || Math.abs(z1) > layout.half - 6) continue;
+        const g = top(x1, z1);
+        if (g > 0.3 || layout.groundAt(x1, z1) === "grass") continue;
+        const h1 = g + ZIPS.hang;
+        // The body under the cable clears everything on the way (past the parapet).
+        let ok = true;
+        for (let u = 0.4 / len; u < 1 - 1.5 / len && ok; u += 0.4 / len) {
+          const feet = h0 + (h1 - h0) * u - ZIPS.hang;
+          if (space.topNear(x0 + (x1 - x0) * u, z0 + (z1 - z0) * u, 0.5) > feet - ZIPS.clear) ok = false;
+        }
+        if (!ok) continue;
+        cands.push({ roof, x0, z0, h0, x1, z1, h1, len });
+        break;
+      }
+    }
+  }
+  cands.sort((a, b) => b.len - a.len || a.x0 - b.x0 || a.z0 - b.z0);
+  const out: Zip[] = [];
+  for (const z of cands) {
+    if (out.length >= ZIPS.count) break;
+    if (out.some((o) => Math.hypot(o.x0 - z.x0, o.z0 - z.z0) < ZIPS.apart)) continue;
+    out.push({ roof: z.roof, x0: z.x0, z0: z.z0, h0: z.h0, x1: z.x1, z1: z.z1, h1: z.h1 });
+  }
+  return out;
+}
+
 /** Parts of a world a mode can be played on ("naija-world:market"): a circle. */
 const ARENAS: Record<string, { x: number; z: number; r: number }> = {
   market: { x: 30, z: -40, r: 80 },
@@ -82,5 +137,5 @@ export function matchWorldOf(layout: OpenLayout, space: Space, map = layout.id):
   const court = layout.placements.find((p) => p.prefab === "courtyard");
   const rooms = court ? courtyardRooms(court) : [];
   const named = [...layout.landmarks.map((l) => ({ id: l.id, x: l.x, z: l.z, r: 18 })), ...layout.areas.map((a) => ({ id: a.id, x: a.x, z: a.z, r: a.r }))];
-  return { space, spawns, places, stash, route: NAIJA_ROUTE, roads, fuel: fuelStands(layout), generators, named, rooms, ...(arena ? { arena } : {}) };
+  return { space, spawns, places, stash, route: NAIJA_ROUTE, roads, fuel: fuelStands(layout), generators, named, rooms, ...(arena ? { arena } : { zips: zipLines(layout, space) }) };
 }

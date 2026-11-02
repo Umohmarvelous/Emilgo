@@ -168,6 +168,19 @@ export class Space {
     return true;
   }
 
+  /** The highest top of anything solid within r of (x, z) (0: open ground). Zip-lines check their path with it. */
+  topNear(x: number, z: number, r: number): number {
+    let best = 0;
+    for (const i of this.near(x, z, r, _ids)) {
+      const so = this.solids[i];
+      if (so.kind === "pit") continue;
+      const [lx, lz] = this.toLocal(i, x, z, _l);
+      if (Math.abs(lx) > so.hx + r || Math.abs(lz) > so.hz + r) continue;
+      best = Math.max(best, this.topAt(so, Math.max(-so.hz, Math.min(so.hz, lz))));
+    }
+    return best;
+  }
+
   /** The camera's boxes near a point (the follow camera keeps out of them). */
   camBoxes(x: number, z: number, r: number, out: CamBox[] = []): CamBox[] {
     out.length = 0;

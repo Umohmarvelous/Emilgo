@@ -4,7 +4,7 @@
 //
 //   node server/build-tools.mjs && node server/dist/extrastest.mjs
 
-import { BLACKOUT, ECONOMY, FLAGS, GADGETS, HARMATTAN, MELEE, MOVE, TRAFFIC } from "../../src/config";
+import { BLACKOUT, ECONOMY, FLAGS, GADGETS, HARMATTAN, MELEE, MOVE, TRAFFIC, ZIPS } from "../../src/config";
 
 const FLAGS_BOUNTY = FLAGS.bounty;
 import type { ItemId } from "../../src/content/items";
@@ -25,6 +25,8 @@ import type { HarmattanModule } from "../../src/game/modules/harmattan";
 import { RIDDLES, shownLangs } from "../../src/content/riddles";
 import type { TagModule } from "../../src/game/modules/tag";
 import type { TrafficModule } from "../../src/game/modules/traffic";
+import type { ZipsModule } from "../../src/game/modules/zips";
+import type { ZoneModule } from "../../src/game/modules/zone";
 import { matchWorldOf } from "../../src/maps/open/matchWorld";
 import { matchXp } from "../../src/rank/xp";
 import { FfaGame } from "../src/ffa";
@@ -786,6 +788,47 @@ console.log("the extras (§10):");
   const lx = (vic.x - nb.x) * Math.cos(nb.hd) - (vic.z - nb.z) * Math.sin(nb.hd);
   check(!!hit && Math.abs(lx) > TRAFFIC.wid / 2, `in its way: shoved aside (${Math.abs(lx).toFixed(1)} m off its middle)`);
   check(!m.contestants.some((c) => c.status !== "alive"), "it never hurts anyone");
+}
+
+{
+  // §10.21: rooftop zip-lines.
+  const zips = world.zips ?? [];
+  console.log("   lines:", zips.map((z) => `(${z.x0.toFixed(0)},${z.z0.toFixed(0)},${z.h0.toFixed(1)})→(${z.x1.toFixed(0)},${z.z1.toFixed(0)}) ${Math.hypot(z.x1 - z.x0, z.z1 - z.z0).toFixed(0)} m`).join("  "));
+  check(zips.length === ZIPS.count && zips.every((z) => z.h0 > z.h1 + 3) && Math.hypot(zips[0].x0 - zips[1].x0, zips[0].z0 - zips[1].z0) >= ZIPS.apart, `${ZIPS.count} lines, each roof to street, ${ZIPS.apart} m apart at least`);
+  const z = zips[0];
+  const st = settingsOf(def("find-the-flag"));
+  delete st.modules.airfall;
+  delete st.modules.vehicles;
+  st.time = 900;
+  const m = newMatch(97, st, 2);
+  runFor(m, 0.1);
+  const zm = m.module<ZipsModule>("zips")!;
+  clear(m, ["p0"]);
+  const roofH = z.roof;
+  const c = put(m, "p0", z.x0 + 0.8, z.z0);
+  c.h = roofH;
+  check(Math.abs(space.floorAt(c.x, c.z, 1e3).h - roofH) < 0.05, `the anchor stands on a roof (${roofH.toFixed(1)} m up)`);
+  m.setInteract("p0", 1, false);
+  const ev = runFor(m, 0.1);
+  check(ev.some((e) => e.type === "zip" && e.how === "on" && e.id === "p0") && zm.riding(m, c) === z, "tap by the anchor: you're on the line");
+  const len = Math.hypot(z.x1 - z.x0, z.z1 - z.z0);
+  let lowest = 99;
+  const ev2 = runFor(m, len / ZIPS.speed + 0.5, [], () => {
+    if (zm.riding(m, c) && Math.hypot(c.x - z.x1, c.z - z.z1) > 1.5) lowest = Math.min(lowest, c.h - space.topNear(c.x, c.z, MOVE.radius));
+  });
+  check(ev2.some((e) => e.type === "zip" && e.how === "off") && Math.hypot(c.x - z.x1, c.z - z.z1) < 4 && c.h < 0.5 && c.status === "alive", `down ${len.toFixed(0)} m in ${(len / ZIPS.speed).toFixed(1)} s, off at the foot on the street`);
+  check(lowest > 0.3, `never through anything on the way (${lowest.toFixed(1)} m clear at the lowest)`);
+  // From the street: no ride up (one way).
+  m.setInteract("p0", 2, false);
+  check(!runFor(m, 0.1).some((e) => e.type === "zip"), "at the foot: no ride back up");
+  // Outside the zone: shut.
+  const zone = m.module<ZoneModule>("zone")!;
+  const put2 = put(m, "p0", z.x0 + 0.8, z.z0);
+  put2.h = roofH;
+  zone.now.x = z.x0 + 500;
+  zone.now.z = z.z0;
+  zone.now.r = 10;
+  check(!zm.reachFor(m, put2), "outside the zone: the line is shut (no escape on it)");
 }
 
 void MELEE;
