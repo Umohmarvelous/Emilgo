@@ -222,7 +222,8 @@ export class FfaMode implements GameMode {
     this.dead = m.module("survival") ? new DeadView({ crowd: h.crowd, hud: h.hud, sound: h.sound, me: me.index, layer: h.ui, tier: h.spec.tier }) : null;
     if (this.dead) {
       h.scene.add(this.dead.group);
-      this.dead.setup(m);
+      this.dead.setup(m, world.fog, world.clear);
+      h.renderer.setClearColor(world.clear);
     }
 
     // The HUD.

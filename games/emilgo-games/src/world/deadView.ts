@@ -11,10 +11,16 @@
 //               the clock to the bleed, how far along.
 //   Obstacles   sparks, flares and zinc on their beat; keys, fuel and the
 //               generator's switch glowing; the Mast's flare at the finish.
+//   The sky     night with a red tinge; red and orange lightning every
+//               25–55 s (a 0.15 s pulse on a hemisphere light), the thunder
+//               after it by its distance.
 //   Sounds      shots, blows, claws, the hazards.
 
 import {
   AdditiveBlending,
+  Color,
+  type Fog,
+  HemisphereLight,
   ConeGeometry,
   DoubleSide,
   Group,
@@ -43,6 +49,7 @@ import type { Crowd } from "./crowd";
 const ZOMBIE_TINT = 0x8a9878;
 const ZOMBIE_GLOW = 0x200404;
 const _m = new Matrix4();
+const REDDENED = new WeakSet<Fog>();
 
 export interface DeadViewOptions {
   crowd: Crowd;
@@ -65,6 +72,12 @@ export class DeadView {
   private hidden: boolean[] = [];
   private hudKey = "";
   private time = 0;
+  /** Lightning: a light that pulses, when the next strike comes, where, and its thunder. */
+  private readonly flash = new HemisphereLight(0xff6a3a, 0x401010, 0);
+  private nextBolt = 12;
+  private boltT = -1;
+  private thunderAt = -1;
+  private thunderNear = 0;
 
   constructor(o: DeadViewOptions) {
     this.o = o;
@@ -76,7 +89,7 @@ export class DeadView {
       this.torch.shadow.camera.near = 0.3;
       this.torch.shadow.camera.far = 26;
     }
-    this.group.add(this.torch, this.torch.target);
+    this.group.add(this.torch, this.torch.target, this.flash);
     this.cone = new Mesh(new ConeGeometry(Math.tan(0.42) * 9, 9, 18, 1, true).translate(0, -4.5, 0).rotateX(-Math.PI / 2), new MeshBasicMaterial({ color: 0xfff1d0, transparent: true, opacity: 0.06, blending: AdditiveBlending, depthWrite: false, side: DoubleSide }));
     this.group.add(this.cone);
     // Sparks, flares and the things to pick up: one instanced draw of glowing bits.
@@ -88,8 +101,15 @@ export class DeadView {
     o.layer.append(this.hudEl, this.nvEl);
   }
 
-  /** Every zombie in paint, every sleeping one hidden. */
-  setup(m: Match): void {
+  /** Every zombie in paint, every sleeping one hidden; the night's sky a little red. */
+  setup(m: Match, fog?: Fog, clear?: Color): void {
+    // Once per world (the city is kept between runs).
+    if (fog && !REDDENED.has(fog)) {
+      REDDENED.add(fog);
+      const red = new Color(0x3a0c08);
+      fog.color.lerp(red, 0.45);
+      clear?.lerp(red, 0.45);
+    }
     for (let i = 1; i < m.contestants.length; i++) {
       this.o.crowd.setTint(i, ZOMBIE_TINT, ZOMBIE_GLOW);
       this.o.crowd.setHidden(i, true);
@@ -185,6 +205,25 @@ export class DeadView {
     this.cone.position.copy(this.torch.position);
     this.cone.lookAt(this.torch.target.position);
     (this.cone.material as MeshBasicMaterial).opacity = 0.06 * power;
+    // Lightning: now and then, red or orange, the thunder after it by distance.
+    if (this.time >= this.nextBolt) {
+      this.nextBolt = this.time + 25 + Math.random() * 30;
+      this.boltT = 0;
+      this.flash.color.setHex(Math.random() < 0.5 ? 0xff5a2a : 0xff9a3a);
+      const far = 0.3 + Math.random() * 0.7;
+      this.thunderAt = this.time + far * 2.5;
+      this.thunderNear = 1 - far * 0.7;
+    }
+    if (this.boltT >= 0) {
+      this.boltT += dt;
+      const u = this.boltT / 0.15;
+      this.flash.intensity = u < 1 ? 2.6 * (1 - u) * (0.6 + 0.4 * Math.sin(this.boltT * 120)) : 0;
+      if (u >= 1) this.boltT = -1;
+    }
+    if (this.thunderAt >= 0 && this.time >= this.thunderAt) {
+      this.thunderAt = -1;
+      this.o.sound?.explosion(this.thunderNear * 0.5);
+    }
     // Night vision.
     this.nvEl.classList.toggle("on", m.elapsed < sv.nvUntil);
     // Obstacles: sparks and flares on their beat, keys and fuel to find.
