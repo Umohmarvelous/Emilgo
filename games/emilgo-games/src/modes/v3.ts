@@ -5,4 +5,5 @@
 export { FfaMode } from "./ffa";
 export { buildOpenWorldIdle } from "../maps/open/build";
 export { buildNaijaWorld } from "../maps/open/naija";
+export { buildMaxWorld } from "../maps/open/max";
 export { buildSpookyWorld } from "../maps/open/spooky";

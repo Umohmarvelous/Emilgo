@@ -297,7 +297,8 @@ export class Game {
   // Naija World (built once per graphics tier, in slices while the menus are
   // up), a start that arrived before the world was ready, your party, the results.
   private gm: FfaMode | null = null;
-  private naija: { tier: Tier; p: Promise<OpenWorld>; w: OpenWorld | null } | null = null;
+  /** The open world for Free For All: Naija World, or (v4) Naija Max, the big world; one at a time. */
+  private naija: { tier: Tier; id: string; p: Promise<OpenWorld>; w: OpenWorld | null } | null = null;
   /** Spooky World (Dead Streets), built when a run is first asked for. */
   private spooky: { tier: Tier; p: Promise<OpenWorld>; w: OpenWorld | null } | null = null;
   /** The run on screen, as the server knows it (none: played offline, not counted). */
@@ -2050,7 +2051,7 @@ export class Game {
         this.room = m.room;
         if (m.room.state === "lobby" && !this.round) this.flow.go(m.room.map ? "loading" : "waiting");
         // Free For All: Naija World starts building while the room fills.
-        if (m.room.ffa) void this.ensureNaija();
+        if (m.room.ffa) void this.ensureNaija(this.content.manifest.modes.find((d) => d.id === m.room!.ffa)?.map);
         if (this.screens.name === "room" || this.screens.name === "friends") this.showRoom();
         // Loading: the server has picked the map — build it now, under the loading bar.
         if (m.room.map && m.room.state === "lobby" && !this.round && !m.room.ffa) {
@@ -3378,12 +3379,13 @@ export class Game {
   }
 
   /** Naija World for this graphics tier: built once, in slices between frames, then kept. */
-  private ensureNaija(): Promise<OpenWorld> {
+  private ensureNaija(map = "naija-world"): Promise<OpenWorld> {
     const tier = this.spec.tier;
-    if (this.naija && this.naija.tier === tier) return this.naija.p;
+    const id = map.startsWith("max-world") ? "max-world" : "naija-world";
+    if (this.naija && this.naija.tier === tier && this.naija.id === id) return this.naija.p;
     if (this.naija?.w && !this.gm) this.naija.w.dispose();
-    const slot: { tier: Tier; p: Promise<OpenWorld>; w: OpenWorld | null } = { tier, p: Promise.resolve(null as unknown as OpenWorld), w: null };
-    slot.p = this.loadV3().then((v) => v.buildOpenWorldIdle(v.buildNaijaWorld(), this.spec, {})).then((w) => {
+    const slot: { tier: Tier; id: string; p: Promise<OpenWorld>; w: OpenWorld | null } = { tier, id, p: Promise.resolve(null as unknown as OpenWorld), w: null };
+    slot.p = this.loadV3().then((v) => v.buildOpenWorldIdle(id === "max-world" ? v.buildMaxWorld() : v.buildNaijaWorld(), this.spec, {}, id === "max-world" ? 16 : 8)).then((w) => {
       // Low has no grade pass: the look reaches the lights instead.
       if (tier === 0) gradeLights(w.group, LOOKS.naija);
       slot.w = w;
@@ -3469,7 +3471,7 @@ export class Game {
   private goFfa(): void {
     const def = this.ffaPick();
     if (this.playMode === "lagos") {
-      void this.ensureNaija();
+      void this.ensureNaija("naija-world");
       const seen = this.settings.ffaSeen.split(",").filter(Boolean);
       if (!seen.includes("flag-duel")) {
         this.settings.ffaSeen = [...seen, "flag-duel"].join(",");
@@ -3505,7 +3507,7 @@ export class Game {
         this.endRound();
         this.hud.show(false);
         this.online((net) => {
-          void this.ensureNaija();
+          void this.ensureNaija(def.map);
           const ranked = this.settings.ranked && rankOf(this.rankXp).k >= DIVISIONS;
           net.send({ t: "fq", m: def.id, ...(ranked ? { r: true } : {}) });
           this.room = null;
@@ -3516,7 +3518,7 @@ export class Game {
         this.chat.clear();
         this.onlineError = null;
         this.online((net) => {
-          void this.ensureNaija();
+          void this.ensureNaija(def.map);
           net.send({ t: "create", size: def.players.max, m: def.id });
           this.showWaiting("Making your room…");
         });
@@ -3581,7 +3583,7 @@ export class Game {
     this.endRound();
     this.mode = "practice";
     this.showLoading("ffa", def);
-    void this.ensureNaija().then((w) => {
+    void this.ensureNaija(def.map).then((w) => {
       // Cancelled while it built.
       if (this.screens.name !== "room" || this.room || this.gm) return;
       this.beginFfa(this.v3!.FfaMode.practice(this.modeHost(), w, def, randomSeed(), this.host.player.name || "You"));
@@ -3600,13 +3602,14 @@ export class Game {
       if (r.id === this.meId) continue;
       this.settings.recent = [{ name: r.name, at, seat: r.id }, ...this.settings.recent.filter((x) => x.name !== r.name)].slice(0, 30);
     }
-    const w = this.naija?.tier === this.spec.tier ? this.naija.w : null;
+    const want = start.ffa?.map?.startsWith("max-world") ? "max-world" : "naija-world";
+    const w = this.naija?.tier === this.spec.tier && this.naija.id === want ? this.naija.w : null;
     if (!w) {
       this.ffaWait = { start, log: [...log], snap };
       const def = this.content.manifest.modes.find((d) => d.id === start.ffa?.mode);
       if (def) this.showLoading("ffa", def, start.roster.map((r, i) => ({ name: r.name, rank: "", squad: start.ffa?.sq[i] ?? i, me: r.id === this.meId })));
       else this.showWaiting("Building Naija World…");
-      void this.ensureNaija().then(
+      void this.ensureNaija(start.ffa?.map).then(
         () => {
           const wait = this.ffaWait;
           if (!wait || !this.naija?.w) return;

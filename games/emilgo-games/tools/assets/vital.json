@@ -1,0 +1,66 @@
+{
+  "note": "The vital assets only (v4: the owner asked to keep the most important and leave everything else low-poly and procedural). CC0 from Poly Haven. Each is fetched at 1k, given three LODs and meshopt compression, textures halved to WebP. Budget per model on the CDN: 600 KB.",
+  "budgetKB": 600,
+  "models": [
+    {
+      "id": "namaqualand_boulder_02",
+      "source": "polyhaven",
+      "use": "rock",
+      "lods": [
+        0.15,
+        0.05,
+        0.015
+      ]
+    },
+    {
+      "id": "Barrel_01",
+      "source": "polyhaven",
+      "use": "drum",
+      "lods": [
+        1,
+        0.4,
+        0.15
+      ]
+    },
+    {
+      "id": "old_military_crate",
+      "source": "polyhaven",
+      "use": "crate",
+      "lods": [
+        0.6,
+        0.25,
+        0.1
+      ]
+    },
+    {
+      "id": "metal_jerrycan",
+      "source": "polyhaven",
+      "use": "item",
+      "lods": [
+        0.3,
+        0.12,
+        0.05
+      ]
+    },
+    {
+      "id": "dead_tree_trunk",
+      "source": "polyhaven",
+      "use": "mangrove",
+      "lods": [
+        0.3,
+        0.1,
+        0.03
+      ]
+    },
+    {
+      "id": "tree_stump_01",
+      "source": "polyhaven",
+      "use": "stump",
+      "lods": [
+        0.4,
+        0.15,
+        0.05
+      ]
+    }
+  ]
+}

@@ -72,7 +72,10 @@ export type PrefabId =
   | "church" | "mosque" | "school" | "petrol" | "watertower" | "mast" | "viewing" | "buspark" | "market" | "suya"
   | "uncompleted" | "kiosk" | "generator" | "pole" | "wreck" | "danfo" | "busstop" | "footbridge" | "overbridge"
   | "tree" | "palm" | "bush" | "baobab" | "hut" | "mudhouse" | "farm" | "palmwine" | "chief" | "borehole"
-  | "mechanic" | "barber" | "carpenter" | "carriage" | "okada" | "genalley" | "plaza" | "wall" | "billboard";
+  | "mechanic" | "barber" | "carpenter" | "carriage" | "okada" | "genalley" | "plaza" | "wall" | "billboard"
+  // v4 Phase 7: the big world's places (maps/open/max.ts).
+  | "pine" | "rock" | "cabin" | "rangertower" | "turbine" | "containers" | "crane" | "warehouse" | "tank" | "flarestack"
+  | "pipes" | "hangar" | "ctower" | "planewreck" | "dune" | "mangrove" | "stilt" | "club" | "stand" | "glasstower";
 
 export function houseP(v: number): HouseP {
   const r = vrand(v);
@@ -151,6 +154,26 @@ export function footprint(id: PrefabId, v: number): [number, number] {
     case "genalley": return [5, 24];
     case "plaza": return [12, 12];
     case "wall": return [10, 0.3];
+    case "pine": return [2.4, 2.4];
+    case "rock": { const s = 1.2 + (v % 7) * 0.4; return [s * 2, s * 1.6]; }
+    case "cabin": return [7, 6];
+    case "rangertower": return [5, 5];
+    case "turbine": return [6, 6];
+    case "containers": return [6.4, 12.6];
+    case "crane": return [14, 10];
+    case "warehouse": return [30, 22];
+    case "tank": { const r = 7 + (v % 4) * 1.5; return [r * 2 + 1, r * 2 + 1]; }
+    case "flarestack": return [4, 4];
+    case "pipes": return [3, 24];
+    case "hangar": return [36, 30];
+    case "ctower": return [7, 7];
+    case "planewreck": return [24, 22];
+    case "dune": { const w = 18 + (v % 5) * 4; return [w, 10]; }
+    case "mangrove": return [4, 4];
+    case "stilt": return [7, 7];
+    case "club": return [22, 16];
+    case "stand": return [60, 12];
+    case "glasstower": { const w = 18 + (v % 3) * 4; return [w, w]; }
   }
 }
 
@@ -470,6 +493,93 @@ export function parts(id: PrefabId, v: number): Part[] {
     case "wall":
       out.push(box(0, 0, 10, 0.3, 0, 2.2));
       break;
+    // ── v4 Phase 7: the big world's places ──
+    case "pine":
+      out.push(box(0, 0, 0.5, 0.5, 0, 8, "wood"));
+      break;
+    case "rock": {
+      const s = 1.2 + (v % 7) * 0.4;
+      out.push(box(0, 0, s * 1.7, s * 1.3, 0, s * 0.9, "concrete"));
+      break;
+    }
+    case "cabin":
+      out.push(box(0, 0, 6.4, 5.4, 0, 3.4, "wood"));
+      break;
+    case "rangertower":
+      for (const [x, z] of [[-2, -2], [2, -2], [-2, 2], [2, 2]]) out.push(box(x, z, 0.3, 0.3, 0, 9, "wood"));
+      out.push(box(0, 0, 4.8, 4.8, 9, 9.25, "wood"));
+      break;
+    case "turbine":
+      out.push(box(0, 0, 2.6, 2.6, 0, 46, "metal"));
+      break;
+    case "containers": {
+      // Two or three high, a row of two: you can climb the low ones with a jump, not the stack.
+      const hi = 2 + (v % 2);
+      out.push(box(-1.6, 0, 2.5, 12.2, 0, 2.6 * hi, "metal"));
+      out.push(box(1.6, 0, 2.5, 12.2, 0, 2.6 * (hi - 1), "metal"));
+      break;
+    }
+    case "crane":
+      for (const [x, z] of [[-6, -4], [6, -4], [-6, 4], [6, 4]]) out.push(box(x, z, 1, 1, 0, 30, "metal"));
+      break;
+    case "warehouse":
+      out.push(box(0, 0, 30, 22, 0, 9, "metal"));
+      break;
+    case "tank": {
+      const r = 7 + (v % 4) * 1.5;
+      out.push(box(0, 0, r * 1.7, r * 1.7, 0, 12 + (v % 3) * 2, "metal"));
+      break;
+    }
+    case "flarestack":
+      out.push(box(0, 0, 1.6, 1.6, 0, 34, "metal"));
+      break;
+    case "pipes":
+      out.push(box(0, 0, 2.4, 24, 0, 1.6, "metal"));
+      break;
+    case "hangar":
+      out.push(box(-17.6, 0, 0.6, 30, 0, 12, "metal"));
+      out.push(box(17.6, 0, 0.6, 30, 0, 12, "metal"));
+      out.push(box(0, -14.7, 36, 0.6, 0, 12, "metal"));
+      out.push(box(0, 0, 36, 30, 12, 12.4, "metal"));
+      break;
+    case "ctower":
+      out.push(box(0, 0, 4, 4, 0, 18, "concrete"));
+      out.push(box(0, 0, 7, 7, 18, 21, "concrete"));
+      break;
+    case "planewreck":
+      out.push(box(0, 0, 4.2, 22, 0, 4.2, "metal"));
+      out.push(box(0, -1, 22, 4, 1.6, 2.2, "metal"));
+      break;
+    case "dune": {
+      // A long sand ridge you run up and over: two slopes.
+      const w = 18 + (v % 5) * 4;
+      out.push({ x: 0, z: -2.5, hx: w / 2, hz: 2.5, y0: 0, y1: 0, y2: 2.2, surface: "sand", kind: "ramp" });
+      out.push({ x: 0, z: 2.5, hx: w / 2, hz: 2.5, y0: 0, y1: 2.2, y2: 0, surface: "sand", kind: "ramp" });
+      break;
+    }
+    case "mangrove":
+      out.push(box(0, 0, 0.8, 0.8, 0, 6, "wood"));
+      break;
+    case "stilt":
+      for (const [x, z] of [[-3, -3], [3, -3], [-3, 3], [3, 3]]) out.push(box(x, z, 0.3, 0.3, 0, 1.6, "wood"));
+      out.push(box(0, 0, 6.6, 6.6, 1.6, 1.8, "wood"));
+      out.push(box(0, -1, 5.4, 4, 1.8, 4.6, "wood"));
+      out.push({ x: 0, z: 2.6, hx: 0.8, hz: 1.4, y0: 0, y1: 0, y2: 1.8, surface: "wood", kind: "ramp", rot: Math.PI });
+      break;
+    case "club":
+      out.push(box(0, 0, 22, 16, 0, 7, "concrete"));
+      break;
+    case "stand":
+      // Raked seating: a ramp up the back, walls at the ends.
+      out.push({ x: 0, z: 0, hx: 30, hz: 6, y0: 0, y1: 0.2, y2: 7, surface: "concrete", kind: "ramp" });
+      out.push(box(-30.2, 0, 0.4, 12, 0, 7.5, "concrete"));
+      out.push(box(30.2, 0, 0.4, 12, 0, 7.5, "concrete"));
+      break;
+    case "glasstower": {
+      const w = 18 + (v % 3) * 4;
+      out.push(box(0, 0, w, w, 0, 40 + (v % 4) * 12, "concrete"));
+      break;
+    }
   }
   return out;
 }

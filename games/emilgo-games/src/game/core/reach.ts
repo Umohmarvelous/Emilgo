@@ -10,8 +10,10 @@
 import { HEAD, STEP, type Space } from "./space";
 
 export interface Reach {
-  /** Cells per side (1 m each), and the world's corner. */
+  /** Cells per side, and the world's corner. */
   readonly n: number;
+  /** A cell's side (m): 1, or 4 on the big world (v4: Naija Max, 2 km across, would be 4 million 1 m cells). */
+  readonly size: number;
   readonly x0: number;
   readonly z0: number;
   /** 1 where a body can walk to from the start. */
@@ -45,7 +47,9 @@ export function reachOf(space: Space, from: readonly [number, number]): Reach {
   const had = built.get(space);
   if (had) return had;
   const b = space.bounds;
-  const n = Math.ceil(Math.max(b.x1 - b.x0, b.z1 - b.z0));
+  const extent = Math.max(b.x1 - b.x0, b.z1 - b.z0);
+  const size = extent > 1200 ? 4 : 1;
+  const n = Math.ceil(extent / size);
   const x0 = b.x0;
   const z0 = b.z0;
   const free = new Uint8Array(n * n);
@@ -54,8 +58,8 @@ export function reachOf(space: Space, from: readonly [number, number]): Reach {
   const ids: number[] = [];
   for (let r = 0; r < n; r++) {
     for (let q = 0; q < n; q++) {
-      const x = x0 + q + 0.5;
-      const z = z0 + r + 0.5;
+      const x = x0 + (q + 0.5) * size;
+      const z = z0 + (r + 0.5) * size;
       const f = space.floorAt(x, z, 0);
       const i = r * n + q;
       h[i] = f.h;
@@ -81,8 +85,8 @@ export function reachOf(space: Space, from: readonly [number, number]): Reach {
     }
   }
   const cell = (x: number, z: number): number => {
-    const q = Math.floor(x - x0);
-    const r = Math.floor(z - z0);
+    const q = Math.floor((x - x0) / size);
+    const r = Math.floor((z - z0) / size);
     return q < 0 || r < 0 || q >= n || r >= n ? -1 : r * n + q;
   };
   // The flood from the start.
@@ -112,6 +116,7 @@ export function reachOf(space: Space, from: readonly [number, number]): Reach {
   }
   const reach: Reach = {
     n,
+    size,
     x0,
     z0,
     ok,
@@ -124,7 +129,7 @@ export function reachOf(space: Space, from: readonly [number, number]): Reach {
       return i >= 0 && ok[i] === 1;
     },
     cell,
-    centre: (i) => [x0 + (i % n) + 0.5, z0 + ((i / n) | 0) + 0.5],
+    centre: (i) => [x0 + ((i % n) + 0.5) * size, z0 + (((i / n) | 0) + 0.5) * size],
   };
   built.set(space, reach);
   return reach;

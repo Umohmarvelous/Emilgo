@@ -74,6 +74,11 @@ export function gunStats(kind: GunKind, rarity: number): { dmg: number; mag: num
 
 export class GunsModule implements RuleModule {
   readonly id = "guns" as const;
+  /** Royale (Naija Max): the last squad with anyone standing wins (no comebacks). */
+  readonly royale: boolean;
+  constructor(params: Record<string, unknown> = {}) {
+    this.royale = params.royale === true;
+  }
   hp: number[] = [];
   armour: number[] = [];
   /** Per body, per slot (0 the pistol, 1 the primary): GUN_KINDS index or −1, rarity, magazine, spare rounds. */
@@ -95,6 +100,11 @@ export class GunsModule implements RuleModule {
   private swSeen: number[] = [];
   readonly pickups: Pickup[] = [];
   readonly breakables: Breakable[] = [];
+  /** Buckets of 32 m (the big world has thousands of each): what's near a body or along a shot, without a full scan. */
+  private readonly pickupGrid = new Map<number, number[]>();
+  private readonly breakGrid = new Map<number, number[]>();
+  private stampN = 0;
+  private stamps = new Int32Array(0);
   /** Positions for rewinding, per body: x, z, the floor + jump, stance, a ring of GUNS.histTicks. */
   private hist: Float32Array[] = [];
   private histAt = 0;
@@ -130,7 +140,9 @@ export class GunsModule implements RuleModule {
   /** Loot and breakables, from the match's seed (the copy places the same). */
   private scatter(m: Match): void {
     const b = m.world.space.bounds;
-    const area = ((b.x1 - b.x0) * (b.z1 - b.z0)) / 10000;
+    // The big world (v4 Naija Max) gets half the density: the same fights, more room between them.
+    const raw = ((b.x1 - b.x0) * (b.z1 - b.z0)) / 10000;
+    const area = raw > 100 ? raw * 0.5 : raw;
     const reach = m.reach;
     if (!reach.open.length) return;
     const rng = this.rng;
@@ -168,6 +180,8 @@ export class GunsModule implements RuleModule {
       const p = place(8);
       if (p) this.breakables.push({ index: this.breakables.length, kind: "drum", x: p[0], z: p[1], h: p[2], hp: GUNS.drum.hp, broken: false });
     }
+    for (const b of this.breakables) bucket(this.breakGrid, b.x, b.z).push(b.index);
+    this.stamps = new Int32Array(this.breakables.length);
   }
 
   private rollRarity(rng: Rng): number {
@@ -185,6 +199,7 @@ export class GunsModule implements RuleModule {
   private addPickup(kind: PickupKind, gun: number, rarity: number, x: number, z: number, h: number, mag = -1, res = -1): Pickup {
     const p: Pickup = { index: this.pickups.length, kind, gun, rarity, x, z, h, mag, res, taken: false };
     this.pickups.push(p);
+    bucket(this.pickupGrid, x, z).push(p.index);
     return p;
   }
 
@@ -369,6 +384,32 @@ export class GunsModule implements RuleModule {
         index = o.index;
       }
     }
+    // The crates and drums in the buckets along the shot (its box in x and z).
+    const ex = ox + dx * best;
+    const ez = oz + dz * best;
+    const q0 = Math.floor(Math.min(ox, ex) / BUCKET);
+    const q1 = Math.floor(Math.max(ox, ex) / BUCKET);
+    const r0 = Math.floor(Math.min(oz, ez) / BUCKET);
+    const r1 = Math.floor(Math.max(oz, ez) / BUCKET);
+    const stamp = ++this.stampN;
+    for (let q = q0; q <= q1; q++) {
+      for (let r = r0; r <= r1; r++) {
+        const list = this.breakGrid.get(key(q, r));
+        if (!list) continue;
+        for (const bi of list) {
+          if (this.stamps[bi] === stamp) continue;
+          this.stamps[bi] = stamp;
+          const b = this.breakables[bi];
+          if (b.broken) continue;
+          const tt = b.kind === "crate" ? box(ox, oy, oz, dx, dy, dz, b.x, b.z, b.h, 0, GUNS.crate.half, GUNS.crate.half, GUNS.crate.half * 2, best) : cylinderT(ox, oy, oz, dx, dy, dz, b.x, b.z, GUNS.drum.r, b.h, b.h + GUNS.drum.tall, best);
+          if (tt < best) {
+            best = tt;
+            kind = b.kind;
+            index = b.index;
+          }
+        }
+      }
+    }
     const cars = this.cars(m)?.cars ?? [];
     for (const car of cars) {
       if (car.state >= 4) continue;
@@ -379,15 +420,6 @@ export class GunsModule implements RuleModule {
         best = tc;
         kind = "car";
         index = car.index;
-      }
-    }
-    for (const b of this.breakables) {
-      if (b.broken) continue;
-      const tt = b.kind === "crate" ? box(ox, oy, oz, dx, dy, dz, b.x, b.z, b.h, 0, GUNS.crate.half, GUNS.crate.half, GUNS.crate.half * 2, best) : cylinderT(ox, oy, oz, dx, dy, dz, b.x, b.z, GUNS.drum.r, b.h, b.h + GUNS.drum.tall, best);
-      if (tt < best) {
-        best = tt;
-        kind = b.kind;
-        index = b.index;
       }
     }
     const props = m.module<MeleeModule>("melee")?.props ?? [];
@@ -474,6 +506,7 @@ export class GunsModule implements RuleModule {
       const c = m.get(e.id);
       if (!c) return;
       const i = c.index;
+      if (this.royale) this.lastStanding(m);
       // Their primary falls where they fell.
       if (this.gun[i][1] >= 0) this.drop(m, "gun", this.gun[i][1], this.rarity[i][1], e.x, e.z, e.h, this.mag[i][1], this.res[i][1]);
       if (this.armour[i] >= GUNS.armour.plate) this.drop(m, "plate", -1, 0, e.x + 0.6, e.z, e.h);
@@ -485,6 +518,22 @@ export class GunsModule implements RuleModule {
   private itemArmour(m: Match, id: string): void {
     const c = m.get(id);
     if (c) this.armour[c.index] = Math.min(GUNS.armour.max, this.armour[c.index] + GUNS.armour.item);
+  }
+
+  /** Royale: one squad left with anyone alive is the winner (its first alive member named). */
+  private lastStanding(m: Match): void {
+    if (m.winner || m.phase !== "play") return;
+    let squad = -1;
+    let who: Contestant | null = null;
+    for (const c of m.contestants) {
+      if (c.status !== "alive") continue;
+      const q = m.squads[c.index];
+      if (squad === -1) {
+        squad = q;
+        who = c;
+      } else if (q !== squad) return;
+    }
+    if (who) m.win(who, squad);
   }
 
   /** Back in: full health, no armour, a pistol and nothing else. */
@@ -508,7 +557,8 @@ export class GunsModule implements RuleModule {
   reachFor(m: Match, c: Contestant): { d: number; take: () => void } | null {
     let best: Pickup | null = null;
     let bd: number = GUNS.reach;
-    for (const p of this.pickups) {
+    for (const pi of this.near(this.pickupGrid, c.x, c.z)) {
+      const p = this.pickups[pi];
       if (p.taken || Math.abs(p.h - c.h) > 1.5) continue;
       const d = Math.hypot(p.x - c.x, p.z - c.z);
       if (d < bd) {
@@ -523,16 +573,28 @@ export class GunsModule implements RuleModule {
 
   /** Walking over ammo or a plate takes it; a gun needs the interact button. */
   pre(m: Match): void {
-    for (const p of this.pickups) {
-      if (p.taken || p.kind === "gun") continue;
-      for (const c of m.contestants) {
-        if (c.status !== "alive" || m.seated(c) || Math.abs(p.h - c.h) > 1.5) continue;
+    for (const c of m.contestants) {
+      if (c.status !== "alive" || m.seated(c)) continue;
+      for (const pi of this.near(this.pickupGrid, c.x, c.z)) {
+        const p = this.pickups[pi];
+        if (p.taken || p.kind === "gun" || Math.abs(p.h - c.h) > 1.5) continue;
         if (Math.hypot(p.x - c.x, p.z - c.z) > 1.1) continue;
         if (p.kind === "plate" && this.armour[c.index] >= GUNS.armour.max) continue;
         this.take(m, c, p);
-        break;
       }
     }
+  }
+
+  /** The indices in (x, z)'s bucket and its neighbours. */
+  private near(grid: Map<number, number[]>, x: number, z: number): number[] {
+    _near.length = 0;
+    const q = Math.floor(x / BUCKET);
+    const r = Math.floor(z / BUCKET);
+    for (let dq = -1; dq <= 1; dq++) for (let dr = -1; dr <= 1; dr++) {
+      const list = grid.get(key(q + dq, r + dr));
+      if (list) for (const i of list) _near.push(i);
+    }
+    return _near;
   }
 
   private take(m: Match, c: Contestant, p: Pickup): void {
@@ -638,6 +700,15 @@ export class GunsModule implements RuleModule {
 }
 
 const _o: [number, number, number] = [0, 0, 0];
+const _near: number[] = [];
+const BUCKET = 32;
+const key = (q: number, r: number) => (q + 1024) * 4096 + (r + 1024);
+function bucket(grid: Map<number, number[]>, x: number, z: number): number[] {
+  const k = key(Math.floor(x / BUCKET), Math.floor(z / BUCKET));
+  let list = grid.get(k);
+  if (!list) grid.set(k, (list = []));
+  return list;
+}
 const _dealt = new Map<number, { v: number; head: boolean }>();
 
 /** Ray vs ball: the entry distance, or −1. */

@@ -44,7 +44,7 @@ export function emptyChunk(): OpenChunk {
 }
 
 /** Prefabs whose leaves get a far stand-in. */
-const VEG = new Set(["tree", "palm", "bush", "plaza"]);
+const VEG = new Set(["tree", "palm", "bush", "plaza", "pine", "mangrove"]);
 const OCTA = new OctahedronGeometry(1, 0);
 const TRUNK = new BoxGeometry(1, 1, 1);
 
@@ -702,6 +702,153 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
     case "wall":
       allParts(k, ps, () => ({ tex: "concrete", color: "#c8bea8", tile: 2 }));
       break;
+    // ── v4 Phase 7: the big world's places (low-poly, coloured per vertex, merged per cell) ──
+    case "pine": {
+      const h = 9 + r.range(0, 5);
+      k.cyl("#4a3a2a", 0.28, h * 0.45, [0, h * 0.22, 0], "mass", { sides: 6, top: 0.6 });
+      const greens = ["#24402a", "#2c4a2e", "#1e3a26"];
+      for (let i = 0; i < 4; i++) k.cyl(r.pick(greens), 2.2 - i * 0.45, h * 0.28, [0, h * (0.32 + i * 0.17), 0], "foliage", { sides: 6, top: 0 });
+      break;
+    }
+    case "rock": {
+      const s = 1.2 + (v % 7) * 0.4;
+      const c = r.pick(["#7a746a", "#8a8278", "#6a645c"]);
+      k.blob(c, [s * 0.95, s * 0.55, s * 0.75], [0, s * 0.35, 0], "mass");
+      k.blob(c, [s * 0.55, s * 0.4, s * 0.5], [s * 0.6, s * 0.2, s * 0.2], "main");
+      break;
+    }
+    case "cabin":
+      k.texBox("wood", "#8a6a48", [6.4, 3, 5.4], [0, 1.5, 0], 2);
+      k.box("#3a3028", [7, 0.25, 6.2], [0, 3.15, 0], "main", [0, 0, 0.18]);
+      k.box("#2a2420", [1, 2, 0.1], [0, 1, 2.75], "detail");
+      k.glow("#ffcf7a", [0.8, 0.6, 0.05], [1.8, 1.7, 2.72]);
+      break;
+    case "rangertower":
+      allParts(k, ps, () => ({ tex: "wood", color: "#7a5a3a", tile: 2 }));
+      k.box("#5a4632", [4.8, 1.1, 0.1], [0, 9.8, 2.35], "main");
+      k.box("#3a3028", [5.6, 0.2, 5.6], [0, 11.4, 0], "main");
+      for (const [x, z] of [[-2.2, -2.2], [2.2, -2.2], [-2.2, 2.2], [2.2, 2.2]]) k.box("#5a4632", [0.15, 2.2, 0.15], [x, 10.3, z], "detail");
+      break;
+    case "turbine": {
+      // The tower and the nacelle (the blades turn: drawn by world/scenery.ts).
+      k.cyl("#e8e8e4", 1.3, 46, [0, 23, 0], "mass", { sides: 10, top: 0.55 });
+      k.box("#dcdcd6", [2.4, 2.4, 6], [0, 46.8, -0.6], "main");
+      k.glow("#ff2a1a", [0.4, 0.4, 0.4], [0, 48.2, -0.6]);
+      break;
+    }
+    case "containers": {
+      const hi = 2 + (v % 2);
+      const cols = ["#b0392b", "#2f6f8f", "#c47a24", "#3b7a42", "#6a6a6a", "#8a2a5a"];
+      for (const [x, n] of [[-1.6, hi], [1.6, hi - 1]] as const) {
+        for (let k2 = 0; k2 < n; k2++) {
+          const c = r.pick(cols);
+          k.box(c, [2.44, 2.55, 12.1], [x, 1.3 + k2 * 2.6, 0], k2 === 0 ? "mass" : "main");
+          for (let s2 = -5.5; s2 <= 5.5; s2 += 0.5) k.box(c, [2.5, 2.3, 0.08], [x, 1.3 + k2 * 2.6, s2], "detail", undefined, 0.78);
+        }
+      }
+      break;
+    }
+    case "crane": {
+      const y = "#e8b620";
+      for (const [x, z] of [[-6, -4], [6, -4], [-6, 4], [6, 4]]) k.box(y, [1, 30, 1], [x, 15, z], "mass");
+      k.box(y, [13, 1.6, 1.6], [0, 30, -4], "main");
+      k.box(y, [13, 1.6, 1.6], [0, 30, 4], "main");
+      k.box(y, [2.4, 1.8, 44], [0, 32, 6], "main");
+      k.box("#3a3a3a", [3, 3, 3], [0, 33, -4], "main");
+      k.box("#2a2a2a", [0.12, 18, 0.12], [0, 22, 18], "detail");
+      break;
+    }
+    case "warehouse":
+      k.texBox("zinc", "#8a9096", [30, 9, 22], [0, 4.5, 0], 3);
+      k.box("#6a7076", [31, 0.5, 23], [0, 9.2, 0], "main");
+      k.box("#3a3e42", [8, 6, 0.1], [0, 3, 11.05], "detail");
+      break;
+    case "tank": {
+      const rr = 7 + (v % 4) * 1.5;
+      const h = 12 + (v % 3) * 2;
+      k.cyl("#d8d4cc", rr, h, [0, h / 2, 0], "mass", { sides: 16 });
+      k.cyl("#c8c4bc", rr * 1.01, 0.4, [0, h * 0.33, 0], "detail", { sides: 16 });
+      k.cyl("#c8c4bc", rr * 1.01, 0.4, [0, h * 0.66, 0], "detail", { sides: 16 });
+      k.cyl("#b8b4ac", rr * 0.98, 1.2, [0, h + 0.4, 0], "main", { sides: 16, top: 0.6 });
+      k.box("#3a3a3a", [0.2, h, 0.2], [rr * 0.72, h / 2, rr * 0.72], "detail");
+      break;
+    }
+    case "flarestack":
+      k.cyl("#5a5a5a", 0.7, 34, [0, 17, 0], "mass", { sides: 10 });
+      k.glow("#ff8a1a", [1.6, 3.2, 1.6], [0, 36, 0]);
+      k.glow("#ffd24a", [0.9, 2, 0.9], [0, 35.4, 0]);
+      break;
+    case "pipes":
+      for (const x of [-0.7, 0, 0.7]) k.cyl(r.pick(["#8a8a84", "#6a6a64", "#9a6a3a"]), 0.32, 24, [x, 1.1, 0], "mass", { sides: 10, r: [Math.PI / 2, 0, 0] });
+      for (let z = -11; z <= 11; z += 5.5) k.box("#4a4a4a", [2.4, 0.2, 0.3], [0, 0.6, z], "detail");
+      break;
+    case "hangar":
+      k.texBox("zinc", "#9aa0a4", [0.6, 12, 30], [-17.6, 6, 0], 3);
+      k.texBox("zinc", "#9aa0a4", [0.6, 12, 30], [17.6, 6, 0], 3);
+      k.texBox("zinc", "#9aa0a4", [36, 12, 0.6], [0, 6, -14.7], 3);
+      k.box("#7a8084", [37, 1.2, 31], [0, 12.6, 0], "main");
+      k.box("#e8e0c8", [6, 1.4, 0.1], [0, 10.2, 15.05], "detail");
+      break;
+    case "ctower":
+      k.texBox("concrete", "#c8c0b0", [4, 18, 4], [0, 9, 0], 3);
+      k.box("#2a4a5a", [7, 3, 7], [0, 19.5, 0], "main");
+      k.box("#d8d0c0", [7.4, 0.4, 7.4], [0, 21.2, 0], "main");
+      k.glow("#ff2a1a", [0.5, 0.5, 0.5], [0, 22, 0]);
+      break;
+    case "planewreck": {
+      const c = "#c8ccd0";
+      k.cyl(c, 2.1, 22, [0, 2.1, 0], "mass", { sides: 10, r: [Math.PI / 2, 0, 0.05] });
+      k.box(c, [22, 0.5, 4], [0, 1.9, -1], "main", [0, 0, 0.08]);
+      k.box("#3a3a3a", [2.2, 1.4, 6], [0, 2.4, 9], "detail");
+      k.box(c, [0.4, 4, 3.6], [0, 4.6, -9.5], "main");
+      k.blob("#2a2622", [3, 0.6, 3], [5, 0.2, 2], "detail");
+      break;
+    }
+    case "dune": {
+      const w = 18 + (v % 5) * 4;
+      allParts(k, ps, () => ({ color: "#d8b880" }));
+      k.blob("#cfae74", [w * 0.4, 0.5, 2], [0, 2, 0], "main");
+      break;
+    }
+    case "mangrove": {
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2;
+        k.box("#4a3a2a", [0.12, 1.6, 0.12], [Math.cos(a) * 0.7, 0.6, Math.sin(a) * 0.7], "mass", [Math.sin(a) * 0.5, 0, -Math.cos(a) * 0.5]);
+      }
+      k.cyl("#4a3a2a", 0.3, 4, [0, 3, 0], "mass", { sides: 6 });
+      k.blob(r.pick(["#2a4a2a", "#334f2c", "#2b4426"]), [2.6, 1.6, 2.6], [0, 5.2, 0]);
+      break;
+    }
+    case "stilt":
+      allParts(k, ps, () => ({ tex: "wood", color: "#6a5038", tile: 2 }));
+      k.box("#4a4038", [6, 0.25, 5], [0, 4.8, -1], "main", [0.15, 0, 0]);
+      break;
+    case "club": {
+      k.texBox("concrete", "#2a2a30", [22, 7, 16], [0, 3.5, 0], 3);
+      // Neon: strips round the roofline, a sign over the door (a word, no brand).
+      const neon = r.pick(["#ff2a8a", "#2ad8ff", "#a04aff", "#ffd02a"]);
+      k.glow(neon, [22.2, 0.18, 0.1], [0, 6.6, 8.05]);
+      k.glow(neon, [0.1, 0.18, 16.2], [11.05, 6.6, 0]);
+      k.glow(neon, [0.1, 0.18, 16.2], [-11.05, 6.6, 0]);
+      k.glow("#ffffff", [6, 1.2, 0.1], [0, 4.6, 8.06]);
+      k.box("#111114", [3, 2.6, 0.1], [0, 1.3, 8.06], "detail");
+      break;
+    }
+    case "stand":
+      allParts(k, ps, () => ({ color: "#9a968c" }));
+      for (let row = 0; row < 10; row++) k.box(row % 2 ? "#2a6a3a" : "#c0392b", [59, 0.3, 0.5], [0, 0.6 + row * 0.66, -5.2 + row * 1.15], "detail");
+      for (const x of [-29, 0, 29]) k.box("#5a5a5a", [0.5, 18, 0.5], [x, 9, -6.5], "main");
+      for (const x of [-29, 0, 29]) k.glow("#fff6d8", [3, 1.2, 0.4], [x, 18.4, -6.3]);
+      break;
+    case "glasstower": {
+      const w = 18 + (v % 3) * 4;
+      const h = 40 + (v % 4) * 12;
+      k.texBox("glass", "#7a96a8", [w, h, w], [0, h / 2, 0], 4);
+      k.box("#3a4248", [w + 0.6, 1, w + 0.6], [0, h + 0.5, 0], "main");
+      for (let y = 4; y < h; y += 4) k.box("#5a6a74", [w + 0.1, 0.25, w + 0.1], [0, y, 0], "detail");
+      k.glow("#ff2a1a", [0.5, 0.5, 0.5], [0, h + 1.4, 0]);
+      break;
+    }
     default:
       allParts(k, ps, byMaterial(WALLS[0]));
   }

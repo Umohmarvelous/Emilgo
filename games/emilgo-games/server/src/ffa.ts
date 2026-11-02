@@ -20,6 +20,7 @@ import { PROP_IDS } from "../../src/game/modules/melee";
 import type { ZoneModule } from "../../src/game/modules/zone";
 import { matchWorldOf } from "../../src/maps/open/matchWorld";
 import { buildNaijaWorld, SURFACE_OF, type OpenLayout } from "../../src/maps/open/naija";
+import { buildMaxWorld } from "../../src/maps/open/max";
 import { CAR_STRIDE, encodeEvent, HAND_FLAG, MATCH_PHASES, MSNAP_STRIDE, packMeter, type FfaStart, type MatchSnap, type MatchSync, type WireEvent } from "../../src/net/matchWire";
 import { packFlags } from "../../src/net/protocol";
 import type { MatchFacts } from "../../src/rank/xp";
@@ -39,6 +40,16 @@ const worlds = new Map<string, MatchWorld>();
 export function worldFor(map: string): MatchWorld {
   let w = worlds.get(map);
   if (w) return w;
+  // v4: Naija Max, the big world (built once, the first time a room needs it).
+  if (map.startsWith("max-world")) {
+    if (!maxW) {
+      const layout = buildMaxWorld();
+      maxW = { layout, space: new Space(layout.solids, { x0: -layout.half, z0: -layout.half, x1: layout.half, z1: layout.half }, (x, z) => SURFACE_OF[layout.groundAt(x, z)]) };
+    }
+    w = matchWorldOf(maxW.layout, maxW.space, map);
+    worlds.set(map, w);
+    return w;
+  }
   if (!naija) {
     const layout = buildNaijaWorld();
     naija = { layout, space: new Space(layout.solids, { x0: -layout.half, z0: -layout.half, x1: layout.half, z1: layout.half }, (x, z) => SURFACE_OF[layout.groundAt(x, z)]) };
@@ -47,6 +58,7 @@ export function worldFor(map: string): MatchWorld {
   worlds.set(map, w);
   return w;
 }
+let maxW: { layout: OpenLayout; space: Space } | null = null;
 
 /** A Free For All mode this server can run, or null. */
 export function ffaMode(id: string): ModeDef | null {

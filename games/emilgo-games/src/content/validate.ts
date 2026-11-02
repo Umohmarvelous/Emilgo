@@ -19,10 +19,10 @@ const SCHEMAS: Record<ModuleId, Record<string, Spec>> = {
   doll: {},
   balls: {},
   // [start at s, radius m, shrink over s, exposure per s]
-  zone: { phases: ["list", ["tuple", [["num", 0, 1200], ["num", 3, 400], ["num", 5, 300], ["num", 0.1, 20]]], 8] },
+  zone: { phases: ["list", ["tuple", [["num", 0, 1800], ["num", 3, 1400], ["num", 5, 300], ["num", 0.1, 20]]], 8] },
   items: { table: ["str", /^[a-z0-9-]{1,32}$/], density: ["num", 0, 2] },
   airfall: { max: ["int", 0, 3], gap: ["tuple", [["num", 60, 600], ["num", 60, 600]]] },
-  vehicles: { count: ["tuple", [["int", 0, 2], ["int", 0, 2]]], kinds: ["list", ["str", /^(danfo|keke|tokunbo)$/], 3] },
+  vehicles: { count: ["tuple", [["int", 0, 8], ["int", 0, 8]]], kinds: ["list", ["str", /^(danfo|keke|tokunbo)$/], 3] },
   melee: { set: ["str", /^[a-z0-9-]{1,32}$/] },
   flags: {
     count: ["int", 1, 6],
@@ -45,7 +45,7 @@ const SCHEMAS: Record<ModuleId, Record<string, Spec>> = {
   harmattan: {},
   traffic: {},
   zips: {},
-  guns: {},
+  guns: { royale: ["bool"] },
   survival: { bleedAfter: ["num", 120, 1800], bleedRate: ["num", 0, 0.1], route: ["num", 200, 5000], zombies: ["tuple", [["int", 1, 40], ["int", 1, 40], ["int", 1, 40]]] },
 };
 
@@ -92,7 +92,7 @@ export function modeErrors(m: unknown): string[] {
   }
   if (typeof d.minRank !== "string" || divisionIndex(d.minRank) < 0) e.push("minRank");
   const p = d.players;
-  if (!p || !fits(p.min, ["int", 1, 20]) || !fits(p.max, ["int", 1, 20]) || p.min > p.max || !fits(p.squad, ["tuple", [["int", 1, 4], ["int", 1, 4]]]) || p.squad[0] > p.squad[1]) e.push("players");
+  if (!p || !fits(p.min, ["int", 1, 32]) || !fits(p.max, ["int", 1, 32]) || p.min > p.max || !fits(p.squad, ["tuple", [["int", 1, 4], ["int", 1, 4]]]) || p.squad[0] > p.squad[1]) e.push("players");
   if (typeof d.map !== "string" || !/^[a-z0-9:-]{2,40}$/.test(d.map)) e.push("map");
   if (!fits(d.time, ["num", 30, 1800])) e.push("time");
   if (!d.respawn || typeof d.respawn.on !== "boolean" || (d.respawn.delay !== undefined && !fits(d.respawn.delay, ["num", 0, 60]))) e.push("respawn");

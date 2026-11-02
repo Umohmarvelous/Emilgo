@@ -11,7 +11,7 @@ import { courtyardRooms, storeyP, type PrefabId } from "./prefabs";
 import type { SpookyRun } from "./spooky";
 
 /** Where a flag can be hidden: inside a danfo, a water tank, under a stall, by the bell tower … */
-const STASH_PREFABS: ReadonlySet<PrefabId> = new Set<PrefabId>(["danfo", "kiosk", "wreck", "generator", "busstop", "borehole", "carriage", "okada", "hut", "watertower", "church", "market", "suya", "mechanic", "carpenter", "barber"]);
+const STASH_PREFABS: ReadonlySet<PrefabId> = new Set<PrefabId>(["danfo", "kiosk", "wreck", "generator", "busstop", "borehole", "carriage", "okada", "hut", "watertower", "church", "market", "suya", "mechanic", "carpenter", "barber", "cabin", "stilt", "planewreck", "containers", "pipes", "rangertower"]);
 
 /**
  * Squad Rally's route: down the middle of Naija World's main roads (the city

@@ -37,6 +37,7 @@ import type { VehiclesModule } from "../game/modules/vehicles";
 import type { Tier } from "../graphics/tiers";
 import type { Crowd } from "./crowd";
 import { merge, part } from "./geo";
+import { cdnOn, modelFor } from "../assets/cdn";
 import { newHold, type Hold } from "./human/hold";
 
 /** Rarity colours, Common → Mythic (the HUD's too). */
@@ -326,6 +327,21 @@ export class GunsView {
     for (const m of [this.pillars, this.tracers, this.flashes, this.puffs]) {
       m.renderOrder = 5;
       m.frustumCulled = false;
+    }
+    // With an asset CDN (v4 Phase 7): the scanned crate and drum take over from the low-poly ones.
+    if (cdnOn() && o.tier >= 1) {
+      for (const [use, mesh, fit] of [["crate", this.crates, GUNS.crate.half * 2], ["drum", this.drums, GUNS.drum.tall]] as const) {
+        void modelFor(use, 1, o.tier).then((m) => {
+          if (!m) return;
+          m.geometry.computeBoundingBox();
+          const bb = m.geometry.boundingBox!;
+          const k = fit / Math.max(0.01, bb.max.y - bb.min.y);
+          m.geometry.translate(-(bb.min.x + bb.max.x) / 2, -bb.min.y, -(bb.min.z + bb.max.z) / 2);
+          m.geometry.scale(k, k, k);
+          mesh.geometry = m.geometry;
+          mesh.material = m.material;
+        });
+      }
     }
     // One muzzle light, always there (switching lights on and off rebuilds every shader).
     this.light = o.tier >= 1 ? new PointLight(0xffc477, 0, 9, 2) : null;

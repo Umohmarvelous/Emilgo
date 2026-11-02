@@ -72,6 +72,8 @@ export interface Manifest {
 }
 
 const ZONE_FFA = { phases: [[60, 180, 40, 1.0], [180, 110, 40, 1.5], [300, 60, 40, 2.5], [420, 25, 40, 4]] };
+/** The big world's zone: from the whole of it down to a street corner. */
+const MAX_ZONE = { phases: [[90, 1000, 60, 0.6], [240, 560, 60, 1.0], [390, 300, 55, 1.6], [540, 140, 45, 2.5], [690, 50, 40, 4]] };
 const ZONE_TIGHT = { phases: [[45, 150, 35, 1.5], [150, 80, 35, 2.5], [270, 35, 35, 4], [390, 12, 30, 6]] };
 const ITEMS = { table: "ffa-core", density: 0.8 };
 const AIRFALL = { max: 3, gap: [180, 240] };
@@ -88,7 +90,8 @@ export const BUILTIN_MANIFEST: Manifest = {
   format: 1,
   issued: "2026-10-28",
   // Hustle joined with its module (economy, Phase 6); Steal & Reposition rests this week (private rooms still play it).
-  rotation: ["find-the-flag", "hold-the-flag", "squad-rally", "hustle"],
+  // v4: the big world's Royale featured first.
+  rotation: ["max-royale", "find-the-flag", "hold-the-flag", "max-flag"],
   modes: [
     // ── Free For All (Naija World) ──
     {
@@ -190,6 +193,23 @@ export const BUILTIN_MANIFEST: Manifest = {
       modules: { zone: { phases: [[45, 70, 30, 1.5], [150, 35, 30, 3]] }, items: ITEMS, melee: MELEE, flags: { count: 1, spots: "stash", claimHold: 10, hints: [60, 120] } },
       win: { kind: "first", event: "flags.claimed" },
       tags: ["staked"],
+    },
+    // ── Naija Max (v4 Phase 7): the big world, 2 km across, 24 players ──
+    {
+      id: "max-royale", v: 1, family: "ffa", minRank: "rookie-1", players: { min: 8, max: 24, squad: [1, 4] }, map: "max-world", time: 900,
+      name: { en: "Naija Max: Royale", pcm: "Naija Max: Royale" },
+      blurb: { en: "The big world. Last squad standing wins. No comebacks.", pcm: "The big world. Last squad wey still stand win. No second chance." },
+      respawn: { on: false },
+      modules: { zone: MAX_ZONE, items: { table: "ffa-core", density: 0.5 }, vehicles: { count: [4, 6], kinds: ["danfo", "keke", "tokunbo"] }, airfall: AIRFALL, melee: MELEE, guns: { royale: true } },
+      win: { kind: "last", measure: "guns.alive" },
+    },
+    {
+      id: "max-flag", v: 1, family: "ffa", minRank: "rookie-1", players: { min: 8, max: 24, squad: [1, 4] }, map: "max-world", time: 720,
+      name: { en: "Naija Max: Find the Flag", pcm: "Naija Max: Find Di Flag" },
+      blurb: { en: "The big world: find the hidden flag and hold it for 15 s.", pcm: "The big world: find the flag wey dem hide, hold am 15 seconds." },
+      respawn: { on: true, delay: 8 },
+      modules: { zone: MAX_ZONE, items: { table: "ffa-core", density: 0.5 }, vehicles: { count: [4, 6], kinds: ["danfo", "keke", "tokunbo"] }, airfall: AIRFALL, melee: MELEE, flags: { count: 1, spots: "stash", claimHold: 15, hints: [120, 240, 360, 480] } },
+      win: { kind: "first", event: "flags.claimed" },
     },
     // ── Dead Streets (Spooky World) ──
     {

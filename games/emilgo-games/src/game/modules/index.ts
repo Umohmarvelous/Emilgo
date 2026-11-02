@@ -57,7 +57,7 @@ export function makeModules(mods: Partial<Record<ModuleId, Record<string, unknow
   }
   if (mods.melee) out.push(new MeleeModule(mods.melee));
   // v4: Free For All is a shooter: guns ride with melee, except where the rules are a touch or a find (Chase & Reverse, Lights Out).
-  if (mods.melee && !mods.tag && !mods.blackout) out.push(new GunsModule());
+  if (mods.guns || (mods.melee && !mods.tag && !mods.blackout)) out.push(new GunsModule(mods.guns));
   if (mods.items) {
     out.push(new ItemsModule(mods.items));
     // What the §10 items do in the world comes with them.
