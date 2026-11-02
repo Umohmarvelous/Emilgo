@@ -159,6 +159,23 @@ export class Crowd {
   }
 
   /** Up again where the body now stands (an open-world respawn). */
+  /** Hide a body (Dead Streets' zombies asleep in the pool), or show it again. */
+  setHidden(i: number, on: boolean): void {
+    if (this.hidden[i] === on) return;
+    this.hidden[i] = on;
+    const h = this.people[i];
+    if (h) h.mesh.visible = !on;
+    if (on) {
+      this.shadows.setMatrixAt(i, ZERO);
+      this.shadows.instanceMatrix.needsUpdate = true;
+    }
+  }
+
+  /** Raise or sink a body this far (a zombie rising out of the ground). */
+  setLift(i: number, lift: number): void {
+    this.seatLift[i] = lift;
+  }
+
   revive(i: number): void {
     this.people[i]?.revive();
     this.slowLeft[i] = 0;

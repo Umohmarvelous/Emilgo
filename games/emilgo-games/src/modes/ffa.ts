@@ -10,7 +10,7 @@
 import { Vector3 } from "three";
 
 import { RADIO_IDS, RADIO_NAME, type RadioId } from "../audio/radio";
-import { HARMATTAN, VEHICLES } from "../config";
+import { HARMATTAN, SURVIVAL, VEHICLES } from "../config";
 import { ITEM_DEFS } from "../content/items";
 import { type ModeDef } from "../content/modes";
 import { Rng } from "../core/rng";
@@ -32,6 +32,8 @@ import type { ServerMsg, StartInfo } from "../net/protocol";
 import { fromWire, type WireLook } from "../shop/catalog";
 import type { MapMark } from "../ui/hud";
 import type { AirfallModule } from "../game/modules/airfall";
+import { DeadView } from "../world/deadView";
+import type { SurvivalModule } from "../game/modules/survival";
 import type { ItemsModule } from "../game/modules/items";
 import { getLang, t } from "../ui/i18n";
 import { PING_LINES } from "../ui/quickchat";
@@ -80,8 +82,11 @@ class LocalSource implements Source {
   readonly match: Match;
   readonly me: Contestant;
 
-  constructor(readonly def: ModeDef, seed: number, world: MatchWorld, name: string) {
-    this.match = new Match({ seed, world, settings: settingsOf(def, false, def.tags?.includes("staked") ? undefined : weeklyMutator(Date.now())), contestants: [{ id: "me", name, bot: false }], countdown: 3 });
+  constructor(readonly def: ModeDef, seed: number, world: MatchWorld, name: string, zombies = 0) {
+    // A run has no weekly Free For All mutator (Dead Streets' own come later), and brings its zombie pool.
+    const mu = def.tags?.includes("staked") || def.family === "survival" ? undefined : weeklyMutator(Date.now());
+    const pool = Array.from({ length: zombies }, (_, i) => ({ id: `z${i}`, name: "", bot: true, squad: 1 }));
+    this.match = new Match({ seed, world, settings: settingsOf(def, false, mu), contestants: [{ id: "me", name, bot: false }, ...pool], countdown: 3 });
     this.me = this.match.contestants[0];
   }
 
@@ -122,6 +127,8 @@ export class FfaMode implements GameMode {
   private readonly cars: VehicleView | null;
   private readonly gadgets: GadgetView;
   private readonly modes6: ModesView;
+  /** Dead Streets' screen side (a run only). */
+  private readonly dead: DeadView | null;
   private dimmed = 0;
   /** The Harmattan: the dust now (eased), as last set on the world; in a storm; whose siren has sounded. */
   private dust = 0;
@@ -145,6 +152,9 @@ export class FfaMode implements GameMode {
   private best = { score: 0, text: "" };
   private readonly trail: [number, number, number][] = [];
   private trailAt = 0;
+  /** A run's trace for the server's check: t, x, z and the floor under you, once a second of play. */
+  private readonly trace: number[] = [];
+  private traceAt = 0;
   private lastCount = -1;
   private spectate = -1;
   /** The spectators' Airfall vote panel (§10.6), and which vote it shows (−1: hidden). */
@@ -209,6 +219,11 @@ export class FfaMode implements GameMode {
     h.scene.add(this.gadgets.group);
     this.modes6 = new ModesView({ crowd: h.crowd, hud: h.hud, sound: h.sound, me: me.index });
     h.scene.add(this.modes6.group);
+    this.dead = m.module("survival") ? new DeadView({ crowd: h.crowd, hud: h.hud, sound: h.sound, me: me.index, layer: h.ui, tier: h.spec.tier }) : null;
+    if (this.dead) {
+      h.scene.add(this.dead.group);
+      this.dead.setup(m);
+    }
 
     // The HUD.
     h.hud.reset(looks.map((l, i) => ({ accent: accentOf(l), me: i === me.index })));
@@ -231,6 +246,7 @@ export class FfaMode implements GameMode {
     c.onPack = () => this.play.openPack(!this.play.packOpen);
     c.onSlot = (slot, drop) => this.play.key(slot, drop);
     c.onRadio = () => this.nextStation();
+    if (this.dead) c.setSurvival(true);
     h.rig.follow(true, { x: me.x, z: me.z, y: me.y, stance: me.stance, ground: me.h });
   }
 
@@ -243,6 +259,11 @@ export class FfaMode implements GameMode {
 
   static fromSync(host: ModeHost, world: OpenWorld, sync: MatchSync, myId: string, net: NetClient): FfaMode {
     return FfaMode.online(host, world, { seed: sync.seed, s: sync.s, roster: sync.roster, init: [], ffa: sync.ffa }, myId, net, sync.log, sync.snap);
+  }
+
+  /** A Dead Streets run: you and the zombie pool, refereed here (the server checks it after). */
+  static run(host: ModeHost, world: OpenWorld, def: ModeDef, seed: number, name: string): FfaMode {
+    return new FfaMode(host, world, new LocalSource(def, seed, matchWorldFor(world, def.map), name, SURVIVAL.cap), [], null);
   }
 
   /** Practice: the mode on your own. */
@@ -392,12 +413,19 @@ export class FfaMode implements GameMode {
     this.cars?.events(events, m, cam);
     this.gadgets.events(events, m, cam);
     this.modes6.events(events, m);
+    this.dead?.events(events, m);
     for (const e of events) this.onEvent(e);
     // Your trail, once a second of play (the heat map).
     if (m.phase === "play" && me.status === "alive" && m.elapsed >= this.trailAt) {
       this.trailAt = m.elapsed + 1;
       const flags = m.module<FlagsModule>("flags");
       this.trail.push([Math.round(me.x), Math.round(me.z), flags?.heldBy(me.index) ? 1 : 0]);
+    }
+    // A run: where you went, for the server's check (and where the run ended).
+    if (this.dead && m.phase !== "walkout" && m.phase !== "countdown" && (m.elapsed >= this.traceAt || (m.over && this.trace[this.trace.length - 4] !== m.elapsed))) {
+      this.traceAt = m.elapsed + 1;
+      const r1 = (v: number) => Math.round(v * 10) / 10;
+      this.trace.push(r1(m.elapsed), r1(me.x), r1(me.z), r1(me.h));
     }
     if (this.endAt > 0 && performance.now() >= this.endAt && !this.over) this.finish();
   }
@@ -607,7 +635,8 @@ export class FfaMode implements GameMode {
     };
     const { pin } = this.ms.update(dt, m, cam, this.marks, extra);
     const { goal: flagGoal } = this.view.update(dt, m, h.camera, this.marks, h.rig.firstPerson && target === me);
-    const goal = flagGoal ?? this.modes6.update(dt, m, this.marks).pin;
+    const deadPin = this.dead?.update(dt, m, cam, this.marks).pin ?? null;
+    const goal = flagGoal ?? deadPin ?? this.modes6.update(dt, m, this.marks).pin;
     // The Harmattan: the siren, then the dust; footprints gone; headlights on (or in a power cut).
     const hm = m.module<HarmattanModule>("harmattan");
     if (hm) {
@@ -655,7 +684,8 @@ export class FfaMode implements GameMode {
     const live = me.status === "alive" && m.phase === "play";
     h.controls.showActions(live || m.phase === "countdown");
     const seated = m.seated(me);
-    if (!seated) h.controls.setNear(live, live);
+    if (this.dead) h.controls.setSurvival(live);
+    else if (!seated) h.controls.setNear(live, live);
     const mel = m.module<MeleeModule>("melee");
     h.controls.setFinisher(!!mel && live && mel.clinchOf(me.index) >= 0);
     h.controls.setStamina(me.stamina, me.sprinting);
@@ -691,6 +721,7 @@ export class FfaMode implements GameMode {
       measure: measureName(m),
       ...(this.best.text ? { play: this.best.text } : {}),
       trail: this.trail,
+      ...(this.dead ? { run: { tally: { ...m.module<SurvivalModule>("survival")!.tally }, trace: this.trace.slice() } } : {}),
     };
     this.host.onEnd(r);
   }
@@ -703,6 +734,11 @@ export class FfaMode implements GameMode {
     this.view.dispose();
     this.cars?.dispose();
     this.gadgets.dispose();
+    if (this.dead) {
+      h.scene.remove(this.dead.group);
+      this.dead.dispose();
+      h.controls.setSurvival(false);
+    }
     this.modes6.dispose(this.src.match);
     if (this.dimmed) this.world.setDim(0);
     if (this.dustSet) this.world.setDust(0, HARMATTAN.see);

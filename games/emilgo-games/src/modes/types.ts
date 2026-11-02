@@ -12,6 +12,7 @@ import type { PerspectiveCamera, Scene, WebGLRenderer } from "three";
 import type { Sound } from "../audio/sound";
 import type { ModeDef } from "../content/modes";
 import type { Standing } from "../game/core/match";
+import type { RunTally } from "../game/modules/survival";
 import type { GradeLook } from "../graphics/grade";
 import type { TierSpec } from "../graphics/tiers";
 import type { Controls } from "../input/controls";
@@ -79,4 +80,6 @@ export interface ModeResult {
   play?: string;
   /** Where you went (§10.22): x, z every second, and 1 where you had the objective in hand. */
   trail?: [number, number, number][];
+  /** A Dead Streets run: what it did, and where it went (t, x, z, the floor's height, a second apart) for the server's check. */
+  run?: { tally: RunTally; trace: number[] };
 }

@@ -23,7 +23,7 @@ import type { FriendState } from "../social/friends";
 import { EMOTES, EMOTE_BY_ID, type EmoteId } from "../social/emotes";
 import { POSES } from "../world/human/animator";
 import { HOODIE_COLORS, HOODIE_DESIGNS, type HoodieDesign, type Look } from "../world/human/wardrobe";
-import { esc, ordinal } from "./dom";
+import { esc, fmtTime, ordinal } from "./dom";
 import { t, translateTree } from "./i18n";
 import { icon } from "./icons";
 
@@ -86,6 +86,10 @@ export interface FfaResultView {
   rows: { id: string; place: number; name: string; me: boolean; squad: number; objective: number; won: boolean }[];
   /** Online: you've commended someone from this match already (§10.12: once a match). */
   commended?: boolean;
+  /** A Dead Streets run: its line ("8:12 · 34 down"), the server's word on it, the board's best times. */
+  runLine?: string;
+  runNote?: string;
+  board?: { secs: number; you: boolean }[];
   online: "quick" | "private" | "match" | null;
   matchNote?: string | null;
   xp: number | null;
@@ -720,6 +724,31 @@ export class Screens {
   }
 
   /** The Play screen, Free For All picked: how to play (queue, room, practice, stakes), which mode, your party. */
+  /** Dead Streets on the Play screen (Phase 7): the run, your best, start. */
+  playRun(s: { games: GameEntry[]; best: number; error: string | null }): void {
+    const games = s.games
+      .map((g) => `<button class="gm ${g.id === "survival" ? "on" : ""}" data-act="pick-game" data-g="${g.id}" ${g.state === "play" ? "" : "disabled"}>${esc(g.name)}${g.state === "play" ? "" : `<span class="soon">${g.state === "locked" ? "Locked" : "Soon"}</span>`}</button>`)
+      .join("");
+    this.mount(
+      "play",
+      `<div class="playscreen">
+        <div class="head"><button class="ibtn glass" data-act="back" aria-label="Back">${icon("back")}</button><span class="h">Play</span><span class="grow"></span></div>
+        <div class="games">${games}</div>
+        <div class="modes">${s.error ? `<div class="status error" role="alert">${esc(s.error)}</div>` : ""}</div>
+        <div class="side">
+          <div class="glass mapcard">
+            <div class="row"><b>Spooky World</b></div>
+            <span class="small">A dead city at night, 320 × 320 m: from the Motor Park of the Lost to the Broadcast Mast, 1.4 km of streets through twelve districts and thirty obstacles. Churches and mosques are sanctuaries.</span>
+          </div>
+          <div class="glass gamecard"><div class="label">Dead Streets</div><span class="small">Cross the dead city to the Mast. Fast, and alive. After 12:00 you bleed. On your own; your run is checked by our server.</span>
+            <span class="small">${s.best > 0 ? `Your best: <b class="num">${fmtTime(s.best)}</b>` : "No finished run yet."}</span></div>
+        </div>
+        <div class="start"><button class="btn primary" data-act="go">${icon("play", "", 16)}Start a run</button></div>
+      </div>`,
+      "dim",
+    );
+  }
+
   playFfa(s: FfaPlayState): void {
     const off = (m: PlayMode) => (m === "solo" ? false : m === "lagos" ? !s.lagosLife || s.online !== "ready" : s.online !== "ready");
     const info: Record<PlayMode, { name: string; sub: string; icon: string; tag: string }> = {
@@ -839,6 +868,8 @@ export class Screens {
          .join("")}</div>
        <div class="pm-card glass">
          <table class="ffa-table"><thead><tr><th>#</th><th>Player</th><th>${esc(r.measure)}</th></tr></thead><tbody>${rows}</tbody></table>
+         ${r.runLine ? `<div class="pm-play"><span class="label">${t("Your run")}</span><span class="small">${esc(r.runLine)}</span><span class="small" data-run-note>${esc(r.runNote ?? "")}</span></div>` : ""}
+         ${r.board?.length ? `<div class="pm-play" data-board><span class="label">${t("Best times")}</span><span class="small">${r.board.map((b, i) => `${i + 1}. <b class="num">${fmtTime(b.secs)}</b>${b.you ? ` · ${t("You")}` : ""}`).join("<br>")}</span></div>` : ""}
          ${r.play ? `<div class="pm-play"><span class="label">${t("Play of the game")}</span><span class="small">${esc(r.play)}</span></div>` : ""}
          ${r.trail && r.trail.length > 4 ? `<div class="pm-heat"><span class="label">${t("Where you went")}</span><canvas width="120" height="120" data-heat></canvas></div>` : ""}
          <div class="pm-xp" data-rank-line>${r.online ? rankLine(r) : `<span class="small">Practice: no XP. Play online to rank up.</span>`}</div>
@@ -851,6 +882,16 @@ export class Screens {
     );
     const heat = this.root.querySelector<HTMLCanvasElement>("canvas[data-heat]");
     if (heat && r.trail) this.drawHeat(heat, r.trail);
+  }
+
+  /** The server's word on a run arrived after the results went up: its note and the board. */
+  updateRun(r: FfaResultView): void {
+    const note = this.root.querySelector<HTMLElement>("[data-run-note]");
+    if (note) note.textContent = r.runNote ?? "";
+    if (r.board?.length && !this.root.querySelector("[data-board]")) {
+      const xp = this.root.querySelector<HTMLElement>("[data-rank-line]");
+      xp?.insertAdjacentHTML("beforebegin", `<div class="pm-play" data-board><span class="label">${esc(t("Best times"))}</span><span class="small">${r.board.map((b, i) => `${i + 1}. <b class="num">${fmtTime(b.secs)}</b>${b.you ? ` · ${esc(t("You"))}` : ""}`).join("<br>")}</span></div>`);
+    }
   }
 
   /** The heat map (§10.22): where you spent your match, gold where you had the objective. */

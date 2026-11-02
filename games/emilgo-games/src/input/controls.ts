@@ -430,6 +430,22 @@ export class Controls {
     }
   }
 
+  /**
+   * Dead Streets (Phase 7): the three attack buttons are the cutlass (fist),
+   * the gun (slap) and a shove (push), always there; no grab, no brace.
+   */
+  setSurvival(on: boolean): void {
+    const names = on ? (["cutlass", "gun", "push"] as const) : ATTACK_KINDS;
+    const labels = on ? ["Cutlass", "Shoot", "Shove"] : ATTACK_KINDS.map((k) => k[0].toUpperCase() + k.slice(1));
+    this.attackBtns.forEach((b, i) => {
+      b.innerHTML = icon(names[i], "", 24);
+      b.setAttribute("aria-label", labels[i]);
+      b.hidden = false;
+    });
+    this.grabBtn.hidden = on;
+    this.braceBtn.hidden = on;
+  }
+
   /** Free For All: holding someone, the attacks finish the clinch (fist Throw, slap Trip, push Drag). */
   setFinisher(on: boolean): void {
     if (on === this.finisher) return;

@@ -41,6 +41,7 @@
 //   DATA_DIR              where the ownership database lives (default ./data)
 //   TICKET_SECRET         32+ chars; signs ownership tickets. Required when running several processes
 
+import { randomBytes, randomInt } from "node:crypto";
 import { createServer, type IncomingMessage } from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
 
@@ -53,7 +54,8 @@ import { loadContent } from "./content";
 import { Presence } from "./presence";
 import { Identity, SqliteProfiles, utcDay, type ProfileStore } from "./profiles";
 import { Room } from "./room";
-import { matchXp } from "../../src/rank/xp";
+import { matchXp, runXp } from "../../src/rank/xp";
+import { RunBoard, verifyRun } from "./runs";
 import { BOOST_IDS, BOOST_SLOTS } from "../../src/shop/boosts";
 import { allowedLook, type WireLook } from "../../src/shop/catalog";
 import { Shop } from "./shop";
@@ -104,6 +106,33 @@ Room.onAward = (peer, facts) => {
 function withStreak(look: WireLook, streak: number): WireLook {
   const { st: _, ...rest } = look;
   return streak >= 3 ? { ...rest, st: Math.min(99, streak) } : rest;
+}
+
+// Dead Streets runs (Phase 7): asked for, sent in parts, checked (runs.ts), counted.
+const runBoard = new RunBoard(`${process.env.DATA_DIR ?? "./data"}/runs.db`);
+const runs = new Map<string, { id: string; seed: number; at: number; pts: number[] }>();
+
+function runEnd(peer: Peer, msg: Extract<ClientMsg, { t: "runend" }>): void {
+  const r = runs.get(peer.id);
+  if (!r || r.id !== msg.id) return void peer.send({ t: "runres", ok: false, why: "unknown run" });
+  runs.delete(peer.id);
+  const claim = { secs: msg.secs, fin: msg.fin, kills: msg.kills, heads: msg.heads, route: msg.route };
+  const v = verifyRun(r.pts, claim, (Date.now() - r.at) / 1000);
+  if (!v.ok) {
+    console.log(`run refused: ${v.why}`);
+    return void peer.send({ t: "runres", ok: false, why: v.why });
+  }
+  const day = utcDay();
+  const had = peer.profile ? profiles.get(peer.profile) : null;
+  const gain = runXp({ finished: msg.fin, seconds: msg.secs, route: msg.fin ? 1 : msg.route, kills: msg.kills, headshots: msg.heads, lore: 0, firstToday: !!peer.profile && had?.lastDay !== day });
+  let best: number | undefined;
+  let place: number | undefined;
+  if (peer.profile) {
+    const p = profiles.award(peer.profile, gain, msg.fin, day);
+    peer.send({ t: "rank", xp: p.xp, gain, st: p.streak });
+    if (msg.fin) ({ best, place } = runBoard.put(peer.profile, Math.round(msg.secs * 10) / 10, gain, day));
+  } else peer.send({ t: "rank", gain, off: 1 });
+  peer.send({ t: "runres", ok: true, gain, ...(best !== undefined ? { best, place } : {}), board: runBoard.top(peer.profile) });
 }
 
 // Commends (§10.12): counted on the commended player's profile (a guest just hears it).
@@ -168,7 +197,9 @@ const http = createServer((req, res) => {
     const got = String(req.headers.authorization ?? "");
     if (!token || token.length < 24 || got !== `Bearer ${token}`) return void res.writeHead(404).end();
     const key = decodeURIComponent(req.url.slice("/profiles/".length));
-    res.writeHead(profiles.remove(key) ? 204 : 404).end();
+    const gone = profiles.remove(key);
+    runBoard.remove(key);
+    res.writeHead(gone ? 204 : 404).end();
     return;
   }
   if (req.url === "/health") {
@@ -325,6 +356,21 @@ function handle(peer: Peer, msg: ClientMsg): void {
       break;
     case "mvote":
       room?.airfallVote(peer, msg.c);
+      break;
+    case "runstart": {
+      const id = randomBytes(6).toString("hex");
+      const seed = randomInt(1, 2 ** 31 - 1);
+      runs.set(peer.id, { id, seed, at: Date.now(), pts: [] });
+      peer.send({ t: "runtok", id, seed });
+      break;
+    }
+    case "runpart": {
+      const r = runs.get(peer.id);
+      if (r && r.id === msg.id && r.pts.length + msg.pts.length <= 12000) r.pts.push(...msg.pts);
+      break;
+    }
+    case "runend":
+      runEnd(peer, msg);
       break;
     case "sping":
       room?.squadPing(peer, msg.k, msg.x, msg.z);

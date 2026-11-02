@@ -12,6 +12,10 @@ import { Space } from "../../src/game/core/space";
 import { SURFACE_OF } from "../../src/maps/open/naija";
 import { buildSpookyWorld, routeAt, routeProgress, type Obstacle } from "../../src/maps/open/spooky";
 import { matchWorldOf } from "../../src/maps/open/matchWorld";
+import { verifyRun } from "../src/runs";
+import { WebSocket } from "ws";
+import { NET } from "../../src/config";
+import type { ServerMsg } from "../../src/net/protocol";
 
 let failures = 0;
 function check(ok: boolean, label: string): void {
@@ -37,7 +41,7 @@ check(fixedNear === 12, `every district has its buildings (${fixedNear}/12)`);
 check(run.sanctuaries.length >= 2, `${run.sanctuaries.length} sanctuaries (churches and mosques)`);
 
 /** Walk the whole route, as a player would: each obstacle by its hint. Gates opened as the rules would. */
-function walkRoute(): { ok: boolean; seconds: number; stuck: string } {
+function walkRoute(): { ok: boolean; seconds: number; stuck: string; trace: number[] } {
   const world = matchWorldOf(layout, space);
   const settings: MatchSettings = { time: 3600, respawn: { on: false, delay: 6 }, modules: {} };
   const m = new Match({ seed: 1, world, settings, contestants: [{ id: "me", name: "Me", bot: false }], countdown: 0 });
@@ -71,6 +75,9 @@ function walkRoute(): { ok: boolean; seconds: number; stuck: string } {
   let still = 0;
   let lastD = 0;
   const end = 1200;
+  const r1 = (v: number) => Math.round(v * 10) / 10;
+  const trace: number[] = [0, r1(me.x), r1(me.z), r1(me.h)];
+  let traceAt = 1;
   while (m.elapsed < end && k < pts.length) {
     const p = pts[k];
     const dx = p.x - me.x;
@@ -87,6 +94,10 @@ function walkRoute(): { ok: boolean; seconds: number; stuck: string } {
     if (near?.how === "jump" && near.jumpAt !== undefined && prog >= near.jumpAt && prog < near.jumpAt + 1 && me.y === 0) m.setButtons("me", true, 0, ++jumpN);
     m.setInput("me", dx / dist, dz / dist);
     m.step(DT);
+    if (m.elapsed >= traceAt) {
+      traceAt += 1;
+      trace.push(r1(m.elapsed), r1(me.x), r1(me.z), r1(me.h));
+    }
     if (prog > best + 0.5) {
       best = prog;
       still = 0;
@@ -96,7 +107,8 @@ function walkRoute(): { ok: boolean; seconds: number; stuck: string } {
   const done = k >= pts.length && Math.hypot(me.x - run.finish[0], me.z - run.finish[1]) < 8;
   const stuckAt = obs.find((o) => Math.abs(o.d - lastD) < 15);
   for (const g of run.gates) [layout.solids[g.solid].y0, layout.solids[g.solid].y1] = g.shut;
-  return { ok: done, seconds: m.elapsed, stuck: done ? "" : `stuck ${best.toFixed(0)} m in at (${me.x.toFixed(1)}, ${me.z.toFixed(1)}, h ${me.h.toFixed(1)})${stuckAt ? ` near #${stuckAt.n} ${stuckAt.name}` : ""}` };
+  trace.push(r1(m.elapsed), r1(me.x), r1(me.z), r1(me.h));
+  return { trace, ok: done, seconds: m.elapsed, stuck: done ? "" : `stuck ${best.toFixed(0)} m in at (${me.x.toFixed(1)}, ${me.z.toFixed(1)}, h ${me.h.toFixed(1)})${stuckAt ? ` near #${stuckAt.n} ${stuckAt.name}` : ""}` };
 }
 const w = walkRoute();
 check(w.ok, `a body walks the whole route, every obstacle its own way (${(w.seconds / 60).toFixed(1)} min)${w.stuck ? `: ${w.stuck}` : ""}`);
@@ -293,6 +305,74 @@ const swing = (m: Match, kind: 1 | 2 | 3) => m.setActions("me", ((++atkN & 63) <
   const awake = m.contestants.slice(1).filter((z) => z.status === "alive").length;
   check(us < 400, `a step with ${awake} awake: ${us.toFixed(0)} µs`);
 }
+
+console.log("\nthe server's check of a run:");
+{
+  const tr = w.trace;
+  const secs = tr[tr.length - 4];
+  const claim = { secs, fin: true, kills: 20, heads: 5, route: 1 };
+  const v = verifyRun(tr, claim, secs + 10);
+  check(v.ok, `an honest run passes (${(secs / 60).toFixed(1)} min, ${tr.length / 4} samples)${v.ok ? "" : `: ${v.why}`}`);
+  check(!verifyRun(tr, claim, secs - 30).ok, "finished quicker than the wall clock allows: refused");
+  const tele = tr.slice();
+  const k = Math.floor(tele.length / 8) * 4;
+  tele[k + 1] += 40;
+  check(!verifyRun(tele, claim, secs + 10).ok, "a jump of 40 m between samples: refused");
+  const cut = tr.slice(0, 4).concat(tr.slice(-40));
+  check(!verifyRun(cut, claim, secs + 10).ok, "straight to the Mast (skipping the checkpoints): refused");
+  // Through the walls: the same times, a straight line from start to finish.
+  const n = tr.length / 4;
+  const ghost: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const u = i / (n - 1);
+    ghost.push(tr[i * 4], tr[1] + (run.finish[0] - tr[1]) * u, tr[2] + (run.finish[1] - tr[2]) * u, 0);
+  }
+  check(!verifyRun(ghost, claim, secs + 10).ok, "a ghost through the walls: refused");
+  check(!verifyRun(tr, { ...claim, kills: 5000 }, secs + 10).ok, "5,000 kills in one run: refused");
+}
+
+const GAME = process.env.GAME;
+if (GAME) {
+  console.log("\nonline: a run asked for, sent, checked:");
+  const ws = new WebSocket(GAME);
+  const got: ServerMsg[] = [];
+  const wait = (t: ServerMsg["t"], ms = 5000) => new Promise<ServerMsg | null>((res) => {
+    const t0 = Date.now();
+    const tick = () => {
+      const m = got.find((x) => x.t === t);
+      if (m) return res(m);
+      if (Date.now() - t0 > ms) return res(null);
+      setTimeout(tick, 30);
+    };
+    tick();
+  });
+  ws.on("message", (d) => got.push(JSON.parse(String(d))));
+  await new Promise((r) => ws.on("open", r));
+  ws.send(JSON.stringify({ t: "hello", v: NET.protocol, name: "Runner" }));
+  await wait("welcome");
+  ws.send(JSON.stringify({ t: "runstart" }));
+  const tok = (await wait("runtok")) as Extract<ServerMsg, { t: "runtok" }> | null;
+  check(!!tok && tok.seed > 0, "the server hands out a run (an id and a seed)");
+  // The server's clock must allow the run: wait as long as a short trace (the first 40 s of the honest one).
+  const part = w.trace.slice(0, 4 * 41);
+  await new Promise((r) => setTimeout(r, 1000));
+  for (let i = 0; i < part.length; i += 540) ws.send(JSON.stringify({ t: "runpart", id: tok!.id, pts: part.slice(i, i + 540) }));
+  ws.send(JSON.stringify({ t: "runend", id: tok!.id, secs: part[part.length - 4], fin: false, kills: 1, heads: 0, route: 0.05 }));
+  const res = (await wait("runres")) as Extract<ServerMsg, { t: "runres" }> | null;
+  check(!!res && !res.ok && res.why === "clock", `40 s of running sent after 1 s: refused by the clock (${res?.why})`);
+  got.length = 0;
+  ws.send(JSON.stringify({ t: "runstart" }));
+  const tok2 = (await wait("runtok")) as Extract<ServerMsg, { t: "runtok" }> | null;
+  const short = w.trace.slice(0, 4 * 4);
+  await new Promise((r) => setTimeout(r, 3200));
+  ws.send(JSON.stringify({ t: "runpart", id: tok2!.id, pts: short }));
+  ws.send(JSON.stringify({ t: "runend", id: tok2!.id, secs: short[short.length - 4], fin: false, kills: 0, heads: 0, route: 0.01 }));
+  const res2 = (await wait("runres")) as Extract<ServerMsg, { t: "runres" }> | null;
+  const rank = got.find((x) => x.t === "rank") as Extract<ServerMsg, { t: "rank" }> | undefined;
+  check(!!res2?.ok && (res2.gain ?? 0) > 0 && !!rank, `an honest start, checked: +${res2?.gain} XP${res2?.ok ? "" : ` (${res2?.why})`}`);
+  ws.close();
+}
+
 void MOVE;
 
 console.log(failures ? `\n${failures} FAILED` : "\nall passed");

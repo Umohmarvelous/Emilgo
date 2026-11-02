@@ -54,6 +54,7 @@ import { errorCode, errorText } from "../platform/vatarErrors";
 import { DEFAULT_WHEEL, resetPrefs, saveSettings, type Settings } from "../settings";
 import { BOOST_BY_ID, BOOST_ROUNDS, BOOST_SLOTS, boostsFromWire, boostsToWire, cpForRound, type BoostId } from "../shop/boosts";
 import { Friends, type Notice } from "../social/friends";
+import { fmtTime, ordinal } from "../ui/dom";
 import { getLang, setLang, t, translateTree } from "../ui/i18n";
 import { Rotator, gameSize } from "../ui/rotate";
 import { EMOTE_PACK, PRODUCT_BY_ID, fromWire, toWireLook, type WireLook } from "../shop/catalog";
@@ -84,6 +85,7 @@ import { catalog, games } from "../content/catalog";
 import type { ModeDef } from "../content/modes";
 import { buildOpenWorldIdle, type OpenWorld } from "../maps/open/build";
 import { buildNaijaWorld } from "../maps/open/naija";
+import { buildSpookyWorld } from "../maps/open/spooky";
 import type { MatchSnap, WireEvent } from "../net/matchWire";
 import { FfaMode, MUTATOR_NAME } from "../modes/ffa";
 import { weeklyMutator } from "./core/match";
@@ -97,7 +99,8 @@ import { PHASES, prePlay, type Cause, type Contestant, RedLightRound, type Round
 
 const ME = "me";
 const MATCH_STILL_ON = "The match is still on. The result comes when the round ends.";
-const MAX_PEOPLE = 20;
+/** Bodies on screen at most: 20 (Red Light, Green Light's rooms), 21 in a Dead Streets run (you and 20 zombies). */
+const MAX_PEOPLE = 21;
 const RETURN_AFTER = 15;
 
 type MyState = "playing" | "out" | "safe";
@@ -281,6 +284,11 @@ export class Game {
   // up), a start that arrived before the world was ready, your party, the results.
   private gm: FfaMode | null = null;
   private naija: { tier: Tier; p: Promise<OpenWorld>; w: OpenWorld | null } | null = null;
+  /** Spooky World (Dead Streets), built when a run is first asked for. */
+  private spooky: { tier: Tier; p: Promise<OpenWorld>; w: OpenWorld | null } | null = null;
+  /** The run on screen, as the server knows it (none: played offline, not counted). */
+  private runTok: { id: string; seed: number } | null = null;
+  private runWait: ((tok: { id: string; seed: number } | null) => void) | null = null;
   private ffaWait: { start: StartInfo; log: WireEvent[]; snap?: MatchSnap } | null = null;
   private ffaRes: FfaResultView | null = null;
   private party: { code: string; members: { id: string; name: string }[]; lead: string } | null = null;
@@ -814,7 +822,11 @@ export class Game {
     this.frame("full");
     const list = games(this.content.manifest, { xp: this.rankXp });
     // Ball Haunt hidden: Free For All is the only game on the strip that plays.
-    if (!list.some((g) => g.id === "rlgl")) this.settings.game = "ffa";
+    if (!list.some((g) => g.id === "rlgl") && this.settings.game === "rlgl") this.settings.game = "ffa";
+    if (this.settings.game === "survival") {
+      this.screens.playRun({ games: list, best: this.settings.runBest, error: this.playError });
+      return;
+    }
     if (this.settings.game === "ffa") {
       const net = this.net;
       this.screens.playFfa({
@@ -1887,6 +1899,18 @@ export class Game {
         if (m.st !== undefined) this.settings.streak = m.st;
         this.onRank(m);
         break;
+      case "runtok":
+        this.runWait?.({ id: m.id, seed: m.seed });
+        break;
+      case "runres": {
+        const f = this.ffaRes;
+        if (f) {
+          f.runNote = m.ok ? `${t("Checked")}: +${m.gain ?? 0} XP${m.place ? ` · ${ordinal(m.place)} ${t("on the board")}` : ""}` : `${t("Not counted")}: ${m.why ?? ""}`;
+          if (m.board) f.board = m.board;
+          if (this.screens.name === "results") this.screens.updateRun(f);
+        }
+        break;
+      }
       case "honour":
         if (m.n !== undefined) {
           const was = honourTitle(this.settings.honour);
@@ -2847,7 +2871,7 @@ export class Game {
         this.go();
         break;
       case "pick-game":
-        this.settings.game = d.g === "rlgl" && FEATURES.ballHaunt ? "rlgl" : "ffa";
+        this.settings.game = d.g === "rlgl" && FEATURES.ballHaunt ? "rlgl" : d.g === "survival" ? "survival" : "ffa";
         saveSettings(this.host, this.settings);
         this.showPlay();
         break;
@@ -3256,6 +3280,46 @@ export class Game {
     }
   }
 
+  /** Spooky World for this graphics tier, at night: built once, in slices between frames, then kept. */
+  private ensureSpooky(): Promise<OpenWorld> {
+    const tier = this.spec.tier;
+    if (this.spooky && this.spooky.tier === tier) return this.spooky.p;
+    if (this.spooky?.w && !this.gm) this.spooky.w.dispose();
+    const slot: { tier: Tier; p: Promise<OpenWorld>; w: OpenWorld | null } = { tier, p: Promise.resolve(null as unknown as OpenWorld), w: null };
+    slot.p = buildOpenWorldIdle(buildSpookyWorld(), this.spec, { night: true }).then((w) => {
+      slot.w = w;
+      return w;
+    });
+    this.spooky = slot;
+    return slot.p;
+  }
+
+  /** START on Dead Streets: a solo run (its first time, the cards first). */
+  private goRun(): void {
+    const def = this.content.manifest.modes.find((d) => d.id === "dead-streets");
+    if (!def) return;
+    this.leaveOnline();
+    this.endRound();
+    this.mode = "practice";
+    this.showWaiting("Building Spooky World…");
+    // Online, the server hands out the run (its seed and the clock); offline it's played, not counted.
+    const net = this.net;
+    const tok =
+      net && net.state === "open"
+        ? new Promise<{ id: string; seed: number } | null>((res) => {
+            this.runWait = res;
+            net.send({ t: "runstart" });
+            setTimeout(() => res(null), 2500);
+          })
+        : Promise.resolve(null);
+    void Promise.all([this.ensureSpooky(), tok]).then(([w, k]) => {
+      this.runWait = null;
+      if (this.screens.name !== "room" || this.room || this.gm) return;
+      this.runTok = k;
+      this.beginFfa(FfaMode.run(this.modeHost(), w, def, k?.seed ?? randomSeed(), this.host.player.name || "You"));
+    });
+  }
+
   /** Practice: the mode on your own (there are no bots in Free For All, ever). */
   private practiceFfa(def: ModeDef): void {
     this.leaveOnline();
@@ -3385,6 +3449,25 @@ export class Game {
     };
     this.pendingGain = null;
     if (r.won) this.settings.wins++;
+    // A Dead Streets run: its line, your best here, and the server's check.
+    if (r.run) {
+      const ty = r.run.tally;
+      const secs = ty.finished ? ty.seconds : r.seconds;
+      this.ffaRes.mode = "Dead Streets";
+      this.ffaRes.measure = "";
+      this.ffaRes.runLine = `${ty.finished ? `${t("At the Mast in")} ${fmtTime(secs)}` : `${Math.round(ty.route * 100)}% ${t("of the way")}`} · ${ty.kills} ${t("down")} · ${ty.headshots} ${t("head shots")}`;
+      if (ty.finished && (!this.settings.runBest || secs < this.settings.runBest)) this.settings.runBest = Math.round(secs);
+      const net = this.net;
+      const tok = this.runTok;
+      this.runTok = null;
+      if (tok && net && net.state === "open") {
+        this.ffaRes.runNote = t("Checking your run…");
+        this.ffaRes.online = "quick";
+        const pts = r.run.trace;
+        for (let i = 0; i < pts.length; i += 540) net.send({ t: "runpart", id: tok.id, pts: pts.slice(i, i + 540) });
+        net.send({ t: "runend", id: tok.id, secs: Math.round(secs * 10) / 10, fin: ty.finished, kills: ty.kills, heads: ty.headshots, route: Math.round(ty.route * 1000) / 1000 });
+      } else this.ffaRes.runNote = t("Played offline: not counted");
+    }
     // The Form badge (§10.18): online matches only.
     if (online) this.settings.form = ((r.won ? "W" : "L") + this.settings.form).slice(0, 5);
     this.endFfa();
@@ -3406,6 +3489,7 @@ export class Game {
 
   /** START on the play screen. */
   private go(): void {
+    if (this.settings.game === "survival") return this.goRun();
     if (this.settings.game === "ffa" || !FEATURES.ballHaunt) return this.goFfa();
     switch (this.playMode) {
       case "solo":

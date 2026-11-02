@@ -80,7 +80,9 @@ export interface Settings {
   mode: Mode;
   distance: Distance;
   /** The game picked on the Play screen's strip, and Free For All's mode (SPEC-V3 §9). */
-  game: "ffa" | "rlgl";
+  game: "ffa" | "rlgl" | "survival";
+  /** Dead Streets: your best finished run (seconds, 0 none) on this device. */
+  runBest: number;
   ffaMode: string;
   /** The Free For All modes whose "How to play" cards you've seen (ids, comma-separated). */
   /** The items you've used at least once (their counter shows on the first use, SPEC-V3 §10.16). */
@@ -187,6 +189,7 @@ export function defaults(host: Host): Settings {
     mode: "classic",
     distance: DEFAULT_DISTANCE,
     game: "ffa",
+    runBest: 0,
     ffaMode: "find-the-flag",
     ffaSeen: "",
     itemsSeen: "",
@@ -212,7 +215,7 @@ export function defaults(host: Host): Settings {
  */
 export const KEPT_ON_RESET: readonly (keyof Settings)[] = [
   "look", "badge", "lobbyPose", "wheel", "map", "mode", "distance", "tutorialSeen", "best", "played", "wins", "xp",
-  "rankXp", "rankKnown", "deviceXp", "founder", "honour", "form", "streak",
+  "rankXp", "rankKnown", "deviceXp", "founder", "honour", "form", "streak", "runBest",
   "daily", "recent", "fid", "friends", "cp", "boosts", "boostsOn", "song",
 ];
 

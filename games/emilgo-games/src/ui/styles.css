@@ -980,3 +980,15 @@ input { font: inherit; color: inherit; }
 .airvote .label { font: 700 11px var(--head); letter-spacing: 0.06em; text-align: center; }
 .airvote .opts { display: grid; gap: 6px; }
 .airvote .btn { font-size: 12px; padding: 8px 10px; justify-content: space-between; }
+
+/* Dead Streets (SPEC-V3 Phase 7): the run's HUD and night vision. */
+.dshud { position: absolute; left: 12px; top: 64px; z-index: 5; width: 170px; padding: 8px 10px; border-radius: 10px; display: grid; gap: 5px; font: 600 11px var(--body); pointer-events: none; }
+.dshud .bar { position: relative; height: 10px; border-radius: 5px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
+.dshud .bar i { position: absolute; inset: 0 auto 0 0; background: #e0443a; border-radius: 5px; transition: width 0.2s; }
+.dshud .bar.ar { height: 5px; }
+.dshud .bar.ar i { background: #5aa9ff; }
+.dshud .bar span { position: absolute; right: 4px; top: -2px; font: 700 10px var(--head); }
+.dshud .row { display: flex; justify-content: space-between; gap: 8px; }
+.dshud .bleed { color: #ff6a5a; }
+.nvwash { position: absolute; inset: 0; z-index: 4; pointer-events: none; opacity: 0; transition: opacity 0.4s; background: radial-gradient(ellipse at center, rgba(60, 255, 120, 0.16) 0%, rgba(20, 90, 40, 0.3) 60%, rgba(0, 0, 0, 0.85) 100%); mix-blend-mode: screen; }
+.nvwash.on { opacity: 1; }
