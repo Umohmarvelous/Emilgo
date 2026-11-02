@@ -14,7 +14,7 @@
 > 1–5 and their "How to play" cards, the `GameMode` seam, the staked Flag Duel;
 > Ball Haunt hidden) is built and committed (29 Oct 2026)**. **Phase 5
 > (vehicles) is done (30 Oct)** and **Phase 6 (FFA modes 6–10, Ranked, the
-> Harmattan, all 22 §10 extras) is done (2 Nov 2026)**. On 2 Nov the owner
+> Harmattan, all 22 §10 extras) is done (2 Nov 2026)**; **Phase 7 (Spooky World, Dead Streets' core) is done (2 Nov 2026)**. On 2 Nov the owner
 > said to build every remaining phase (7–11) **without waiting for approval**,
 > committing **and pushing** each change. See SPEC-V3 "Status".
 >
@@ -220,6 +220,14 @@ npm run game:build     # typecheck + dist/ (Lagos Life site)
 npm --prefix games/emilgo-games run typecheck   # client + server
 ```
 
+## v3 Phase 7: where things are
+
+- Spooky World: `src/maps/open/spooky.ts` (`buildSpookyWorld`: the route, districts, buildings, the thirty obstacles; `run` on the layout: route, sanctuaries, obstacles, hazards, gates; `routeAt`, `routeProgress`). `matchWorldOf` hands `run` to the match.
+- The rules: `src/game/modules/survival.ts` (`SurvivalModule`; numbers in `SURVIVAL`, `src/config.ts`). Zombies are bot bodies 1…20 in the match. Items: bandage, medkit, ammo, armour, battery, nv (`content/items.ts`, table `ds-core`).
+- The phone: `FfaMode.run` (a `LocalSource` with the zombie pool), `world/deadView.ts` (zombie paint, rising, the torch, night vision, the run's HUD, lightning), `controls.setSurvival`, `Screens.playRun`, `Session.goRun` / `ensureSpooky`. The run's trace goes to the server at the end (`runstart`, `runpart`, `runend`; `runtok`, `runres`).
+- The server: `server/src/runs.ts` (`verifyRun`, `RunBoard`, `runs.db`), wired in `server/src/index.ts`.
+- Tests: `survivaltest` (offline; `GAME=ws://localhost:8797` adds the online half).
+
 ## v3 Phase 6: where things are
 
 - Modes 6–10 are rule modules: `economy.ts` (Hustle), `tag.ts` (Chase & Reverse), `rooms.ts` (Compound Wars; the courtyard is `prefabs.ts` `courtyard`), `riddles.ts` (+ `content/riddles.ts`), `blackout.ts` (Lights Out). Their screen side: `world/modesView.ts`.
@@ -247,6 +255,7 @@ node server/dist/worldtest.mjs                          # 15 checks (Phase 2: Na
 node server/dist/sharedtest.mjs                         # 59 checks (Phase 3: the match core, zone, items, Airfall)
 node server/dist/cartest.mjs                            # 50 checks (Phase 5: vehicles)
 node server/dist/extrastest.mjs                         # 121 checks (Phase 6: items, Ranked, modes 6–10, the Harmattan, the extras)
+GAME=ws://localhost:8797 node server/dist/survivaltest.mjs  # Phase 7: Spooky World, the route walked, the run's rules, the server's check
 GAME=ws://localhost:8797 node server/dist/ffatest.mjs   # Phase 4: melee and the five modes offline, then 12 phones online
 GAME=ws://localhost:8797 node server/dist/ranktest.mjs  # 42 checks (needs SUPABASE_JWT_SECRET on the server, as above)
 GAME=ws://localhost:8797 node server/dist/matchtest.mjs
