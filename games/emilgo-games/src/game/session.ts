@@ -597,6 +597,7 @@ export class Game {
 
   private showLobby(): void {
     const daily = ensureDaily(this.settings.daily);
+    this.stage.setDummy(false);
     this.screens.lobby({
       host: this.host,
       settings: this.settings,
@@ -2023,6 +2024,7 @@ export class Game {
   private showWaiting(text: string): void {
     this.view = "lobby";
     this.stage.setMode("lobby");
+    this.stage.setDummy(true);
     this.stage.setLook(this.myLook(), this.settings.lobbyPose);
     this.stage.setFraming("center");
     this.screens.waiting(text);
@@ -2034,6 +2036,7 @@ export class Game {
     if (!net || !this.room) return;
     this.view = "lobby";
     this.stage.setMode("squad");
+    this.stage.setDummy(true);
     this.stage.setLook(this.myLook(), this.settings.lobbyPose);
     const me = this.seatId ?? net.id;
     this.stage.setSquad(this.room.players.filter((p) => p.id !== me).map((p) => ({ id: p.id, name: p.name, look: fromWire(p.look) })));
@@ -2881,6 +2884,13 @@ export class Game {
         const def = this.ffaPick();
         if (this.playMode === "lagos") this.cards.show("flag-duel", "Flag Duel");
         else if (def) this.cards.show(def.id, def.name.en);
+        break;
+      }
+      case "dummy": {
+        // The queue mini-game (§10.17): practice shoves while you wait.
+        const r = this.stage.shoveDummy();
+        this.sound.strike("push", true);
+        if (r.down) this.screens.toast(`${t("Down in")} ${r.hits} ${t("shoves")}`);
         break;
       }
       case "commend": {

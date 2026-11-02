@@ -1099,7 +1099,7 @@ export class Screens {
     this.mount(
       "room",
       `<div class="sq-status glass" style="bottom:50%">${esc(text)} · One moment…</div>
-       <div class="sq-bar glass"><button class="btn secondary" data-act="leave-room">Cancel</button></div>`,
+       <div class="sq-bar glass"><button class="btn secondary" data-act="leave-room">Cancel</button><button class="btn secondary" data-act="dummy">${icon("hand", "", 16)}Shove the dummy</button></div>`,
     );
   }
 
@@ -1138,6 +1138,7 @@ export class Screens {
        }
        <div class="sq-bar glass">
          <button class="btn secondary" data-act="leave-room">${icon("exit", "", 16)}Leave</button>
+         <button class="btn secondary" data-act="dummy" aria-label="Shove the practice dummy">${icon("hand", "", 16)}Dummy</button>
          ${canReady ? `<button class="btn ${me?.ready ? "secondary" : "primary"}" data-act="ready" data-on="${me?.ready ? "0" : "1"}">${icon("check", "", 16)}${me?.ready ? "Not ready" : "Ready"}</button>` : ""}
        </div>`,
     );

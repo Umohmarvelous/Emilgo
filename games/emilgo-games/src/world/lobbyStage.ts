@@ -75,6 +75,12 @@ export class LobbyStage {
   private readonly back = new Scene(); // the set behind (blurred backdrop)
   readonly camera = new PerspectiveCamera(36, 1, 0.1, 400);
   private me: Human | null = null;
+  /**
+   * The queue mini-game (SPEC-V3 §10.17): a practice dummy beside you while
+   * you wait. Not an opponent: a sack on a post that wobbles when shoved and
+   * topples when its meter fills, like a Daze.
+   */
+  private dummy: { root: Group; tilt: number; vel: number; wobble: number; lastHit: number; down: number; hits: number } | null = null;
   private members: Member[] = [];
   /** The waiting room's circle. */
   private squadR = circleRadius(1);
@@ -296,6 +302,68 @@ export class LobbyStage {
     this.me?.setPose(pose);
   }
 
+  /** Show or hide the practice dummy (the waiting screens). */
+  setDummy(on: boolean): void {
+    if (on && !this.dummy) {
+      const root = new Group();
+      const wood = new MeshLambertMaterial({ color: 0x6d4c2f });
+      const sack = new MeshLambertMaterial({ color: 0xc8a46a });
+      const post = new Mesh(new CylinderGeometry(0.05, 0.06, 1.0, 8), wood);
+      post.position.y = 0.5;
+      const body = new Mesh(new CylinderGeometry(0.2, 0.24, 0.75, 10), sack);
+      body.position.y = 1.2;
+      const head = new Mesh(new CylinderGeometry(0.13, 0.13, 0.22, 10), sack);
+      head.position.y = 1.72;
+      const arms = new Mesh(new BoxGeometry(0.85, 0.08, 0.08), wood);
+      arms.position.y = 1.38;
+      const base = new Mesh(new CylinderGeometry(0.3, 0.34, 0.08, 12), wood);
+      base.position.y = 0.04;
+      for (const m of [post, body, head, arms, base]) m.castShadow = this.spec.shadows;
+      root.add(post, body, head, arms, base);
+      root.position.set(0.85, 0, -0.3);
+      root.rotation.y = -0.3;
+      this.dummy = { root, tilt: 0, vel: 0, wobble: 0, lastHit: -9, down: 0, hits: 0 };
+      this.scene.add(root);
+    }
+    if (this.dummy) this.dummy.root.visible = on;
+  }
+
+  /** A shove at the dummy: your push, its wobble. Returns the shoves so far and whether this one toppled it. */
+  shoveDummy(): { hits: number; down: boolean } {
+    const d = this.dummy;
+    if (!d || !d.root.visible) return { hits: 0, down: false };
+    this.me?.act("push");
+    if (d.down > 0) return { hits: d.hits, down: false };
+    d.hits++;
+    d.vel += 3.2;
+    d.wobble = Math.min(1, d.wobble + 0.34);
+    d.lastHit = this.time;
+    if (d.wobble >= 1) {
+      d.down = 1.8;
+      d.wobble = 0;
+      return { hits: d.hits, down: true };
+    }
+    return { hits: d.hits, down: false };
+  }
+
+  private dummyUpdate(dt: number): void {
+    const d = this.dummy;
+    if (!d || !d.root.visible) return;
+    if (d.down > 0) {
+      // Over on its back, then up again.
+      d.down -= dt;
+      const want = d.down > 0.5 ? 1.35 : 0;
+      d.tilt += (want - d.tilt) * (1 - Math.exp(-dt * (d.down > 0.5 ? 9 : 4)));
+      if (d.down <= 0) d.hits = 0;
+    } else {
+      // A spring on the post: it rocks back and settles.
+      d.vel += (-d.tilt * 40 - d.vel * 4.5) * dt;
+      d.tilt += d.vel * dt;
+      if (this.time - d.lastHit > 1.5) d.wobble = Math.max(0, d.wobble - 0.5 * dt);
+    }
+    d.root.rotation.x = -d.tilt * 0.6;
+  }
+
   emote(id: EmoteId): void {
     this.me?.emote(id);
   }
@@ -362,6 +430,7 @@ export class LobbyStage {
   }
 
   setMode(mode: StageMode): void {
+    if (mode === "podium" && this.dummy) this.dummy.root.visible = false;
     this.mode = mode;
     const pod = mode === "podium";
     this.podiumSet.visible = pod;
@@ -449,6 +518,7 @@ export class LobbyStage {
       this.me.update(dt, 0, 0, 0);
     }
     for (const m of this.members) m.human.update(dt, 0, m.human.anim.stance, 0);
+    this.dummyUpdate(dt);
     for (const h of this.podium) h.update(dt, 0, 0, 0);
 
     // Everything else stands still (SPEC-V2: no dust, light shafts, wind or flicker).
