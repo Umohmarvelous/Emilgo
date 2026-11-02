@@ -1,7 +1,7 @@
 // The match core for the open worlds (SPEC-V3 §1.1): bodies, the clock and
 // the phases, and a list of rule modules that make it a mode. Free For All and
-// Dead Streets are this plus their modules; Red Light, Green Light moves onto
-// it in Phase 11.
+// Dead Streets are this plus their modules; since Phase 11 so is Ball Haunt
+// (the doll and balls modules, on its corridor: MatchWorld.course).
 //
 // Pure, like rules.ts: no three.js, no DOM, no clock. It advances only when
 // step(dt) is called with a fixed dt, and every random choice comes from a
@@ -27,7 +27,7 @@
 // comes from a second, SECRET seed (`secretRng`) only the server has. The
 // copy learns it from the events, when everyone does.
 
-import { DEFAULT_COURSE, MOVE, RESPAWN, RULES, type Stance } from "../../config";
+import { DEFAULT_COURSE, MOVE, RESPAWN, RULES, type Course, type Stance } from "../../config";
 import type { ModeDef, ModuleId } from "../../content/modes";
 import { Rng } from "../../core/rng";
 import type { BoostMods } from "../../shop/boosts";
@@ -39,6 +39,7 @@ import { reachOf, type Reach } from "./reach";
 import type { CourtRoom } from "../../maps/open/prefabs";
 import type { Space } from "./space";
 import type { SpookyRun } from "../../maps/open/spooky";
+import { clearOfWalls } from "../pens";
 
 export interface Zip {
   /** The roof's floor at the anchor. */
@@ -76,6 +77,12 @@ export interface MatchWorld {
   readonly zips?: readonly Zip[];
   /** A mode played on part of the world (the Flag Duel): that circle is the zone's first. */
   readonly arena?: { x: number; z: number; r: number };
+  /**
+   * Ball Haunt's field: bodies move inside the corridor and the pens' walls
+   * (body.ts), not through `space`, and those over the line walk on to the
+   * safe zone (they're still bumped).
+   */
+  readonly course?: Course;
 }
 
 /** What a mode asks of the match, after the Ranked overrides and this week's mutator. */
@@ -502,6 +509,13 @@ export class Match {
     this.emit({ type: "ended" });
   }
 
+  /** Everyone has skipped the walkout (Ball Haunt): the countdown starts now. */
+  skipWalkout(): void {
+    if (this.phase !== "walkout") return;
+    this.phaseTime = 0;
+    this.enter("countdown", RULES.countdown);
+  }
+
   /** A module's win: someone (and their squad) won; the match ends. Once. */
   win(c: Contestant | null, squad = c ? this.squads[c.index] : -1): void {
     if (this.phase === "ended" || this.winner) return;
@@ -625,7 +639,7 @@ export class Match {
       }
       const k = this.mul[i];
       this.mul[i] = 1;
-      if (c.status !== "alive" || this.seats[i] >= 0) continue;
+      if (!this.moves(c) || this.seats[i] >= 0) continue;
       this.move(c, dt, k, space);
     }
     this.separate();
@@ -650,7 +664,13 @@ export class Match {
       s.sprint = src.sprint * k;
       c.bst = s;
     } else c.bst = src;
-    moveContestant(c, dt, DEFAULT_COURSE, space, this.env);
+    const course = this.world.course;
+    moveContestant(c, dt, course ?? DEFAULT_COURSE, course ? null : space, this.env);
+  }
+
+  /** Who moves and is bumped: the living (and, on Ball Haunt's corridor, those safe over the line). */
+  private moves(c: Contestant): boolean {
+    return c.status === "alive" || (c.status === "finished" && !!this.world.course);
   }
 
   private readonly sepCells = new Map<number, number[]>();
@@ -673,7 +693,7 @@ export class Match {
     if (cells.size > 4096) cells.clear();
     const key = (q: number, r: number) => (q + 2048) * 4096 + (r + 2048);
     for (const c of list) {
-      if (c.status !== "alive" || this.seats[c.index] >= 0) continue;
+      if (!this.moves(c) || this.seats[c.index] >= 0) continue;
       const k = key(Math.floor(c.x), Math.floor(c.z));
       let b = cells.get(k);
       if (!b) cells.set(k, (b = []));
@@ -684,7 +704,7 @@ export class Match {
     pushed.length = list.length;
     pushed.fill(false);
     for (const a of list) {
-      if (a.status !== "alive" || this.seats[a.index] >= 0) continue;
+      if (!this.moves(a) || this.seats[a.index] >= 0) continue;
       const q = Math.floor(a.x);
       const r = Math.floor(a.z);
       for (let dq = -1; dq <= 1; dq++) {
@@ -711,7 +731,12 @@ export class Match {
       }
     }
     // A bump never puts anyone inside a wall.
-    for (const c of list) if (pushed[c.index]) this.world.space.resolve(c, MOVE.radius);
+    const walls = this.world.course?.walls;
+    for (const c of list) {
+      if (!pushed[c.index]) continue;
+      if (walls) clearOfWalls(c, walls, MOVE.radius);
+      else this.world.space.resolve(c, MOVE.radius);
+    }
   }
 
   // ── Death and coming back ──

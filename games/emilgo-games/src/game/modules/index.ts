@@ -5,7 +5,9 @@
 import type { ModuleId } from "../../content/modes";
 import type { RuleModule } from "../core/module";
 import { AirfallModule } from "./airfall";
+import { BallsModule } from "./balls";
 import { CaptureModule } from "./capture";
+import { DollModule } from "./doll";
 import { DropzonesModule } from "./dropzones";
 import { FlagsModule } from "./flags";
 import { GadgetsModule } from "./gadgets";
@@ -23,11 +25,12 @@ import { MeleeModule } from "./melee";
 import { VehiclesModule } from "./vehicles";
 import { ZoneModule } from "./zone";
 
-/** Phase 3: the zone, items and Airfall. Phase 4: melee, flags, drop zones, the rally point. Phase 5: vehicles. */
-export const MATCH_MODULES: ReadonlySet<ModuleId> = new Set<ModuleId>(["zone", "items", "airfall", "melee", "flags", "dropzones", "capture", "vehicles", "gadgets", "tag", "blackout", "economy", "riddles", "rooms", "harmattan", "traffic", "zips", "survival"]);
+/** Phase 3: the zone, items and Airfall. Phase 4: melee, flags, drop zones, the rally point. Phase 5: vehicles. Phase 11: Ball Haunt's doll and balls. */
+export const MATCH_MODULES: ReadonlySet<ModuleId> = new Set<ModuleId>(["doll", "balls", "zone", "items", "airfall", "melee", "flags", "dropzones", "capture", "vehicles", "gadgets", "tag", "blackout", "economy", "riddles", "rooms", "harmattan", "traffic", "zips", "survival"]);
 
 /**
- * The modules for a mode's settings, in the order they step: vehicles first
+ * The modules for a mode's settings, in the order they step: Ball Haunt's
+ * doll and balls (on a corridor of their own, never with the rest), vehicles first
  * (the drivers drive, and riders' buttons are theirs before melee sees
  * them), the zone (it judges exposure and may end a life), then melee (its knockdowns drop
  * what's in your hands), then items (a death's loot bag), Airfall (which
@@ -36,6 +39,9 @@ export const MATCH_MODULES: ReadonlySet<ModuleId> = new Set<ModuleId>(["zone", "
  */
 export function makeModules(mods: Partial<Record<ModuleId, Record<string, unknown>>>): RuleModule[] {
   const out: RuleModule[] = [];
+  // Ball Haunt: the song and the swings, then the balls (the doll judges with them in hand).
+  if (mods.doll) out.push(new DollModule(mods.doll));
+  if (mods.balls) out.push(new BallsModule(mods.balls));
   if (mods.vehicles) out.push(new VehiclesModule(mods.vehicles));
   // Dead Streets' rules first: its zombies' paces are set before anyone moves.
   if (mods.survival) out.push(new SurvivalModule(mods.survival));

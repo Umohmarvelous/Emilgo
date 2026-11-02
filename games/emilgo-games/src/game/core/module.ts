@@ -1,5 +1,5 @@
 // A rule module (SPEC-V3 §1.1): one kind of rule a mode can switch on — the
-// zone, items, Airfall, later melee, flags, vehicles, zombies. A mode is a
+// zone, items, Airfall, melee, flags, vehicles, zombies, Ball Haunt's song. A mode is a
 // list of modules and their numbers (content/modes.ts); the match core
 // (match.ts) runs the bodies and the clock and calls each module in turn.
 //
@@ -7,11 +7,12 @@
 // All their randomness comes from the match's seeded streams, so the server
 // and every phone referee the same match.
 
-import type { VehicleKind } from "../../config";
+import type { AttackKind, VehicleKind } from "../../config";
 import type { ItemId } from "../../content/items";
 import type { ModuleId } from "../../content/modes";
 import type { GadgetKind } from "../modules/gadgets";
 import type { PropId, SwingKind } from "../modules/melee";
+import type { Phase } from "../phases";
 import type { Cause, Contestant } from "./body";
 import type { Match } from "./match";
 
@@ -162,7 +163,18 @@ export type MatchEvent =
   | { type: "grabbed"; id: string }
   | { type: "horde"; id: string }
   /** The Last Stand at the Mast: hold until `until` (seconds of play). */
-  | { type: "stand"; id: string; until: number };
+  | { type: "stand"; id: string; until: number }
+  // ── Ball Haunt (Phase 11, doll.ts and balls.ts) ──
+  /** The cycle moves on: the song, the hum, the eye opening, watching, closing (the doll's names). */
+  | { type: "doll"; phase: Exclude<Phase, "walkout" | "countdown" | "ended">; duration: number }
+  /** Over the line, safe: the time it took and the place. */
+  | { type: "finished"; id: string; time: number; place: number }
+  /** A swing. `target` is who it landed on (null: it missed); `dropped` the ball it knocked loose, or −1. */
+  | { type: "attack"; id: string; kind: AttackKind; target: string | null; dropped: number }
+  | { type: "grab"; id: string; ball: number }
+  /** A ball rolls loose (knocked out of someone's hands, or theirs as they fall). */
+  | { type: "ball"; ball: number; x: number; z: number }
+  | { type: "bank"; id: string; ball: number; basket: number };
 
 /** Why someone went down: melee's reasons, then a car's (pulled out, thrown by a blast, out at speed). */
 export type DownWhy = "daze" | "trip" | "tackle" | "throw" | "ringout" | "hijack" | "blast" | "tumble";
