@@ -33,7 +33,7 @@ import { Rng } from "../../core/rng";
 import type { BoostMods } from "../../shop/boosts";
 import { makeModules } from "../modules";
 import type { ZoneModule } from "../modules/zone";
-import { freshMotion, moveContestant, setBoosts, type Cause, type Contestant } from "./body";
+import { freshMotion, moveContestant, NORMAL_ENV, setBoosts, type Cause, type Contestant, type MoveEnv } from "./body";
 import type { MatchEvent, MatchPhase, RuleModule } from "./module";
 import { reachOf, type Reach } from "./reach";
 import type { CourtRoom } from "../../maps/open/prefabs";
@@ -62,15 +62,36 @@ export interface MatchWorld {
   readonly arena?: { x: number; z: number; r: number };
 }
 
-/** What a mode asks of the match, after the Ranked overrides. */
+/** What a mode asks of the match, after the Ranked overrides and this week's mutator. */
 export interface MatchSettings {
   time: number;
   respawn: { on: boolean; delay: number };
   modules: Partial<Record<ModuleId, Record<string, unknown>>>;
+  /** This week's mutator (SPEC-V3 §10.13), if any. */
+  mutator?: Mutator;
+}
+
+/** The weekly mutators (§10.13): Juju Day (low gravity), Rainy Season (slippery), Market Day (double items). */
+export type Mutator = "juju" | "rainy" | "market";
+export const MUTATORS: readonly Mutator[] = ["juju", "rainy", "market"];
+
+/**
+ * This week's mutator: none, Market Day, Juju Day, Rainy Season in turn, by
+ * the week of the year (UTC). The server says which in a match's start, so a
+ * phone's copy plays the same week.
+ */
+export function weeklyMutator(ms: number): Mutator | undefined {
+  const week = Math.floor((ms / 86_400_000 + 3) / 7);
+  return ([undefined, "market", "juju", "rainy"] as const)[((week % 4) + 4) % 4];
+}
+
+/** How a mutator changes the ground and the air. */
+export function envOf(mu: Mutator | undefined): MoveEnv {
+  return mu === "juju" ? { grav: 0.55, slip: 1 } : mu === "rainy" ? { grav: 1, slip: 0.45 } : NORMAL_ENV;
 }
 
 /** A mode's settings, Ranked or not ("module.key" overrides; "respawn.on"). */
-export function settingsOf(def: Pick<ModeDef, "time" | "respawn" | "modules" | "ranked">, ranked = false): MatchSettings {
+export function settingsOf(def: Pick<ModeDef, "time" | "respawn" | "modules" | "ranked">, ranked = false, mutator?: Mutator): MatchSettings {
   const modules = JSON.parse(JSON.stringify(def.modules)) as MatchSettings["modules"];
   const respawn = { on: def.respawn.on, delay: def.respawn.delay ?? 6 };
   if (ranked) {
@@ -83,7 +104,9 @@ export function settingsOf(def: Pick<ModeDef, "time" | "respawn" | "modules" | "
       }
     }
   }
-  return { time: def.time, respawn, modules };
+  // Market Day: twice the items on the ground.
+  if (mutator === "market" && modules.items) modules.items = { ...modules.items, density: Math.min(2, Number(modules.items.density ?? 1) * 2) };
+  return { time: def.time, respawn, modules, ...(mutator ? { mutator } : {}) };
 }
 
 export interface MatchOptions {
@@ -165,6 +188,8 @@ export class Match {
   private readonly fast: (BoostMods | null)[];
   private readonly respawnAt: number[];
   private readonly respawnRng: Rng;
+  /** The ground and the air (this week's mutator). */
+  readonly env: MoveEnv;
   /** The car each body sits in (vehicles), or −1. */
   private readonly seats: Int16Array;
 
@@ -227,6 +252,7 @@ export class Match {
     this.fast = new Array(n).fill(null);
     this.respawnAt = new Array(n).fill(-1);
     this.seats = new Int16Array(n).fill(-1);
+    this.env = envOf(opts.settings.mutator);
 
     this.modules = makeModules(opts.settings.modules);
     for (const m of this.modules) this.byModule.set(m.id, m);
@@ -618,7 +644,7 @@ export class Match {
       s.sprint = src.sprint * k;
       c.bst = s;
     } else c.bst = src;
-    moveContestant(c, dt, DEFAULT_COURSE, space);
+    moveContestant(c, dt, DEFAULT_COURSE, space, this.env);
   }
 
   private readonly sepCells = new Map<number, number[]>();

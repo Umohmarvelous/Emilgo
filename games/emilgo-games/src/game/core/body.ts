@@ -124,7 +124,18 @@ export function isMoving(c: Contestant): boolean {
  * identically. Finishing, collisions and judging are NOT here — only the
  * referee does those.
  */
-export function moveContestant(c: Contestant, dt: number, course: Course = DEFAULT_COURSE, space: Space | null = null): void {
+/**
+ * The ground and the air this match (a weekly mutator, SPEC-V3 §10.13):
+ * `grav` × gravity (Juju Day: lower, so jumps go higher and hang), `slip` ×
+ * how fast you speed up and slow down (Rainy Season: less, so you slide).
+ */
+export interface MoveEnv {
+  grav: number;
+  slip: number;
+}
+export const NORMAL_ENV: Readonly<MoveEnv> = { grav: 1, slip: 1 };
+
+export function moveContestant(c: Contestant, dt: number, course: Course = DEFAULT_COURSE, space: Space | null = null, env: Readonly<MoveEnv> = NORMAL_ENV): void {
   if (c.status === "eliminated") return;
 
   if (c.stun > 0) c.stun = Math.max(0, c.stun - dt);
@@ -194,8 +205,9 @@ export function moveContestant(c: Contestant, dt: number, course: Course = DEFAU
   }
   if (c.y > 0 || c.vy > 0) {
     // Exact for constant gravity, so the peak is the same at any step size.
-    c.y += c.vy * dt - 0.5 * MOVE.gravity * dt * dt;
-    c.vy -= MOVE.gravity * dt;
+    const g = MOVE.gravity * env.grav;
+    c.y += c.vy * dt - 0.5 * g * dt * dt;
+    c.vy -= g * dt;
     if (c.y <= 0) {
       c.y = 0;
       c.vy = 0;
@@ -229,7 +241,7 @@ export function moveContestant(c: Contestant, dt: number, course: Course = DEFAU
   let dvz = tz - c.vz;
   const dv = Math.hypot(dvx, dvz);
   const current = Math.hypot(c.vx, c.vz);
-  const rate = (c.y > 0 ? MOVE.airAccel : speed >= current ? MOVE.accel : MOVE.decel) * dt;
+  const rate = (c.y > 0 ? MOVE.airAccel : speed >= current ? MOVE.accel : MOVE.decel) * env.slip * dt;
   if (dv > rate) {
     dvx *= rate / dv;
     dvz *= rate / dv;

@@ -70,6 +70,8 @@ export interface FfaPlayState {
   /** The Ranked queue (Phase 6): picked, and whether your rank has opened it (Pro I). */
   ranked: boolean;
   rankedOpen: boolean;
+  /** This week's mutator, named ("" for none). */
+  mutator: string;
 }
 
 /** A Free For All match's results. */
@@ -743,6 +745,7 @@ export class Screens {
         ? `<div class="label">Lagos Life match</div><span class="small">The Flag Duel on the market: the first to find the hidden flag and hold it for 10 s wins. Melee, the zone and items are on. Every staked match plays the same.</span>`
         : `<div class="label">Mode</div><div class="seg wrap ffa-modes">${seg || `<span class="small">No mode here yet.</span>`}</div>
            ${ranked}
+           ${s.mutator ? `<span class="small mu">${icon("star", "", 12)} ${esc(t("This week"))}: ${esc(t(s.mutator))}</span>` : ""}
            ${p ? `<span class="small">${esc(p.blurb.en)} ${p.players.min === p.players.max ? `${p.players.max} players` : `${p.players.min}–${p.players.max} players`}${p.players.squad[1] > 1 ? `, squads of ${p.players.squad[0] === p.players.squad[1] ? p.players.squad[0] : `up to ${p.players.squad[1]}`}` : ""}, ${Math.round(p.time / 60)} min.</span>` : ""}`;
     const label = s.mode === "friends" ? "Make a room" : s.mode === "solo" ? "Practice" : s.mode === "lagos" ? "Stakes" : "Find a match";
     const blocked = off(s.mode) || s.connecting || (s.mode !== "lagos" && !picked) || (s.mode === "new" && !lead);

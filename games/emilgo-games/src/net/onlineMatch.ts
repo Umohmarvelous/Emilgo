@@ -94,7 +94,7 @@ export class OnlineMatch {
     this.match = new Match({
       seed: start.seed,
       world,
-      settings: settingsOf(def, f.rk === 1),
+      settings: settingsOf(def, f.rk === 1, f.mu),
       contestants: start.roster.map((r, i) => ({ id: r.id, name: r.name, bot: false, squad: f.sq[i] })),
       countdown: f.cd,
       mirror: true,

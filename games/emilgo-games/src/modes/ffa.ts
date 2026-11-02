@@ -15,7 +15,7 @@ import { ITEM_DEFS } from "../content/items";
 import { type ModeDef } from "../content/modes";
 import { Rng } from "../core/rng";
 import type { Contestant } from "../game/core/body";
-import { Match, settingsOf, type MatchWorld } from "../game/core/match";
+import { Match, settingsOf, weeklyMutator, type MatchWorld } from "../game/core/match";
 import type { MatchEvent } from "../game/core/module";
 import type { CaptureModule } from "../game/modules/capture";
 import type { FlagsModule } from "../game/modules/flags";
@@ -78,7 +78,7 @@ class LocalSource implements Source {
   readonly me: Contestant;
 
   constructor(readonly def: ModeDef, seed: number, world: MatchWorld, name: string) {
-    this.match = new Match({ seed, world, settings: settingsOf(def), contestants: [{ id: "me", name, bot: false }], countdown: 3 });
+    this.match = new Match({ seed, world, settings: settingsOf(def, false, def.tags?.includes("staked") ? undefined : weeklyMutator(Date.now())), contestants: [{ id: "me", name, bot: false }], countdown: 3 });
     this.me = this.match.contestants[0];
   }
 
@@ -306,6 +306,8 @@ export class FfaMode implements GameMode {
         if (e.phase === "play") {
           const b = this.src.def.blurb;
           h.hud.pushFeed(getLang() === "pcm" && b.pcm ? b.pcm : b.en, "info");
+          const mu = m.settings.mutator;
+          if (mu) h.hud.pushFeed(`${t("This week")}: ${t(MUTATOR_NAME[mu])}`, "info");
           h.haptic("select");
         }
         break;
@@ -612,6 +614,9 @@ export class FfaMode implements GameMode {
     h.rig.near = null;
   }
 }
+
+/** The weekly mutators' names (§10.13). */
+export const MUTATOR_NAME = { juju: "Juju Day: low gravity", rainy: "Rainy Season: slippery ground", market: "Market Day: double items" } as const;
 
 /** What the mode's measure is called on the results ("" when it has none). */
 function measureName(m: Match): string {

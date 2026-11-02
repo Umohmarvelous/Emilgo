@@ -13,6 +13,7 @@
 //          server keeps the log) and replays them into a fresh copy.
 
 import type { Cause } from "../game/core/body";
+import type { Mutator } from "../game/core/match";
 import type { MatchEvent, MatchPhase } from "../game/core/module";
 import type { WireLook } from "../shop/catalog";
 
@@ -33,6 +34,8 @@ export interface FfaStart {
   cd: number;
   /** Ranked (Phase 6): the mode's `ranked` overrides apply. */
   rk?: 1;
+  /** This week's mutator (§10.13), if any: the copy plays the same ground and air. */
+  mu?: Mutator;
 }
 
 export interface MatchSnap {

@@ -10,7 +10,7 @@ const FLAGS_BOUNTY = FLAGS.bounty;
 import type { ItemId } from "../../src/content/items";
 import { BUILTIN_MANIFEST } from "../../src/content/modes";
 import type { Contestant } from "../../src/game/core/body";
-import { Match, settingsOf, type MatchSettings } from "../../src/game/core/match";
+import { Match, settingsOf, weeklyMutator, type MatchSettings, type Mutator } from "../../src/game/core/match";
 import type { MatchEvent } from "../../src/game/core/module";
 import { Space } from "../../src/game/core/space";
 import type { GadgetsModule } from "../../src/game/modules/gadgets";
@@ -697,6 +697,55 @@ console.log("the extras (§10):");
   m.module<MeleeModule>("melee")!.knockdown(m, lead, 1, "daze", m.get("p1")!);
   const ev = runFor(m, 0.05);
   check(ev.some((e) => e.type === "bounty" && e.id === "p1") && f.held[1] === 4 + FLAGS_BOUNTY && f.held[0] === 30 - FLAGS_BOUNTY, `Daze the leader in Hold the Flag: ${FLAGS_BOUNTY} of their seconds are yours`);
+}
+
+{
+  // §10.13: the weekly mutators.
+  const peak = (mu?: Mutator) => {
+    const m = newMatch(90, bare("find-the-flag", (s) => (s.mutator = mu)), 2);
+    runFor(m, 0.1);
+    clear(m, ["p0"]);
+    const c = put(m, "p0", YX, YZ);
+    c.inJump++;
+    let top = 0;
+    runFor(m, 1.5, [], () => (top = Math.max(top, c.y)));
+    return top;
+  };
+  const p0 = peak();
+  const pj = peak("juju");
+  check(pj > p0 * 1.5, `Juju Day: the jump goes higher (${p0.toFixed(2)} → ${pj.toFixed(2)} m)`);
+  const slide = (mu?: Mutator) => {
+    const m = newMatch(91, bare("find-the-flag", (s) => (s.mutator = mu)), 2);
+    runFor(m, 0.1);
+    clear(m, ["p0"]);
+    const c = put(m, "p0", YX, YZ, EAST);
+    c.inX = 1;
+    runFor(m, 1.5);
+    const x0 = c.x;
+    c.inX = 0;
+    runFor(m, 1.5);
+    return c.x - x0;
+  };
+  const s0 = slide();
+  const sr = slide("rainy");
+  check(sr > s0 * 1.5, `Rainy Season: let go and you slide on (${s0.toFixed(2)} → ${sr.toFixed(2)} m)`);
+  const dens = (mu?: Mutator) => Number(settingsOf(def("find-the-flag"), false, mu).modules.items?.density ?? 1);
+  check(dens("market") === Math.min(2, dens() * 2), `Market Day: twice the items (${dens()} → ${dens("market")})`);
+  const count = (mu?: Mutator) => {
+    const m = new Match({ seed: 92, world, settings: settingsOf(def("find-the-flag"), false, mu), contestants: [{ id: "a", name: "A", bot: false }, { id: "b", name: "B", bot: false }] });
+    runFor(m, 0.1);
+    return m.module<ItemsModule>("items")!.items.length;
+  };
+  check(count("market") > count() * 1.6, `Market Day on the ground: ${count()} → ${count("market")} items`);
+  const wk = 7 * 86_400_000;
+  const seen = new Set(Array.from({ length: 4 }, (_, i) => weeklyMutator(Date.UTC(2026, 10, 2) + i * wk)));
+  check(seen.size === 4 && seen.has(undefined) && weeklyMutator(Date.UTC(2026, 10, 2)) === weeklyMutator(Date.UTC(2026, 10, 8, 23)), "four weeks, four turns (one plain week); Monday to Sunday holds its mutator");
+  const roster = [{ id: "a", name: "A" }, { id: "b", name: "B" }];
+  const now = weeklyMutator(Date.now());
+  const g = new FfaGame(def("find-the-flag"), 5, roster, [0, 1]);
+  check(g.start.mu === now && g.match.settings.mutator === now, `the start message carries this week's mutator (${now ?? "none"})`);
+  const st = new FfaGame(def("flag-duel"), 5, roster, [0, 1]);
+  check(!st.start.mu && !st.match.settings.mutator, "a staked match: no mutator, ever");
 }
 
 void MELEE;

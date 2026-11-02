@@ -85,7 +85,8 @@ import type { ModeDef } from "../content/modes";
 import { buildOpenWorldIdle, type OpenWorld } from "../maps/open/build";
 import { buildNaijaWorld } from "../maps/open/naija";
 import type { MatchSnap, WireEvent } from "../net/matchWire";
-import { FfaMode } from "../modes/ffa";
+import { FfaMode, MUTATOR_NAME } from "../modes/ffa";
+import { weeklyMutator } from "./core/match";
 import { FfaCards } from "../ui/ffaCards";
 import type { ModeHost, ModeResult } from "../modes/types";
 import { Content } from "../content/load";
@@ -811,6 +812,7 @@ export class Game {
         party: this.party && net ? { ...this.party, me: this.seatId ?? net.id } : null,
         ranked: this.settings.ranked,
         rankedOpen: rankOf(this.rankXp).k >= DIVISIONS,
+        mutator: ((mu) => (mu ? MUTATOR_NAME[mu] : ""))(weeklyMutator(Date.now())),
       });
       return;
     }

@@ -10,7 +10,7 @@ import { randomInt } from "node:crypto";
 import { BUILTIN_MANIFEST, type ModeDef } from "../../src/content/modes";
 import { buildable } from "../../src/content/catalog";
 import { actCode } from "../../src/game/combat";
-import { Match, settingsOf, type MatchWorld, type Standing } from "../../src/game/core/match";
+import { Match, settingsOf, weeklyMutator, type MatchWorld, type Standing } from "../../src/game/core/match";
 import { Space } from "../../src/game/core/space";
 import type { FlagsModule } from "../../src/game/modules/flags";
 import type { MeleeModule } from "../../src/game/modules/melee";
@@ -123,11 +123,13 @@ export class FfaGame {
     squads: number[],
     readonly ranked = false,
   ) {
-    this.start = { mode: def.id, v: def.v, map: def.map, sq: squads, cd: FFA_COUNTDOWN, ...(ranked ? { rk: 1 as const } : {}) };
+    // This week's mutator (§10.13): not in a staked match.
+    const mu = def.tags?.includes("staked") ? undefined : weeklyMutator(Date.now());
+    this.start = { mode: def.id, v: def.v, map: def.map, sq: squads, cd: FFA_COUNTDOWN, ...(ranked ? { rk: 1 as const } : {}), ...(mu ? { mu } : {}) };
     this.match = new Match({
       seed,
       world: worldFor(def.map),
-      settings: settingsOf(def, ranked),
+      settings: settingsOf(def, ranked, mu),
       contestants: roster.map((r, i) => ({ id: r.id, name: r.name, bot: false, squad: squads[i] })),
       countdown: FFA_COUNTDOWN,
       // Hidden things (the flag's stash, the circles to come) from a seed no phone has.
