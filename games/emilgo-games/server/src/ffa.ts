@@ -234,6 +234,14 @@ export class FfaGame {
   }
 
   /** "draw", or the winning seat (a staked duel: first to claim the flag; a timeout is a draw). */
+  /** The other seats in seat's squad (none in a solo match). */
+  squadMates(seat: string): string[] {
+    const m = this.match;
+    const c = m.get(seat);
+    if (!c) return [];
+    return m.contestants.filter((o) => o !== c && m.sameSquad(o, c)).map((o) => o.id);
+  }
+
   winner(): string {
     return this.match.winner?.id ?? "draw";
   }

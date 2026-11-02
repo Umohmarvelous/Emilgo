@@ -31,7 +31,9 @@ import { OnlineMatch } from "../net/onlineMatch";
 import type { ServerMsg, StartInfo } from "../net/protocol";
 import { fromWire, type WireLook } from "../shop/catalog";
 import type { MapMark } from "../ui/hud";
+import type { ItemsModule } from "../game/modules/items";
 import { getLang, t } from "../ui/i18n";
+import { PING_LINES } from "../ui/quickchat";
 import { PlayHud } from "../ui/play";
 import { accentOf } from "../world/crowd";
 import { displacement, FfaView, PLAY_SCORE, PROP_NAME } from "../world/ffa";
@@ -105,6 +107,9 @@ class LocalSource implements Source {
   dispose(): void {}
 }
 
+/** A squad ping stays on the map this long (s). */
+const PING_SHOW = 8;
+
 export class FfaMode implements GameMode {
   over = false;
   private src: Source;
@@ -138,6 +143,8 @@ export class FfaMode implements GameMode {
   private trailAt = 0;
   private lastCount = -1;
   private spectate = -1;
+  /** Squad pings on the map (§10.7): what, where, until when (seconds of play). */
+  private readonly pings: { k: number; x: number; z: number; until: number }[] = [];
 
   private constructor(
     private readonly host: ModeHost,
@@ -246,6 +253,10 @@ export class FfaMode implements GameMode {
   }
 
   receive(msg: ServerMsg): boolean {
+    if (msg.t === "sping") {
+      this.showPing(msg.from, msg.k, msg.x, msg.z);
+      return true;
+    }
     if (msg.t !== "msync" || !this.online) return false;
     // Back after a drop: the match rebuilt from the server's log (the screen carries on).
     if (msg.sync.seed !== this.src.match.seed) return false;
@@ -253,6 +264,43 @@ export class FfaMode implements GameMode {
     this.src.dispose();
     this.src = next;
     return true;
+  }
+
+  // ── Squad pings (§10.7) ────────────────────────────────────────────────────
+
+  /** Where ping k points: you (Help, Here), the nearest item on the ground (Item), or 18 m where you look. */
+  pingSpot(k: number): { x: number; z: number } | null {
+    const m = this.src.match;
+    const me = this.src.me;
+    if (!me || me.status !== "alive") return null;
+    if (k === 1 || k === 4) return { x: me.x, z: me.z };
+    if (k === 2) {
+      let best: { x: number; z: number } | null = null;
+      let bestD = 30;
+      for (const it of m.module<ItemsModule>("items")?.items ?? []) {
+        if (it.taken) continue;
+        const d = Math.hypot(it.x - me.x, it.z - me.z);
+        if (d < bestD) {
+          bestD = d;
+          best = { x: it.x, z: it.z };
+        }
+      }
+      if (best) return best;
+    }
+    // The camera looks along (−sin yaw, −cos yaw).
+    const yaw = this.host.rig.yaw;
+    return { x: me.x - Math.sin(yaw) * 18, z: me.z - Math.cos(yaw) * 18 };
+  }
+
+  /** A ping from `from` (you or a squad mate): on the map for a few seconds, and in the feed. */
+  showPing(from: string, k: number, x: number, z: number): void {
+    const m = this.src.match;
+    const c = m.get(from);
+    if (!c) return;
+    this.pings.push({ k, x, z, until: m.elapsed + PING_SHOW });
+    if (this.pings.length > 8) this.pings.shift();
+    const what = t(PING_LINES[k] ?? "Here");
+    this.host.hud.pushFeed(`${c === this.src.me ? t("You") : c.name}: ${what}`, k === 3 ? "out" : "safe");
   }
 
   // ── Fixed step ─────────────────────────────────────────────────────────────
@@ -476,6 +524,11 @@ export class FfaMode implements GameMode {
 
     // The map: your squad and the objectives only (rivals aren't shown: a holder's ping is the point).
     this.marks.length = 0;
+    for (let k = this.pings.length - 1; k >= 0; k--) {
+      const p = this.pings[k];
+      if (p.until <= m.elapsed) this.pings.splice(k, 1);
+      else this.marks.push({ x: p.x, z: p.z, kind: "ping" });
+    }
     const tg = this.view.target(m);
     const car = this.carFrame(dt, m, me, cam);
     const flagNear = tg

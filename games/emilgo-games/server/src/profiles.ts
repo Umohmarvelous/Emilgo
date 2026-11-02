@@ -25,12 +25,16 @@ export interface Profile {
   wins: number;
   /** YYYY-MM-DD (UTC) of the last match that counted. */
   lastDay: string;
+  /** Commends from other players after matches (SPEC-V3 §10.12): a cosmetic title. */
+  honour: number;
 }
 
 export interface ProfileStore {
   get(key: string): Profile | null;
   /** Add XP from one match; creates the profile on first use. */
   award(key: string, xp: number, won: boolean, day: string): Profile;
+  /** One more commend; the new count (creates the profile on first use). */
+  commend(key: string): number;
   remove(key: string): boolean;
   close(): void;
 }
@@ -55,8 +59,15 @@ export class SqliteProfiles implements ProfileStore {
         updated_at INTEGER NOT NULL
       );
     `);
+    // Phase 6: commends (an older file gains the column).
+    const cols = this.db.prepare("PRAGMA table_info(profiles)").all() as { name: string }[];
+    if (!cols.some((c) => c.name === "honour")) this.db.exec("ALTER TABLE profiles ADD COLUMN honour INTEGER NOT NULL DEFAULT 0");
     this.q = {
-      get: this.db.prepare("SELECT key, xp, matches, wins, last_day FROM profiles WHERE key = ?"),
+      get: this.db.prepare("SELECT key, xp, matches, wins, last_day, honour FROM profiles WHERE key = ?"),
+      commend: this.db.prepare(
+        `INSERT INTO profiles (key, xp, matches, wins, last_day, created_at, updated_at, honour) VALUES (?, 0, 0, 0, '', ?, ?, 1)
+         ON CONFLICT(key) DO UPDATE SET honour = honour + 1, updated_at = excluded.updated_at`,
+      ),
       upsert: this.db.prepare(
         `INSERT INTO profiles (key, xp, matches, wins, last_day, created_at, updated_at) VALUES (?, ?, 1, ?, ?, ?, ?)
          ON CONFLICT(key) DO UPDATE SET xp = xp + excluded.xp, matches = matches + 1, wins = wins + excluded.wins,
@@ -67,14 +78,20 @@ export class SqliteProfiles implements ProfileStore {
   }
 
   get(key: string): Profile | null {
-    const r = this.q.get.get(key) as { key: string; xp: number; matches: number; wins: number; last_day: string } | undefined;
-    return r ? { key: r.key, xp: Number(r.xp), matches: Number(r.matches), wins: Number(r.wins), lastDay: r.last_day } : null;
+    const r = this.q.get.get(key) as { key: string; xp: number; matches: number; wins: number; last_day: string; honour: number } | undefined;
+    return r ? { key: r.key, xp: Number(r.xp), matches: Number(r.matches), wins: Number(r.wins), lastDay: r.last_day, honour: Number(r.honour) } : null;
   }
 
   award(key: string, xp: number, won: boolean, day: string): Profile {
     const t = Date.now();
     this.q.upsert.run(key, Math.max(0, Math.round(xp)), won ? 1 : 0, day, t, t);
     return this.get(key)!;
+  }
+
+  commend(key: string): number {
+    const t = Date.now();
+    this.q.commend.run(key, t, t);
+    return this.get(key)!.honour;
   }
 
   remove(key: string): boolean {

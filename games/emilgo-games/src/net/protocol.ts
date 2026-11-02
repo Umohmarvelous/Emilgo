@@ -60,6 +60,10 @@ export type ClientMsg =
   // ── Social (Phase 4) ──
   | { t: "chat"; text: string }
   | { t: "emote"; e: EmoteId }
+  /** Commend a player I just played with (SPEC-V3 §10.12): once a match, soon after it ends. */
+  | { t: "commend"; id: string }
+  /** A squad ping (SPEC-V3 §10.7): go, help, item, danger, here (k 0–4), at x, z. Only my squad sees it. */
+  | { t: "sping"; k: number; x: number; z: number }
   /** Report a seat in my room. The server keeps the last few lines they said as evidence. */
   | { t: "report"; id: string; reason: ReportReason }
   /** Stop seeing each other's chat and emotes, and never quick-match together again (this session). */
@@ -240,6 +244,8 @@ export type ServerMsg =
   | { t: "vresult"; winner: string; posted: boolean }
   /** A chat line, already cleaned by the server. `from` is a seat id in this room. */
   | { t: "chat"; from: string; name: string; text: string; b?: 1 }
+  /** A squad mate's ping (§10.7). */
+  | { t: "sping"; from: string; k: number; x: number; z: number }
   | { t: "emote"; from: string; e: EmoteId }
   /** A short notice for this player only ("your message was cleaned", "reported"). */
   | { t: "note"; text: string }
@@ -260,7 +266,9 @@ export type ServerMsg =
    * earned (gain), or off: no profile (a guest, or the identity didn't check
    * out: the phone keeps its own count for this device only).
    */
-  | { t: "rank"; xp?: number; gain?: number; off?: 1 };
+  | { t: "rank"; xp?: number; gain?: number; off?: 1; hon?: number }
+  /** Someone commended you (§10.12); n: your commends now (none for a guest). */
+  | { t: "honour"; by: string; n?: number };
 
 export type ErrorCode =
   | "version" // client too old
@@ -391,6 +399,14 @@ export function parseClient(raw: string): ClientMsg | null {
     }
     case "chat":
       return typeof o.text === "string" && o.text.length <= 400 ? { t: "chat", text: o.text } : null;
+    case "commend":
+      return typeof o.id === "string" && o.id.length > 0 && o.id.length <= 64 ? { t: "commend", id: o.id } : null;
+    case "sping": {
+      const k = int(o.k, 0, 4);
+      const x = typeof o.x === "number" && Number.isFinite(o.x) && Math.abs(o.x) <= 2000 ? o.x : null;
+      const z = typeof o.z === "number" && Number.isFinite(o.z) && Math.abs(o.z) <= 2000 ? o.z : null;
+      return k === null || x === null || z === null ? null : { t: "sping", k, x, z };
+    }
     case "emote":
       return typeof o.e === "string" && (EMOTE_IDS as string[]).includes(o.e) ? { t: "emote", e: o.e as EmoteId } : null;
     case "report": {

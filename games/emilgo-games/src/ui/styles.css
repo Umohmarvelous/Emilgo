@@ -943,3 +943,8 @@ input { font: inherit; color: inherit; }
 .fc-nav .dot { width: 8px; height: 8px; padding: 0; border-radius: 50%; background: rgba(255, 255, 255, 0.3); }
 .fc-nav .dot.on { background: #ffc23a; }
 .fc-nav .btn { height: 34px; padding: 0 14px; }
+
+/* Honour (SPEC-V3 §10.12): commend a player on the results; the title beside your rank. */
+.ffa-table .commend { display: inline-grid; place-items: center; width: 22px; height: 22px; margin-left: 6px; padding: 0; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.25); background: rgba(255, 255, 255, 0.08); color: inherit; vertical-align: middle; cursor: pointer; }
+.ffa-table .commend:disabled { opacity: 0.35; cursor: default; }
+.profile .lv .honour { margin-left: 4px; color: #9fe3b8; }

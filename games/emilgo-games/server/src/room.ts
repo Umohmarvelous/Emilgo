@@ -89,6 +89,9 @@ export interface MatchSpec {
 /** "draw", or the winning seat id. */
 export type Winner = string;
 
+/** How long after a match its players can commend each other (ms). */
+const COMMEND_MS = 180_000;
+
 export class Room {
   readonly id = `r${(nextRoomId++).toString(36)}`;
   state: "lobby" | "playing" | "ended" = "lobby";
@@ -104,6 +107,10 @@ export class Room {
    * player still in it, with what the referee saw. Set once by the server.
    */
   static onAward: ((peer: Peer, facts: MatchFacts) => void) | null = null;
+  static onCommend: ((from: Peer, to: Peer) => void) | null = null;
+  /** The last match's seats, and who has commended someone from it (§10.12: once each). */
+  private played = new Set<string>();
+  private readonly commended = new Set<string>();
 
   private round: RedLightRound | null = null;
   /** The play of the game: the round's best moment, scored here so every phone shows the same one. */
@@ -145,6 +152,8 @@ export class Room {
   private game: FfaGame | null = null;
   /** A Free For All match's events not sent yet (they go out at 30 Hz). */
   private mev: WireEvent[] = [];
+  /** When each seat last pinged its squad. */
+  private readonly pinged = new Map<string, number>();
 
   get full(): boolean {
     return this.members.length >= this.size;
@@ -457,6 +466,8 @@ export class Room {
     if (game.over) {
       this.state = "ended";
       this.endedAt = now();
+      this.played = new Set(game.roster.map((r) => r.id));
+      this.commended.clear();
       if (this.kind === "match") this.onDecided?.(this, game.winner());
       const hook = Room.onAward;
       if (hook && game.roster.length >= 2) {
@@ -567,6 +578,30 @@ export class Room {
     peer.remember(text);
     const msg = Buffer.from(JSON.stringify({ t: "chat", from: this.seatOf(peer), name: peer.name, text, ...(peer.look.b ? { b: 1 } : {}) }));
     for (const m of this.members) if (!m.blockedWith(peer)) m.sendRaw(msg);
+  }
+
+  /** Commend someone from the match just played (§10.12): once each, within COMMEND_MS of its end. */
+  commend(peer: Peer, id: string): void {
+    const seat = this.seatOf(peer);
+    const target = this.peerInSeat(id);
+    if (!target || target === peer || !this.played.has(seat) || !this.played.has(id)) return;
+    if (!this.endedAt || now() - this.endedAt > COMMEND_MS || this.commended.has(peer.id)) return;
+    this.commended.add(peer.id);
+    Room.onCommend?.(peer, target);
+  }
+
+  /** A squad ping (§10.7): to the pinger's squad mates only (never rivals), at most one a second. */
+  squadPing(peer: Peer, k: number, x: number, z: number): void {
+    const game = this.game;
+    if (!game || this.state !== "playing") return;
+    const seat = this.seatOf(peer);
+    const t = Date.now();
+    if (t - (this.pinged.get(seat) ?? 0) < 1000) return;
+    this.pinged.set(seat, t);
+    const mates = game.squadMates(seat);
+    if (!mates.length) return;
+    const msg = Buffer.from(JSON.stringify({ t: "sping", from: seat, k, x: Math.round(x * 10) / 10, z: Math.round(z * 10) / 10 }));
+    for (const m of this.members) if (m !== peer && mates.includes(this.seatOf(m)) && !m.blockedWith(peer)) m.sendRaw(msg);
   }
 
   emote(peer: Peer, e: EmoteId): void {

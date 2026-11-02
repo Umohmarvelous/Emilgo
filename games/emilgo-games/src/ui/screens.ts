@@ -83,7 +83,9 @@ export interface FfaResultView {
   sides: number;
   seconds: number;
   measure: string;
-  rows: { place: number; name: string; me: boolean; squad: number; objective: number; won: boolean }[];
+  rows: { id: string; place: number; name: string; me: boolean; squad: number; objective: number; won: boolean }[];
+  /** Online: you've commended someone from this match already (§10.12: once a match). */
+  commended?: boolean;
   online: "quick" | "private" | "match" | null;
   matchNote?: string | null;
   xp: number | null;
@@ -93,6 +95,11 @@ export interface FfaResultView {
   /** The play of the game (§10.11), and where you went (§10.22). */
   play?: string;
   trail?: readonly [number, number, number][];
+}
+
+/** Honour's cosmetic title (§10.12) for this many commends, or null. */
+export function honourTitle(n: number): string | null {
+  return n >= 50 ? "Odogwu" : n >= 20 ? "Respected" : n >= 5 ? "Honoured" : null;
 }
 
 /** The results' XP line: what the round earned toward your rank, and where the rank stands. */
@@ -264,7 +271,7 @@ export class Screens {
         <div class="avatar" data-avatar></div>
         <div class="who">
           <span class="nm" data-name></span>
-          <span class="lv" title="${rk.into.toLocaleString()} / ${rk.need.toLocaleString()} XP${s.rankSaved ? "" : " (this device)"}"><b>${esc(rk.name.toUpperCase())}</b><span class="bar gold"><i style="width:${rk.top ? 100 : Math.round((rk.into / rk.need) * 100)}%"></i></span>${settings.founder ? `<span class="founder">FOUNDER</span>` : ""}</span>
+          <span class="lv" title="${rk.into.toLocaleString()} / ${rk.need.toLocaleString()} XP${s.rankSaved ? "" : " (this device)"}"><b>${esc(rk.name.toUpperCase())}</b><span class="bar gold"><i style="width:${rk.top ? 100 : Math.round((rk.into / rk.need) * 100)}%"></i></span>${settings.founder ? `<span class="founder">FOUNDER</span>` : ""}${honourTitle(settings.honour) ? `<span class="founder honour">${esc(t(honourTitle(settings.honour)!).toUpperCase())}</span>` : ""}</span>
           <span class="meta">${s.board ? `<span>BOARD <b>${esc(s.board)}</b></span>` : ""}<span>BEST <b>${settings.best || 0}</b></span><span>CP <b>${settings.cp}</b></span></span>
         </div>
       </div>
@@ -793,7 +800,11 @@ export class Screens {
     const mine = r.rows.findIndex((x) => x.me);
     const shown = r.rows.filter((_, i) => i < 5 || i === mine);
     const rows = shown
-      .map((x) => `<tr class="${x.me ? "me" : ""}"><td class="num">${x.place}</td><td>${esc(x.name)}${x.me ? " · You" : ""}</td><td class="num">${r.measure ? (Number.isInteger(x.objective) ? x.objective : x.objective.toFixed(1)) : ""}</td></tr>`)
+      .map((x) => {
+        // Honour (§10.12): commend one player you just played with.
+        const commend = r.online && !x.me ? `<button class="mini commend" data-act="commend" data-id="${esc(x.id)}" aria-label="Commend ${esc(x.name)}" ${r.commended ? "disabled" : ""}>${icon("respect", "", 13)}</button>` : "";
+        return `<tr class="${x.me ? "me" : ""}"><td class="num">${x.place}</td><td>${esc(x.name)}${x.me ? " · You" : ""} ${commend}</td><td class="num">${r.measure ? (Number.isInteger(x.objective) ? x.objective : x.objective.toFixed(1)) : ""}</td></tr>`;
+      })
       .join("");
     this.mount(
       "results",

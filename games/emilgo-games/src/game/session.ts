@@ -63,7 +63,7 @@ import { Hud, type MapMark } from "../ui/hud";
 import { QuickChat } from "../ui/quickchat";
 import { Scoreboard } from "../ui/scoreboard";
 import type { TerrainShot } from "../ui/minimap";
-import { Screens, naira, payoutOf, type FfaResultView, type LobbyTab, type OnlineAvailability, type PlayMode, type ResultInfo } from "../ui/screens";
+import { Screens, honourTitle, naira, payoutOf, type FfaResultView, type LobbyTab, type OnlineAvailability, type PlayMode, type ResultInfo } from "../ui/screens";
 import { ReplayOverlay } from "../ui/replay";
 import { Bubbles, ChatPanel, EmoteWheel } from "../ui/social";
 import { CameraRig } from "../world/camera";
@@ -431,7 +431,18 @@ export class Game {
     this.controls.onWheelMove = (x, y) => this.wheel.hover(x, y);
     this.controls.onChat = () => this.chat.toggle();
     // Quick chat: online it's a chat line to the room; in practice a bubble over you.
-    this.controls.onQuick = () => this.quick.toggle();
+    this.controls.onQuick = () => {
+      // In Free For All: the squad ping wheel (§10.7).
+      this.quick.setPings(this.gm instanceof FfaMode, t);
+      this.quick.toggle();
+    };
+    this.quick.onPing((k) => {
+      const gm = this.gm instanceof FfaMode ? this.gm : null;
+      const spot = gm?.pingSpot(k);
+      if (!gm || !spot) return;
+      if (this.mode === "online" && this.net) this.net.send({ t: "sping", k, x: spot.x, z: spot.z });
+      gm.showPing(this.meId, k, spot.x, spot.z);
+    });
     this.quick.onSend((text) => {
       if (this.mode === "online" && this.net) this.net.send({ t: "chat", text });
       const me = this.round?.get(this.meId);
@@ -1865,7 +1876,18 @@ export class Game {
         this.friends.hello();
         break;
       case "rank":
+        if (m.hon !== undefined) this.settings.honour = m.hon;
         this.onRank(m);
+        break;
+      case "honour":
+        if (m.n !== undefined) {
+          const was = honourTitle(this.settings.honour);
+          this.settings.honour = m.n;
+          saveSettings(this.host, this.settings);
+          const now = honourTitle(m.n);
+          if (now && now !== was) this.screens.toast(`${t("New title")}: ${t(now)}`);
+        }
+        this.screens.toast(`${m.by} ${t("commended you")}`);
         break;
       case "stats":
         // The whole server's numbers: the lobby shows your friends instead.
@@ -2854,6 +2876,15 @@ export class Game {
         else if (def) this.cards.show(def.id, def.name.en);
         break;
       }
+      case "commend": {
+        const id = node.dataset.id;
+        const f = this.ffaRes;
+        if (!id || !f || f.commended || this.mode !== "online" || !this.net) break;
+        this.net.send({ t: "commend", id });
+        f.commended = true;
+        for (const b of this.screens.root.querySelectorAll<HTMLButtonElement>("[data-act=commend]")) b.disabled = true;
+        break;
+      }
       case "ffa-again":
         this.ffaRes = null;
         if (this.mode === "online") {
@@ -3325,7 +3356,7 @@ export class Game {
       sides: new Set(r.standings.map((x) => x.squad)).size,
       seconds: r.seconds,
       measure: r.measure,
-      rows: r.standings.map((x) => ({ place: x.place, name: x.name, me: x.me, squad: x.squad, objective: x.objective, won: x.won })),
+      rows: r.standings.map((x) => ({ id: x.id, place: x.place, name: x.name, me: x.me, squad: x.squad, objective: x.objective, won: x.won })),
       online,
       matchNote: this.vOutcome,
       xp: online ? this.pendingGain : 0,

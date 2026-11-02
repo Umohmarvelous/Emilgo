@@ -98,6 +98,13 @@ Room.onAward = (peer, facts) => {
   }
 };
 
+// Commends (§10.12): counted on the commended player's profile (a guest just hears it).
+Room.onCommend = (from, to) => {
+  const n = to.profile ? profiles.commend(to.profile) : undefined;
+  to.send({ t: "honour", by: from.name, ...(n !== undefined ? { n } : {}) });
+  from.send({ t: "note", text: `You commended ${to.name}` });
+};
+
 /** Shop HTTP calls per address: 30 a minute is plenty for a person, tight for a script. */
 const shopCalls = new Map<string, number[]>();
 
@@ -305,6 +312,12 @@ function handle(peer: Peer, msg: ClientMsg): void {
     case "emote":
       room?.emote(peer, msg.e);
       break;
+    case "commend":
+      room?.commend(peer, msg.id);
+      break;
+    case "sping":
+      room?.squadPing(peer, msg.k, msg.x, msg.z);
+      break;
     case "report": {
       const target = room?.peerInSeat(msg.id);
       if (!target || target === peer) break;
@@ -363,7 +376,8 @@ function handle(peer: Peer, msg: ClientMsg): void {
         .verify(msg.k, msg.tok)
         .then((key) => {
           peer.profile = key;
-          peer.send({ t: "rank", xp: profiles.get(key)?.xp ?? 0 });
+          const p = profiles.get(key);
+          peer.send({ t: "rank", xp: p?.xp ?? 0, ...(p?.honour ? { hon: p.honour } : {}) });
         })
         .catch(() => {
           peer.profile = null;

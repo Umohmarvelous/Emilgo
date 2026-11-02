@@ -75,6 +75,8 @@ export class Phone {
   won: string | null = null;
   /** The newest radio hint: the flag is somewhere in this circle. */
   hint: { x: number; z: number; r: number } | null = null;
+  /** Squad pings heard (§10.7). */
+  spings: { from: string; k: number }[] = [];
   bytes = 0;
   playMs = 0;
   snaps = 0;
@@ -120,6 +122,9 @@ export class Phone {
       case "welcome":
         this.seat = m.id;
         this.token = m.token;
+        break;
+      case "sping":
+        this.spings.push({ from: m.from, k: m.k });
         break;
       case "seat":
         this.seat = m.id;
@@ -323,6 +328,16 @@ export async function online(url: string, check: Check): Promise<number> {
     ok(start.roster.length === 12 && start.ffa!.mode === "find-the-flag", "twelve in the queue: the match starts at once");
     ok(sq[idx(lead)] === sq[idx(mate)] && new Set(sq).size === 11, "the party is one squad; everyone else is on their own");
 
+    // A squad ping (§10.7): the mate hears it, a rival never does; one a second at most.
+    {
+      const rival = phones.find((p) => p !== lead && p !== mate)!;
+      const c = lead.me()!;
+      lead.send({ t: "sping", k: 3, x: c.x + 5, z: c.z });
+      lead.send({ t: "sping", k: 0, x: c.x, z: c.z });
+      await sleep(600);
+      ok(mate.spings.length === 1 && mate.spings[0].from === lead.seat && mate.spings[0].k === 3 && !rival.spings.length && !lead.spings.length, "a squad ping reaches the squad mate only (never a rival), one a second at most");
+    }
+
     // Play: search the stash spots (each phone the ones nearest it), walking the walk grid.
     const flags = () => lead.match!.module<FlagsModule>("flags")!;
     const stashes = flags().stashes;
@@ -444,7 +459,8 @@ export async function online(url: string, check: Check): Promise<number> {
             const s = stashes[list[0]];
             if (Math.hypot(s.x - c.x, s.z - c.z) < 1.4) {
               p.stick(0, 0);
-              p.tap();
+              // Nobody opens a stash before the driver has driven (an early find would end the match first).
+              if (carSeen || m.elapsed > 40) p.tap();
             } else p.steer(fields[list[0]]);
           } else p.stick(0, 0);
         }
@@ -468,7 +484,10 @@ export async function online(url: string, check: Check): Promise<number> {
       }
     }
     ok(rejoined && agree, "a phone that dropped and came back rebuilt its copy from the server's log: it agrees with the others");
-    if (!carSeen) ok(false, `a phone walked to a car and drove off (the match ended first: ${droveAt >= 0 ? "it drove" : "it never got in"})`);
+    if (!carSeen) {
+      const c = driver?.me();
+      ok(false, `a phone walked to a car and drove off (the match ended first: ${droveAt >= 0 ? "it drove" : `it never got in; ${c ? `${Math.hypot(door[0] - c.x, door[1] - c.z).toFixed(1)} m from the door at (${c.x.toFixed(0)}, ${c.z.toFixed(0)}), ${c.status}` : "no driver"}`})`);
+    }
     const winner = lead.won;
     const holder = winner ? phones.find((p) => p.seat === winner) : null;
     ok(phones.every((p) => p.ended) && !!holder, `the flag found and held 10 s: ${holder?.name ?? "nobody"} won (${(lead.playMs / 1000).toFixed(0)} s of play)`);
@@ -480,6 +499,18 @@ export async function online(url: string, check: Check): Promise<number> {
     const secs = Math.max(1, lead.playMs / 1000);
     const kbs = lead.bytes / 1024 / secs;
     ok(kbs < 8, `downstream per phone: ${kbs.toFixed(1)} KB/s (12 people, events and snapshots)`);
+
+    // Honour (§10.12): commend someone from the match, once; never yourself.
+    {
+      const other = phones.find((p) => p !== lead && p !== mate)!;
+      lead.send({ t: "commend", id: lead.seat });
+      lead.send({ t: "commend", id: mate.seat });
+      const got = await mate.wait((m) => m.t === "honour", 3000).catch(() => null);
+      lead.send({ t: "commend", id: other.seat });
+      const twice = await other.wait((m) => m.t === "honour", 800).catch(() => null);
+      const self = lead.spings.length === 0 && !(await lead.wait((m) => m.t === "honour", 300).catch(() => null));
+      ok(!!got && got.t === "honour" && got.by === lead.name && !twice && self, "after the match: a commend reaches the one commended, once a match, never yourself");
+    }
   } catch (e) {
     ok(false, `the network run: ${(e as Error).message}`);
   } finally {
