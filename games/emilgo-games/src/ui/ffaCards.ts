@@ -75,6 +75,36 @@ const GOALS: Record<string, { title: string; text: string; art: () => string }> 
     text: "Three flags for twelve. The last standing with a flag wins, or the first through the gate with one once it opens. No respawns.",
     art: () => svg(`${streets}${flag(90, 100)}${flag(160, 70)}${flag(230, 110)}<rect x="262" y="30" width="26" height="40" fill="none" stroke="#59d98e" stroke-width="3"/>${label(275, 86, "Gate", "#59d98e")}${label(160, 150, "3 flags · 12 people", GOLD)}`),
   },
+  hustle: {
+    title: "The goal",
+    text: "Work the job stations for Owo. Carry it to an Esusu box to bank it: knocked down, you spill what you carry. Most banked wins.",
+    art: () =>
+      svg(`${streets}<rect x="70" y="58" width="6" height="40" fill="#5a4a3a"/><rect x="56" y="44" width="34" height="18" rx="3" fill="${GOLD}"/>${fig(100, 110, GOLD)}<path d="M112 96 Q170 50 222 86" stroke="${GOLD}" stroke-width="2" fill="none" stroke-dasharray="4 4"/><rect x="226" y="80" width="30" height="26" rx="3" fill="#6d4c2f" stroke="${GOLD}" stroke-width="2"/>${label(241, 126, "Esusu", GOLD)}${label(73, 130, "Job", GOLD)}`),
+  },
+  "chase-reverse": {
+    title: "The goal",
+    text: "An Ojuju's touch turns humans. Humans: last longest. Ojuju: turn everyone. A Reverse charm turns an Ojuju back.",
+    art: () => svg(`${streets}${fig(110, 110, "#8a7a74", 1.3)}<path d="M128 100h50" stroke="${RED}" stroke-width="2" stroke-dasharray="4 4"/>${fig(200, 104, LINE, 1.2)}<circle cx="260" cy="70" r="9" fill="${GOLD}"/><path d="M260 0v60" stroke="#3ee08a" stroke-width="5" opacity="0.4"/>${label(110, 140, "Ojuju", RED)}${label(260, 100, "Charm", GOLD)}`),
+  },
+  "compound-wars": {
+    title: "The goal",
+    text: "Hold rooms in the courtyard with the door shut: each pays your squad every second. Jam a door, find the keys, mind the fuse box.",
+    art: () => {
+      let rooms = "";
+      for (let i = 0; i < 4; i++) rooms += `<rect x="${40 + i * 62}" y="28" width="54" height="40" fill="#3a2f26" stroke="${i === 1 ? GOLD : LINE}" stroke-width="2"/><rect x="${40 + i * 62}" y="102" width="54" height="40" fill="#3a2f26" stroke="${LINE}" stroke-width="2"/>`;
+      return svg(`${rooms}${fig(129, 60, GOLD, 0.8)}${label(160, 92, "+ every second", GOLD)}`);
+    },
+  },
+  "riddles-elders": {
+    title: "The goal",
+    text: "A riddle names a place in the city. Run there and take its kola-nut token. Three tokens to the Elders' Bench wins. Wrong ones cost you.",
+    art: () => svg(`${streets}<rect x="40" y="26" width="120" height="34" rx="6" fill="#000" opacity="0.5"/>${label(100, 48, "?", GOLD, 18)}<circle cx="230" cy="96" r="7" fill="#8a4b2a" stroke="${GOLD}" stroke-width="2"/>${fig(200, 110, GOLD)}${label(230, 130, "Token", GOLD)}${label(160, 156, "3 to win", GOLD)}`),
+  },
+  "lights-out": {
+    title: "The goal",
+    text: "The power is cut. Keep a rival in your lamp to find them: found, they're out. Crouch in the dark to hide your glow. Last one unfound wins.",
+    art: () => svg(`<rect x="0" y="0" width="${W}" height="${H}" rx="10" fill="#0b0d14"/><path d="M110 92 L230 52 L230 132 Z" fill="#ffd9a0" opacity="0.25"/>${fig(104, 100, GOLD)}${fig(214, 100, LINE, 0.9)}${fig(270, 130, "#555", 0.7)}${label(270, 156, "Crouched", "#888", 10)}`),
+  },
 };
 
 const SHARED: Card[] = [
