@@ -73,6 +73,8 @@ export interface OpenWorld {
   setDust(k: number, see: number): void;
   /** What's drawn now (for the dev page and the perf gate). */
   stats(): { cells: number; pvsCut: number };
+  /** Is the cell at (x, z) drawn this frame (in range, not hidden by the PVS)? The billboards count what's seen with it. */
+  cellOn(x: number, z: number): boolean;
   /** Compile every shader off the main thread where the browser can (before the first frame). */
   warm(renderer: WebGLRenderer, scene: Scene, camera: Camera): Promise<void>;
   /** Baked PVS: how many cells each cell can see, on average and at most. */
@@ -748,6 +750,7 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }): Gener
   const fog = new Fog(haze.clone(), view * 0.3, view);
   let drawn = 0;
   let cut = 0;
+  const onCell = new Uint8Array(n * n);
   const clear = haze.clone();
   const cutSky = new Color(0x080a12);
   const dustSky = new Color(0xc9a46a);
@@ -802,6 +805,7 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }): Gener
           cut++;
         }
         if (on) drawn++;
+        onCell[c.i] = on ? 1 : 0;
         for (const o of c.objects) o.visible = on;
       }
       sun.position.set(focus.x + sunDir.x * 60, sunDir.y * 60, focus.z + sunDir.z * 60);
@@ -816,6 +820,7 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }): Gener
       }
     },
     stats: () => ({ cells: drawn, pvsCut: cut }),
+    cellOn: (x, z) => onCell[cellIndex(x, z)] === 1,
     async warm(renderer, scene, camera) {
       // Everything on for the compile, so no material is missed; the next update() hides what's out of view.
       for (const c of cells) for (const o of c.objects) o.visible = true;

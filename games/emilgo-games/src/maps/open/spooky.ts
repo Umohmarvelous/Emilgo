@@ -17,6 +17,7 @@
 import { Rng } from "../../core/rng";
 import type { Solid } from "../../game/core/space";
 import { EDGE, rectOf, Taken, type GroundKind, type Landmark, type OpenLayout, type Road } from "./naija";
+import { placeBoards, type BoardWish } from "./billboards";
 import { footprint, solidsOf, type Placement, type PrefabId } from "./prefabs";
 
 const HALF = 160;
@@ -266,6 +267,23 @@ export function buildSpookyWorld(seed = 4013): OpenLayout & { run: SpookyRun } {
     solids.push({ x, z, hx, hz, rot: 0, y0: 0, y1: EDGE.h, kind: "box", surface: "concrete" });
   }
 
+  // ── The billboards (SPEC-V3 §8): old boards by the route, facing the runner coming; ──
+  // last, so nothing else moves. None by a church or a mosque.
+  const wishes: BoardWish[] = [];
+  for (let d = 80, i = 0; d < run.length - 60; d += 120, i++) {
+    const p = routeAt(run, d);
+    const side = i % 2 ? 1 : -1;
+    const off = ROAD_W / 2 + 4.5;
+    const x = p.x + p.uz * side * off;
+    const z = p.z - p.ux * side * off;
+    if (run.sanctuaries.some((q) => Math.hypot(q.x - x, q.z - z) < q.r + 25)) continue;
+    wishes.push({ x, z, fx: p.x - p.ux * 25, fz: p.z - p.uz * 25, kind: "route", premium: i === 0, r: 20 });
+  }
+  // The last stretch, in sight of the Mast.
+  const [mx, mz] = run.finish;
+  wishes.push({ x: mx - 40, z: mz - 12, fx: mx - 90, fz: mz, kind: "landmark", premium: true, r: 12 });
+  const boards = placeBoards("sw", wishes, 1, HALF, taken, placements, solids, [run.start, run.finish]);
+
   return {
     id: "spooky-world",
     half: HALF,
@@ -278,6 +296,7 @@ export function buildSpookyWorld(seed = 4013): OpenLayout & { run: SpookyRun } {
     slabs: [],
     solids,
     spawns: [run.start],
+    boards,
     groundAt: (x, z) => groundOf(roads, x, z),
     run,
   };

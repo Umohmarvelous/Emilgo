@@ -166,7 +166,7 @@ export interface LobbyState {
 
 type Action = (name: string, el: HTMLElement, ev: Event) => void;
 
-type RangeKey = "sensH" | "sensV" | "stickOpacity" | "sens" | "master" | "musicVol" | "sfxVol";
+type RangeKey = "sensH" | "sensV" | "stickOpacity" | "sens" | "master" | "musicVol" | "sfxVol" | "adsVol";
 
 export interface StoreState {
   tab: "boosts" | "cosmetics";
@@ -1005,13 +1005,13 @@ export class Screens {
 
   // ── Settings ───────────────────────────────────────────────────────────────
 
-  settings(s: Settings, tab: string, from: "lobby" | "pause", tierNote: string, confirmReset = false): void {
+  settings(s: Settings, tab: string, from: "lobby" | "pause", tierNote: string, confirmReset = false, ads = true): void {
     const sw = (key: keyof Settings, label: string, sub = "") => `
       <label class="row-set"><span class="lbl"><b>${label}</b>${sub ? `<small>${sub}</small>` : ""}</span>
         <span class="switch"><input type="checkbox" data-act="toggle" data-key="${key}" ${s[key] ? "checked" : ""} /><i></i></span></label>`;
     const seg = (key: string, cur: string, opts: [string, string][]) =>
       `<span class="seg">${opts.map(([v, l]) => `<button class="${cur === v ? "on" : ""}" data-act="set" data-key="${key}" data-val="${v}">${l}</button>`).join("")}</span>`;
-    const RANGE: Record<RangeKey, [number, number]> = { sensH: [5, 100], sensV: [5, 100], stickOpacity: [30, 100], sens: [50, 200], master: [0, 100], musicVol: [0, 100], sfxVol: [0, 100] };
+    const RANGE: Record<RangeKey, [number, number]> = { sensH: [5, 100], sensV: [5, 100], stickOpacity: [30, 100], sens: [50, 200], master: [0, 100], musicVol: [0, 100], sfxVol: [0, 100], adsVol: [0, 100] };
     const range = (key: RangeKey, label: string, sub: string, off = false) =>
       `<div class="row-set${off ? " off" : ""}"><span class="lbl"><b>${label}</b><small>${sub}</small></span><input class="slider" type="range" min="${RANGE[key][0]}" max="${RANGE[key][1]}" step="1" value="${Math.round(s[key] * 100)}" data-act="range" data-key="${key}" aria-label="${label}" ${off ? "disabled" : ""} /><span class="num pct" data-pct="${key}">${Math.round(s[key] * 100)}%</span></div>`;
     const tabs = [
@@ -1036,6 +1036,8 @@ export class Screens {
         ${range("musicVol", "Music volume", "Her songs", !s.music)}
         ${sw("sound", "Sound effects")}
         ${range("sfxVol", "Sound effects volume", "Lasers, hits, footsteps, the drum", !s.sound)}
+        ${ads ? `${sw("adsAudio", "Ads audio", "Sound from a billboard's film, when its advertiser allows it. Off: always silent")}
+        ${range("adsVol", "Ads volume", "Billboard films", !s.adsAudio)}` : ""}
         ${sw("haptics", "Vibration")}
         <label class="row-set off"><span class="lbl"><b>Voice chat</b><small>Not available: games in Lagos Life have no microphone. Use text chat and quick chat</small></span><span class="switch"><input type="checkbox" disabled /><i></i></span></label>
         <div class="row-set off"><span class="lbl"><b>Voice chat volume</b><small>Not available</small></span><input class="slider" type="range" min="0" max="100" value="0" disabled aria-label="Voice chat volume" /></div>`;

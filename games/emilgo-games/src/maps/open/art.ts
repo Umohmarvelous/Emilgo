@@ -12,7 +12,7 @@ import { BoxGeometry, BufferGeometry, ConeGeometry, CylinderGeometry, Matrix4, O
 
 import { Kit, type Chunk, type Level, type TexKind } from "../kit";
 import { merge, part, type V3 } from "../../world/geo";
-import { COURTYARD, compoundP, houseP, hutP, mudP, officeP, parts, shopsP, storeyP, type Part, type Placement } from "./prefabs";
+import { BOARD_DEPTH, BOARD_SIZE, COURTYARD, compoundP, houseP, hutP, mudP, officeP, parts, shopsP, storeyP, type Part, type Placement } from "./prefabs";
 
 /** The atlas's tiles, in order (4 × 2). */
 export const TEX_KINDS: TexKind[] = ["plaster", "concrete", "brick", "wood", "mud", "zinc", "glass", "thatch"];
@@ -530,6 +530,20 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
     case "pole":
       pole(k, night);
       break;
+    case "billboard": {
+      // A unipole: the steel pole, the panel's back and frame, the catwalk and two lamps over the face.
+      // The face itself is drawn by world/billboards.ts (what it shows changes).
+      const q = BOARD_SIZE[v & 1];
+      const top = q.y + q.h / 2;
+      k.cyl(METAL, 0.28, top, [0, top / 2, -0.45], "mass", { sides: 10 });
+      k.box(night ? "#1e2022" : "#2a2d30", [q.w + 0.3, q.h + 0.3, BOARD_DEPTH], [0, q.y + q.h / 2, 0], "mass");
+      k.box("#3a3e42", [q.w, 0.08, 0.7], [0, q.y - 0.22, 0.4], "detail");
+      for (const x of [-q.w / 4, q.w / 4]) {
+        k.box("#2a2d30", [0.08, 0.08, 0.9], [x, q.y + q.h + 0.3, 0.45], "detail");
+        if (night) k.glow("#fff2c0", [0.4, 0.06, 0.16], [x, q.y + q.h + 0.25, 0.85]);
+      }
+      break;
+    }
     case "wreck": {
       // A burnt-out car on its rims.
       const c = r.pick(["#5a3a2a", "#4a4a4a", "#6a5040"]);

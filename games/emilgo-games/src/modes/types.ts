@@ -16,11 +16,13 @@ import type { RunTally } from "../game/modules/survival";
 import type { GradeLook } from "../graphics/grade";
 import type { TierSpec } from "../graphics/tiers";
 import type { Controls } from "../input/controls";
+import type { AdFeed, Seen } from "../net/ads";
 import type { ServerMsg } from "../net/protocol";
 import type { HapticKind } from "../platform/types";
 import type { Settings } from "../settings";
 import type { Hud } from "../ui/hud";
 import type { CameraRig } from "../world/camera";
+import type { HouseInfo } from "../world/billboards";
 import type { Crowd } from "../world/crowd";
 import type { Look } from "../world/human/wardrobe";
 
@@ -61,6 +63,12 @@ export interface ModeHost {
   onEnd(r: ModeResult): void;
   /** Remember the settings (a first-use tip seen). */
   saveSettings(): void;
+  /** This match's billboard ads (net/ads.ts); null in Lagos Life, offline with no copy, or with nothing booked. */
+  boardFeed(map: string): Promise<AdFeed | null>;
+  /** What the house boards say (world/billboards.ts). */
+  houseInfo(family: "ffa" | "dead"): HouseInfo;
+  /** The match's seconds on screen per paid board: sent once, with no player id. */
+  boardsSeen(feed: AdFeed | null, seen: Seen[]): void;
 }
 
 /** A finished Free For All match, for the results screen. */

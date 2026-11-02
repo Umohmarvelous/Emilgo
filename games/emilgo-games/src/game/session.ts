@@ -49,6 +49,8 @@ import { NetClient } from "../net/client";
 import { OnlineRound } from "../net/onlineRound";
 import { ERROR_TEXT, normalizeCode, type ClientMsg, type RoomInfo, type ServerMsg, type StartInfo, type SyncInfo } from "../net/protocol";
 import { serverUrl } from "../net/serverUrl";
+import { fetchFeed, reportSeen, type AdFeed } from "../net/ads";
+import type { HouseInfo } from "../world/billboards";
 import type { Host, MatchView } from "../platform/types";
 import { errorCode, errorText } from "../platform/vatarErrors";
 import { DEFAULT_WHEEL, resetPrefs, saveSettings, type Settings } from "../settings";
@@ -298,6 +300,11 @@ export class Game {
   private runWeapon = "pistol";
   /** Today's best Daily Run times, as the server last said (the loading screen's top 3). */
   private dailyTop: number[] = [];
+  /** The fastest runs on the board (no names), from the last result; Lagos Life's own top names (shown there only). */
+  private runTop: number[] = [];
+  private llTop: { name: string; score: number }[] = [];
+  /** Billboard feeds being fetched for a match (map → the answer), and when. */
+  private readonly adFeeds = new Map<string, { at: number; p: Promise<AdFeed | null> }>();
   private ffaWait: { start: StartInfo; log: WireEvent[]; snap?: MatchSnap } | null = null;
   private ffaRes: FfaResultView | null = null;
   private party: { code: string; members: { id: string; name: string }[]; lead: string } | null = null;
@@ -719,6 +726,7 @@ export class Game {
       .leaderboard()
       .then((b) => {
         this.rank = b?.me?.label ?? null;
+        if (this.host.kind === "lagoslife") this.llTop = (b?.top ?? []).slice(0, 3).map((r) => ({ name: r.name, score: r.score }));
         if (this.screens.name === "lobby") this.showLobby();
       })
       .catch(() => {});
@@ -883,7 +891,7 @@ export class Game {
 
   private showSettings(): void {
     this.frame("full");
-    this.screens.settings(this.settings, this.settingsTab, this.settingsFrom, this.tierNote(), this.confirmReset);
+    this.screens.settings(this.settings, this.settingsTab, this.settingsFrom, this.tierNote(), this.confirmReset, this.host.kind !== "lagoslife");
     this.screens.setPlayer(null, this.host);
   }
 
@@ -1927,6 +1935,7 @@ export class Game {
         break;
       case "runres": {
         if (m.daily && m.board) this.dailyTop = m.board.map((b) => b.secs);
+        if (!m.daily && m.board) this.runTop = m.board.map((b) => b.secs);
         const f = this.ffaRes;
         if (f) {
           f.runNote = m.ok ? `${t("Checked")}: +${m.gain ?? 0} XP${m.place ? ` · ${ordinal(m.place)} ${t("on the board")}` : ""}` : `${t("Not counted")}: ${m.why ?? ""}`;
@@ -2071,6 +2080,7 @@ export class Game {
 
   /** The match loading screen (Brief 1) while the world builds: you on the stage, the cards, the map card, the route sign. */
   private showLoading(kind: "ffa" | "run", def: ModeDef, players?: { name: string; rank: string; squad: number; me: boolean }[]): void {
+    void this.adFeed(kind === "run" ? "spooky-world" : "naija-world");
     this.view = "lobby";
     this.stage.setMode("lobby");
     this.stage.setDummy(false);
@@ -3079,7 +3089,7 @@ export class Game {
           if (key === "sound" && on) this.sound.ui();
           if (key === "dataSaver" || key === "friendReqs") this.sendPrefs();
           // The volume sliders follow their switches; rotating redraws everything.
-          if (key === "music" || key === "sound" || key === "rotate") this.showSettings();
+          if (key === "music" || key === "sound" || key === "rotate" || key === "adsAudio") this.showSettings();
         }
         break;
       }
@@ -3104,8 +3114,8 @@ export class Game {
         break;
       }
       case "range": {
-        const LIMITS: Record<string, [number, number]> = { sensH: [0.05, 1], sensV: [0.05, 1], stickOpacity: [0.3, 1], sens: [0.5, 2], master: [0, 1], musicVol: [0, 1], sfxVol: [0, 1] };
-        const key = d.key as "sensH" | "sensV" | "stickOpacity" | "sens" | "master" | "musicVol" | "sfxVol";
+        const LIMITS: Record<string, [number, number]> = { sensH: [0.05, 1], sensV: [0.05, 1], stickOpacity: [0.3, 1], sens: [0.5, 2], master: [0, 1], musicVol: [0, 1], sfxVol: [0, 1], adsVol: [0, 1] };
+        const key = d.key as "sensH" | "sensV" | "stickOpacity" | "sens" | "master" | "musicVol" | "sfxVol" | "adsVol";
         const lim = LIMITS[key];
         if (!lim) break;
         this.settings[key] = Math.max(lim[0], Math.min(lim[1], Number((node as HTMLInputElement).value) / 100));
@@ -3255,6 +3265,31 @@ export class Game {
     return slot.p;
   }
 
+  /**
+   * The billboards' ads for a match on `map` (SPEC-V3 §8): asked once at the
+   * match's start (the loading screen asks early; a minute's answer is reused).
+   * Never asked in Lagos Life.
+   */
+  private adFeed(map: string): Promise<AdFeed | null> {
+    const had = this.adFeeds.get(map);
+    if (had && Date.now() - had.at < 60_000) return had.p;
+    const p = fetchFeed(this.host, this.host.kind, this.server, map);
+    this.adFeeds.set(map, { at: Date.now(), p });
+    return p;
+  }
+
+  /** What the house boards say: this week's modes, today's Daily Run, the best, the ranks. */
+  private houseInfo(family: "ffa" | "dead"): HouseInfo {
+    const lang = this.settings.lang;
+    const m = this.content.manifest;
+    const modes = (m.rotation ?? [])
+      .map((id) => m.modes.find((d) => d.id === id))
+      .filter((d): d is ModeDef => !!d)
+      .map((d) => ({ name: d.name[lang] ?? d.name.en, blurb: d.blurb[lang] ?? d.blurb.en }));
+    const day = new Date().toISOString().slice(0, 10);
+    return { kind: this.host.kind, family, modes, daily: { seed: dailySeed(day), top: this.dailyTop }, top: this.host.kind === "lagoslife" ? this.llTop : [], runTop: this.runTop };
+  }
+
   /** What the session lends a mode (modes/types.ts). */
   private modeHost(): ModeHost {
     if (this.hostObj) return this.hostObj;
@@ -3282,6 +3317,9 @@ export class Game {
       myLook: () => this.myLook(),
       onEnd: (r) => this.onFfaEnd(r),
       saveSettings: () => saveSettings(this.host, this.settings),
+      boardFeed: (map) => this.adFeed(map),
+      houseInfo: (family) => this.houseInfo(family),
+      boardsSeen: (feed, seen) => void reportSeen(this.host.kind, this.server, feed, seen),
     };
     this.hostObj = host;
     return host;

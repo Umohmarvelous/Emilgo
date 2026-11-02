@@ -10,6 +10,15 @@
 import type { Surface } from "../registry";
 import type { Solid } from "../../game/core/space";
 
+/** A billboard's two sizes (variant 0: a city board, 1: the smaller board of an older street); maps/open/billboards.ts. */
+export const BOARD_SIZE = [
+  { w: 8, h: 4, y: 5 },
+  { w: 6, h: 3, y: 4 },
+] as const;
+
+/** A billboard panel's depth (m): the face sits on its front. */
+export const BOARD_DEPTH = 0.5;
+
 /** A variant's numbers, from its seed: the same seed, the same building, everywhere. */
 export function vrand(v: number): () => number {
   let a = (v ^ 0x9e3779b9) >>> 0;
@@ -63,7 +72,7 @@ export type PrefabId =
   | "church" | "mosque" | "school" | "petrol" | "watertower" | "mast" | "viewing" | "buspark" | "market" | "suya"
   | "uncompleted" | "kiosk" | "generator" | "pole" | "wreck" | "danfo" | "busstop" | "footbridge" | "overbridge"
   | "tree" | "palm" | "bush" | "baobab" | "hut" | "mudhouse" | "farm" | "palmwine" | "chief" | "borehole"
-  | "mechanic" | "barber" | "carpenter" | "carriage" | "okada" | "genalley" | "plaza" | "wall";
+  | "mechanic" | "barber" | "carpenter" | "carriage" | "okada" | "genalley" | "plaza" | "wall" | "billboard";
 
 export function houseP(v: number): HouseP {
   const r = vrand(v);
@@ -118,6 +127,7 @@ export function footprint(id: PrefabId, v: number): [number, number] {
     case "kiosk": return [2.6, 2.6];
     case "generator": return [1.2, 0.9];
     case "pole": return [0.4, 0.4];
+    case "billboard": return [1.4, 1.4];
     case "wreck": return [2, 4.4];
     case "danfo": return [2.1, 4.8];
     case "busstop": return [6, 2.4];
@@ -347,6 +357,13 @@ export function parts(id: PrefabId, v: number): Part[] {
     case "pole":
       out.push(box(0, 0, 0.3, 0.3, 0, 9, "wood"));
       break;
+    case "billboard": {
+      // The steel pole behind the panel's middle, and the panel up top (the face is on its +z side).
+      const q = BOARD_SIZE[v & 1];
+      out.push(box(0, -0.45, 0.56, 0.56, 0, q.y + q.h / 2, "metal"));
+      out.push(box(0, 0, q.w + 0.3, BOARD_DEPTH, q.y - 0.15, q.y + q.h + 0.15, "metal"));
+      break;
+    }
     case "wreck":
       out.push(box(0, 0, 1.8, 4.2, 0, 1.35, "metal"));
       break;

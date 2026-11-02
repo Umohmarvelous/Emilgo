@@ -12,6 +12,7 @@
 import { Rng } from "../../core/rng";
 import type { Solid } from "../../game/core/space";
 import type { Surface } from "../registry";
+import { placeBoards, type BoardSlot, type BoardWish } from "./billboards";
 import { footprint, solidsOf, type Placement, type PrefabId } from "./prefabs";
 
 export type GroundKind = "asphalt" | "laterite" | "paving" | "grass" | "earth" | "sand";
@@ -82,6 +83,8 @@ export interface OpenLayout {
   solids: Solid[];
   /** Where Free For All players can start, spread over the city. */
   spawns: [number, number][];
+  /** The billboards (SPEC-V3 §8): their slots, in id order. */
+  boards?: BoardSlot[];
   /** The open ground underfoot where nothing stands. */
   groundAt(x: number, z: number): GroundKind;
 }
@@ -203,6 +206,38 @@ const FIXED: Omit<Placement, "v">[] = [
   { prefab: "genalley", x: 160, z: 105, rot: 0 },
   { prefab: "carriage", x: 192, z: -45, rot: 0 },
   { prefab: "carriage", x: 193, z: -22, rot: 0.04 },
+];
+
+/**
+ * Where the billboards are wanted (SPEC-V3 §8): the expressway and Market
+ * Road, the landmarks people meet at, the plaza's way in, the danfo's route,
+ * the middle the zone closes on. Each faces down its road (or at its place);
+ * the nearest free ground is used. None by the church, the mosque or the school.
+ * A board's id is its place here ("nw-03"): ads are booked by it, so new
+ * boards go on the end and none is ever taken out of the middle.
+ */
+const BOARD_WISHES: BoardWish[] = [
+  // The expressway, both sides, facing the traffic.
+  { x: 74, z: -172, fx: 60, fz: -135, kind: "road", premium: true },
+  { x: 46, z: -112, fx: 60, fz: -80, kind: "road" },
+  { x: 74, z: 28, fx: 60, fz: 60, kind: "road", premium: true },
+  { x: 46, z: 98, fx: 60, fz: 130, kind: "road" },
+  { x: 74, z: 176, fx: 60, fz: 140, kind: "road" },
+  // Market Road.
+  { x: 100, z: 12, fx: 130, fz: 0, kind: "road" },
+  { x: 160, z: -12, fx: 130, fz: 0, kind: "road" },
+  { x: -22, z: 12, fx: 10, fz: 0, kind: "road" },
+  // The landmarks.
+  { x: 70, z: 92, fx: 92, fz: 110, kind: "landmark", premium: true, r: 18 },
+  { x: -6, z: -60, fx: 30, fz: -40, kind: "landmark", r: 18 },
+  { x: -45, z: 10, fx: -45, fz: -14, kind: "landmark", r: 16 },
+  { x: 12, z: 32, fx: 30, fz: 18, kind: "landmark", r: 16 },
+  // The plaza's way in, the danfo's route, the zone's middle.
+  { x: 22, z: -96, fx: 40, fz: -79, kind: "plaza", r: 12 },
+  { x: 132, z: -110, fx: 120, fz: -80, kind: "route" },
+  { x: -12, z: -130, fx: 0, fz: -100, kind: "route" },
+  { x: 132, z: 60, fx: 120, fz: 30, kind: "route" },
+  { x: 76, z: -12, fx: 60, fz: 0, kind: "zone", r: 16 },
 ];
 
 type Kind = "commercial" | "residential" | "civic" | "belt" | "village";
@@ -491,6 +526,9 @@ export function buildNaijaWorld(seed = 1957): OpenLayout {
     spawns.push([x, z]);
   }
 
+  // ── The billboards: last, on ground nothing else wanted (their solids go on the end) ──
+  const boards = placeBoards("nw", BOARD_WISHES, 0, HALF, taken, placements, solids, spawns);
+
   return {
     id: "naija-world",
     half: HALF,
@@ -503,6 +541,7 @@ export function buildNaijaWorld(seed = 1957): OpenLayout {
     slabs,
     solids,
     spawns,
+    boards,
     groundAt: (x, z) => groundOf(x, z),
   };
 }

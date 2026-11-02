@@ -32,6 +32,8 @@ import type { ServerMsg, StartInfo } from "../net/protocol";
 import { fromWire, type WireLook } from "../shop/catalog";
 import type { MapMark } from "../ui/hud";
 import type { AirfallModule } from "../game/modules/airfall";
+import type { AdFeed } from "../net/ads";
+import { BillboardView } from "../world/billboards";
 import { DeadView } from "../world/deadView";
 import type { SurvivalModule } from "../game/modules/survival";
 import type { ItemsModule } from "../game/modules/items";
@@ -134,6 +136,11 @@ export class FfaMode implements GameMode {
   private readonly modes6: ModesView;
   /** Dead Streets' screen side (a run only). */
   private readonly dead: DeadView | null;
+  /** The billboards (SPEC-V3 §8), this match's ads once they come, and whether their seconds have been sent. */
+  private readonly boards: BillboardView | null;
+  private boardFeed: AdFeed | null = null;
+  private boardsSent = false;
+  private gone = false;
   private dimmed = 0;
   /** The Harmattan: the dust now (eased), as last set on the world; in a storm; whose siren has sounded. */
   private dust = 0;
@@ -234,6 +241,28 @@ export class FfaMode implements GameMode {
         world.setDust(0.6, HARMATTAN.see * 1.4);
       }
       h.renderer.setClearColor(world.clear);
+    }
+
+    // The billboards: house boards at once, the booked ads when the feed comes (never asked in Lagos Life).
+    const slots = world.layout.boards ?? [];
+    this.boards = slots.length
+      ? new BillboardView(slots, {
+          tier: h.spec.tier,
+          night: !!this.dead,
+          info: h.houseInfo(this.dead ? "dead" : "ffa"),
+          feed: null,
+          space: world.space,
+          cellOn: (x, z) => world.cellOn(x, z),
+          audio: () => ({ on: h.settings.adsAudio, vol: h.settings.master * h.settings.adsVol }),
+        })
+      : null;
+    if (this.boards) {
+      h.scene.add(this.boards.group);
+      void h.boardFeed(world.layout.id).then((f) => {
+        if (this.gone || !f) return;
+        this.boardFeed = f;
+        this.boards?.setFeed(f);
+      });
     }
 
     // The HUD.
@@ -617,6 +646,7 @@ export class FfaMode implements GameMode {
     h.rig.update(dt, { x: target.x, z: target.z, y: target.y, stance: target.stance, ground: target.h });
     this.focus.set(target.x, target.h, target.z);
     this.world.update(dt, this.focus, cam);
+    this.boards?.update(dt, h.camera);
 
     // The map: your squad and the objectives only (rivals aren't shown: a holder's ping is the point).
     this.marks.length = 0;
@@ -672,6 +702,7 @@ export class FfaMode implements GameMode {
     if (m.module("blackout") && Math.abs(this.modes6.dim - this.dimmed) > 0.01) {
       this.dimmed = this.modes6.dim;
       this.world.setDim(this.dimmed);
+      this.boards?.setDim(this.dimmed);
       h.renderer.setClearColor(this.world.clear);
     }
     h.hud.setMap({ x: target.x, z: target.z, heading: target.heading, out: me.status !== "alive" }, this.marks, null, h.rig.yaw);
@@ -734,11 +765,25 @@ export class FfaMode implements GameMode {
       trail: this.trail,
       ...(this.dead ? { run: runResult(m.module<SurvivalModule>("survival")!, this.trace) } : {}),
     };
+    this.sendBoards();
     this.host.onEnd(r);
+  }
+
+  /** The billboards' seconds on screen, once (at the end, or on leaving early). */
+  private sendBoards(): void {
+    if (this.boardsSent || !this.boards) return;
+    this.boardsSent = true;
+    this.host.boardsSeen(this.boardFeed, this.boards.seen());
   }
 
   dispose(): void {
     const h = this.host;
+    this.sendBoards();
+    this.gone = true;
+    if (this.boards) {
+      h.scene.remove(this.boards.group);
+      this.boards.dispose();
+    }
     this.src.dispose();
     h.scene.remove(this.world.group, this.ms.group, this.view.group);
     this.ms.dispose();

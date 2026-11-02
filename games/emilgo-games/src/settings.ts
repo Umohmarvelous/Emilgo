@@ -31,6 +31,9 @@ export interface Settings {
   musicVol: number;
   /** Master volume, 0…1 (§7.2). */
   master: number;
+  /** The billboards' films (SPEC-V3 §8): sound on/off (off unless turned on), and its volume. */
+  adsAudio: boolean;
+  adsVol: number;
   /** Camera sensitivity (§7.5 #2): scales both look speeds, 0.5…2. */
   sens: number;
   /** English or Nigerian Pidgin (§7.5 #16). */
@@ -153,6 +156,8 @@ export function defaults(host: Host): Settings {
     music: true,
     musicVol: 0.8,
     master: 1,
+    adsAudio: false,
+    adsVol: 0.5,
     sens: 1,
     lang: "en",
     notify: true,
@@ -286,6 +291,8 @@ export function loadSettings(host: Host): Settings {
     out.master = clamp(out.master, 0, 1);
     out.musicVol = clamp(out.musicVol, 0, 1);
     out.sfxVol = clamp(out.sfxVol, 0, 1);
+    out.adsAudio = out.adsAudio === true;
+    out.adsVol = clamp(Number(out.adsVol), 0, 1);
     if (out.lang !== "en" && out.lang !== "pcm") out.lang = base.lang;
     out.cp = Math.max(0, Math.floor(clamp(out.cp, 0, 1e7)));
     out.rankXp = Math.max(0, Math.floor(clamp(out.rankXp, 0, 1e10)));

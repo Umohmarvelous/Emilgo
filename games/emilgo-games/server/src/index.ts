@@ -8,6 +8,8 @@
 //   POST /shop/owned     { session } → what this player owns + a signed ticket
 //   (friends: presence.ts, over the WebSocket; nothing stored)
 //   GET  /content/v1/manifest   this week's modes, signed (content.ts; 404 until CONTENT_SIGNING_KEY is set)
+//   GET  /ads/v1/match?map=&host=   billboard ads for a match (ads.ts; refused for Lagos Life)
+//   POST /ads/v1/seen    seconds each paid board was on screen (one report per feed; no player id)
 //   WS   /               the game protocol    (src/net/protocol.ts)
 //
 // Every room is stepped by ONE fixed 60 Hz loop. A round is tiny — at most a
@@ -39,6 +41,9 @@
 //   SUPABASE_JWT_SECRET   or the project's JWT secret, for HS256 projects
 // Without either, EMILGO players play unranked (their phone keeps its own count).
 //   DATA_DIR              where the ownership database lives (default ./data)
+//
+// Billboards (SPEC-V3 §8; ads.ts): SUPABASE_URL, SUPABASE_ANON_KEY and GAME_ADS_KEY.
+// Without them every board shows EMILGO Games' own (house) boards.
 //   TICKET_SECRET         32+ chars; signs ownership tickets. Required when running several processes
 
 import { randomBytes, randomInt } from "node:crypto";
@@ -62,6 +67,7 @@ import { divisionIndex } from "../../src/content/validate";
 import { WEAPON_RANK, type RunWeapon } from "../../src/config";
 import { BOOST_IDS, BOOST_SLOTS } from "../../src/shop/boosts";
 import { allowedLook, type WireLook } from "../../src/shop/catalog";
+import { adsBackendFromEnv, Billboards } from "./ads";
 import { Shop } from "./shop";
 import { SqliteStore } from "./store";
 import { VatarApi, vatarConfigFromEnv, webhookSigned } from "./vatar";
@@ -110,6 +116,56 @@ Room.onAward = (peer, facts) => {
 function withStreak(look: WireLook, streak: number): WireLook {
   const { st: _, ...rest } = look;
   return streak >= 3 ? { ...rest, st: Math.min(99, streak) } : rest;
+}
+
+// Billboards (SPEC-V3 §8): the feed per match, the seconds seen added up and sent each minute.
+const billboards = new Billboards(adsBackendFromEnv(process.env));
+setInterval(() => void billboards.flush(), 60_000).unref();
+const adCalls = new Map<string, number[]>();
+
+/** The ads routes: open CORS (no cookies; nothing in them says who you are). */
+function adsRoute(req: IncomingMessage, res: import("node:http").ServerResponse, url: URL): void {
+  const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "Content-Type", "Access-Control-Allow-Methods": "GET, POST" };
+  const reply = (status: number, body?: unknown): void => {
+    if (status === 204 || body === undefined) return void res.writeHead(status, { ...cors, "Cache-Control": "no-store" }).end();
+    res.writeHead(status, { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" }).end(JSON.stringify(body));
+  };
+  if (req.method === "OPTIONS") return reply(204);
+  const ip = addressOf(req);
+  const t = Date.now();
+  const calls = (adCalls.get(ip) ?? []).filter((x) => t - x < 60_000);
+  if (calls.length >= 40) return reply(429, { error: "rate_limited" });
+  calls.push(t);
+  adCalls.set(ip, calls);
+  if (adCalls.size > 50_000) adCalls.clear();
+  if (url.pathname === "/ads/v1/match" && req.method === "GET") {
+    billboards
+      .feed(url.searchParams.get("map") ?? "", url.searchParams.get("host") ?? "")
+      .then((r) => reply(r.status, r.body))
+      .catch(() => reply(500, { error: "error" }));
+    return;
+  }
+  if (url.pathname === "/ads/v1/seen" && req.method === "POST") {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    req.on("data", (c: Buffer) => {
+      size += c.length;
+      if (size > 8192) req.destroy();
+      else chunks.push(c);
+    });
+    req.on("end", () => {
+      let body: unknown = null;
+      try {
+        body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+      } catch {
+        return reply(400, { error: "bad_request" });
+      }
+      const r = billboards.seen(body);
+      reply(r.status, r.status === 204 ? undefined : r.body);
+    });
+    return;
+  }
+  reply(404, { error: "not_found" });
 }
 
 // Dead Streets runs (Phase 7): asked for, sent in parts, checked (runs.ts), counted.
@@ -181,6 +237,10 @@ const reports: Report[] = [];
 // ── HTTP ──────────────────────────────────────────────────────────────────────
 
 const http = createServer((req, res) => {
+  if (req.url?.startsWith("/ads/v1/")) {
+    adsRoute(req, res, new URL(req.url, "http://local"));
+    return;
+  }
   if (req.url === "/shop/claim" || req.url === "/shop/owned") {
     shopRoute(req, res, req.url);
     return;
@@ -228,6 +288,7 @@ const http = createServer((req, res) => {
       tickMs: { p50: round2(pct(0.5)), p99: round2(pct(0.99)), max: round2(sorted[sorted.length - 1] ?? 0) },
       messagesIn,
       reports: reports.length,
+      ads: { on: billboards.configured, ...billboards.stats },
       rssMb: Math.round(process.memoryUsage().rss / 1e6),
     };
     res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" }).end(JSON.stringify(body));
