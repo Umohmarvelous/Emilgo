@@ -254,6 +254,10 @@ export class CameraRig {
   get aimPitch(): number {
     return this.viewPitch;
   }
+  /** The camera's kick now (0 … ~1.2): Max's chromatic aberration follows it. */
+  get shakeNow(): number {
+    return this.shake;
+  }
   /** 0 … 1: how far down the sights. */
   get ads(): number {
     return this.adsK;

@@ -58,6 +58,7 @@ hidden and untouched).
 | "Every item becomes armour" | Every backpack item taken also gives 10 armour (up to 150); the items still do what they do. |
 | Zombies' look | A rot shader on the scanned bodies (every tier): grey-green mottled skin with veins and lesions, sunken bruised sockets, milky glowing eyes, blood round the mouth (blood on), filthy dark clothes torn through to the flesh with wound edges (red only with blood on). Pieces per kind in the body's own mesh: the Masked a cracked modern gas mask (never a traditional mask), the Bloater a swollen belly, Runners, Screamers, Lurkers and Brutes ribs showing, Shamblers and Brutes a forearm open to the bone; a Brute stands 1.14× (adults only, no child zombies). The kinds' tints now only shift the rot. |
 | Zombies' moves | A shambling idle and walk (arms reaching ahead, each its own height, twitching; the chest hunched; the head lolling); emerge (out of the ground clawing at the air, 2.5 s, with the rise), lunge (both arms thrust out when one suddenly closes fast), claw (a raking swipe when it lands one), stagger (the existing hit, from the shot's side). Procedural keys like the rest of the animator. |
+| Max tier | A fifth choice in Settings (Auto never picks it): High's tier for people, textures and distances, plus a depth texture on the scene's target and four passes: depth-only SSAO (12 samples, half size, blurred), god rays (the bright pass dragged towards the sun's place on screen when it's in front), depth of field while aiming down the sights (focused on what the crosshair is on, the centre kept sharp), chromatic aberration following the camera's kick (shots, hits). A soft sky as the scene's environment (35%) so helmets, visors, guns and metal catch reflections; 4096 shadows; 340 m view. The grade per location stays as each world's look (LOOKS). Low still fakes it (lights, fog, the CSS vignette). |
 | "1 million users at once" | One server process can't hold that. The build makes each room server stateless between matches and adds a room directory so many machines share the load. Tested here at **10,000 simulated players** (the owner's number); the 1M path is described in README (machines × rooms), not tested. |
 
 ## Phases (built back to back, no waiting; each tested, committed, pushed, the test site republished)
@@ -126,3 +127,13 @@ Not done in Phase 4: a real phone; the armour's look refined (the owner: later).
 | Builds | EMILGO embed |
 
 Not done in Phase 5: a real phone; sculpted zombie meshes (an art job, PLAN.md §1).
+
+### Phase 6: Max Mode graphics (done 3 Nov 2026)
+
+| Check | Result |
+|---|---|
+| In headless Chrome (real GPU, 844×390) | High and Max side by side in Naija World; Max down the sights: the body and the far trees soft, the wall at the crosshair sharp. No console errors. |
+| Frame rate (this Mac, no throttle) | High lowest 60, mean 60.1 (56 draws) · Max lowest 60, mean 60.1 (99 draws with its passes). Max is for computers and flagship phones; Auto never gives it. |
+| Builds | typecheck · EMILGO embed |
+
+Not done in Phase 6: a flagship phone's numbers.

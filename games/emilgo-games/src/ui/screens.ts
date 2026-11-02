@@ -1028,11 +1028,11 @@ export class Screens {
       .join("");
     let body = "";
     if (tab === "graphics") {
-      body = `<div class="row-set"><span class="lbl"><b>Quality</b><small>${esc(tierNote)}</small></span>${seg("graphics", s.graphics, [["auto", "Auto"], ["low", "Low"], ["medium", "Med"], ["high", "High"]])}</div>
+      body = `<div class="row-set"><span class="lbl"><b>Quality</b><small>${esc(tierNote)}</small></span>${seg("graphics", s.graphics, [["auto", "Auto"], ["low", "Low"], ["medium", "Med"], ["high", "High"], ["max", "Max"]])}</div>
         <div class="row-set"><span class="lbl"><b>Light / dark mode</b><small>Light: full daylight, street lights off. Dark: full night, street lights and neon on</small></span>${seg("lightMode", s.lightMode, [["auto", "Map"], ["light", "Light"], ["dark", "Dark"]])}</div>
         ${sw("rotate", "Rotate the game", "Turns the game on its side, for landscape with rotation lock on")}
         ${sw("dataSaver", "Data saver", "Half the updates from the server online. Others look a touch less smooth")}
-        <p class="note" style="margin-top:10px">Low: no shadows, 2D clouds, lightest on battery, 30 fps on menus. Medium: shadows, sharper people and textures. High: full shadows, volumetric clouds, real reflections in puddles, glow and colour grading. Auto picks for your phone and adjusts the sharpness as you play.</p>`;
+        <p class="note" style="margin-top:10px">Low: no shadows, 2D clouds, lightest on battery, 30 fps on menus. Medium: shadows, sharper people and textures. High: full shadows, volumetric clouds, real reflections in puddles, glow and colour grading. Max: High plus ambient occlusion, god rays, depth of field when aiming, reflections on helmets and metal, for strong phones and computers. Auto picks for your phone and adjusts the sharpness as you play.</p>`;
     } else if (tab === "audio") {
       body = `${range("master", "Master volume", "Everything")}
         ${sw("music", "Music", FEATURES.ballHaunt ? "Songs and the car radio. The warning hum still plays when off" : "Songs and the car radio")}

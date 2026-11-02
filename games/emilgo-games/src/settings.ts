@@ -11,7 +11,7 @@ import { BOOST_IDS, cleanBoosts, type BoostId } from "./shop/boosts";
 import { cleanLook, DEFAULT_LOOK, type Look } from "./world/human/wardrobe";
 import type { PoseId } from "./world/human/animator";
 
-export type GraphicsTier = "auto" | "low" | "medium" | "high";
+export type GraphicsTier = "auto" | "low" | "medium" | "high" | "max";
 
 export type Lang = "en" | "pcm";
 
@@ -286,7 +286,7 @@ export function loadSettings(host: Host): Settings {
     }
     // One choice now: whatever an older save chose becomes the default.
     out.song = base.song;
-    if (!["auto", "low", "medium", "high"].includes(out.graphics)) out.graphics = base.graphics;
+    if (!["auto", "low", "medium", "high", "max"].includes(out.graphics)) out.graphics = base.graphics;
     // Before v4 the look stick could be drawn "always": that now shows the touch point.
     if (typeof saved.lookDot !== "boolean" && (saved as { lookStick?: string }).lookStick === "always") out.lookDot = true;
     if (out.moveStick !== "fixed" && out.moveStick !== "float") out.moveStick = base.moveStick;

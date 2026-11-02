@@ -21,7 +21,7 @@
 // countdown 5 → 1 (flow/countdown.ts) → play → results. The tutorial
 // (flow/tutorial.ts, rlgl/tutorial.ts) plays a real round with a model.
 
-import { ACESFilmicToneMapping, OrthographicCamera, PCFShadowMap, PCFSoftShadowMap, SRGBColorSpace, WebGLRenderTarget, PerspectiveCamera, Scene, Vector2, Vector3, WebGLRenderer } from "three";
+import { ACESFilmicToneMapping, BackSide, Mesh, OrthographicCamera, PCFShadowMap, PCFSoftShadowMap, PMREMGenerator, SRGBColorSpace, ShaderMaterial, SphereGeometry, type Texture, WebGLRenderTarget, PerspectiveCamera, Scene, Vector2, Vector3, WebGLRenderer } from "three";
 
 import { Sound } from "../audio/sound";
 import { ATTACK, BALLS, DISTANCES, FEATURES, FINAL, FLOW, MODES, MOVE, NET, PRACTICE, RULES, courseFor, scoreFor, walkoutLength, type AttackKind, type Course, type Distance, type Mode, type Stance } from "../config";
@@ -2414,6 +2414,9 @@ export class Game {
     if (this.spec.fancy) {
       this.world?.beforeRender(this.renderer, this.scene, this.camera);
       if (!this.post) this.post = new Post();
+      // Max: the depth passes; the depth of field follows the sights, the aberration the camera's kick.
+      this.post.setMax(this.spec.max, this.rig.ads, Math.min(1, this.rig.shakeNow * 1.6));
+      this.envFor(this.spec.max);
       this.post.setLook(look, this.renderer);
       this.post.render(this.renderer, this.scene, this.camera);
       this.setVeil(null);
@@ -2428,6 +2431,37 @@ export class Game {
       this.setVeil(look);
     }
   }
+
+  /**
+   * Max (v4): a soft sky as the scene's environment, so helmets, visors,
+   * guns and wet metal catch reflections. Off on every other tier.
+   */
+  private envFor(on: boolean): void {
+    if (!on) {
+      if (this.scene.environment) this.scene.environment = null;
+      return;
+    }
+    if (!this.envTex) {
+      const pm = new PMREMGenerator(this.renderer);
+      const sky = new Scene();
+      const geo = new SphereGeometry(10, 24, 12);
+      const mat = new ShaderMaterial({
+        side: BackSide,
+        vertexShader: "varying vec3 vP; void main() { vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+        fragmentShader: "varying vec3 vP; void main() { float h = normalize(vP).y; vec3 c = mix(vec3(0.35, 0.3, 0.26), vec3(0.75, 0.82, 0.95), smoothstep(-0.2, 0.6, h)); c += vec3(1.6, 1.4, 1.1) * pow(max(0.0, dot(normalize(vP), normalize(vec3(0.4, 0.7, 0.3)))), 40.0); gl_FragColor = vec4(c, 1.0); }",
+      });
+      sky.add(new Mesh(geo, mat));
+      this.envTex = pm.fromScene(sky, 0.04).texture;
+      geo.dispose();
+      mat.dispose();
+      pm.dispose();
+    }
+    if (this.scene.environment !== this.envTex) {
+      this.scene.environment = this.envTex;
+      this.scene.environmentIntensity = 0.35;
+    }
+  }
+  private envTex: Texture | null = null;
 
   /** The lobby: its own pipeline (the blurred set), graded the Low way on every tier. */
   private drawLobby(): void {
@@ -3157,7 +3191,7 @@ export class Game {
       }
       case "set": {
         const key = d.key;
-        if (key === "graphics" && ["auto", "low", "medium", "high"].includes(d.val ?? "")) this.settings.graphics = d.val as Settings["graphics"];
+        if (key === "graphics" && ["auto", "low", "medium", "high", "max"].includes(d.val ?? "")) this.settings.graphics = d.val as Settings["graphics"];
         if (key === "moveStick" && (d.val === "fixed" || d.val === "float")) this.settings.moveStick = d.val;
         if (key === "lookPreset" && d.val && LOOK_PRESETS[d.val]) [this.settings.sens, this.settings.lookAccel] = LOOK_PRESETS[d.val];
         if (key === "mouseLook" && (d.val === "lock" || d.val === "stick")) this.settings.mouseLook = d.val;
@@ -3827,7 +3861,7 @@ export class Game {
       if (changed && this.stage) this.stage.setLook(this.myLook(), this.settings.lobbyPose);
       this.worldKey = "";
     }
-    this.quality.setMode(s.graphics === "low" ? "saver" : s.graphics === "high" ? "sharp" : "auto");
+    this.quality.setMode(s.graphics === "low" ? "saver" : s.graphics === "high" || s.graphics === "max" ? "sharp" : "auto");
     if (this.round && !this.paused) this.loop.setFpsCap(this.spec.tier === 0 ? 30 : 60);
   }
 

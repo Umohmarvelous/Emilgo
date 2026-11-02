@@ -17,7 +17,9 @@ export type Tier = 0 | 1 | 2;
 
 export interface TierSpec {
   tier: Tier;
-  name: "Low" | "Medium" | "High";
+  name: "Low" | "Medium" | "High" | "Max";
+  /** Max (v4 Phase 6): High, plus ambient occlusion, god rays, depth of field when aiming, chromatic aberration in action, reflections on metal. */
+  max: boolean;
   shadows: boolean;
   shadowSize: number;
   /** Particles budget multiplier (rain). */
@@ -35,9 +37,11 @@ export interface TierSpec {
 }
 
 const SPECS: TierSpec[] = [
-  { tier: 0, name: "Low", shadows: false, shadowSize: 0, particles: 0.35, dof: false, fancy: false, pbr: false, maxPixelRatio: 1.25, far: 150 },
-  { tier: 1, name: "Medium", shadows: true, shadowSize: 1024, particles: 0.75, dof: true, fancy: false, pbr: true, maxPixelRatio: 1.75, far: 220 },
-  { tier: 2, name: "High", shadows: true, shadowSize: 2048, particles: 1, dof: true, fancy: true, pbr: true, maxPixelRatio: 2, far: 300 },
+  { tier: 0, name: "Low", max: false, shadows: false, shadowSize: 0, particles: 0.35, dof: false, fancy: false, pbr: false, maxPixelRatio: 1.25, far: 150 },
+  { tier: 1, name: "Medium", max: false, shadows: true, shadowSize: 1024, particles: 0.75, dof: true, fancy: false, pbr: true, maxPixelRatio: 1.75, far: 220 },
+  { tier: 2, name: "High", max: false, shadows: true, shadowSize: 2048, particles: 1, dof: true, fancy: true, pbr: true, maxPixelRatio: 2, far: 300 },
+  // Max is High's tier everywhere (people, textures, distances) with the depth-buffer passes on top: never picked by Auto.
+  { tier: 2, name: "Max", max: true, shadows: true, shadowSize: 4096, particles: 1, dof: true, fancy: true, pbr: true, maxPixelRatio: 2, far: 340 },
 ];
 
 /** GPUs of the low-end class, and software rendering. */
@@ -64,6 +68,7 @@ export function autoTier(gl?: WebGLRenderingContext | WebGL2RenderingContext | n
 
 /** `cap`: Auto only — the highest tier this phone has shown it can hold (stepped down while playing). */
 export function tierSpec(setting: GraphicsTier, gl?: WebGLRenderingContext | WebGL2RenderingContext | null, cap: Tier = 2): TierSpec {
+  if (setting === "max") return SPECS[3];
   const t: Tier = setting === "low" ? 0 : setting === "medium" ? 1 : setting === "high" ? 2 : (Math.min(autoTier(gl), cap) as Tier);
   return SPECS[t];
 }
