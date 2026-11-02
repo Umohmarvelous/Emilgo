@@ -40,6 +40,7 @@ import type { SurvivalModule } from "../game/modules/survival";
 import type { ItemsModule } from "../game/modules/items";
 import { gunStats, type GunsModule } from "../game/modules/guns";
 import { CombatHud } from "../ui/combat";
+import { FieldKit, leftLine, type ZombieBar } from "../ui/fieldkit";
 import { GunsView } from "../world/gunsView";
 import { getLang, t } from "../ui/i18n";
 import { PING_LINES } from "../ui/quickchat";
@@ -129,6 +130,8 @@ function runResult(sv: SurvivalModule, trace: number[]): NonNullable<ModeResult[
   return { tally: { ...sv.tally }, trace: trace.slice(), missed: sv.finds.filter((f) => !sv.found.has(f.k) && f.kind !== "egg").map((f) => [f.x, f.z] as [number, number]) };
 }
 
+const _bar = new Vector3();
+
 /** The winning-streak glow on someone's clothes. */
 const STREAK_GLOW = 0x5a3c00;
 
@@ -165,6 +168,13 @@ export class FfaMode implements GameMode {
   private readonly gunsView: GunsView | null;
   private readonly combat: CombatHud | null;
   private dryAt = 0;
+  /** HUD A (v4 Phase 3): the watch, the plates, the edges, the zombies' bars. */
+  private readonly fk = new FieldKit();
+  /** Dead Streets: each zombie's health when last seen, its most, and when it was last hurt (seconds of play). */
+  private zPrev = new Float32Array(0);
+  private zMax = new Float32Array(0);
+  private zHitAt = new Float32Array(0);
+  private readonly zBars: ZombieBar[] = [];
   private readonly focus = new Vector3();
   private readonly marks: MapMark[] = [];
   private readonly looks: Look[];
@@ -246,7 +256,7 @@ export class FfaMode implements GameMode {
     h.scene.add(this.modes6.group);
     const guns = m.module<GunsModule>("guns");
     this.gunsView = guns ? new GunsView({ crowd: h.crowd, sound: h.sound, tier: h.spec.tier, me: me.index, blood: h.settings.blood }) : null;
-    this.combat = guns ? new CombatHud() : null;
+    this.combat = guns || m.module("survival") ? new CombatHud() : null;
     if (this.gunsView) h.scene.add(this.gunsView.group);
     this.dead = m.module("survival") ? new DeadView({ crowd: h.crowd, hud: h.hud, sound: h.sound, me: me.index, layer: h.ui, tier: h.spec.tier }) : null;
     if (this.dead) {
@@ -291,6 +301,11 @@ export class FfaMode implements GameMode {
     map.reach = 80;
     map.names = world.layout.landmarks;
     h.ui.append(this.play.root);
+    // HUD A, Field Kit: Free For All and Dead Streets (Ball Haunt keeps its own).
+    h.ui.append(this.fk.root);
+    h.hud.setFieldKit(true);
+    this.play.root.classList.add("fieldkit");
+    this.dead?.setFieldKit(true);
     if (this.combat) {
       h.ui.append(this.combat.root);
       this.combat.onSwap = () => h.controls.swap();
@@ -570,6 +585,20 @@ export class FfaMode implements GameMode {
       case "car":
         if (m.phase === "play") h.hud.pushFeed(t("A danfo has come"), "info");
         break;
+      case "claw":
+      case "hazard":
+        if (("tg" in e ? e.tg : e.id) === me.id) this.fk.hurt();
+        break;
+      case "shot":
+        // Dead Streets: your shot on a zombie, marked like Free For All's.
+        if (e.id === me.id && e.tg) {
+          this.combat?.hitMark(e.head, false);
+          h.sound.hitMarker(e.head, false);
+        }
+        break;
+      case "zdie":
+        if (e.by === me.id) this.combat?.hitMark(e.head, true);
+        break;
       // ── Guns (v4) ──
       case "fire":
         if (e.id === me.id) {
@@ -587,6 +616,7 @@ export class FfaMode implements GameMode {
           h.haptic("select");
         }
         if (e.tg === me.id) {
+          this.fk.hurt();
           const by = e.by ? m.get(e.by) : null;
           if (by) {
             // Where it came from, on screen: 0 ahead, + to the right.
@@ -761,6 +791,7 @@ export class FfaMode implements GameMode {
     const { goal: flagGoal } = this.view.update(dt, m, h.camera, this.marks, h.rig.firstPerson && target === me);
     const deadPin = this.dead?.update(dt, m, cam, this.marks).pin ?? null;
     if (this.gunsView) this.gunFrame(dt, m, me);
+    this.fieldFrame(m, me);
     const goal = flagGoal ?? deadPin ?? this.modes6.update(dt, m, this.marks).pin;
     // The Harmattan: the siren, then the dust; footprints gone; headlights on (or in a power cut).
     const hm = m.module<HarmattanModule>("harmattan");
@@ -822,6 +853,104 @@ export class FfaMode implements GameMode {
       this.dimLook.saturation = LOOKS.naija.saturation * (1 - 0.35 * this.dimmed);
       h.draw(this.dimLook);
     } else h.draw(LOOKS.naija);
+  }
+
+  /** HUD A, each frame: the watch, the plates, the edges; Dead Streets' centre arc and the zombies' bars. */
+  private fieldFrame(m: Match, me: Contestant): void {
+    const h = this.host;
+    const ps = this.play.state;
+    const sv = m.module<SurvivalModule>("survival");
+    const g = m.module<GunsModule>("guns");
+    const alive = me.status === "alive";
+    const playing = m.phase === "play" || m.phase === "countdown";
+    this.fk.show(playing && !this.over);
+    if (!playing) return;
+    let watch: { big: string; line: string; arc: number; urgent: boolean };
+    let health = 1;
+    let armour = 0;
+    let tag = "";
+    if (sv) {
+      // Dead Streets: the run's clock, the bleed (or the Mast's hold) under it.
+      const bleed = Math.max(0, sv.bleedAfter - m.elapsed);
+      const stand = sv.standAt >= 0 && !sv.tally.finished ? Math.max(0, Math.ceil(sv.standAt + SURVIVAL.stand.s - m.elapsed)) : -1;
+      watch = {
+        big: fmtTime(Math.max(0, m.elapsed)),
+        line: stand >= 0 ? `${t("Hold the Mast")} ${stand} s` : bleed > 0 ? `${t("Bleed")} ${fmtTime(bleed)}` : t("Bleeding"),
+        arc: bleed / sv.bleedAfter,
+        urgent: bleed <= 0 || stand >= 0,
+      };
+      health = sv.hp / SURVIVAL.you.hp;
+      armour = sv.armour;
+      tag = `${t("Torch")} ${Math.round(sv.torch)}% · ${Math.round(sv.tally.route * 100)}%`;
+    } else {
+      const z = ps?.zone;
+      const left = m.contestants.filter((c) => c.status === "alive").length;
+      const big = z && z.closesIn >= 0 && !z.closing ? fmtTime(z.closesIn) : fmtTime(m.phase === "play" ? m.timeLeft : m.settings.time);
+      watch = {
+        big,
+        line: `${z?.closing ? t("Zone closing") : z?.final ? t("Final circle") : t("Zone")} · ${leftLine(left)}`,
+        arc: m.phase === "play" ? m.timeLeft / m.settings.time : 1,
+        urgent: !!z?.closing || (m.phase === "play" && m.timeLeft <= 30),
+      };
+      if (g) {
+        health = g.hp[me.index] / GUNS.hp;
+        armour = g.armour[me.index];
+        tag = `${t("Armour")} ${Math.round(armour)}`;
+      }
+    }
+    const heat = ps ? (ps.outside ? 0.35 + 0.65 * ps.exposure : ps.exposure * 0.5) : 0;
+    this.fk.update({ watch, armour, armourMax: GUNS.armour.max, tag, health: alive ? health : 1, heat: alive ? heat : 0, doomed: !!ps?.doomed });
+    if (!sv) return;
+    // Dead Streets' centre: health and the torch round the dot, the rounds by it.
+    const cb = this.combat;
+    if (cb) {
+      cb.show(alive && m.phase === "play");
+      cb.update({
+        hp: sv.hp,
+        hpMax: SURVIVAL.you.hp,
+        armour: sv.torch,
+        armourMax: 100,
+        torch: true,
+        kind: "pistol",
+        rarity: 0,
+        mag: sv.ammo,
+        magMax: SURVIVAL.you.ammo,
+        res: -1,
+        reload: -1,
+        gap: 6,
+        ads: false,
+        two: false,
+      });
+    }
+    // The zombies' bars: the ones hurt in the last 3 s, near and in front, nearest first.
+    const n = m.contestants.length;
+    if (this.zPrev.length !== n) {
+      this.zPrev = new Float32Array(n);
+      this.zMax = new Float32Array(n);
+      this.zHitAt = new Float32Array(n).fill(-99);
+    }
+    const W = h.ui.clientWidth;
+    const H = h.ui.clientHeight;
+    const cam = h.camera;
+    this.zBars.length = 0;
+    const list: [number, ZombieBar][] = [];
+    for (let i = 1; i < n; i++) {
+      const z = m.contestants[i];
+      const hp = sv.zhp[i];
+      // A new one risen (its health went up): its most is what it has now.
+      if (hp > this.zPrev[i] + 1e-3) this.zMax[i] = hp;
+      else if (hp < this.zPrev[i] - 1e-3) this.zHitAt[i] = m.elapsed;
+      this.zPrev[i] = hp;
+      if (z.status !== "alive" || hp <= 0 || m.elapsed - this.zHitAt[i] > 3) continue;
+      const d = Math.hypot(z.x - me.x, z.z - me.z);
+      if (d > 40) continue;
+      _bar.set(z.x, z.h + z.y + 2.05, z.z).project(cam);
+      if (_bar.z > 1 || Math.abs(_bar.x) > 1.05 || Math.abs(_bar.y) > 1.05) continue;
+      list.push([d, { x: ((_bar.x + 1) / 2) * W, y: ((1 - _bar.y) / 2) * H, v: hp / Math.max(1, this.zMax[i]), on: true, masked: sv.kindOf(i) === "masked" }]);
+    }
+    list.sort((a, b) => a[0] - b[0]);
+    for (const [, b] of list) this.zBars.push(b);
+    this.fk.zombies(this.zBars);
   }
 
   /** Guns, each frame: the camera down the sights, the guns drawn, the gun HUD, a dry click. */
@@ -926,6 +1055,8 @@ export class FfaMode implements GameMode {
       this.gunsView.dispose();
     }
     this.combat?.root.remove();
+    this.fk.dispose();
+    h.hud.setFieldKit(false);
     h.rig.adsWant = 0;
     h.controls.setGuns(false);
     if (this.dead) {

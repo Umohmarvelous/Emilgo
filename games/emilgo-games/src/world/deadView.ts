@@ -407,6 +407,11 @@ export class DeadView {
     return { pin };
   }
 
+  /** HUD A (v4): the watch, the centre arc and the plates show the run; this panel goes. */
+  setFieldKit(on: boolean): void {
+    this.hudEl.classList.toggle("fieldkit", on);
+  }
+
   dispose(): void {
     this.hudEl.remove();
     this.nvEl.remove();

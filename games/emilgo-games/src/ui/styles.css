@@ -1038,6 +1038,7 @@ input { font: inherit; color: inherit; }
 .c-hp.low { stroke: #ff4a3a; animation: c-low 0.9s ease-in-out infinite; }
 @keyframes c-low { 50% { opacity: 0.45; } }
 .c-ar { stroke: #5ec8ff; transition: stroke-dasharray 0.18s; filter: drop-shadow(0 0 1px #000); }
+.c-ar.torch { stroke: #ffb23a; }
 .c-rl { stroke: var(--amber); stroke-width: 1.6; opacity: 0; transition: opacity 0.15s; }
 .c-xh { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
 .c-xh i { position: absolute; left: 0; top: 0; background: var(--ink); box-shadow: 0 0 1px #000, 0 0 2px #0008; transition: transform 0.06s linear; }
@@ -1084,4 +1085,67 @@ input { font: inherit; color: inherit; }
 .gunpad.lefty .abtn.ads { right: auto; left: calc(var(--safe-l) + 214px); }
 .gunpad.lefty .abtn.reload { right: auto; left: calc(var(--safe-l) + 254px); }
 .gunpad.lefty ~ .combat .c-weapon, .combat.lefty .c-weapon { right: auto; left: calc(var(--safe-l) + 96px); }
-@media (orientation: portrait) { .abtn.fire { bottom: calc(var(--safe-b) + 300px); } .abtn.ads { bottom: calc(var(--safe-b) + 390px); } .abtn.fireL { bottom: calc(var(--safe-b) + 360px); } }
+/* Portrait: FIRE and ADS above the jump cluster, the second FIRE above sprint, the weapon over the bottom row. */
+@media (orientation: portrait) {
+  .abtn.fire { right: calc(var(--safe-r) + 26px); bottom: calc(var(--safe-b) + 360px); }
+  .abtn.ads { right: calc(var(--safe-r) + 112px); bottom: calc(var(--safe-b) + 404px); }
+  .abtn.reload { right: calc(var(--safe-r) + 118px); bottom: calc(var(--safe-b) + 346px); }
+  .abtn.fireL { left: calc(var(--safe-l) + 30px); bottom: calc(var(--safe-b) + 420px); }
+  .gunpad.lefty .abtn.fire { left: calc(var(--safe-l) + 26px); right: auto; }
+  .gunpad.lefty .abtn.ads { left: calc(var(--safe-l) + 112px); right: auto; }
+  .gunpad.lefty .abtn.reload { left: calc(var(--safe-l) + 118px); right: auto; }
+  .gunpad.lefty .abtn.fireL { right: calc(var(--safe-r) + 30px); left: auto; }
+  .c-weapon { right: calc(var(--safe-r) + 12px); bottom: calc(var(--safe-b) + 84px); }
+  .gunpad.lefty ~ .combat .c-weapon { left: calc(var(--safe-l) + 12px); right: auto; }
+}
+
+/* ── v4 HUD A: Field Kit ─────────────────────────────────────────────────── */
+.fieldkit-layer { --amber: #ffb23a; --ink: #f2e6c9; position: absolute; inset: 0; pointer-events: none; font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; }
+.fieldkit-layer[hidden] { display: none; }
+.fk-watch { position: absolute; left: calc(var(--safe-l) + 12px); top: calc(var(--safe-t) + 56px); width: 74px; height: 74px; border-radius: 50%; background: radial-gradient(circle at 50% 40%, #2a2b22, #121309 70%); border: 3px solid #3a3a2c; box-shadow: inset 0 0 0 2px #0008, 0 2px 0 #0009; }
+.fk-arc { position: absolute; inset: 2px; border-radius: 50%; background: conic-gradient(var(--amber) 0 var(--a, 100%), #ffffff12 var(--a, 100%) 100%); -webkit-mask: radial-gradient(circle, #0000 58%, #000 61%); mask: radial-gradient(circle, #0000 58%, #000 61%); }
+.fk-face { position: absolute; inset: 7px; border-radius: 50%; border: 1px solid #6b6a52; }
+.fk-t { position: absolute; left: 0; right: 0; top: 22px; text-align: center; color: var(--amber); font-weight: 800; font-size: 14px; text-shadow: 0 0 6px #ffb23a88; font-variant-numeric: tabular-nums; }
+.fk-l { position: absolute; left: 6px; right: 6px; top: 41px; text-align: center; color: #b8b39a; font-size: 6.5px; letter-spacing: 0.08em; line-height: 1.25; }
+.fk-watch.urgent .fk-t { color: #ff6b4a; animation: c-low 0.9s ease-in-out infinite; }
+.fk-rig { position: absolute; left: calc(var(--safe-l) + 94px); top: calc(var(--safe-t) + 64px); }
+.fk-plates { display: flex; gap: 4px; align-items: flex-end; }
+.fk-plates i { width: 12px; height: 17px; border-radius: 2px 2px 5px 5px; background: linear-gradient(#8b8e74, #565842); box-shadow: inset 0 0 0 1px #000a, 0 1px 1px #0008; }
+.fk-plates i.off { background: #ffffff14; box-shadow: inset 0 0 0 1px #ffffff22; }
+.fk-plates i.cracked { background: linear-gradient(135deg, #8b8e74 0 45%, #2a2a22 45% 52%, #565842 52%); }
+.fk-tag { margin-top: 4px; font-size: 7.5px; color: #b8b39a; letter-spacing: 0.12em; text-shadow: 0 1px 1px #000; }
+.fk-hurt { position: absolute; inset: 0; opacity: 0; background: radial-gradient(ellipse at center, #0000 52%, #b0000099 100%); transition: opacity 0.4s; }
+.fk-hurt.pulse { animation: fk-pulse 1.1s ease-in-out infinite; }
+@keyframes fk-pulse { 50% { filter: brightness(1.5); } }
+.fk-flash { position: absolute; inset: 0; opacity: 0; background: radial-gradient(ellipse at center, #0000 45%, #ff1a0aaa 100%); }
+.fk-flash.on { animation: fk-flash 0.45s ease-out; }
+@keyframes fk-flash { from { opacity: 1; } to { opacity: 0; } }
+.fk-heat { position: absolute; inset: 0; opacity: 0; box-shadow: inset 0 0 70px 14px #ff7a1a88; transition: opacity 0.35s; }
+.fk-heat.doomed { box-shadow: inset 0 0 90px 22px #ff4a1aaa; animation: fk-pulse 0.6s ease-in-out infinite; }
+.fk-zbar { position: absolute; left: 0; top: 0; width: 44px; height: 5px; margin: -2px 0 0 -22px; background: #000a; border: 1px solid #f2e6c955; border-radius: 1px; transition: opacity 0.25s; }
+.fk-zbar.hide { opacity: 0; }
+.fk-zbar i { position: absolute; inset: 0; background: linear-gradient(90deg, #c7c08a, #f2e6c9); transform-origin: left; transition: transform 0.12s; }
+.fk-zbar.low i { background: #ff4a3a; }
+.fk-zbar.masked { border-color: #ffb23a; }
+/* The shared HUD in Field Kit dress: the watch replaces the clock lines; A's compass and type; the radio by the map. */
+.hud.fieldkit .minfo { display: none; }
+.hud.fieldkit .compass .strip i { font-family: "JetBrains Mono", monospace; color: #f2e6c9cc; }
+.hud.fieldkit .compass { border-bottom: 1px solid #f2e6c955; }
+.hud.fieldkit .compass .caret { border-bottom-color: #ffb23a; }
+.fk-radio { position: absolute; right: calc(var(--safe-r) + var(--gap) + 132px); top: calc(var(--safe-t) + 10px); width: 220px; }
+.fk-radio .feed { align-items: flex-end; }
+.fk-radio .feed-item { font: 600 8.5px/1.3 "JetBrains Mono", monospace; color: #f2e6c9; background: #14150fcc; border-left: 2px solid #ffb23a; padding: 3px 6px; text-shadow: none; }
+.fk-radio .feed-item::before { content: "RADIO › "; color: #ffb23a; }
+.fk-radio .feed-item.out { border-left-color: #ff5a4a; }
+.fk-radio .feed-item.safe { border-left-color: #8fd18a; }
+@media (orientation: portrait) {
+  .fk-radio { right: calc(var(--safe-r) + 12px); top: calc(var(--safe-t) + 180px); }
+}
+.playhud.fieldkit .pzone, .playhud.fieldkit .ptint { display: none; }
+.playhud.fieldkit .pobj { top: calc(var(--safe-t) + 48px); font: 700 9px/1.3 "JetBrains Mono", monospace; letter-spacing: 0.08em; text-transform: uppercase; color: #f2e6c9; background: #14150fcc; border: 1px solid #6b6a52; padding: 3px 8px; text-shadow: none; }
+.playhud.fieldkit .pexpo { top: calc(var(--safe-t) + 72px); font-family: "JetBrains Mono", monospace; }
+.dshud.fieldkit { display: none; }
+@media (orientation: portrait) {
+  .playhud.fieldkit .pobj { top: calc(var(--safe-t) + 250px); max-width: calc(100% - 40px); }
+  .playhud.fieldkit .pexpo { top: calc(var(--safe-t) + 274px); }
+}

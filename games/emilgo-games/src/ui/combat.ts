@@ -41,6 +41,8 @@ export interface CombatState {
   ads: boolean;
   /** A primary carried (swap offered). */
   two: boolean;
+  /** Dead Streets: the right arc is the torch's battery (amber), not armour. */
+  torch?: boolean;
 }
 
 export class CombatHud {
@@ -131,6 +133,7 @@ export class CombatHud {
     this.place(this.hpArc, HP_SPAN, hpV, 110);
     const arV = Math.max(0, Math.min(1, s.armour / s.armourMax));
     this.place(this.arArc, AR_SPAN, arV, 50 - 100 * arV);
+    this.arArc.classList.toggle("torch", !!s.torch);
     this.hpArc.classList.toggle("low", hpV < 0.3);
     if (s.reload >= 0) this.place(this.rlArc, 1, s.reload, -90);
     this.rlArc.style.opacity = s.reload >= 0 ? "1" : "0";
@@ -143,9 +146,10 @@ export class CombatHud {
     const key = `${s.kind}|${s.rarity}|${s.mag}|${s.res}|${s.magMax}|${s.two}|${s.reload >= 0}`;
     if (key === this.last) return;
     this.last = key;
-    this.small.textContent = `${s.mag} / ${s.res}`;
+    // No spare rounds to speak of (Dead Streets: just the rounds you have).
+    this.small.textContent = s.res >= 0 ? `${s.mag} / ${s.res}` : `${s.mag}`;
     this.small.classList.toggle("low", s.mag <= Math.ceil(s.magMax * 0.2));
-    this.wN.innerHTML = `${s.mag}<small> / ${s.res}</small>`;
+    this.wN.innerHTML = s.res >= 0 ? `${s.mag}<small> / ${s.res}</small>` : `${s.mag}`;
     this.wName.textContent = `${t(GUN_NAMES[s.kind] ?? s.kind).toUpperCase()} · ${t(RARITY_NAMES[s.rarity] ?? "Common").toUpperCase()}${s.two ? " ⇄" : ""}`;
     this.wName.style.color = RARITY_CSS[s.rarity] ?? "";
     const lit = s.magMax > 0 ? Math.ceil((s.mag / s.magMax) * 10) : 0;

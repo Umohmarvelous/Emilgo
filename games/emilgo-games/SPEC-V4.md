@@ -48,6 +48,10 @@ hidden and untouched).
 | Loot | Per 10,000 m²: 2.4 guns, 2 ammo boxes, 2 plates, 2.6 crates, 1.2 drums, placed from the match's seed (the copy places the same). Ammo and plates are taken by walking over them; a gun needs interact. Falling drops your primary and a plate. |
 | Keys (computer) | Left button fire, right button aim (held), wheel or Q swap, R reload; with guns the slap moves to Z, the grab to G, the emote wheel to J. |
 | Protocol 15 | "in" carries the aim (milliradians) and the gun buttons. **The test server on Fly needs `fly deploy`** (the owner's) before the test site plays online again. |
+| HUD A placement | The watch top left under the four buttons (where the clock was; the clock lines go); the plates beside it; the radio left of the minimap (portrait: under it); the objective line under the compass in A's panel. The old minimap stays as it was, top right. Ball Haunt keeps the old HUD (`Hud.setFieldKit` only in Free For All and Dead Streets). |
+| The edges | Red: steady from 60 health down, pulsing under 30, a flash on every hit (shot, claw, hazard). Orange: outside the zone, 35% plus the exposure; pulsing when the sky has seen you. |
+| Dead Streets' centre | The arc is health (left) and the torch's battery (right, amber); the rounds by it (no spare count: Dead Streets has no magazines); the watch shows the run's clock with the bleed (or the Mast's hold) under it. |
+| Zombie health bars | Over any zombie hurt in the last 3 s, within 40 m and on screen, nearest ten; the bar is its health against what it rose with; a Masked one's bar is edged amber (only a head shot puts it down). |
 | "1 million users at once" | One server process can't hold that. The build makes each room server stateless between matches and adds a room directory so many machines share the load. Tested here at **10,000 simulated players** (the owner's number); the 1M path is described in README (machines × rooms), not tested. |
 
 ## Phases (built back to back, no waiting; each tested, committed, pushed, the test site republished)
@@ -84,3 +88,13 @@ Not done in Phase 1: a real phone.
 | Builds | typecheck · server · EMILGO embed 2,882 KB (was 2,832) |
 
 Not done in Phase 2: a real phone; the guns' look past low-poly (the sample sounds come in Phase 8).
+
+### Phase 3: HUD A, Field Kit (done 3 Nov 2026)
+
+| Check | Result |
+|---|---|
+| In headless Chrome (real GPU) | Free For All, 844×390: the watch (8:58, ZONE · 1 LEFT, its arc), the plates (60 armour: two whole, one cracked), the radio by the map, the objective in A's panel, the centre arc; at 26 health the red edge pulsing. Dead Streets: the watch (0:15, BLEED 11:48), the arc as health and torch, the rounds, a zombie's bar over its head at 55% after a hit. Left-handed (mirrored) and portrait 390×844 (FIRE and ADS above the jump cluster, the weapon over the bottom row, the radio under the map). |
+| Tests | typecheck; the HUD is the phone's only (no rules changed). |
+| Builds | EMILGO embed |
+
+Not done in Phase 3: a real phone.

@@ -104,6 +104,25 @@ export class Hud {
     this.show(false);
   }
 
+  /** The radio: where the feed goes in HUD A (v4), left of the minimap. */
+  private readonly radio = el("div", "fk-radio");
+
+  /**
+   * HUD A, Field Kit (v4 Phase 3): Free For All and Dead Streets. The clock
+   * gives way to the wrist watch, the feed becomes the radio by the map, the
+   * compass and the lines take A's type. Ball Haunt keeps the HUD it had.
+   */
+  setFieldKit(on: boolean): void {
+    this.root.classList.toggle("fieldkit", on);
+    if (on && this.feed.parentElement !== this.radio) {
+      this.radio.append(this.feed);
+      this.root.append(this.radio);
+    } else if (!on && this.feed.parentElement === this.radio) {
+      this.compass.after(this.feed);
+      this.radio.remove();
+    }
+  }
+
   show(on: boolean): void {
     this.root.classList.toggle("visible", on);
     if (!on) this.map.expand(false);

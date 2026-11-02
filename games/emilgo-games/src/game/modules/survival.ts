@@ -68,7 +68,7 @@ export { dailySeed, medalOf, runMutator } from "../weekly";
 
 export class SurvivalModule implements RuleModule {
   readonly id = "survival" as const;
-  private readonly bleedAfter: number;
+  readonly bleedAfter: number;
   private readonly bleedRate: number;
   readonly weapon: RunWeapon;
   readonly perks: ReadonlySet<RunPerk>;

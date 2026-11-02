@@ -78,6 +78,8 @@ const EFFECT_NAME: Record<string, { item: ItemId; label: string }> = {
 
 export class PlayHud {
   readonly root = el("div", "playhud");
+  /** What the last update showed (HUD A's watch and heat edge read it). */
+  state: PlayHudState | null = null;
   /** Interact pressed (true) and released (false). */
   onInteract: (down: boolean) => void = () => {};
   onUse: (slot: number) => void = () => {};
@@ -188,6 +190,7 @@ export class PlayHud {
   }
 
   update(s: PlayHudState): void {
+    this.state = s;
     this.smoke.classList.toggle("visible", !!s.smoke);
     const r = s.respawn === -2 ? (s.riddle ?? null) : null;
     const rs = r ? `${r.text}|${r.en}|${r.solved}/${r.need}` : "";
