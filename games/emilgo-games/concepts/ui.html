@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EMILGO Games · UI concept</title>
+<link rel="stylesheet" href="fonts/fonts.css">
+<!--
+  Concept mockups (not game code). One phone-landscape stage (844 × 390 CSS px,
+  the game's design size) scaled to fit the window.
+    ui.html?c=A|B|C|D&s=ffa|dead|win|lose      HUD concepts and end screens
+    ui.html?s=welcome1|welcome2|lobby1|lobby2|prematch
+    &notes=1  shows where each sound fires    &still=1  freezes the animations
+  Everything is CSS transforms and opacity, no blur, no canvas effects:
+  what a Tecno/Infinix can animate at 30 fps.
+-->
+<style>
+:root{--W:844px;--H:390px}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:#000;overflow:hidden;font-family:Inter,"Segoe UI",Roboto,system-ui,sans-serif;color:#fff;-webkit-font-smoothing:antialiased}
+#stage{position:absolute;left:50%;top:50%;width:var(--W);height:var(--H);transform-origin:50% 50%;overflow:hidden;background:#111}
+.bg{position:absolute;inset:0;background-size:cover;background-position:center}
+.abs{position:absolute}
+.row{display:flex;align-items:center}
+.col{display:flex;flex-direction:column}
+.mono{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace}
+.heavy{font-family:Montserrat,Mont,Inter,sans-serif;font-weight:900;letter-spacing:.02em}
+.note{position:absolute;z-index:50;font:600 8px/1.2 Inter,sans-serif;background:#ffd23a;color:#111;border-radius:3px;padding:2px 4px;white-space:nowrap;box-shadow:0 1px 0 #0006;display:none}
+.note::before{content:"♪ "}
+body.notes .note{display:block}
+body.still *{animation-play-state:paused!important;transition:none!important}
+
+/* Shared touch controls (every concept keeps them; their skin changes) */
+.stick{position:absolute;left:58px;bottom:44px;width:104px;height:104px;border:1px solid #fff;border-radius:50%;opacity:.9}
+.stick::after{content:"";position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px;border-radius:50%;background:#fff}
+.lookzone{position:absolute;left:50%;top:0;right:0;bottom:0;border-left:1px dashed #ffffff22;display:none}
+body.notes .lookzone{display:block}
+.btn{position:absolute;border-radius:50%;display:grid;place-items:center;font:800 9px/1 Inter,sans-serif;letter-spacing:.04em}
+.btn svg{width:46%;height:46%}
+
+/* Kill feed slide-in */
+@keyframes feedIn{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
+@keyframes feedInL{from{transform:translateX(-40px);opacity:0}to{transform:none;opacity:1}}
+@keyframes pop{0%{transform:scale(.4);opacity:0}60%{transform:scale(1.15);opacity:1}100%{transform:scale(1);opacity:1}}
+@keyframes hit{0%{transform:scale(1.6) rotate(45deg);opacity:0}20%{opacity:1}100%{transform:scale(1) rotate(45deg);opacity:0}}
+@keyframes pulse{0%,100%{opacity:.35}50%{opacity:1}}
+@keyframes beat{0%,100%{transform:scale(1)}15%{transform:scale(1.06)}30%{transform:scale(1)}45%{transform:scale(1.04)}}
+@keyframes flash{0%,100%{opacity:0}10%,30%{opacity:1}20%{opacity:.4}}
+@keyframes fill{from{transform:scaleX(var(--from,0))}to{transform:scaleX(var(--to,1))}}
+@keyframes rise{from{transform:translateY(16px);opacity:0}to{transform:none;opacity:1}}
+@keyframes flip{0%{transform:perspective(500px) rotateY(90deg);opacity:0}100%{transform:perspective(500px) rotateY(0);opacity:1}}
+@keyframes shine{from{transform:translateX(-120%) skewX(-20deg)}to{transform:translateX(320%) skewX(-20deg)}}
+@keyframes drift{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes tick{0%,100%{opacity:1}50%{opacity:.2}}
+
+/* ── Concept A: Field Kit (diegetic first) ───────────────────────────── */
+.A{--ink:#f2e6c9;--amber:#ffb23a;--olive:#4b4c37;--panel:#1d1e16cc;font-family:"JetBrains Mono",ui-monospace,Menlo,monospace}
+.A .watch{position:absolute;left:14px;bottom:150px;width:92px;height:92px;border-radius:50%;background:radial-gradient(circle at 50% 40%,#2a2b22,#121309 70%);border:4px solid #3a3a2c;box-shadow:inset 0 0 0 2px #0008,0 2px 0 #0009}
+.A .watch .face{position:absolute;inset:8px;border-radius:50%;border:1px solid #6b6a52}
+.A .watch .t{position:absolute;left:0;right:0;top:30px;text-align:center;color:var(--amber);font-weight:800;font-size:15px;text-shadow:0 0 6px #ffb23a88}
+.A .watch .l{position:absolute;left:0;right:0;top:50px;text-align:center;color:#b8b39a;font-size:7px;letter-spacing:.1em}
+.A .watch .zonearc{position:absolute;inset:3px;border-radius:50%;background:conic-gradient(var(--amber) 0 62%,#ffffff12 62% 100%);-webkit-mask:radial-gradient(circle,#0000 58%,#000 60%);mask:radial-gradient(circle,#0000 58%,#000 60%)}
+.A .strap{position:absolute;left:44px;width:26px;height:24px;background:repeating-linear-gradient(0deg,#3a3a2c 0 3px,#2d2d22 3px 6px)}
+.A .rig{position:absolute;left:14px;top:14px;display:flex;gap:6px;align-items:flex-end}
+.A .plate{width:16px;height:22px;border-radius:3px 3px 6px 6px;background:linear-gradient(#8b8e74,#565842);box-shadow:inset 0 0 0 1px #000a}
+.A .plate.off{background:#ffffff14}
+.A .plate.cracked{background:linear-gradient(135deg,#8b8e74 0 45%,#2a2a22 45% 50%,#565842 50%)}
+.A .hp{width:120px;height:6px;background:#0007;border:1px solid #6b6a52;margin-top:5px}
+.A .hp i{display:block;height:100%;width:75%;background:linear-gradient(90deg,#c7c08a,#f2e6c9)}
+.A .tag{font-size:8px;color:#b8b39a;letter-spacing:.12em}
+.A .radio{position:absolute;right:12px;top:12px;width:230px;display:flex;flex-direction:column;gap:3px;align-items:flex-end}
+.A .radio div{font-size:8.5px;color:var(--ink);background:#14150fcc;border-left:2px solid var(--amber);padding:3px 6px;animation:feedIn .35s ease-out both}
+.A .radio b{color:var(--amber)}
+.A .compass{position:absolute;left:50%;top:10px;transform:translateX(-50%);width:200px;height:20px;overflow:hidden;border-bottom:1px solid #f2e6c955;-webkit-mask:linear-gradient(90deg,#0000,#000 20%,#000 80%,#0000);mask:linear-gradient(90deg,#0000,#000 20%,#000 80%,#0000)}
+.A .compass .tape{display:flex;gap:18px;font-size:8px;color:#f2e6c9cc;width:max-content;animation:drift 14s linear infinite alternate}
+.A .ammo{position:absolute;right:200px;bottom:14px;text-align:right}
+.A .ammo .n{font-size:26px;font-weight:800;color:var(--ink);text-shadow:0 1px 0 #000}
+.A .ammo .n small{font-size:12px;color:#b8b39a}
+.A .ammo .w{font-size:8px;color:#b8b39a;letter-spacing:.12em}
+.A .led{position:absolute;right:300px;bottom:96px;width:64px;height:7px;border-radius:3px;background:#100f0a;display:flex;gap:2px;padding:1px;transform:rotate(-14deg);box-shadow:0 0 0 1px #000}
+.A .led i{flex:1;background:var(--amber);box-shadow:0 0 5px var(--amber);border-radius:1px}
+.A .led i.o{background:#3a2a10;box-shadow:none}
+.A .pouch{position:absolute;left:120px;bottom:16px;display:flex;gap:4px}
+.A .pouch div{width:30px;height:30px;border-radius:6px;background:#2d2e22;border:1px dashed #6b6a52;display:grid;place-items:center;font-size:7px;color:#d8d2b4}
+.A .btn{background:#1d1e16b3;border:1px solid #6b6a52;color:var(--ink)}
+.A .fire{right:22px;bottom:30px;width:74px;height:74px;border:2px solid var(--amber)}
+.A .hitx{position:absolute;left:50%;top:50%;width:22px;height:22px;margin:-11px;border:2px solid #fff;border-width:0;}
+.A .xh{position:absolute;left:50%;top:50%;width:14px;height:14px;margin:-7px;border:1px solid #f2e6c9cc;border-radius:50%}
+.A .xh::after{content:"";position:absolute;left:50%;top:50%;width:2px;height:2px;margin:-1px;background:var(--amber)}
+.A .obj{position:absolute;left:50%;top:36px;transform:translateX(-50%);font-size:9px;color:var(--ink);background:#14150fcc;padding:3px 8px;border:1px solid #6b6a52}
+
+/* ── Concept B: Clean Ops (non-diegetic, thin, quiet) ───────────────── */
+.B{--g:#00d26a;--w:#ffffff;--dim:#ffffffb3}
+.B .t{text-shadow:0 1px 2px #000c}
+.B .compass{position:absolute;left:50%;top:8px;transform:translateX(-50%);width:260px;height:22px;overflow:hidden;-webkit-mask:linear-gradient(90deg,#0000,#000 25%,#000 75%,#0000);mask:linear-gradient(90deg,#0000,#000 25%,#000 75%,#0000)}
+.B .compass .tape{display:flex;gap:16px;font:600 9px Inter;color:#fff;width:max-content;animation:drift 16s linear infinite alternate;text-shadow:0 1px 2px #000}
+.B .compass::after{content:"";position:absolute;left:50%;bottom:0;border:4px solid transparent;border-bottom-color:var(--g);transform:translateX(-50%)}
+.B .map{position:absolute;right:12px;top:10px;width:86px;height:86px;border-radius:50%;border:1px solid #ffffff99;background:radial-gradient(circle,#0000 0 40%,#0006),url(img/map.jpg) center/cover;overflow:hidden}
+.B .map .zone{position:absolute;left:18%;top:22%;width:60%;height:60%;border-radius:50%;border:1.5px solid #fff}
+.B .map .me{position:absolute;left:50%;top:50%;border:6px solid transparent;border-bottom:11px solid var(--g);transform:translate(-50%,-70%)}
+.B .zoneline{position:absolute;right:12px;top:102px;width:86px;text-align:center;font:600 8px Inter;color:#fff}
+.B .zoneline b{display:block;font-size:12px}
+.B .vit{position:absolute;left:14px;bottom:14px;width:170px}
+.B .bar{height:5px;background:#ffffff26;margin-top:4px;position:relative;overflow:hidden}
+.B .bar i{position:absolute;inset:0;transform-origin:left;background:#fff}
+.B .bar.ar i{background:#4fb3ff}
+.B .seg{display:flex;gap:3px;margin-top:4px}
+.B .seg i{height:4px;flex:1;background:#4fb3ff}
+.B .seg i.o{background:#ffffff26}
+.B .lbl{font:700 8px Inter;letter-spacing:.14em;color:var(--dim)}
+.B .ammo{position:absolute;right:200px;bottom:12px;text-align:right}
+.B .ammo .n{font:800 30px/1 Inter;letter-spacing:-.02em}
+.B .ammo .n small{font-size:13px;color:var(--dim);font-weight:700}
+.B .ammo .w{font:700 8px Inter;letter-spacing:.14em;color:var(--dim)}
+.B .feed{position:absolute;right:108px;top:12px;display:flex;flex-direction:column;gap:3px;align-items:flex-end}
+.B .feed div{font:600 8.5px Inter;background:#0007;padding:3px 7px;border-radius:2px;animation:feedIn .3s ease-out both}
+.B .feed .k{color:var(--g)} .B .feed .hs{color:#ffd23a}
+.B .xh{position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-13px}
+.B .xh i{position:absolute;background:#fff;box-shadow:0 0 1px #000}
+.B .xh i:nth-child(1){left:12px;top:0;width:2px;height:7px}
+.B .xh i:nth-child(2){left:12px;bottom:0;width:2px;height:7px}
+.B .xh i:nth-child(3){top:12px;left:0;width:7px;height:2px}
+.B .xh i:nth-child(4){top:12px;right:0;width:7px;height:2px}
+.B .hm{position:absolute;left:50%;top:50%;width:30px;height:30px;margin:-15px;animation:hit 1.6s ease-out infinite}
+.B .hm i{position:absolute;left:14px;top:0;width:2px;height:9px;background:#ffd23a}
+.B .hm i:nth-child(2){top:auto;bottom:0}
+.B .hm::before,.B .hm::after{content:"";position:absolute;top:14px;width:9px;height:2px;background:#ffd23a}
+.B .hm::before{left:0}.B .hm::after{right:0}
+.B .xp{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);font:700 9px Inter;color:var(--g);animation:rise 1s ease-out both}
+.B .btn{background:#0000004d;border:1px solid #ffffffb3}
+.B .fire{right:22px;bottom:28px;width:72px;height:72px;border:1.5px solid #fff}
+.B .obj{position:absolute;left:50%;top:32px;transform:translateX(-50%);font:700 9px Inter;letter-spacing:.06em;text-shadow:0 1px 2px #000}
+.B .obj b{color:#ffd23a}
+.B .pack{position:absolute;left:192px;bottom:14px;display:flex;gap:4px}
+.B .pack div{width:26px;height:26px;border:1px solid #ffffff80;display:grid;place-items:center;font:700 7px Inter;background:#0005}
+.B .tl{position:absolute;left:14px;top:12px;font:600 9px Inter;line-height:1.5}
+.B .tl b{font-size:12px}
+
+/* ── Concept C: Pulse (meta and spatial) ──────────────────────────── */
+.C .vig{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,#0000 55%,#b0000088 100%);animation:pulse 1.1s ease-in-out infinite}
+.C .heat{position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 60px 10px #ff7a1a66}
+.C .ring{position:absolute;left:50%;top:50%;width:84px;height:84px;margin:-42px;border-radius:50%;background:conic-gradient(from 200deg,#ffffffd9 0 52%,#0000 52% 60%,#5ec8ff 60% 78%,#0000 78%);-webkit-mask:radial-gradient(circle,#0000 64%,#000 66% 70%,#0000 72%);mask:radial-gradient(circle,#0000 64%,#000 66% 70%,#0000 72%);opacity:.85}
+.C .dot{position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px;border-radius:50%;background:#fff;box-shadow:0 0 0 1px #0008}
+.C .ammo{position:absolute;left:50%;top:50%;transform:translate(52px,18px);font:800 12px Montserrat,Inter;text-shadow:0 1px 2px #000}
+.C .ammo small{font-size:8px;opacity:.7}
+.C .alert{position:absolute;left:50%;top:58px;transform:translateX(-50%);text-align:center;font:900 20px/1 Montserrat,Mont,Inter;letter-spacing:.06em;color:#fff;text-shadow:0 2px 0 #0008;animation:flash 2.4s ease-in-out infinite}
+.C .alert small{display:block;font:700 9px Inter;letter-spacing:.3em;color:#ffb070;margin-top:4px}
+.C .way{position:absolute;display:flex;flex-direction:column;align-items:center;font:800 9px Inter;text-shadow:0 1px 2px #000}
+.C .way .d{width:14px;height:14px;transform:rotate(45deg);border:2px solid #ffd23a;background:#ffd23a33}
+.C .ping{position:absolute;width:10px;height:10px;border-radius:50%;border:2px solid #ff3b30;animation:pop 1.4s ease-out infinite}
+.C .edge{position:absolute;width:120px;height:120px;border-radius:50%;background:radial-gradient(circle,#ff2a1a99,#0000 70%);animation:pulse .9s ease-in-out infinite}
+.C .feed{position:absolute;left:14px;top:14px;display:flex;flex-direction:column;gap:2px}
+.C .feed div{font:700 9px Inter;text-shadow:0 1px 2px #000;animation:feedInL .35s ease-out both}
+.C .feed .k{color:#ff6b5a}
+.C .count{position:absolute;right:14px;top:12px;text-align:right;font:900 22px/1 Montserrat,Mont,Inter;text-shadow:0 2px 0 #0008}
+.C .count small{display:block;font:700 8px Inter;letter-spacing:.2em;opacity:.8}
+.C .btn{background:#ffffff14;border:1px solid #ffffff59}
+.C .fire{right:24px;bottom:30px;width:70px;height:70px;border:1.5px solid #ffffffb3}
+.C .wave{position:absolute;left:0;right:0;bottom:0;height:3px;background:linear-gradient(90deg,#0000,#ff3b30,#0000);animation:pulse .9s infinite}
+
+/* ── Concept D: Street Tech (bold, branded) ─────────────────────────── */
+.D{--gold:#f5a623;--green:#00a651;--ink:#0b0b0d}
+.D .sl{transform:skewX(-14deg)}
+.D .sl>*{transform:skewX(14deg)}
+.D .ank{background-image:repeating-linear-gradient(45deg,#ffffff10 0 4px,#0000 4px 8px),repeating-linear-gradient(-45deg,#ffffff0c 0 4px,#0000 4px 8px)}
+.D .top{position:absolute;left:14px;top:10px;display:flex;gap:6px}
+.D .chip{background:#0b0b0de6;border-left:3px solid var(--gold);padding:4px 10px;font:900 10px Montserrat,Mont,Inter;letter-spacing:.04em}
+.D .chip small{display:block;font:700 7px Inter;color:#ffffffa6;letter-spacing:.14em}
+.D .crest{position:absolute;left:14px;bottom:150px;width:68px;height:78px;clip-path:polygon(50% 0,100% 18%,100% 70%,50% 100%,0 70%,0 18%);background:linear-gradient(160deg,#2a2208,#0b0b0d);display:grid;place-items:center;text-align:center;border:0}
+.D .crest::before{content:"";position:absolute;inset:3px;clip-path:inherit;background:linear-gradient(160deg,#f5a62355,#0000 60%)}
+.D .crest b{font:900 18px/1 Montserrat,Mont,Inter;color:var(--gold);position:relative}
+.D .crest small{display:block;font:800 6.5px Inter;letter-spacing:.12em;position:relative;color:#fff}
+.D .vit{position:absolute;left:14px;bottom:14px;width:190px}
+.D .vb{height:12px;margin-top:4px;background:#0b0b0dcc;position:relative;overflow:hidden}
+.D .vb i{position:absolute;left:0;top:0;bottom:0;transform-origin:left}
+.D .vb.hp i{width:75%;background:linear-gradient(90deg,#00a651,#5be08a)}
+.D .vb.ar i{width:60%;background:linear-gradient(90deg,#b07a10,#f5c14a)}
+.D .vb span{position:absolute;right:6px;top:0;font:900 9px/12px Montserrat,Mont,Inter}
+.D .ammo{position:absolute;right:200px;bottom:12px;text-align:right}
+.D .ammo .n{font:900 30px/1 Montserrat,Mont,Inter;color:#fff;text-shadow:3px 3px 0 #000}
+.D .ammo .n small{font-size:13px;color:var(--gold)}
+.D .ammo .w{display:inline-block;margin-top:3px;padding:2px 8px;font:900 8px Inter;letter-spacing:.1em;color:#000;background:var(--gold)}
+.D .feed{position:absolute;right:104px;top:12px;display:flex;flex-direction:column;gap:4px;align-items:flex-end}
+.D .feed div{background:#0b0b0de6;padding:3px 10px;font:800 8.5px Inter;border-right:3px solid var(--green);animation:feedIn .3s ease-out both}
+.D .feed .hs{border-right-color:var(--gold)}
+.D .map{position:absolute;right:12px;top:10px;width:84px;height:84px;clip-path:polygon(12% 0,100% 0,100% 88%,88% 100%,0 100%,0 12%);background:url(img/map.jpg) center/cover;border:0}
+.D .map::after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 0 2px var(--gold)}
+.D .toast{position:absolute;left:50%;top:70px;transform:translateX(-50%);display:flex;gap:8px;align-items:center;background:#0b0b0de6;padding:6px 14px 6px 8px;border-bottom:2px solid var(--gold);animation:rise .5s ease-out both;overflow:hidden}
+.D .toast .ic{width:26px;height:26px;background:radial-gradient(circle,#ffd77a,#b07a10);clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)}
+.D .toast b{font:900 11px Montserrat,Mont,Inter;color:var(--gold)}
+.D .toast small{display:block;font:700 7.5px Inter;color:#fff;letter-spacing:.1em}
+.D .toast::after{content:"";position:absolute;top:0;bottom:0;width:30px;background:linear-gradient(90deg,#0000,#ffffff55,#0000);animation:shine 1.6s ease-in-out infinite}
+.D .xh{position:absolute;left:50%;top:50%;width:20px;height:20px;margin:-10px;border:2px solid #fff;transform:rotate(45deg);box-shadow:0 0 0 1px #0008}
+.D .xh::after{content:"";position:absolute;left:50%;top:50%;width:3px;height:3px;margin:-1.5px;background:var(--gold)}
+.D .btn{background:#0b0b0db3;border:2px solid #ffffffb3;border-radius:14px;transform:rotate(45deg)}
+.D .btn>*{transform:rotate(-45deg)}
+.D .fire{right:26px;bottom:34px;width:62px;height:62px;border-color:var(--gold);box-shadow:0 0 0 3px #0008}
+
+/* ── End screens (shared skeleton; each concept skins it) ───────────── */
+.end .shade{position:absolute;inset:0;background:linear-gradient(90deg,#000d 0,#0008 45%,#0000 70%)}
+.end .title{position:absolute;left:28px;top:30px;animation:rise .6s ease-out both}
+.end .title h1{font:900 46px/0.95 Montserrat,Mont,Inter;letter-spacing:.02em;text-shadow:0 3px 0 #0007}
+.end .title p{font:700 10px Inter;letter-spacing:.24em;opacity:.85;margin-top:6px}
+.end .xpb{position:absolute;left:28px;top:160px;width:300px}
+.end .xpb .lbl{display:flex;justify-content:space-between;font:800 9px Inter;letter-spacing:.12em}
+.end .xpb .track{height:8px;background:#ffffff24;margin-top:5px;overflow:hidden;position:relative}
+.end .xpb .track i{position:absolute;inset:0;transform-origin:left;animation:fill 2.2s cubic-bezier(.2,.8,.2,1) .4s both}
+.end .rank{position:absolute;left:28px;top:200px;display:flex;align-items:center;gap:10px;animation:pop .6s ease-out 2.4s both}
+.end .rank .badge{width:44px;height:50px;clip-path:polygon(50% 0,100% 18%,100% 70%,50% 100%,0 70%,0 18%);display:grid;place-items:center;font:900 14px Montserrat,Mont,Inter}
+.end .rank b{font:900 13px Montserrat,Mont,Inter;display:block}
+.end .rank small{font:700 8px Inter;letter-spacing:.16em;opacity:.8}
+.end .loot{position:absolute;left:28px;bottom:58px;display:flex;gap:8px}
+.end .card{width:62px;height:78px;border-radius:6px;position:relative;overflow:hidden;animation:flip .5s ease-out both;display:flex;flex-direction:column;justify-content:flex-end;padding:5px}
+.end .card .gem{position:absolute;left:50%;top:30%;width:26px;height:26px;transform:translate(-50%,-50%) rotate(45deg);border-radius:4px}
+.end .card b{font:900 7.5px Inter;letter-spacing:.06em;position:relative}
+.end .card small{font:700 6.5px Inter;opacity:.8;position:relative}
+.end .card::after{content:"";position:absolute;top:0;bottom:0;width:20px;background:linear-gradient(90deg,#0000,#ffffff55,#0000);animation:shine 2.4s ease-in-out infinite}
+.end .stats{position:absolute;left:360px;top:160px;display:grid;grid-template-columns:repeat(2,auto);gap:6px 18px;font:700 9px Inter;animation:rise .6s ease-out .8s both}
+.end .stats b{display:block;font:900 15px Montserrat,Mont,Inter}
+.end .stats small{opacity:.7;letter-spacing:.14em;font-size:7px}
+.end .acts{position:absolute;right:20px;bottom:16px;display:flex;gap:8px;animation:rise .5s ease-out 1.2s both}
+.end .acts div{padding:9px 18px;font:900 10px Montserrat,Mont,Inter;letter-spacing:.06em}
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script>
+const q = new URLSearchParams(location.search);
+const C = (q.get("c") || "B").toUpperCase();
+const S = q.get("s") || "ffa";
+if (q.get("notes")) document.body.classList.add("notes");
+if (q.get("still")) document.body.classList.add("still");
+const stage = document.getElementById("stage");
+function fit() {
+  const k = Math.min(innerWidth / 844, innerHeight / 390);
+  stage.style.transform = `translate(-50%,-50%) scale(${k})`;
+}
+addEventListener("resize", fit);
+fit();
+
+const ICON = {
+  fire: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="7"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/></svg>',
+  ads: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="8" width="18" height="8" rx="2"/><circle cx="12" cy="12" r="2"/></svg>',
+  reload: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg>',
+  jump: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M6 11l6-6 6 6"/></svg>',
+  crouch: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="2"/><path d="M12 8v5l4 2v5M12 13l-4 3v4"/></svg>',
+  nade: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="14" r="6"/><path d="M13 8V5h4M15 5l3-2"/></svg>',
+  melee: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20 18 6l2-2M14 6l4 4M6 14l4 4"/></svg>',
+  pack: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="7" width="14" height="13" rx="3"/><path d="M9 7V5h6v2M5 12h14"/></svg>',
+  torch: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9h8l6-4v14l-6-4H4z"/></svg>',
+  hand: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 11V5a2 2 0 0 1 4 0v5M11 10V4a2 2 0 0 1 4 0v6M15 10V6a2 2 0 0 1 4 0v8a7 7 0 0 1-14 0v-3a2 2 0 0 1 2-2"/></svg>',
+};
+const note = (txt, x, y) => `<div class="note" style="left:${x}px;top:${y}px">${txt}</div>`;
+const feedNames = [["ADE_09", "KOLA_7", "HEADSHOT"], ["TITI", "BIG_JOE", ""], ["ZAINAB", "RUFUS", ""], ["ADE_09", "MIKE.O", ""]];
+
+/** The touch controls every concept keeps (the skin changes per concept). */
+function controls(dead) {
+  const b = (cls, x, y, s, ic, label) => `<div class="btn ${cls}" style="right:${x}px;bottom:${y}px;width:${s}px;height:${s}px" aria-label="${label}">${ICON[ic]}</div>`;
+  return `
+  <div class="lookzone"></div>
+  <div class="stick"></div>
+  ${b("fire", 22, 30, 74, "fire", "Fire")}
+  ${b("", 104, 30, 44, dead ? "melee" : "ads", "Aim")}
+  ${b("", 86, 92, 40, "reload", "Reload")}
+  ${b("", 34, 116, 40, "jump", "Jump")}
+  ${b("", 18, 166, 36, "crouch", "Crouch")}
+  ${b("", 134, 86, 36, dead ? "torch" : "nade", dead ? "Torch" : "Grenade")}
+  ${b("", 152, 30, 36, "melee", "Melee")}
+  <div class="btn" style="left:182px;bottom:122px;width:42px;height:42px">${ICON.fire}</div>
+  ${note("Look: swipe anywhere on the right half (no stick drawn)", 520, 196)}
+  ${note("Move: fixed 1px white ring", 40, 248)}`;
+}
+
+const compassTape = () => {
+  const d = ["N", "15", "30", "NE", "60", "75", "E", "105", "120", "SE", "150", "165", "S", "195", "210", "SW", "240", "255", "W", "285", "300", "NW", "330", "345"];
+  return [...d, ...d].map((x) => `<span>${x}</span>`).join("");
+};
+
+function feedHTML(cls) {
+  return feedNames.map(([a, v, hs], i) => `<div class="${hs ? "hs" : ""}" style="animation-delay:${i * 1.6}s"><span class="k">${a}</span> ⟶ ${v}${hs ? ' <b style="color:#ffd23a">◎ HEAD</b>' : ""}</div>`).join("");
+}
+
+// ── HUDs ───────────────────────────────────────────────────────────────
+const HUD = {
+  A(dead) {
+    const plates = [1, 1, 2, 0].map((p) => `<div class="plate ${p === 0 ? "off" : p === 2 ? "cracked" : ""}"></div>`).join("");
+    return `
+    <div class="rig"><div><div class="tag">${dead ? "HEALTH · ARMOUR" : "ARMOUR T2 · JUGGERNAUT"}</div><div class="row" style="gap:4px;margin-top:4px">${plates}</div><div class="hp"><i style="width:${dead ? 62 : 75}%"></i></div></div></div>
+    <div class="compass"><div class="tape">${compassTape()}</div></div>
+    <div class="obj">${dead ? "THE MAST · 640 m · ▲" : "FLAG · 182 m · HOLD 0/10"}</div>
+    <div class="radio">${feedNames.map(([a, v, hs], i) => `<div style="animation-delay:${i * 1.4}s">RADIO › <b>${a}</b> dropped ${v}${hs ? " · head" : ""}</div>`).join("")}</div>
+    <div class="watch"><div class="zonearc"></div><div class="face"></div><div class="t">${dead ? "06:12" : "2:30"}</div><div class="l">${dead ? "BLEED 05:48" : "ZONE · 7 LEFT"}</div></div>
+    <div class="strap" style="bottom:242px"></div><div class="strap" style="bottom:126px"></div>
+    <div class="led">${Array.from({ length: 10 }, (_, i) => `<i class="${i > 7 ? "o" : ""}"></i>`).join("")}</div>
+    <div class="ammo"><div class="n">${dead ? "12" : "24"}<small> / ${dead ? 36 : 90}</small></div><div class="w">${dead ? "PISTOL · TORCH 48%" : "ASSAULT RIFLE · LEGENDARY"}</div></div>
+    <div class="pouch"><div>MED</div><div>PLATE</div><div>NADE</div></div>
+    <div class="xh"></div>
+    ${controls(dead)}
+    ${note("Watch beeps: zone moving / bleed starts", 14, 128)}
+    ${note("Radio squelch on each kill line", 610, 88)}
+    ${note("Mag LED blinks + dry click under 20%", 520, 290)}
+    ${note("Zipper on pick-up (pouch fills)", 120, 328)}`;
+  },
+  B(dead) {
+    return `
+    <div class="tl t">${dead ? `<b>06:12</b> · RUN<br>BLEED IN 05:48<br>KILLS 37` : `<b>7</b> LEFT · <b>4</b> KILLS<br>FIND THE FLAG<br>RANK LEGENDARY II`}</div>
+    <div class="compass"><div class="tape">${compassTape()}</div></div>
+    <div class="obj">${dead ? "THE MAST <b>640 m</b>" : "FLAG <b>182 m</b> · HOLD 0/10"}</div>
+    <div class="map"><div class="zone"></div><div class="me"></div></div>
+    <div class="zoneline t">${dead ? "HORDE<b>PEAK</b>" : "ZONE CLOSES<b>2:30</b>"}</div>
+    <div class="feed">${feedHTML()}</div>
+    <div class="vit t"><div class="lbl">${dead ? "HEALTH 62" : "HEALTH 75"}</div><div class="bar"><i style="transform:scaleX(${dead ? 0.62 : 0.75})"></i></div>
+      <div class="lbl" style="margin-top:6px">${dead ? "TORCH 48%" : "ARMOUR · T2"}</div><div class="seg">${(dead ? [1, 1, 0, 0, 0] : [1, 1, 1, 0, 0]).map((x) => `<i class="${x ? "" : "o"}"></i>`).join("")}</div></div>
+    <div class="pack"><div>MED</div><div>PLT</div><div>${dead ? "BAT" : "NDE"}</div></div>
+    <div class="ammo t"><div class="n">${dead ? 12 : 24}<small>/${dead ? 36 : 90}</small></div><div class="w">${dead ? "PISTOL" : "ASSAULT RIFLE"}</div></div>
+    <div class="xh"><i></i><i></i><i></i><i></i></div>
+    <div class="hm"><i></i><i></i></div>
+    <div class="xp">+${dead ? 50 : 120} XP · HEADSHOT</div>
+    ${controls(dead)}
+    ${note("Hit tick; gold marker + 'ping' on headshot", 450, 162)}
+    ${note("Soft whoosh as each feed line slides", 600, 100)}
+    ${note("Under 30 HP: heartbeat, music low-passed", 14, 300)}
+    ${note("Zone horn at 0:30, alarm loop at 0:10", 700, 132)}`;
+  },
+  C(dead) {
+    return `
+    ${dead ? `<div class="edge" style="left:-40px;top:120px"></div><div class="edge" style="right:-50px;top:40px"></div><div class="vig"></div>` : `<div class="heat"></div>`}
+    <div class="feed">${feedNames.map(([a, v], i) => `<div style="animation-delay:${i * 1.5}s"><span class="k">${a}</span> ⟶ ${v}</div>`).join("")}</div>
+    <div class="count">${dead ? "06:12<small>TO DAWN · BLEED 05:48</small>" : "7<small>LEFT · 4 KILLS</small>"}</div>
+    <div class="alert">${dead ? "THEY HEAR YOU" : "ZONE CLOSING"}<small>${dead ? "HORDE INBOUND · 3 DIRECTIONS" : "0:30 · MOVE"}</small></div>
+    <div class="way" style="left:300px;top:150px"><div class="d"></div><span style="margin-top:4px">${dead ? "MAST 640 m" : "FLAG 182 m"}</span></div>
+    ${dead ? "" : `<div class="ping" style="left:388px;top:168px"></div><div class="ping" style="left:560px;top:172px;animation-delay:.5s"></div>`}
+    <div class="ring"></div><div class="dot"></div>
+    <div class="ammo">${dead ? 12 : 24}<small> / ${dead ? 36 : 90}</small></div>
+    ${dead ? '<div class="wave"></div>' : ""}
+    ${controls(dead)}
+    ${note("Health = this arc; screen edge reddens below 30", 470, 228)}
+    ${note(dead ? "Heartbeat speeds with nearest zombie distance" : "Sub-bass swell as the circle starts to close", 300, 30)}
+    ${note(dead ? "Edge pulse + growl from that side" : "Enemy ping: spatial 'tick' from its direction", 560, 150)}`;
+  },
+  D(dead) {
+    return `
+    <div class="top"><div class="chip sl"><span>${dead ? "06:12" : "7 LEFT"}<small>${dead ? "RUN TIME" : "PLAYERS"}</small></span></div><div class="chip sl" style="border-left-color:#00a651"><span>${dead ? "37" : "4"}<small>KILLS</small></span></div><div class="chip sl" style="border-left-color:#ff3b30"><span>${dead ? "PEAK" : "2:30"}<small>${dead ? "HORDE" : "ZONE"}</small></span></div></div>
+    <div class="map"></div>
+    <div class="feed">${feedNames.map(([a, v, hs], i) => `<div class="sl ${hs ? "hs" : ""}" style="animation-delay:${i * 1.5}s"><span>${a} <span style="color:#f5a623">✕</span> ${v}</span></div>`).join("")}</div>
+    <div class="toast"><div class="ic"></div><div><b>${dead ? "BATTERY · RARE" : "WARLORD CREST · LEGENDARY"}</b><small>${dead ? "+40% TORCH" : "+100 ARMOUR · YOU GROW STRONGER"}</small></div></div>
+    <div class="crest"><div><b>${dead ? "III" : "T2"}</b><small>${dead ? "SURVIVOR" : "JUGGERNAUT"}</small></div></div>
+    <div class="vit"><div class="vb hp sl"><i style="width:${dead ? 62 : 75}%"></i><span>${dead ? 62 : 75}</span></div><div class="vb ar sl"><i style="width:${dead ? 40 : 60}%"></i><span>${dead ? "TORCH 48%" : "ARMOUR 60"}</span></div></div>
+    <div class="ammo"><div class="n">${dead ? 12 : 24}<small> / ${dead ? 36 : 90}</small></div><div class="w">${dead ? "PISTOL" : "AR · LEGENDARY"}</div></div>
+    <div class="xh"></div>
+    ${controls(dead)}
+    ${note("Talking-drum 'tun-tun' stinger on legendary pick-up", 330, 110)}
+    ${note("Crest morphs + armour 'clank' on each tier", 14, 128)}
+    ${note("Short drum hit per kill chip", 600, 96)}`;
+  },
+};
+
+// ── End screens ────────────────────────────────────────────────────────
+const SKIN = {
+  A: { win: ["MISSION COMPLETE", "EXTRACTED · 1ST OF 12"], lose: ["KIA", "5TH OF 12 · SHOTGUN · 12 m"], acc: "#ffb23a", bar: "linear-gradient(90deg,#c7c08a,#ffb23a)", font: "JetBrains Mono,monospace", btn: "background:#1d1e16;border:1px solid #6b6a52;color:#f2e6c9" },
+  B: { win: ["VICTORY", "#1 OF 12 · FIND THE FLAG"], lose: ["ELIMINATED", "#5 OF 12 · BY KOLA_7"], acc: "#00d26a", bar: "#fff", font: "Inter,sans-serif", btn: "background:#fff;color:#000" },
+  C: { win: ["SURVIVED", "THE LAST ONE STANDING"], lose: ["FADED", "THE ZONE TOOK YOU · #5"], acc: "#ff6b5a", bar: "linear-gradient(90deg,#ff6b5a,#ffd23a)", font: "Montserrat,sans-serif", btn: "background:#ffffff1f;border:1px solid #ffffff80" },
+  D: { win: ["ODOGWU!", "VICTORY · 1ST OF 12 · CHAMPION"], lose: ["E DON CAST", "ELIMINATED · 5TH OF 12"], acc: "#f5a623", bar: "linear-gradient(90deg,#00a651,#f5a623)", font: "Montserrat,sans-serif", btn: "background:#f5a623;color:#000;transform:skewX(-12deg)" },
+};
+function endScreen(win) {
+  const k = SKIN[C];
+  const [t, sub] = win ? k.win : k.lose;
+  const rar = [["#3a9bff", "CERAMIC PLATE", "RARE"], ["#b65cff", "REACTIVE CORE", "EPIC"], ["#ffb020", "WARLORD CREST", "LEGENDARY"], ["#ff3b30", "TITAN HEART", "MYTHIC"]];
+  return `<div class="end">
+    <div class="bg" style="background-image:url(img/${win ? "win" : "lose"}.jpg)${win ? "" : ";filter:grayscale(.7) contrast(1.1) brightness(.75)"}"></div>
+    <div class="shade"></div>
+    ${win ? "" : '<div class="abs" style="inset:0;background:radial-gradient(ellipse at 70% 50%,#0000 30%,#5a000055)"></div>'}
+    <div class="title" style="font-family:${k.font}"><h1 style="color:${win ? "#fff" : "#ff5a4a"};${C === "D" ? "font-style:italic" : ""}">${t}</h1><p>${sub}</p></div>
+    <div class="xpb"><div class="lbl"><span>XP <b id="xpn" style="color:${k.acc}">+0</b></span><span>LEGENDARY II → III</span></div><div class="track"><i style="background:${k.bar};--from:.35;--to:${win ? 1 : 0.62}"></i></div></div>
+    ${win ? `<div class="rank"><div class="badge" style="background:linear-gradient(160deg,${k.acc},#000)">III</div><div><b>RANK UP · LEGENDARY III</b><small>NEW: WARLORD ARMOUR UNLOCKED</small></div></div>` : `<div class="rank" style="animation-delay:2.4s"><div><b>KILLED BY KOLA_7</b><small>SHOTGUN · 12 m · 2 HEADSHOTS</small></div></div>`}
+    <div class="stats"><div><b>${win ? 9 : 4}</b><small>KILLS</small></div><div><b>${win ? "2,140" : "960"}</b><small>DAMAGE</small></div><div><b>${win ? "14:08" : "9:31"}</b><small>SURVIVED</small></div><div><b>${win ? "T4" : "T2"}</b><small>ARMOUR REACHED</small></div></div>
+    ${win ? `<div class="loot">${rar.map(([c, n, r], i) => `<div class="card" style="animation-delay:${2.8 + i * 0.35}s;background:linear-gradient(170deg,${c}66,#0b0b0d 70%);box-shadow:inset 0 0 0 1px ${c}"><div class="gem" style="background:radial-gradient(circle,#fff8,${c});box-shadow:0 0 18px ${c}"></div><b>${n}</b><small style="color:${c}">${r}</small></div>`).join("")}</div>` : ""}
+    <div class="acts">${win ? `<div style="${k.btn}"><span>CONTINUE</span></div><div style="${k.btn};opacity:.9"><span>PLAY AGAIN</span></div>` : `<div style="${k.btn};opacity:.85"><span>SPECTATE</span></div><div style="${k.btn}"><span>PLAY AGAIN</span></div>`}</div>
+    ${note(win ? "Victory fanfare (brass + drums), music ducks for it" : "Defeat sting: low drone + muffled heartbeat", 28, 6)}
+    ${note("XP roll: tick per 50 XP, chime on rank up", 200, 150)}
+    ${win ? note("Card flips: rarity whoosh, gold glint on legendary", 28, 214) : ""}
+    ${note("Back to lobby: music crossfades to lobby theme", 600, 340)}
+  </div>`;
+}
+
+// ── Welcome, lobby, pre-match ─────────────────────────────────────────
+function welcome(v) {
+  if (v === 1)
+    return `<div class="bg" style="background-image:url(img/operator.jpg);filter:brightness(.9)"></div>
+    <div class="abs" style="inset:0;background:linear-gradient(0deg,#000e 0,#0000 45%),linear-gradient(90deg,#000b,#0000 50%)"></div>
+    <div class="abs" style="left:34px;top:120px;animation:rise .8s ease-out both">
+      <div class="heavy" style="font-size:12px;letter-spacing:.5em;color:#f5a623">EMILGO</div>
+      <div class="heavy" style="font-size:52px;line-height:.9">GAMES</div>
+      <div style="font:600 10px Inter;opacity:.8;margin-top:8px;letter-spacing:.14em">SURVIVE THE NIGHT · OWN THE STREETS</div>
+      <div class="row" style="gap:6px;margin-top:14px"><span style="font:800 8px Inter;padding:4px 8px;border:1px solid #fff8">FREE FOR ALL</span><span style="font:800 8px Inter;padding:4px 8px;border:1px solid #ff5a4a;color:#ff8a7a">DEAD STREETS</span></div>
+    </div>
+    <div class="abs" style="left:0;right:0;bottom:46px;text-align:center;font:800 11px Inter;letter-spacing:.4em;animation:tick 1.6s infinite">TAP TO START</div>
+    <div class="abs" style="left:34px;right:34px;bottom:22px;height:2px;background:#ffffff26"><i style="display:block;height:100%;width:68%;background:#f5a623;transform-origin:left;animation:fill 3s ease-out both;--from:.1;--to:1"></i></div>
+    <div class="abs" style="right:34px;bottom:28px;font:600 7px Inter;opacity:.6">v4.0 · LOADING DEAD STREETS 68%</div>
+    ${note("Logo hit: one low cinematic boom; then the menu theme fades in", 34, 96)}`;
+  return `<div class="bg" style="background-image:url(img/tps-ffa.jpg);clip-path:polygon(0 0,58% 0,42% 100%,0 100%)"></div>
+    <div class="bg" style="background-image:url(img/zombies.jpg);clip-path:polygon(58% 0,100% 0,100% 100%,42% 100%)"></div>
+    <div class="abs" style="inset:0;background:linear-gradient(0deg,#000c,#0000 40%)"></div>
+    <div class="abs" style="left:50%;top:0;bottom:0;width:3px;background:#f5a623;transform:translateX(-50%) skewX(-22deg);box-shadow:0 0 16px #f5a623"></div>
+    <div class="abs" style="left:50%;top:44%;transform:translate(-50%,-50%);text-align:center;animation:pop .7s ease-out both">
+      <div class="heavy" style="font-size:44px;text-shadow:0 4px 0 #000a">EMILGO<span style="color:#f5a623">.</span>GAMES</div>
+      <div style="font:700 9px Inter;letter-spacing:.3em;margin-top:6px">TWO WAYS TO SURVIVE</div>
+    </div>
+    <div class="abs heavy" style="left:30px;bottom:30px;font-size:16px">FREE FOR ALL<div style="font:600 8px Inter;opacity:.8;letter-spacing:.14em">12 PLAYERS · GUNS · THE FLAG</div></div>
+    <div class="abs heavy" style="right:30px;bottom:30px;font-size:16px;text-align:right;color:#ff8a7a">DEAD STREETS<div style="font:600 8px Inter;opacity:.8;letter-spacing:.14em;color:#fff">SOLO · ZOMBIES · REACH THE MAST</div></div>
+    <div class="abs" style="left:0;right:0;bottom:10px;text-align:center;font:800 9px Inter;letter-spacing:.4em;animation:tick 1.6s infinite">TAP TO ENTER</div>`;
+}
+
+function lobby(v) {
+  const tabs = ["PLAY", "LOADOUT", "ARMOURY", "STORE", "PASS", "FRIENDS"];
+  const tabBar = `<div class="abs row" style="left:170px;top:12px;gap:16px;font:800 9px Inter;letter-spacing:.12em">${tabs.map((t, i) => `<span style="${i ? "opacity:.6" : "border-bottom:2px solid #f5a623;padding-bottom:3px"}">${t}</span>`).join("")}</div>`;
+  const profile = `<div class="abs row" style="left:12px;top:10px;gap:8px"><div style="width:30px;height:30px;border-radius:6px;background:url(img/operator-face.jpg) center/cover;border:1px solid #fff6"></div><div><div style="font:800 10px Inter">ADE_09</div><div style="font:700 7px Inter;color:#f5a623;letter-spacing:.1em">LEGENDARY II · 62%</div><div style="width:70px;height:2px;background:#fff3;margin-top:2px"><i style="display:block;height:100%;width:62%;background:#f5a623"></i></div></div></div>`;
+  const cur = `<div class="abs row" style="right:12px;top:12px;gap:10px;font:800 9px Inter"><span>◆ 1,240</span><span style="color:#f5a623">● 380 CP</span><span>⚙</span></div>`;
+  if (v === 1)
+    return `<div class="bg" style="background-image:url(img/operator.jpg);background-position:50% 40%;filter:brightness(.85)"></div>
+    <div class="abs" style="inset:0;background:linear-gradient(90deg,#000c 0,#0000 30%,#0000 55%,#000d 80%)"></div>
+    ${profile}${tabBar}${cur}
+    <div class="abs col" style="left:12px;top:60px;gap:6px;width:150px">
+      <div style="font:800 7px Inter;letter-spacing:.16em;opacity:.7">LOADOUT</div>
+      ${[["PRIMARY", "ASSAULT RIFLE", "#ffb020", "LEGENDARY"], ["SECONDARY", "SMG", "#b65cff", "EPIC"], ["MELEE", "MACHETE", "#3a9bff", "RARE"]].map(([a, b, c, r]) => `<div style="background:#0b0b0dcc;border-left:3px solid ${c};padding:5px 8px"><div style="font:700 6.5px Inter;letter-spacing:.14em;opacity:.7">${a} · <span style="color:${c}">${r}</span></div><div style="font:900 10px Montserrat,Mont,Inter">${b}</div></div>`).join("")}
+      <div style="font:800 7px Inter;letter-spacing:.16em;opacity:.7;margin-top:6px">ARMOUR PATH</div>
+      <div class="row" style="gap:3px">${["T0", "T1", "T2", "T3", "T4"].map((t, i) => `<span style="flex:1;text-align:center;font:900 8px Inter;padding:3px 0;background:${i < 3 ? "#f5a623" : "#ffffff1f"};color:${i < 3 ? "#000" : "#fff"}">${t}</span>`).join("")}</div>
+    </div>
+    <div class="abs col" style="right:12px;top:60px;gap:6px;width:220px">
+      <div style="font:800 7px Inter;letter-spacing:.16em;opacity:.7">MODE</div>
+      <div style="height:62px;background:url(img/tps-ffa.jpg) center/cover;position:relative;border:2px solid #f5a623"><div class="abs heavy" style="left:8px;bottom:6px;font-size:13px">FREE FOR ALL<div style="font:700 7px Inter;letter-spacing:.12em">FIND THE FLAG · 12 PLAYERS</div></div></div>
+      <div style="height:46px;background:url(img/zombies.jpg) center/cover;position:relative;opacity:.85"><div class="abs heavy" style="left:8px;bottom:6px;font-size:11px;color:#ff8a7a">DEAD STREETS<div style="font:700 7px Inter;letter-spacing:.12em;color:#fff">DAILY RUN · SEED 2611</div></div></div>
+      <div style="height:40px;background:#0b0b0dcc;display:flex;align-items:center;gap:8px;padding:0 8px"><div style="width:52px;height:26px;background:url(img/billboards.jpg) center/cover"></div><div style="font:700 7px Inter;line-height:1.3"><b style="color:#f5a623">BILLBOARD</b><br>Partner or house ad slot</div></div>
+    </div>
+    <div class="abs heavy row" style="right:12px;bottom:14px;height:44px;width:220px;background:linear-gradient(90deg,#00a651,#22d07a);justify-content:center;font-size:18px;box-shadow:0 4px 0 #006b34;animation:beat 2.4s infinite">PLAY</div>
+    <div class="abs row" style="left:12px;bottom:14px;gap:6px">${["◎ 2 / 3 DAILIES", "♫ RADIO", "✉ 2"].map((t) => `<span style="font:800 8px Inter;padding:6px 10px;background:#0b0b0dcc">${t}</span>`).join("")}</div>
+    ${note("UI: soft tick on tab, thump on PLAY; lobby music = calm groove", 300, 36)}`;
+  return `<div class="bg" style="background-image:url(img/biome-harbour.jpg);filter:brightness(.75)"></div>
+    <div class="abs" style="inset:0;background:linear-gradient(0deg,#000e 0,#0000 50%),linear-gradient(180deg,#000a,#0000 25%)"></div>
+    ${profile}${tabBar}${cur}
+    <div class="abs" style="left:24px;top:70px"><div style="font:800 8px Inter;letter-spacing:.3em;color:#f5a623">NEXT DROP</div><div class="heavy" style="font-size:34px;line-height:1">HARBOUR YARD</div><div style="font:600 9px Inter;opacity:.85;margin-top:4px">Container canyons · cranes · dusk</div></div>
+    <div class="abs row" style="left:24px;bottom:96px;gap:6px">${["biome-urban", "biome-forest", "biome-desert", "biome-neon", "biome-snow"].map((b, i) => `<div style="width:70px;height:40px;background:url(img/${b}.jpg) center/cover;border:${i === 1 ? "2px solid #f5a623" : "1px solid #fff5"}"></div>`).join("")}<div style="font:700 7px Inter;opacity:.7;margin-left:4px">ROTATION<br>THIS WEEK</div></div>
+    <div class="abs row" style="left:24px;bottom:16px;gap:8px">${["operator-face", "operator", "operator-turn", ""].map((im, i) => `<div style="width:64px;height:66px;background:${im ? `url(img/${im}.jpg) center/cover` : "#ffffff14"};border:1px solid ${i === 0 ? "#f5a623" : "#fff4"};position:relative">${im ? "" : '<div style="position:absolute;inset:0;display:grid;place-items:center;font:900 18px Inter;opacity:.6">+</div>'}<div style="position:absolute;left:0;right:0;bottom:0;background:#000b;font:800 6.5px Inter;text-align:center;padding:2px">${["ADE_09", "TITI", "ZAINAB", "INVITE"][i]}</div></div>`).join("")}</div>
+    <div class="abs heavy row" style="right:14px;bottom:16px;height:46px;width:200px;background:#f5a623;color:#000;justify-content:center;font-size:18px;transform:skewX(-10deg)">READY</div>
+    <div class="abs" style="right:14px;bottom:70px;font:700 8px Inter;text-align:right;opacity:.85">FREE FOR ALL · FIND THE FLAG<br>SQUAD 3/4 · EST. 0:24</div>`;
+}
+
+function prematch() {
+  return `<div class="bg" style="background-image:url(img/biome-urban.jpg)"></div>
+  <div class="abs" style="inset:0;background:linear-gradient(90deg,#000e 0,#0008 50%,#0000 75%)"></div>
+  <div class="abs" style="left:28px;top:28px;animation:rise .6s ease-out both"><div style="font:800 8px Inter;letter-spacing:.3em;color:#f5a623">FREE FOR ALL · FIND THE FLAG</div><div class="heavy" style="font-size:36px;line-height:1">GLASS DISTRICT</div><div style="font:600 9px Inter;opacity:.85;margin-top:5px;max-width:300px">Find the flag in the stash spots, hold it 10 s. The zone closes every 2:30. Pick up armour to grow — four tiers to Titan.</div></div>
+  <div class="abs col" style="left:28px;top:150px;gap:5px">${[["◆", "Every pick-up is armour now: you get bigger and harder to drop."], ["◎", "Aim (ADS) slows you but tightens your spread."], ["▲", "Billboards show this week's events."]].map(([a, b]) => `<div class="row" style="gap:8px;font:600 8.5px Inter"><span style="color:#f5a623">${a}</span>${b}</div>`).join("")}</div>
+  <div class="abs row" style="left:28px;bottom:58px;gap:6px">${Array.from({ length: 12 }, (_, i) => `<div style="width:30px;height:38px;background:${i < 9 ? "url(img/operator-face.jpg) center/cover" : "#ffffff14"};filter:${i < 9 ? `hue-rotate(${i * 30}deg) saturate(.7)` : "none"};border-bottom:2px solid ${i < 4 ? "#00a651" : "#ffffff33"}"></div>`).join("")}</div>
+  <div class="abs" style="left:28px;bottom:28px;width:420px;height:4px;background:#ffffff1f"><i style="display:block;height:100%;background:#f5a623;transform-origin:left;animation:fill 4s ease-in-out both;--from:.2;--to:.86"></i></div>
+  <div class="abs" style="left:28px;bottom:12px;font:700 7.5px Inter;opacity:.8;letter-spacing:.14em">STREAMING DISTRICT 4/6 · 9 / 12 PLAYERS READY</div>
+  <div class="abs heavy" style="right:30px;bottom:24px;font-size:54px;line-height:1;color:#fff;text-shadow:0 4px 0 #000a">0:05</div>
+  <div class="abs" style="right:30px;bottom:84px;font:800 8px Inter;letter-spacing:.3em">DROPPING IN</div>
+  ${note("Countdown ticks; 'drop' whoosh; match music starts on landing", 520, 300)}`;
+}
+
+// ── Compose ────────────────────────────────────────────────────────────
+let html = "";
+if (S === "ffa" || S === "dead") {
+  const dead = S === "dead";
+  html = `<div class="bg" style="background-image:url(img/${dead ? "tps-dead" : "tps-ffa"}.jpg)"></div><div class="${C}" style="position:absolute;inset:0">${HUD[C](dead)}</div>`;
+} else if (S === "win" || S === "lose") html = endScreen(S === "win");
+else if (S.startsWith("welcome")) html = welcome(Number(S.slice(7)) || 1);
+else if (S.startsWith("lobby")) html = lobby(Number(S.slice(5)) || 1);
+else if (S === "prematch") html = prematch();
+stage.innerHTML = html;
+
+// Live bits: the XP roll, a fresh kill line now and then, the zone clock.
+const xpn = document.getElementById("xpn");
+if (xpn) {
+  const to = S === "win" ? 2480 : 960;
+  const t0 = performance.now() + 400;
+  const step = (t) => {
+    const u = Math.min(1, Math.max(0, (t - t0) / 2200));
+    const e = 1 - Math.pow(1 - u, 3);
+    xpn.textContent = "+" + Math.round(to * e).toLocaleString();
+    if (u < 1 && !q.get("still")) requestAnimationFrame(step);
+    else xpn.textContent = "+" + to.toLocaleString();
+  };
+  requestAnimationFrame(step);
+}
+// Ready for the screenshot driver once images have loaded.
+const imgs = [...document.querySelectorAll(".bg")].map((b) => getComputedStyle(b).backgroundImage.match(/url\("?(.*?)"?\)/)?.[1]).filter(Boolean);
+document.fonts.ready.then(() => Promise.all(imgs.map((src) => new Promise((ok) => { const i = new Image(); i.onload = i.onerror = ok; i.src = src; })))).then(() => setTimeout(() => (window.__done = { ok: true }), q.get("wait") ? Number(q.get("wait")) : 3600));
+</script>
+</body>
+</html>

@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>EMILGO Games · Look controls</title>
+<link rel="stylesheet" href="fonts/fonts.css">
+<!--
+  The proposed look control, playable. Open on a phone held sideways.
+  Right half: a touchpad. Swipe anywhere (outside the buttons): the camera
+  turns by how far and how fast your thumb moves. Nothing is drawn unless
+  "Show touch point" is on. Let go and the camera stays where you left it.
+  Left half: the move stick, a fixed 1 px white ring.
+  The maths here is the code that would go into input/controls.ts.
+-->
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:#000;overflow:hidden;font-family:Inter,system-ui,sans-serif;color:#fff;touch-action:none;user-select:none;-webkit-user-select:none}
+canvas#v{position:fixed;inset:0;width:100%;height:100%}
+.xh{position:fixed;left:50%;top:50%;width:22px;height:22px;margin:-11px;pointer-events:none}
+.xh i{position:absolute;background:#fff;box-shadow:0 0 1px #000}
+.xh i:nth-child(1){left:10px;top:0;width:2px;height:6px}.xh i:nth-child(2){left:10px;bottom:0;width:2px;height:6px}
+.xh i:nth-child(3){top:10px;left:0;width:6px;height:2px}.xh i:nth-child(4){top:10px;right:0;width:6px;height:2px}
+.stick{position:fixed;left:7vw;bottom:9vh;width:min(26vh,120px);height:min(26vh,120px);border:1px solid #fff;border-radius:50%}
+.knob{position:absolute;left:50%;top:50%;width:12px;height:12px;margin:-6px;border-radius:50%;background:#fff;transition:transform .08s}
+.fire{position:fixed;right:5vw;bottom:9vh;width:min(20vh,84px);height:min(20vh,84px);border-radius:50%;border:1.5px solid #fff;background:#0004;display:grid;place-items:center;font:800 10px Inter;letter-spacing:.08em}
+.fire.on{background:#ff3b3055}
+.dot{position:fixed;width:44px;height:44px;margin:-22px;border-radius:50%;border:1px solid #ffffff59;pointer-events:none;display:none}
+.hud{position:fixed;left:50%;top:10px;transform:translateX(-50%);font:600 11px "JetBrains Mono",monospace;background:#0008;padding:5px 10px;border-radius:4px;white-space:nowrap}
+.zone{position:fixed;left:50%;top:0;bottom:0;width:0;border-left:1px dashed #ffffff26;pointer-events:none}
+.panel{position:fixed;left:10px;top:10px;width:min(300px,44vw);max-height:calc(100% - 20px);overflow:auto;background:#0b0c0fe6;border:1px solid #ffffff26;border-radius:8px;padding:10px 12px;font-size:11px;transition:transform .2s}
+.panel.closed{transform:translateX(calc(-100% - 20px))}
+.panel h3{font:800 12px Inter;margin-bottom:6px}
+.panel label{display:block;margin:8px 0 2px;color:#ffffffb3;font-weight:700}
+.panel input[type=range]{width:100%}
+.panel .row{display:flex;gap:6px;flex-wrap:wrap}
+.panel button,.toggle{font:700 10px Inter;color:#fff;background:#ffffff1a;border:1px solid #ffffff33;border-radius:4px;padding:5px 8px}
+.panel button.sel{background:#00a651;border-color:#00a651}
+.toggle{position:fixed;left:10px;bottom:10px}
+.panel p{color:#ffffffa6;line-height:1.45;margin-top:6px}
+canvas#g{width:100%;height:110px;background:#000;border:1px solid #ffffff1f;border-radius:4px;margin-top:6px}
+</style>
+</head>
+<body>
+<canvas id="v"></canvas>
+<div class="zone"></div>
+<div class="xh"><i></i><i></i><i></i><i></i></div>
+<div class="stick" id="stick"><div class="knob" id="knob"></div></div>
+<div class="fire" id="fire" data-ui>FIRE</div>
+<div class="dot" id="dot"></div>
+<div class="hud" id="hud">yaw 0° · pitch 0°</div>
+<div class="panel closed" id="panel" data-ui>
+  <h3>Look settings (concept)</h3>
+  <div class="row" id="presets"></div>
+  <label>Sensitivity <span id="sv"></span></label><input id="sens" type="range" min="20" max="250" value="100">
+  <label>Vertical / horizontal <span id="vv"></span></label><input id="vert" type="range" min="40" max="120" value="80">
+  <label>Acceleration <span id="av"></span></label><input id="acc" type="range" min="0" max="300" value="140">
+  <label>Dead zone (px) <span id="dv"></span></label><input id="dz" type="range" min="0" max="12" value="3">
+  <label><input type="checkbox" id="show"> Show touch point (faint ring)</label>
+  <label><input type="checkbox" id="firedrag" checked> Drag from FIRE also aims</label>
+  <canvas id="g" width="560" height="220"></canvas>
+  <p>Graph: turn per pixel of thumb travel (up) against thumb speed (right). Slow swipes stay on the flat start: fine aim. Fast flicks climb the curve: a 180° turn in one swipe. The dot is your last swipe.</p>
+  <p>Dead zone: the first few pixels after a touch lands are ignored, so tapping FIRE or a button never nudges the aim. It applies once per touch, not on every move (that would feel sticky).</p>
+</div>
+<button class="toggle" id="tg" data-ui>⚙ Look settings</button>
+<script>
+const img = new Image();
+img.src = "img/pano.jpg";
+const cv = document.getElementById("v");
+const g = cv.getContext("2d");
+let W = 0, H = 0;
+function size() { const d = Math.min(2, devicePixelRatio || 1); W = cv.width = innerWidth * d; H = cv.height = innerHeight * d; }
+addEventListener("resize", size); size();
+
+// ── The look model ────────────────────────────────────────────────────
+// Touchpad, not a stick: the camera turns by the thumb's travel, scaled by a
+// gain that rises with the thumb's speed. No auto-centre; nothing pulls the
+// camera back when the thumb lifts.
+const S = { sens: 1, vert: 0.8, acc: 1.4, dz: 3, show: false, fireDrag: true };
+const BASE = 0.12;            // degrees per CSS px at sensitivity 1, slow thumb
+const V0 = 0.15, V1 = 1.6;    // px/ms: below V0 no boost, above V1 full boost
+function gain(v) {            // v: thumb speed in CSS px per ms
+  const t = Math.min(1, Math.max(0, (v - V0) / (V1 - V0)));
+  const s = t * t * (3 - 2 * t);
+  return BASE * S.sens * (1 + S.acc * s);
+}
+let yaw = 0, pitch = 0;       // degrees
+let last = { v: 0, g: gain(0) };
+const touches = new Map();    // pointerId → {x, y, t, travelled, live}
+const PITCH_MAX = 75;
+
+function onDown(e) {
+  const el = e.target.closest("[data-ui]");
+  const isFire = el && el.id === "fire";
+  if (el && !(isFire && S.fireDrag)) return;
+  if (isFire) document.getElementById("fire").classList.add("on");
+  if (e.clientX < innerWidth / 2 && !isFire) { stickDown(e); return; }
+  touches.set(e.pointerId, { x: e.clientX, y: e.clientY, t: performance.now(), travelled: 0, live: S.dz === 0 });
+  try { cv.setPointerCapture(e.pointerId); } catch {}
+  showDot(e.clientX, e.clientY);
+}
+function onMove(e) {
+  if (stick.id === e.pointerId) { stickMove(e); return; }
+  const p = touches.get(e.pointerId);
+  if (!p) return;
+  const now = performance.now();
+  const dx = e.clientX - p.x, dy = e.clientY - p.y;
+  const dt = Math.max(1, now - p.t);
+  p.x = e.clientX; p.y = e.clientY; p.t = now;
+  if (!p.live) {
+    p.travelled += Math.hypot(dx, dy);
+    if (p.travelled < S.dz) return;      // absorbed: a tap stays a tap
+    p.live = true;
+  }
+  const v = Math.hypot(dx, dy) / dt;
+  const k = gain(v);
+  last = { v, g: k };
+  yaw += dx * k;
+  pitch = Math.max(-PITCH_MAX, Math.min(PITCH_MAX, pitch - dy * k * S.vert));
+  showDot(e.clientX, e.clientY);
+}
+function onUp(e) {
+  if (stick.id === e.pointerId) { stickUp(); return; }
+  touches.delete(e.pointerId);
+  document.getElementById("fire").classList.remove("on");
+  document.getElementById("dot").style.display = "none";
+}
+addEventListener("pointerdown", onDown);
+addEventListener("pointermove", onMove);
+addEventListener("pointerup", onUp);
+addEventListener("pointercancel", onUp);
+
+// The move stick: fixed, a 1 px white ring; the knob follows the thumb inside it.
+const stick = { id: null, cx: 0, cy: 0 };
+const knob = document.getElementById("knob");
+function stickDown(e) { const r = document.getElementById("stick").getBoundingClientRect(); stick.id = e.pointerId; stick.cx = r.left + r.width / 2; stick.cy = r.top + r.height / 2; stickMove(e); }
+function stickMove(e) { const r = document.getElementById("stick").offsetWidth / 2; let dx = e.clientX - stick.cx, dy = e.clientY - stick.cy; const d = Math.hypot(dx, dy); if (d > r) { dx *= r / d; dy *= r / d; } knob.style.transform = `translate(${dx}px,${dy}px)`; }
+function stickUp() { stick.id = null; knob.style.transform = ""; }
+function showDot(x, y) { const d = document.getElementById("dot"); if (!S.show) return; d.style.display = "block"; d.style.left = x + "px"; d.style.top = y + "px"; }
+
+// ── Draw the view (cylindrical slice of the 360° picture) ─────────────
+function frame() {
+  requestAnimationFrame(frame);
+  if (!img.complete || !img.naturalWidth) return;
+  const iw = img.naturalWidth, ih = img.naturalHeight;
+  const hf = 80, vf = hf * H / W;
+  const sw = iw * hf / 360, sh = ih * vf / 180;
+  let sx = ((yaw % 360) + 360) % 360 / 360 * iw - sw / 2;
+  const sy = Math.max(0, Math.min(ih - sh, ih / 2 - (pitch / 180) * ih - sh / 2));
+  if (sx < 0) sx += iw;
+  const first = Math.min(sw, iw - sx);
+  g.drawImage(img, sx, sy, first, sh, 0, 0, W * first / sw, H);
+  if (first < sw) g.drawImage(img, 0, sy, sw - first, sh, W * first / sw, 0, W * (sw - first) / sw, H);
+  document.getElementById("hud").textContent = `yaw ${(((yaw % 360) + 360) % 360).toFixed(0)}° · pitch ${pitch.toFixed(0)}° · thumb ${(last.v * 1000).toFixed(0)} px/s · ${last.g.toFixed(3)}°/px`;
+}
+frame();
+
+// ── Settings and the curve ────────────────────────────────────────────
+const PRESETS = { Precise: [0.8, 0.6], Classic: [1, 1.4], Fast: [1.3, 2.4], Linear: [1, 0] };
+const pres = document.getElementById("presets");
+for (const [n, [s, a]] of Object.entries(PRESETS)) {
+  const b = document.createElement("button"); b.textContent = n; b.dataset.ui = "1";
+  b.onclick = () => { document.getElementById("sens").value = s * 100; document.getElementById("acc").value = a * 100; read(); [...pres.children].forEach((c) => c.classList.toggle("sel", c === b)); };
+  if (n === "Classic") b.classList.add("sel");
+  pres.append(b);
+}
+function read() {
+  S.sens = +document.getElementById("sens").value / 100;
+  S.vert = +document.getElementById("vert").value / 100;
+  S.acc = +document.getElementById("acc").value / 100;
+  S.dz = +document.getElementById("dz").value;
+  S.show = document.getElementById("show").checked;
+  S.fireDrag = document.getElementById("firedrag").checked;
+  document.getElementById("sv").textContent = S.sens.toFixed(2);
+  document.getElementById("vv").textContent = S.vert.toFixed(2);
+  document.getElementById("av").textContent = S.acc.toFixed(2);
+  document.getElementById("dv").textContent = S.dz;
+}
+document.querySelectorAll(".panel input").forEach((i) => i.addEventListener("input", read));
+read();
+const gc = document.getElementById("g"), gg = gc.getContext("2d");
+function graph() {
+  requestAnimationFrame(graph);
+  const w = gc.width, h = gc.height, vmax = 2.5, gmax = BASE * 2.5 * 3.5;
+  gg.clearRect(0, 0, w, h);
+  gg.strokeStyle = "#ffffff1f"; gg.lineWidth = 1;
+  for (let i = 1; i < 5; i++) { gg.beginPath(); gg.moveTo((i / 5) * w, 0); gg.lineTo((i / 5) * w, h); gg.stroke(); }
+  gg.strokeStyle = "#00d26a"; gg.lineWidth = 3; gg.beginPath();
+  for (let x = 0; x <= w; x += 4) { const v = (x / w) * vmax; const y = h - (gain(v) / gmax) * h; x ? gg.lineTo(x, y) : gg.moveTo(x, y); }
+  gg.stroke();
+  const lx = Math.min(1, last.v / vmax) * w, ly = h - (last.g / gmax) * h;
+  gg.fillStyle = "#ffd23a"; gg.beginPath(); gg.arc(lx, ly, 6, 0, Math.PI * 2); gg.fill();
+  gg.fillStyle = "#ffffff99"; gg.font = "20px Inter"; gg.fillText("slow → fast thumb", 10, h - 10);
+}
+graph();
+document.getElementById("tg").onclick = () => document.getElementById("panel").classList.toggle("closed");
+if (new URLSearchParams(location.search).get("panel")) document.getElementById("panel").classList.remove("closed");
+img.onload = () => setTimeout(() => (window.__done = { ok: true }), 600);
+</script>
+</body>
+</html>

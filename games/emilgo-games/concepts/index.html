@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EMILGO Games v4 concepts</title>
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+:root{--bg:#0b0c0f;--card:#14161b;--line:#ffffff1f;--dim:#ffffffa6;--gold:#f5a623;--green:#00a651}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:#fff;font:15px/1.55 Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--gold)}
+nav{position:sticky;top:0;z-index:10;background:#0b0c0fee;border-bottom:1px solid var(--line);display:flex;gap:4px;overflow-x:auto;padding:8px 16px;scrollbar-width:none}
+nav a{flex:none;color:#fff;text-decoration:none;font:700 12px Inter;padding:6px 10px;border-radius:6px;opacity:.75}
+nav a:hover{background:#ffffff14;opacity:1}
+header{padding:40px 16px 8px;max-width:1240px;margin:0 auto}
+header h1{font:900 clamp(30px,5vw,52px)/1 Montserrat,Inter,sans-serif;letter-spacing:.01em}
+header h1 span{color:var(--gold)}
+header p{color:var(--dim);max-width:760px;margin-top:12px}
+.status{display:inline-block;margin-top:14px;font:800 11px Inter;letter-spacing:.12em;padding:6px 10px;border:1px solid var(--gold);color:var(--gold);border-radius:4px}
+section{max-width:1240px;margin:0 auto;padding:40px 16px 10px;border-top:1px solid var(--line)}
+section:first-of-type{border-top:0}
+h2{font:900 26px/1.1 Montserrat,Inter,sans-serif;margin-bottom:6px}
+h2 small{font:700 12px Inter;color:var(--gold);letter-spacing:.14em;display:block;margin-bottom:6px}
+.lead{color:var(--dim);max-width:820px;margin-bottom:16px}
+.grid{display:grid;gap:10px}
+.g2{grid-template-columns:repeat(auto-fill,minmax(min(100%,560px),1fr))}
+.g3{grid-template-columns:repeat(auto-fill,minmax(min(100%,360px),1fr))}
+.g4{grid-template-columns:repeat(auto-fill,minmax(min(100%,270px),1fr))}
+figure{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+figure img{width:100%;display:block;cursor:zoom-in;background:#000}
+figcaption{padding:10px 12px;font-size:13px;color:var(--dim)}
+figcaption b{color:#fff;display:block;font-size:14px}
+.big{grid-column:1/-1}
+table{width:100%;border-collapse:collapse;font-size:13px;margin:10px 0}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--dim);font-weight:700;font-size:11px;letter-spacing:.1em;text-transform:uppercase}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 12px}
+.tabs button{font:800 12px Inter;color:#fff;background:#ffffff12;border:1px solid var(--line);border-radius:6px;padding:8px 12px;cursor:pointer}
+.tabs button.on{background:var(--gold);color:#000;border-color:var(--gold)}
+.concept{display:none}.concept.on{display:block}
+.pill{display:inline-block;font:800 10px Inter;letter-spacing:.08em;padding:3px 7px;border-radius:3px;background:#ffffff14;margin:2px 4px 2px 0}
+.btn{display:inline-block;font:800 13px Inter;color:#000;background:var(--gold);padding:10px 16px;border-radius:6px;text-decoration:none;margin:6px 8px 6px 0}
+.btn.alt{background:#ffffff14;color:#fff;border:1px solid var(--line)}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:16px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.box h3{font:800 15px Inter;margin-bottom:6px}
+.box ul{padding-left:18px;color:var(--dim);font-size:13.5px}
+.box li{margin:3px 0}
+.assets{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px;max-height:900px;overflow:auto;padding:4px;background:#000;border:1px solid var(--line);border-radius:10px}
+.a{background:var(--card);border-radius:6px;overflow:hidden;font:600 10px/1.25 Inter;color:var(--dim)}
+.a img{width:100%;aspect-ratio:1;object-fit:cover;display:block;background:#1b1d22}
+.a div{padding:4px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.filters{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.filters button{font:700 11px Inter;color:#fff;background:#ffffff12;border:1px solid var(--line);border-radius:999px;padding:5px 10px;cursor:pointer}
+.filters button.on{background:#fff;color:#000}
+#lb{position:fixed;inset:0;background:#000e;display:none;place-items:center;z-index:20;cursor:zoom-out}
+#lb img{max-width:96vw;max-height:94vh}
+svg text{font-family:Inter,sans-serif}
+.q li{margin:8px 0}
+footer{max-width:1240px;margin:0 auto;padding:30px 16px 60px;color:var(--dim);font-size:12px}
+</style>
+</head>
+<body>
+<nav>
+  <a href="#chars">Operators</a><a href="#armour">Armour → Giants</a><a href="#zombies">Zombies</a><a href="#guns">Guns &amp; loot</a><a href="#world">Locations</a><a href="#boards">Billboards</a><a href="#tiers">Graphics tiers</a><a href="#hud">HUD concepts</a><a href="#ends">Victory / Defeat</a><a href="#menus">Welcome · Lobby</a><a href="#look">Look controls</a><a href="#sound">Sound</a><a href="#assets">Assets</a><a href="#plan">Plan &amp; questions</a>
+</nav>
+<header>
+  <h1>EMILGO GAMES <span>v4</span> · MAX MODE</h1>
+  <p>Pictures of everything in the three briefs, before anything is built. Every 3D picture is a real-time three.js render made with the game's own scanned bodies, skeleton and camera, plus procedural gear and CC0 textures and skies. So it shows what the game can actually draw, not a painting. The HUD and menu screens are live HTML mockups.</p>
+  <div class="status">CONCEPT PASS · NOTHING IN THE GAME HAS CHANGED · PICK, MIX OR REJECT</div>
+</header>
+
+<section id="chars">
+  <h2><small>PROMPT 1 · §1</small>Tactical operators</h2>
+  <p class="lead">Covered head to toe: helmet with comms and NVG mount, a balaclava with one slit (only the eyes and the bridge of the nose show: they're the scan's real eyes, they still move and blink), plate carrier, pouches, gloves, knee pads, boots. Camo fabric, cordura webbing, scratched polymer and anodised metal, dust low on the legs. Built on the game's scanned body and skeleton, so every move, emote and fall already in the game plays on it.</p>
+  <div class="grid g2">
+    <figure class="big"><img src="img/operator.jpg" alt="Operator, low ready, ruined street at sunset"><figcaption><b>Hero: low ready, ruined street at sunset</b>Max tier: sky-lit, sun rim, haze, depth of field. Body 19.7K triangles (High) + gear ≈ 6K in 3 merged draws.</figcaption></figure>
+    <figure><img src="img/operator-face.jpg" alt="Close-up of the eye slit"><figcaption><b>Only the eyes and the bridge of the nose</b>The balaclava is shrink-wrapped to the scanned face; the slit is cut from the eye positions.</figcaption></figure>
+    <figure><img src="img/operator-turn.jpg" alt="Turnaround"><figcaption><b>Turnaround</b>Front, three-quarter, side, back. Three kits are built (Ironwood shown; Ash urban and Dune arid).</figcaption></figure>
+  </div>
+</section>
+
+<section id="armour">
+  <h2><small>PROMPT 1 · ITEMS BECOME ARMOUR</small>Pick up, grow, become a monster</h2>
+  <p class="lead">In both modes every item is now armour. Points fill four thresholds; each tier puts a heavier, scarier suit on you and makes you bigger. At Titan you're a giant.</p>
+  <div class="grid g2"><figure class="big"><img src="img/armour.jpg" alt="Armour ladder T0 to T4"><figcaption><b>T0 Operator → T1 Plated → T2 Juggernaut → T3 Warlord → T4 Titan</b>Hard-surface plates (bevelled, bent round the body, faceted so edges catch light), horns, capes, glowing cores and eyes.</figcaption></figure></div>
+  <table>
+    <tr><th>Tier</th><th>Size</th><th>Armour</th><th>The suit</th><th>Balance (proposal)</th></tr>
+    <tr><td><b>T0 Operator</b></td><td>1.00×</td><td>0</td><td>Base kit</td><td rowspan="5">Hitbox grows half as fast as the look. −3% speed per tier. Armour drops as loot when you fall, so giants are worth hunting. +1.5K triangles and +1 draw per tier on High.</td></tr>
+    <tr><td><b>T1 Plated</b></td><td>1.06×</td><td>+25</td><td>Pauldrons, vambraces, tassets, greaves</td></tr>
+    <tr><td><b>T2 Juggernaut</b></td><td>1.15×</td><td>+60</td><td>Sealed helm with a visor, chest core, bomb-suit bulk</td></tr>
+    <tr><td><b>T3 Warlord</b></td><td>1.27×</td><td>+100</td><td>Spiked black plate, horned helm, ember eyes, torn cape</td></tr>
+    <tr><td><b>T4 Titan</b></td><td>1.45×</td><td>+160</td><td>Obsidian and gold, bull horns, crown, molten cracks, sun core</td></tr>
+  </table>
+</section>
+
+<section id="zombies">
+  <h2><small>PROMPT 1 · §2</small>Dead Streets zombies</h2>
+  <p class="lead">Grey-green rotting skin with veins and lesions, sunken bruised sockets, milky glowing eyes, blood down the chin, filthy clothes with wounds through the tears, exposed ribs or forearm bone. One shader on the scanned bodies, so the eight kinds share one rig. Blood stays behind the setting (off by default in the EMILGO app).</p>
+  <div class="grid g2">
+    <figure class="big"><img src="img/zombies.jpg" alt="Eight zombie kinds in the torch beam"><figcaption><b>The eight kinds in your torch beam</b>Shambler, Okada Runner, Crawler, Ata Bloater (swollen belly), Screamer, Agbero Brute (big), Pool Lurker (waist-deep), Masked (cracked gas mask: a modern mask, never a traditional one).</figcaption></figure>
+    <figure><img src="img/zombie-close.jpg" alt="Shambler close-up"><figcaption><b>Close-up</b>For film-level realism the last step is sculpted meshes (commissioned or licensed); this is how far the shader gets.</figcaption></figure>
+    <figure><img src="img/zombie-rise.jpg" alt="Emerging from the ground"><figcaption><b>Emerging → standing → lunge</b>A crack decal, hands first, then the body over 2.5 s (the game's rise, with new emerge/lunge/claw clips).</figcaption></figure>
+    <figure><img src="img/tps-dead.jpg" alt="Dead Streets over the shoulder"><figcaption><b>In play</b>The game's own camera: 2.5 m back, 0.5 m right; the gun torch is the light.</figcaption></figure>
+  </div>
+</section>
+
+<section id="guns">
+  <h2><small>PROMPT 1 · §3 + PROMPT 2 · LEGENDARY ITEMS</small>Guns and treasure</h2>
+  <p class="lead">Free For All becomes a shooter: spawn with a sidearm, find rifles, SMGs and shotguns; the machete and Gidigbo melee stay as backup. ADS, recoil patterns, spread, reloads, hit markers. Loot looks like treasure: six rarities with their own finish, light pillar and sound. Generic gun names only (no made-up brands).</p>
+  <div class="grid g3">
+    <figure><img src="img/weapons.jpg" alt="Weapons"><figcaption><b>Rifle, SMG, shotgun, sidearm, machete</b>Concept geometry (2–4K triangles each); final guns get a proper modelling pass.</figcaption></figure>
+    <figure><img src="img/rarity.jpg" alt="Six rarity finishes"><figcaption><b>Common → Uncommon → Rare → Epic → Legendary → Mythic</b>One mesh, six materials: matte, cerakote, anodised + carbon, engraved chrome, engraved gold, molten obsidian.</figcaption></figure>
+    <figure><img src="img/loot.jpg" alt="Armour relics in light pillars"><figcaption><b>Armour pick-ups as relics</b>Kevlar insert, steel plate, ceramic plate, reactive core, Warlord crest, Titan heart; the Airfall chest in front.</figcaption></figure>
+  </div>
+</section>
+
+<section id="world">
+  <h2><small>PROMPT 2 · MASSIVE WORLD</small>Eleven places that each look different</h2>
+  <p class="lead">One 1.6 × 1.6 km world (16× today), streamed in 64 m cells. Each place has its own light, fog, grade and sound, so you know where you are without the map. Vistas below use instanced trees, rocks, towers, containers, cranes, tanks and turbines with CC0 Poly Haven skies and ground textures.</p>
+  <div class="grid g3" id="biomes"></div>
+  <div class="cols" style="margin-top:16px">
+    <div class="box"><h3>How the world streams</h3>
+      <svg viewBox="0 0 360 230" width="100%" role="img" aria-label="Streaming rings diagram">
+        <rect width="360" height="230" fill="#0b0c0f"/>
+        <circle cx="180" cy="115" r="105" fill="#f5a62312" stroke="#f5a62366"/>
+        <circle cx="180" cy="115" r="62" fill="#00a65118" stroke="#00a65199"/>
+        <circle cx="180" cy="115" r="26" fill="#ffffff22" stroke="#fff"/>
+        <circle cx="180" cy="115" r="4" fill="#fff"/>
+        <text x="180" y="111" fill="#fff" font-size="9" text-anchor="middle" font-weight="800">YOU</text>
+        <text x="180" y="78" fill="#fff" font-size="9" text-anchor="middle">0–96 m: full detail</text>
+        <text x="180" y="40" fill="#5be08a" font-size="9" text-anchor="middle">96–320 m: LOD2, tree impostors</text>
+        <text x="180" y="18" fill="#f5c14a" font-size="9" text-anchor="middle">far: skyline proxies, terrain, fog</text>
+        <text x="8" y="222" fill="#ffffffa6" font-size="8">Cells load as KTX2 + meshopt glTF in a worker; LRU GPU budget Low 120 / Med 200 / High 350 MB</text>
+      </svg>
+    </div>
+    <div class="box"><h3>Map (top view, minimap texture)</h3><img src="img/map.jpg" alt="Top-down map" style="width:100%;border-radius:6px"></div>
+  </div>
+</section>
+
+<section id="boards">
+  <h2><small>PROMPT 1 · MORE BILLBOARDS</small>Billboards everywhere</h2>
+  <p class="lead">The ad system stays exactly as built. New board types join the unipoles: rooftop signs, LED walls on towers, road gantries, bus-shelter panels, painted murals, stadium ribbons and a lobby card. New boards go on the end of each wish list, so booked ids never move. House content only when unbooked (no made-up brands).</p>
+  <div class="grid g2"><figure class="big"><img src="img/billboards.jpg" alt="Billboard types on a night street"><figcaption><b>Unipole, rooftop, LED wall, gantry, bus shelter, mural</b>Neon Row at night.</figcaption></figure></div>
+</section>
+
+<section id="tiers">
+  <h2><small>PROMPT 1 · §4 + PROMPT 2 · MAX MODE</small>What each phone gets</h2>
+  <p class="lead">The honest part: a Tecno/Infinix can't run SSR, SSAO and volumetric fog at 30 fps. It gets Low, which fakes the look. Max Mode is for strong phones and computers. Same shot, four tiers:</p>
+  <div class="grid g4">
+    <figure><img src="img/tiers-0.jpg" alt="Low"><figcaption><b>Low · Tecno/Infinix</b>Lambert, no shadows, 0.6 render scale, fog, the grade in the lights.</figcaption></figure>
+    <figure><img src="img/tiers-1.jpg" alt="Medium"><figcaption><b>Medium · most phones</b>PBR, shadows near you, one grade pass.</figcaption></figure>
+    <figure><img src="img/tiers-2.jpg" alt="High"><figcaption><b>High · strong phones</b>+ bloom, grain, cascaded shadows.</figcaption></figure>
+    <figure><img src="img/tiers-3.jpg" alt="Max"><figcaption><b>Max · flagships, computers</b>+ ambient occlusion, god rays, mirror puddles, depth of field (aiming), per-place LUT.</figcaption></figure>
+  </div>
+</section>
+
+<section id="hud">
+  <h2><small>PROMPT 3 · STEP 1</small>Four HUD concepts</h2>
+  <p class="lead">Each uses all four kinds of game UI (diegetic, non-diegetic, spatial, meta), adapts to Free For All and Dead Streets, and animates with transforms and opacity only (no blur, no particles). Yellow ♪ pins in the "sound map" shot show where each sound fires. Open any of them live and they move.</p>
+  <div class="tabs" id="htabs"></div>
+  <div id="hconcepts"></div>
+  <figure style="margin-top:12px"><img src="img/ui-B-ffa-notes.jpg" alt="Sound pins over concept B"><figcaption><b>Sound map (concept B)</b>Pins mark where SFX and music changes trigger; the dashed line is the touch look area.</figcaption></figure>
+</section>
+
+<section id="ends">
+  <h2><small>PROMPT 3</small>Victory and defeat</h2>
+  <p class="lead">Title slams in, XP rolls with a tick per 50, the bar fills, rank-up badge pops with a chime, loot cards flip in by rarity (whoosh, gold glint on Legendary). Victory fanfare and a defeat sting; back to the lobby the music crossfades. Each concept skins the same skeleton.</p>
+  <div class="grid g4" id="endgrid"></div>
+</section>
+
+<section id="menus">
+  <h2><small>PROMPT 1</small>Welcome, lobby, pre-match</h2>
+  <div class="grid g2">
+    <figure><img src="img/ui-welcome1.jpg" alt="Welcome 1"><figcaption><b>Welcome A · Hero</b>The operator, the wordmark, both modes, a slim loading bar. One low boom on the logo, then the menu theme.</figcaption></figure>
+    <figure><img src="img/ui-welcome2.jpg" alt="Welcome 2"><figcaption><b>Welcome B · Two worlds</b>Free For All by day, Dead Streets by night, split by a gold slash.</figcaption></figure>
+    <figure><img src="img/ui-lobby1.jpg" alt="Lobby 1"><figcaption><b>Lobby A · Command deck</b>You in the middle; loadout and armour path left; modes, a billboard card and a big PLAY right; dailies, radio and mail collapsed to chips.</figcaption></figure>
+    <figure><img src="img/ui-lobby2.jpg" alt="Lobby 2"><figcaption><b>Lobby B · Map table</b>The next location full-bleed, this week's rotation, your squad's four slots, READY.</figcaption></figure>
+    <figure class="big"><img src="img/ui-prematch.jpg" alt="Pre-match"><figcaption><b>Pre-match</b>Location, mode, the goal in two lines, three tips, the 12 players arriving, streaming progress, the drop countdown.</figcaption></figure>
+  </div>
+</section>
+
+<section id="look">
+  <h2><small>PROMPT 1 · §5 (CRITICAL)</small>The look control: a touchpad, not a stick</h2>
+  <p class="lead">Today the right side is a virtual stick that turns at a <i>rate</i>, which is why it feels wrong. The new one turns by how far and how fast your thumb moves, anywhere on the right half outside the buttons. Nothing is drawn (a faint ring is a setting). A small dead zone eats the first pixels of each touch so taps never nudge your aim; slow swipes aim finely, fast flicks turn 180°; let go and the camera stays. Dragging from FIRE aims too. The move stick stays a fixed 1 px white ring.</p>
+  <a class="btn" href="controls.html">Play the demo (phone, sideways)</a>
+  <figure style="margin-top:10px"><img src="img/controls.jpg" alt="Look control demo"><figcaption><b>The demo with its settings</b>Sensitivity, vertical ratio, acceleration, dead zone, presets, the live curve. This maths becomes <code>input/controls.ts</code>.</figcaption></figure>
+</section>
+
+<section id="sound">
+  <h2><small>PROMPT 2 · SOUND EVERYWHERE</small>The world makes noise</h2>
+  <p class="lead">A sample layer on top of today's synthesiser. Every place has emitters you hear grow and fade as you move (pooled spatial voices: Low 6, Medium/High 12), and the music follows the match.</p>
+  <div class="cols">
+    <div class="box"><h3>Spatial emitters (radius: loud → silent)</h3>
+      <svg viewBox="0 0 360 220" width="100%" role="img" aria-label="Sound emitters map">
+        <rect width="360" height="220" fill="#0b0c0f" rx="6"/>
+        <g font-size="8" fill="#fff">
+          <circle cx="70" cy="60" r="44" fill="#5ec8ff14" stroke="#5ec8ff66"/><circle cx="70" cy="60" r="16" fill="#5ec8ff33"/><text x="70" y="62" text-anchor="middle">Turbines</text><text x="70" y="112" text-anchor="middle" fill="#ffffffa6">whoosh per blade · 25→120 m</text>
+          <circle cx="200" cy="70" r="52" fill="#ff2fa014" stroke="#ff2fa066"/><circle cx="200" cy="70" r="14" fill="#ff2fa044"/><text x="200" y="72" text-anchor="middle">Club</text><text x="200" y="132" text-anchor="middle" fill="#ffffffa6">bass through walls · full mix at the door</text>
+          <circle cx="300" cy="60" r="34" fill="#ff7a1a14" stroke="#ff7a1a66"/><circle cx="300" cy="60" r="12" fill="#ff7a1a44"/><text x="300" y="62" text-anchor="middle">Flare stack</text><text x="300" y="104" text-anchor="middle" fill="#ffffffa6">roar · 10→90 m</text>
+          <circle cx="90" cy="170" r="30" fill="#ffffff10" stroke="#ffffff55"/><text x="90" y="172" text-anchor="middle">Ship horn · gulls</text>
+          <circle cx="200" cy="180" r="26" fill="#00a65114" stroke="#00a65166"/><text x="200" y="182" text-anchor="middle">River · birds</text>
+          <circle cx="300" cy="170" r="30" fill="#ffd23a14" stroke="#ffd23a66"/><text x="300" y="172" text-anchor="middle">Airfield PA</text>
+        </g>
+      </svg></div>
+    <div class="box"><h3>Music states</h3><ul>
+      <li><b>Explore</b>: the place's own bed (wind, distant life) under a light groove.</li>
+      <li><b>Combat</b>: drums come in on the first shot near you, out 20 s after.</li>
+      <li><b>Low health</b>: the mix is low-passed, heartbeat on top.</li>
+      <li><b>Final circle</b>: tempo up, sub-bass swell as it closes.</li>
+      <li><b>Victory / defeat</b>: fanfare or sting; the lobby theme crossfades back.</li>
+      <li><b>Pick-ups</b>: rarity sounds (a talking-drum hit for Legendary), armour clank on each tier.</li>
+    </ul></div>
+    <div class="box"><h3>Where the sounds come from</h3><ul>
+      <li><b>Kenney</b> audio packs: CC0 (UI, impacts).</li>
+      <li><b>Freesound</b>: CC0 only (ambiences, foley). Needs an API key.</li>
+      <li><b>Sonniss GDC bundles</b>: royalty-free (guns, explosions, vehicles).</li>
+      <li><b>Pixabay Music / FreePD</b>: free music; or commissioned tracks.</li>
+      <li><b>Never</b> BBC Sound Effects (not for commercial use) or anything ripped from other games.</li>
+      <li>Loaded per mode and place, lazily: the 4 s boot stays.</li>
+    </ul></div>
+  </div>
+</section>
+
+<section id="assets">
+  <h2><small>PROMPT 2 · 1,000+ ASSETS</small>2,898 CC0 candidates</h2>
+  <p class="lead">Every Poly Haven model, texture and sky (2,352) and 546 ambientCG materials (of its 2,037), all CC0, tagged by the place they'd serve. None is used as-is: each goes through decimation to 3–4 LODs, KTX2 textures and impostors. Poly Haven's 65 heaviest models are 0.1–17 million triangles; a phone draws about 100K for the whole frame, so trees and big rocks become texture sources and impostors. Megascans (Fab) and Sketchfab need the owner's accounts and licences.</p>
+  <div class="filters" id="af"></div>
+  <div class="filters" id="ab"></div>
+  <div class="assets" id="agrid"></div>
+  <p style="color:var(--dim);font-size:12px;margin-top:6px" id="acount"></p>
+</section>
+
+<section id="plan">
+  <h2><small>NEXT</small>Plan and questions</h2>
+  <p class="lead">The full plan is in <a href="PLAN.md">PLAN.md</a>: the honest limits, budgets per tier, streaming and memory, guns, armour balance, sound, and ten phases that each wait for your go-ahead.</p>
+  <div class="cols">
+    <div class="box"><h3>Phases</h3><ul>
+      <li>1 Look control + the chosen HUD's skeleton</li><li>2 Operator gear, armour ladder, LODs</li><li>3 Guns: ADS, recoil, spread, reload, hit markers</li><li>4 Zombie art pass</li><li>5 Graphics tiers, Max Mode post stack</li><li>6 Streaming + first 3 locations, asset pipeline</li><li>7 The other 8 locations, the big world, billboards</li><li>8 Sound layer, emitters, music states</li><li>9 Welcome, lobby, pre-match, end screens</li><li>10 Real Tecno/Infinix + iPhone, regression</li></ul></div>
+    <div class="box q"><h3>Your answers needed</h3><ol style="padding-left:18px;color:var(--dim);font-size:13.5px">
+      <li>Which HUD concept (A, B, C, D), or which parts of which?</li>
+      <li>FFA damage: 100 HP + armour, gun kills, respawns per mode, zone laser kept?</li>
+      <li>Staked Flag Duel (real money in Lagos Life): melee-only (recommended) or guns?</li>
+      <li>Spawn with a sidearm, primaries as loot?</li>
+      <li>World size: 1.6 km square for 12 players, or bigger with more?</li>
+      <li>Assets on a CDN (your Cloudflare R2)? The app's offline copy keeps lobby, Practice, Dead Streets lite.</li>
+      <li>CC0-only, or do you hold Fab/Megascans and Sketchfab accounts?</li>
+      <li>Giants: hitbox at half the visual growth, −3% speed per tier?</li>
+      <li>Welcome A or B? Lobby A or B?</li>
+      <li>Ball Haunt stays hidden and untouched?</li></ol></div>
+  </div>
+</section>
+<footer>Concept renders: <code>dev/concepts/</code> (three.js, the game's own bodies) · mockups: <code>concepts/ui.html</code> · skies and textures: Poly Haven (CC0) · fonts: Inter, Montserrat, JetBrains Mono (OFL).</footer>
+<div id="lb"><img alt=""></div>
+<script>
+// Lightbox.
+const lb = document.getElementById("lb");
+document.addEventListener("click", (e) => {
+  const img = e.target.closest("figure img");
+  if (img) { lb.querySelector("img").src = img.src; lb.style.display = "grid"; }
+  else if (e.target.closest("#lb")) lb.style.display = "none";
+});
+// Locations.
+const BIOMES = [["forest", "Ironwood Forest", "Morning mist, god rays through the canopy. Birdsong, wind in leaves."], ["urban", "Glass District", "Shattered towers, wet streets, amber dusk. Distant sirens, glass underfoot."], ["desert", "Dune Sea", "Hard sun, long dune shadows, a dead convoy. Wind hiss, sand on metal."], ["wind", "Windmere Ridge", "Rolling grass under turning turbines (you hear each blade pass)."], ["neon", "Neon Row", "Night club street, neon in every puddle, bass through the walls."], ["harbour", "Harbour Yard", "Container canyons, cranes, ship horns, gulls."], ["snow", "Frostline", "Snow pass, radar dome, cold blue grade, crunching steps."], ["refinery", "Black Refinery", "Flare stacks roaring, tanks, a bruised sky."], ["airfield", "Old Airfield", "Runway, hangars, a broken airliner, PA announcements."], ["stadium", "The Arena", "A ruined stadium at dusk under floodlights. Echoing PA."], ["swamp", "Mangrove Sink", "Flooded dead forest, stilt houses, low fog, frogs."]];
+document.getElementById("biomes").innerHTML = BIOMES.map(([id, n, d]) => `<figure><img loading="lazy" src="img/biome-${id}.jpg" alt="${n}"><figcaption><b>${n}</b>${d}</figcaption></figure>`).join("");
+// HUD concepts.
+const CONCEPTS = {
+  A: ["Field Kit", "Diegetic first", "Information lives on your gear: a wrist watch shows the zone clock and players left (the bleed clock in Dead Streets); the vest's plates are your armour tier (cracked when damaged); an LED strip on the gun is the magazine; pouches show what you carry. Kill feed as radio lines. Olive and amber, mono type.", ["Watch beep when the zone moves or the bleed starts", "Radio squelch on each kill line", "Mag LED blinks + dry click under 20%", "Zipper on every pick-up"]],
+  B: ["Clean Ops", "Non-diegetic, quiet", "Thin white lines, EMILGO green accents, nothing boxed in. Compass tape, round minimap with the zone, segmented armour bar, big ammo numerals, a crosshair that opens with spread, hit markers (white, red kill, gold headshot), XP ticks. The most readable of the four.", ["Hit tick; gold marker and a 'ping' on headshots", "Soft whoosh as each feed line slides in", "Under 30 HP: heartbeat, music low-passed", "Zone horn at 0:30, alarm loop at 0:10"]],
+  C: ["Pulse", "Meta and spatial", "Almost no panels: your state is the screen. Health and armour are an arc round the crosshair; the edge reddens when hurt; the zone is an orange heat at the edges; in Dead Streets a heartbeat vignette pulses from the side a zombie is on. Waypoints and enemy pings float in the world.", ["Heartbeat speeds with the nearest zombie", "Sub-bass swell as the circle starts closing", "Spatial tick from an enemy ping's direction", "Growl from the edge that pulses"]],
+  D: ["Street Tech", "Bold, branded", "Slanted panels in gold, green and black with a fine geometric weave; a rank crest that morphs with your armour tier; chunky numerals; pick-up toasts in rarity colours with a shine. Pidgin flavour on the end screens (ODOGWU! / E DON CAST).", ["Talking-drum stinger on Legendary pick-ups", "Crest morph + armour clank on each tier", "Short drum hit per kill chip", "Gold shimmer sound on the toast"]],
+};
+const tabs = document.getElementById("htabs"), hc = document.getElementById("hconcepts");
+for (const [k, [name, kind, text, sfx]] of Object.entries(CONCEPTS)) {
+  const b = document.createElement("button"); b.textContent = `${k} · ${name}`; b.dataset.k = k; tabs.append(b);
+  const d = document.createElement("div"); d.className = "concept"; d.dataset.k = k;
+  d.innerHTML = `<p style="margin-bottom:6px"><span class="pill">${kind.toUpperCase()}</span></p><p class="lead">${text}</p>
+    <div class="grid g2"><figure><img src="img/ui-${k}-ffa.jpg" alt="${name} Free For All"><figcaption><b>Free For All</b>Armour T2, assault rifle, the flag at 182 m, 7 left.</figcaption></figure><figure><img src="img/ui-${k}-dead.jpg" alt="${name} Dead Streets"><figcaption><b>Dead Streets</b>Health, torch battery, the Mast at 640 m, the horde at its peak.</figcaption></figure></div>
+    <div class="box" style="margin-top:10px"><h3>Sounds</h3><ul>${sfx.map((s) => `<li>${s}</li>`).join("")}</ul></div>
+    <p style="margin-top:10px"><a class="btn" href="ui.html?c=${k}&s=ffa">Open live: Free For All</a><a class="btn alt" href="ui.html?c=${k}&s=dead">Dead Streets</a><a class="btn alt" href="ui.html?c=${k}&s=win">Victory</a><a class="btn alt" href="ui.html?c=${k}&s=lose">Defeat</a><a class="btn alt" href="ui.html?c=${k}&s=ffa&notes=1">With sound pins</a></p>`;
+  hc.append(d);
+}
+function pick(k) { [...tabs.children].forEach((b) => b.classList.toggle("on", b.dataset.k === k)); [...hc.children].forEach((d) => d.classList.toggle("on", d.dataset.k === k)); }
+tabs.onclick = (e) => e.target.dataset.k && pick(e.target.dataset.k);
+pick("A");
+document.getElementById("endgrid").innerHTML = ["A", "B", "C", "D"].flatMap((k) => [["win", "Victory"], ["lose", "Defeat"]].map(([s, n]) => `<figure><img loading="lazy" src="img/ui-${k}-${s}.jpg" alt="${CONCEPTS[k][0]} ${n}"><figcaption><b>${k} · ${CONCEPTS[k][0]} · ${n}</b><a href="ui.html?c=${k}&s=${s}">Open live</a></figcaption></figure>`)).join("");
+</script>
+<script src="assets.js"></script>
+<script>
+// Asset catalogue: thumbnails load lazily from the sources' CDNs.
+const A = window.ASSETS || [];
+const kinds = ["all", "model", "texture", "material", "hdri"];
+const places = ["all", ...new Set(A.map((a) => a[5]))];
+let fk = "all", fp = "all";
+const thumb = (a) => a[0] === "ph" ? `https://cdn.polyhaven.com/asset_img/thumbs/${a[2]}.png?width=200&height=200` : `https://acg-media.struffelproductions.com/file/ambientCG-Web/media/thumbnail/256-JPG-242424/${a[2]}.jpg`;
+const link = (a) => a[0] === "ph" ? `https://polyhaven.com/a/${a[2]}` : `https://ambientcg.com/view?id=${a[2]}`;
+function chips(el, list, cur, set) { el.innerHTML = list.map((x) => `<button class="${x === cur ? "on" : ""}" data-x="${x}">${x}${x === "all" ? "" : ` · ${A.filter((a) => (el.id === "af" ? a[1] : a[5]) === x).length}`}</button>`).join(""); el.onclick = (e) => { if (e.target.dataset.x) { set(e.target.dataset.x); draw(); } }; }
+function draw() {
+  chips(document.getElementById("af"), kinds, fk, (x) => (fk = x));
+  chips(document.getElementById("ab"), places, fp, (x) => (fp = x));
+  const list = A.filter((a) => (fk === "all" || a[1] === fk) && (fp === "all" || a[5] === fp));
+  document.getElementById("agrid").innerHTML = list.slice(0, 600).map((a) => `<a class="a" href="${link(a)}" target="_blank" rel="noopener" title="${a[3]} · ${a[1]} · ${a[4]}${a[6] ? ` · ${a[6].toLocaleString()} tris` : ""}"><img loading="lazy" src="${thumb(a)}" alt=""><div>${a[3]}</div></a>`).join("");
+  document.getElementById("acount").textContent = `${list.length.toLocaleString()} shown${list.length > 600 ? " (first 600; filter to see the rest)" : ""} · ${A.length.toLocaleString()} in all · all CC0 · ${A[0] && A[0][0] === "ph" ? "thumbnails from Poly Haven and ambientCG" : ""}`;
+}
+draw();
+addEventListener("load", () => { const at = new URLSearchParams(location.search).get("at"); if (at) document.getElementById(at)?.scrollIntoView(); setTimeout(() => (window.__done = { ok: true }), 2500); });
+</script>
+</body>
+</html>

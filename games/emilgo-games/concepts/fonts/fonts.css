@@ -1,0 +1,11 @@
+/* Inter, Montserrat and JetBrains Mono (SIL Open Font License), copied from the game's @fontsource packages. */
+@font-face{font-family:Inter;font-weight:400;font-display:block;src:url(inter-latin-400-normal.woff2) format("woff2")}
+@font-face{font-family:Inter;font-weight:600;font-display:block;src:url(inter-latin-600-normal.woff2) format("woff2")}
+@font-face{font-family:Inter;font-weight:700;font-display:block;src:url(inter-latin-700-normal.woff2) format("woff2")}
+@font-face{font-family:Inter;font-weight:800;font-display:block;src:url(inter-latin-800-normal.woff2) format("woff2")}
+@font-face{font-family:Inter;font-weight:900;font-display:block;src:url(inter-latin-900-normal.woff2) format("woff2")}
+@font-face{font-family:Montserrat;font-weight:700;font-display:block;src:url(montserrat-latin-700-normal.woff2) format("woff2")}
+@font-face{font-family:Montserrat;font-weight:900;font-display:block;src:url(montserrat-latin-900-normal.woff2) format("woff2")}
+@font-face{font-family:"JetBrains Mono";font-weight:400;font-display:block;src:url(jetbrains-mono-latin-400-normal.woff2) format("woff2")}
+@font-face{font-family:"JetBrains Mono";font-weight:700;font-display:block;src:url(jetbrains-mono-latin-700-normal.woff2) format("woff2")}
+@font-face{font-family:"JetBrains Mono";font-weight:800;font-display:block;src:url(jetbrains-mono-latin-800-normal.woff2) format("woff2")}
