@@ -152,6 +152,17 @@ export class GadgetView {
       }
       if (e.type !== "gadget") continue;
       switch (e.kind) {
+        // The power-emote cards: the dance itself (Breakdance plays the plain dance, then they're down).
+        case "zanku":
+        case "shaku":
+        case "odogwu":
+        case "sweep": {
+          const c = e.id ? m.get(e.id) : null;
+          if (!c) break;
+          this.o.crowd.emote(c.index, e.kind === "sweep" ? "dance" : e.kind);
+          if (e.kind === "sweep") s?.strike("push", false);
+          break;
+        }
         case "powder": {
           const hd = e.hd ?? 0;
           for (let k = 0; k < 14; k++) {

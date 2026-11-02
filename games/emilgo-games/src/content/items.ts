@@ -12,7 +12,8 @@ import type { ModuleId, Text } from "./modes";
 export type ItemId =
   | "kola" | "pepper-soup" | "zobo" | "iron-wrapper" | "big-bag" | "smoke-pot" | "banana-peel"
   | "pepper-powder" | "megaphone" | "slipper" | "decoy-flag" | "talking-drum" | "aso-ebi"
-  | "golden-slipper" | "zone-shield" | "jerrycan" | "danfo-key";
+  | "golden-slipper" | "zone-shield" | "jerrycan" | "danfo-key"
+  | "zanku" | "shaku" | "odogwu" | "breakdance";
 
 export type ItemEffect =
   /** Faster for a while: run and sprint × mult. */
@@ -77,6 +78,11 @@ export const ITEM_DEFS: Record<ItemId, ItemDef> = {
   "decoy-flag": { ...def("decoy-flag", "Decoy Flag", "Fake Flag", "A flag that isn't: whoever grabs it is stunned", "Flag wey no be flag: who carry am go hang", { kind: "gadget" }, false, "flags"), counter: { en: "A decoy isn't on the compass", pcm: "Fake flag no dey for compass" } },
   "talking-drum": { ...def("talking-drum", "Talking Drum", "Talking Drum", "Shows the nearest rival for 5 s", "E go show the person wey near pass for 5 seconds", { kind: "gadget" }), counter: { en: "Hide in smoke, or drive fast", pcm: "Hide for smoke, or drive fast" } },
   "aso-ebi": { ...def("aso-ebi", "Aso-ebi Disguise", "Aso-ebi Disguise", "Wear a rival squad's colour for 20 s", "Wear another squad colour for 20 seconds", { kind: "gadget" }), counter: { en: "It ends the moment you attack", pcm: "E go end once you attack" } },
+  // Power-emote cards (§10.2): a dance with an effect, never free.
+  zanku: { ...def("zanku", "Zanku Bait", "Zanku Bait", "Dance: rivals near who watch you wobble 20% more for 3 s; you can't move", "Dance: who dey look you go shake 20% more for 3 seconds; you no fit waka", { kind: "gadget" }, false, "melee"), counter: { en: "Don't look: turn away, or hit them from behind", pcm: "No look am: turn your back, or hit am from back" } },
+  shaku: { ...def("shaku", "Shaku Shield", "Shaku Shield", "2 s nobody can knock you back, then 2 s slow", "2 seconds nobody fit push you, then 2 seconds slow", { kind: "gadget" }, false, "melee"), counter: { en: "Wait it out, then hit them while they're slow", pcm: "Wait make e finish, then hit dem as dem slow" } },
+  odogwu: { ...def("odogwu", "Odogwu Pose", "Odogwu Pose", "At an objective: +10% for your squad for 4 s; you're rooted", "For objective: +10% for your squad for 4 seconds; you no fit move", { kind: "gadget" }, false, "melee"), counter: { en: "A posing body can't move: push them off it", pcm: "Person wey dey pose no fit move: push am comot" } },
+  breakdance: { ...def("breakdance", "Breakdance Sweep", "Breakdance Sweep", "Trips everyone round you; you're Dazed after", "E go trip everybody round you; you go hang after", { kind: "gadget" }, false, "melee"), counter: { en: "Jump it, brace, or stand back and hit them after", pcm: "Jump am, brace, or stand far then hit dem after" } },
   // Vehicles' (Phase 5).
   jerrycan: def("jerrycan", "Fuel Jerrycan", "Fuel Jerrycan", "+15 s of fuel for the car you're in or beside", "+15 seconds fuel for the motor wey you dey inside or near", { kind: "fuel" }, true, "vehicles"),
   "danfo-key": def("danfo-key", "Danfo Key", "Danfo Key", "Calls a danfo to the road nearby", "E go call danfo come the road wey near", { kind: "call" }, true, "vehicles"),
@@ -89,6 +95,7 @@ export const LOOT_TABLES: Record<string, LootTable> = {
   "ffa-core": [
     ["kola", 4], ["zobo", 4], ["big-bag", 1.5], ["pepper-soup", 3], ["iron-wrapper", 2], ["smoke-pot", 2], ["banana-peel", 3],
     ["pepper-powder", 2], ["megaphone", 1], ["slipper", 3], ["decoy-flag", 1], ["talking-drum", 1.5], ["aso-ebi", 1],
+    ["zanku", 1], ["shaku", 1], ["odogwu", 1], ["breakdance", 0.8],
   ],
   airfall: [["golden-slipper", 1], ["zone-shield", 1], ["jerrycan", 1], ["danfo-key", 1]],
 };

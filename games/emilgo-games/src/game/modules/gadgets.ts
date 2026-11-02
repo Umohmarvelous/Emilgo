@@ -19,6 +19,16 @@
 //   Aso-ebi Disguise     you wear a rival squad's colour for 20 s: they see a
 //                        squad mate. Counter: it ends the moment you attack.
 //
+// The power-emote cards (§10.2), dances with an effect:
+//   Zanku Bait           rivals within 6 m who face you wobble 20% more for
+//                        3 s; you can't move while you dance. Counter: don't
+//                        look, or hit the dancer from behind.
+//   Shaku Shield         2 s nobody can knock you back, then 2 s slowed.
+//   Odogwu Pose          rooted 4 s; your squad's objective counts 10% more
+//                        while you pose near it. Counter: push them off it.
+//   Breakdance Sweep     trips everyone round you (a jump or a brace beats
+//                        it), then you're Dazed.
+//
 // Pure and seeded like every module; the copy on a phone hears it all as events.
 
 import { GADGETS, MOVE } from "../../config";
@@ -30,7 +40,7 @@ import type { MatchEvent, RuleModule } from "../core/module";
 import type { MeleeModule } from "./melee";
 import type { VehiclesModule } from "./vehicles";
 
-export type GadgetKind = "smoke" | "peel" | "powder" | "wave-up" | "wave" | "decoy" | "pop" | "slip" | "sneeze" | "lost";
+export type GadgetKind = "smoke" | "peel" | "powder" | "wave-up" | "wave" | "decoy" | "pop" | "slip" | "sneeze" | "lost" | "zanku" | "shaku" | "odogwu" | "sweep";
 
 /** Something an item left in the world: a smoke cloud, a peel, a decoy flag. */
 export interface Placed {
@@ -68,6 +78,8 @@ export class GadgetsModule implements RuleModule {
 
   can(m: Match, c: Contestant, kind: ItemId): boolean {
     if (m.seated(c) && kind !== "talking-drum" && kind !== "aso-ebi") return false;
+    // One dance at a time.
+    if ((kind === "zanku" || kind === "odogwu" || kind === "breakdance" || kind === "shaku") && (m.effect(c, "dance") > 0 || m.effect(c, "pose") > 0 || m.effect(c, "shaku-after") > 0)) return false;
     if (kind === "decoy-flag") return !!m.module("flags");
     if (kind === "aso-ebi") return this.rivalSquad(m, c) >= 0 && this.wearing[c.index] < 0;
     if (kind === "megaphone") return !this.waves.some((w) => w.by === c.index);
@@ -174,6 +186,44 @@ export class GadgetsModule implements RuleModule {
         } else m.emit({ type: "reveal", id: c.id, tg: null, until: t });
         break;
       }
+      case "zanku": {
+        m.setEffect(c, "dance", G.zanku.s);
+        m.emit({ type: "gadget", kind: "zanku", n: -1, id: c.id, x: c.x, z: c.z, h: c.h, hd: c.heading });
+        for (const o of m.contestants) {
+          if (o === c || o.status !== "alive" || m.seated(o) || m.sameSquad(c, o)) continue;
+          const dx = c.x - o.x;
+          const dz = c.z - o.z;
+          const d = Math.hypot(dx, dz);
+          if (d > G.zanku.r || d < 1e-6 || Math.abs(o.h - c.h) > 1.5) continue;
+          // Facing the dancer: watching.
+          const look = Math.acos(Math.max(-1, Math.min(1, (dx * Math.sin(o.heading) + dz * Math.cos(o.heading)) / d)));
+          if (look <= G.zanku.face) m.setEffect(o, "bait", G.zanku.s, G.zanku.more);
+        }
+        break;
+      }
+      case "shaku":
+        m.setEffect(c, "shaku", G.shaku.s);
+        m.setEffect(c, "shaku-after", G.shaku.s + G.shaku.slow);
+        m.emit({ type: "gadget", kind: "shaku", n: -1, id: c.id, x: c.x, z: c.z, h: c.h });
+        break;
+      case "odogwu":
+        m.setEffect(c, "pose", G.odogwu.s);
+        m.emit({ type: "gadget", kind: "odogwu", n: -1, id: c.id, x: c.x, z: c.z, h: c.h });
+        break;
+      case "breakdance": {
+        m.emit({ type: "gadget", kind: "sweep", n: -1, id: c.id, x: c.x, z: c.z, h: c.h });
+        const melee = m.module<MeleeModule>("melee");
+        for (const o of m.contestants) {
+          if (o === c || o.status !== "alive" || m.seated(o) || m.sameSquad(c, o)) continue;
+          if (Math.hypot(o.x - c.x, o.z - c.z) > G.sweep.r || Math.abs(o.h - c.h) > 0.8) continue;
+          if (o.y > 0.15 || melee?.brace[o.index]) continue;
+          if (melee) melee.knockdown(m, o, G.sweep.down, "trip", c);
+          else o.stun = Math.max(o.stun, G.sweep.down);
+        }
+        if (melee) melee.knockdown(m, c, G.sweep.daze, "daze", null);
+        else c.stun = Math.max(c.stun, G.sweep.daze);
+        break;
+      }
       case "aso-ebi": {
         const q = this.rivalSquad(m, c);
         if (q < 0) break;
@@ -220,6 +270,23 @@ export class GadgetsModule implements RuleModule {
   }
 
   // ── Every step ──
+
+  /** Before the bodies move: a dancer or a poser is rooted; Shaku's tiredness slows. */
+  pre(m: Match): void {
+    for (const c of m.contestants) {
+      if (c.status !== "alive") continue;
+      if (m.effect(c, "dance") > 0 || m.effect(c, "pose") > 0) m.slow(c, 0);
+      else if (m.effect(c, "shaku") <= 0 && m.effect(c, "shaku-after") > 0) m.slow(c, GADGETS.shaku.k);
+    }
+  }
+
+  /** Squad q's objective near (x, z) counts this much (Odogwu Pose: ×1.1 while one of them poses within r). */
+  boost(m: Match, q: number, x: number, z: number, r: number = GADGETS.odogwu.r): number {
+    for (const c of m.contestants) {
+      if (c.status === "alive" && m.squads[c.index] === q && m.effect(c, "pose") > 0 && Math.hypot(c.x - x, c.z - z) <= r) return GADGETS.odogwu.more;
+    }
+    return 1;
+  }
 
   step(m: Match): void {
     const G = GADGETS;
@@ -302,6 +369,14 @@ export class GadgetsModule implements RuleModule {
           const s = e.kind === "smoke" ? GADGETS.smoke.s : e.kind === "peel" ? GADGETS.peel.s : GADGETS.decoy.s;
           this.placed[e.n] = { index: e.n, kind: e.kind, x: e.x, z: e.z, h: e.h, by, at: m.elapsed, until: m.elapsed + s };
         } else if ((e.kind === "slip" || e.kind === "pop") && this.placed[e.n]) this.placed[e.n].until = m.elapsed;
+        // A dance: the copy roots the dancer too (a phone predicts its own body).
+        const c = e.id ? m.get(e.id) : null;
+        if (c && e.kind === "zanku") m.setEffect(c, "dance", GADGETS.zanku.s);
+        if (c && e.kind === "odogwu") m.setEffect(c, "pose", GADGETS.odogwu.s);
+        if (c && e.kind === "shaku") {
+          m.setEffect(c, "shaku", GADGETS.shaku.s);
+          m.setEffect(c, "shaku-after", GADGETS.shaku.s + GADGETS.shaku.slow);
+        }
         break;
       }
       case "reveal": {

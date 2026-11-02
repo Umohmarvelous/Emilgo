@@ -17,7 +17,7 @@
 //   else          happen and are applied to the copy (Match.applyRemote), then
 //                 handed to the screen in the same order.
 
-import { MELEE, MOVE, NET } from "../config";
+import { GADGETS, MELEE, MOVE, NET } from "../config";
 import { BUILTIN_MANIFEST, type ModeDef } from "../content/modes";
 import type { Contestant } from "../game/core/body";
 import { Match, settingsOf, type MatchWorld } from "../game/core/match";
@@ -251,6 +251,9 @@ export class OnlineMatch {
   private share(me: Contestant): number {
     const m = this.match;
     let k = 1;
+    // A power emote: rooted while you dance or pose; Shaku's tiredness after.
+    if (m.effect(me, "dance") > 0 || m.effect(me, "pose") > 0) return 0;
+    if (m.effect(me, "shaku") <= 0 && m.effect(me, "shaku-after") > 0) k *= GADGETS.shaku.k;
     const mel = this.melee;
     if (mel) {
       if (m.braced(me) && m.effect(me, "iron") <= 0) k *= MELEE.brace.slow;

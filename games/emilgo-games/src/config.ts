@@ -623,6 +623,14 @@ export const GADGETS = {
   decoy: { s: 60, r: 1.1, stun: 1.2, wobble: 0.2 },
   drum: { s: 5, range: 160 },
   disguise: { s: 20 },
+  /** The power-emote cards (§10.2). Zanku: rivals within r facing you (within `face` rad) wobble ×more for s; you're rooted for s. */
+  zanku: { s: 3, r: 6, face: 1.05, more: 1.2 },
+  /** Shaku: s of no knockback, then `slow` s at × `k` speed. */
+  shaku: { s: 2, slow: 2, k: 0.5 },
+  /** Odogwu: rooted s, your squad's objective × `more` while you pose within r of it. */
+  odogwu: { s: 4, r: 8, more: 1.1 },
+  /** Breakdance: trips every rival within r (jumping or bracing beats it); then you're Dazed `daze` s. */
+  sweep: { r: 1.9, down: 1.2, daze: 1.6 },
 } as const;
 export const VEHICLE_KINDS: readonly VehicleKind[] = ["danfo", "keke", "tokunbo"];
 

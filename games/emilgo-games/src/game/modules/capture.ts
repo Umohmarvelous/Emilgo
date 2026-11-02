@@ -6,6 +6,7 @@
 
 import { RALLY } from "../../config";
 import type { Match } from "../core/match";
+import type { GadgetsModule } from "./gadgets";
 import type { RuleModule } from "../core/module";
 
 export class CaptureModule implements RuleModule {
@@ -67,7 +68,8 @@ export class CaptureModule implements RuleModule {
   step(m: Match, dt: number): void {
     this.place(m.elapsed);
     const late = m.settings.time - m.elapsed <= this.doubleLast ? 2 : 1;
-    for (const c of m.contestants) if (c.status === "alive" && this.isInside(c.x, c.z)) this.inside[c.index] += dt * late;
+    const gad = m.module<GadgetsModule>("gadgets");
+    for (const c of m.contestants) if (c.status === "alive" && this.isInside(c.x, c.z)) this.inside[c.index] += dt * late * (gad?.boost(m, m.squads[c.index], this.x, this.z, this.radius + 2) ?? 1);
   }
 
   view(m: Match, dt: number): void {

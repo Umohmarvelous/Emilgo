@@ -831,6 +831,75 @@ console.log("the extras (§10):");
   check(!zm.reachFor(m, put2), "outside the zone: the line is shut (no escape on it)");
 }
 
+{
+  // §10.2: the power-emote cards.
+  const m = fresh(98, 6, [0, 0, 1, 1, 2, 2]);
+  clear(m, ["p0", "p2", "p4"]);
+  put(m, "p0", YX, YZ);
+  const watch = put(m, "p2", YX + 3, YZ, -EAST);
+  const away = put(m, "p4", YX - 3, YZ, -EAST);
+  runFor(m, 0.1);
+  const ev = use(m, "p0", "zanku");
+  check(ev.some((e) => e.type === "gadget" && e.kind === "zanku") && m.effect(watch, "bait") > 0 && m.effect(away, "bait") === 0, "Zanku Bait: the rival watching is baited, the one looking away isn't");
+  const dancer = m.get("p0")!;
+  const x0 = dancer.x;
+  dancer.inX = 1;
+  runFor(m, 1);
+  dancer.inX = 0;
+  check(Math.abs(dancer.x - x0) < 0.05, "while you dance you can't move");
+  // A baited body wobbles 20% more from the same shove … from melee's hit (the same multiplier is in shove-free hits).
+  check(Math.abs(m.effectValue(watch, "bait") - GADGETS.zanku.more) < 1e-9, `baited: ×${GADGETS.zanku.more} wobble from hits for ${GADGETS.zanku.s} s`);
+}
+{
+  const m = fresh(99, 4);
+  clear(m, ["p0"]);
+  const c = put(m, "p0", YX, YZ);
+  runFor(m, 0.1);
+  use(m, "p0", "shaku");
+  mel(m).shove(m, c, 1, 0, 3, 0.5, 0);
+  check(Math.hypot(c.vx, c.vz) < 0.01, "Shaku Shield: a shove doesn't move you");
+  runFor(m, GADGETS.shaku.s + 0.1);
+  c.inZ = 1;
+  const z0 = c.z;
+  runFor(m, 1);
+  const slowRun = c.z - z0;
+  runFor(m, GADGETS.shaku.slow);
+  const z1 = c.z;
+  runFor(m, 1);
+  c.inZ = 0;
+  check(slowRun < (c.z - z1) * 0.7, `then slowed for ${GADGETS.shaku.slow} s (${slowRun.toFixed(1)} m in a second vs ${(c.z - z1).toFixed(1)} m after)`);
+}
+{
+  const m = fresh(100, 4, [0, 0, 1, 1]);
+  clear(m, ["p0", "p1"]);
+  put(m, "p0", YX, YZ);
+  put(m, "p1", YX + 3, YZ);
+  runFor(m, 0.1);
+  const g = gad(m);
+  const before = g.boost(m, 0, YX, YZ);
+  use(m, "p1", "odogwu");
+  check(before === 1 && g.boost(m, 0, YX, YZ) === GADGETS.odogwu.more && g.boost(m, 1, YX, YZ) === 1 && g.boost(m, 0, YX + 40, YZ) === 1, `Odogwu Pose: your squad's objective near you counts ×${GADGETS.odogwu.more}; not a rival's, not far away`);
+  runFor(m, GADGETS.odogwu.s + 0.1);
+  check(g.boost(m, 0, YX, YZ) === 1, `for ${GADGETS.odogwu.s} s`);
+}
+{
+  const m = fresh(101, 6);
+  clear(m, ["p0", "p1", "p2", "p3", "p4"]);
+  put(m, "p0", YX, YZ);
+  put(m, "p1", YX + 1.2, YZ);
+  const hop = put(m, "p2", YX - 1.2, YZ);
+  put(m, "p3", YX, YZ + 1.2);
+  put(m, "p4", YX, YZ - 4);
+  m.setBrace("p3", true);
+  runFor(m, 0.15);
+  hop.y = 0.4;
+  hop.vy = 1;
+  const ev = use(m, "p0", "breakdance");
+  const downs = ev.filter((e) => e.type === "down").map((e) => (e as { id: string }).id);
+  check(downs.includes("p1") && !downs.includes("p2") && !downs.includes("p3") && !downs.includes("p4"), "Breakdance Sweep: trips the one beside you; a jump, a brace or standing back beats it");
+  check(downs.includes("p0") && mel(m).isDown(0), "and leaves you Dazed");
+}
+
 void MELEE;
 void MOVE;
 console.log(failures ? `\n${failures} FAILED` : "\nall passed");

@@ -21,6 +21,7 @@ import { FLAGS, MOVE, ROOMS } from "../../config";
 import type { CourtRoom } from "../../maps/open/prefabs";
 import type { Contestant } from "../core/body";
 import type { Match } from "../core/match";
+import type { GadgetsModule } from "./gadgets";
 import type { MatchEvent, RuleModule } from "../core/module";
 import { nearOpen } from "./flags";
 import type { MeleeModule } from "./melee";
@@ -234,7 +235,8 @@ export class RoomsModule implements RuleModule {
       const q = this.holder(m, r.index);
       if (q < 0) continue;
       const inside = m.contestants.filter((c) => c.status === "alive" && m.squads[c.index] === q && this.roomAt(c.x, c.z) === r.index);
-      for (const c of inside) this.points[c.index] += (this.value(r.index) * dt) / inside.length;
+      const k = m.module<GadgetsModule>("gadgets")?.boost(m, q, inside[0]?.x ?? 0, inside[0]?.z ?? 0) ?? 1;
+      for (const c of inside) this.points[c.index] += (this.value(r.index) * dt * k) / inside.length;
     }
   }
 

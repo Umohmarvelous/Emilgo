@@ -54,6 +54,7 @@ export const ITEM_ICON: Record<ItemId, string> = {
   kola: "kola", zobo: "zobo", "big-bag": "bigbag", "zone-shield": "umbrella", "pepper-soup": "bundle", "iron-wrapper": "bundle",
   "smoke-pot": "fog", "banana-peel": "trip", "pepper-powder": "fire", megaphone: "horn", slipper: "bundle", "decoy-flag": "flag",
   "talking-drum": "signal", "aso-ebi": "outfit", "golden-slipper": "bundle", jerrycan: "fuel", "danfo-key": "car",
+  zanku: "dance", shaku: "fire", odogwu: "crown", breakdance: "dance",
 };
 
 export function itemName(k: ItemId): string {
@@ -69,6 +70,9 @@ function itemWhat(k: ItemId): string {
 const EFFECT_NAME: Record<string, { item: ItemId; label: string }> = {
   speed: { item: "kola", label: "Kola Rush" },
   shield: { item: "zone-shield", label: "Zone Shield" },
+  bait: { item: "zanku", label: "Zanku Bait" },
+  shaku: { item: "shaku", label: "Shaku Shield" },
+  pose: { item: "odogwu", label: "Odogwu Pose" },
 };
 
 export class PlayHud {

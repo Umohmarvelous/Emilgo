@@ -21,6 +21,7 @@
 import { FLAGS } from "../../config";
 import type { Contestant } from "../core/body";
 import type { Match } from "../core/match";
+import type { GadgetsModule } from "./gadgets";
 import type { MatchEvent, RuleModule } from "../core/module";
 import type { DropzonesModule } from "./dropzones";
 import type { MeleeModule } from "./melee";
@@ -175,9 +176,11 @@ export class FlagsModule implements RuleModule {
       f.x = c.x;
       f.z = c.z;
       f.h = c.h;
-      this.held[c.index] += dt;
+      // An Odogwu Pose near the holder counts their squad's seconds 10% more.
+      const k = m.module<GadgetsModule>("gadgets")?.boost(m, m.squads[c.index], c.x, c.z) ?? 1;
+      this.held[c.index] += dt * k;
       if (this.claimHold > 0) {
-        this.claim[c.index] += dt;
+        this.claim[c.index] += dt * k;
         this.best[c.index] = Math.max(this.best[c.index], this.claim[c.index]);
         if (this.claim[c.index] >= this.claimHold) return void m.win(c);
       }
@@ -358,9 +361,10 @@ export class FlagsModule implements RuleModule {
       f.x = c.x;
       f.z = c.z;
       f.h = c.h;
-      this.held[f.holder] += dt;
+      const k = m.module<GadgetsModule>("gadgets")?.boost(m, m.squads[c.index], c.x, c.z) ?? 1;
+      this.held[f.holder] += dt * k;
       if (this.claimHold > 0) {
-        this.claim[f.holder] += dt;
+        this.claim[f.holder] += dt * k;
         this.best[f.holder] = Math.max(this.best[f.holder], this.claim[f.holder]);
       }
     }

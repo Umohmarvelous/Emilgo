@@ -334,7 +334,7 @@ export class MeleeModule implements RuleModule {
    */
   shove(m: Match, tg: Contestant, dx: number, dz: number, dist: number, stun: number, wobble: number): boolean {
     if (tg.status !== "alive" || this.down[tg.index] >= 0) return false;
-    knock(tg, dx, dz, dist, stun);
+    if (m.effect(tg, "shaku") <= 0) knock(tg, dx, dz, dist, stun);
     if (wobble <= 0) return false;
     const dazed = this.gain(m, tg, wobble, -1);
     if (dazed) this.knockdown(m, tg, MELEE.daze, "daze", null);
@@ -457,8 +457,11 @@ export class MeleeModule implements RuleModule {
     }
     const braced = this.brace[j] ? MELEE.brace.cut : 1;
     const hot = m.effect(c, "pepper") > 0 ? MELEE.pepper : 1;
-    knock(tg, dx, dz, dist * braced * hot, stun * braced);
-    const dazed = this.gain(m, tg, wobble * braced * hot, c.index);
+    // Shaku Shield: no knockback; Zanku Bait: a watcher wobbles more.
+    const shield = m.effect(tg, "shaku") > 0 ? 0 : 1;
+    const bait = m.effect(tg, "bait") > 0 ? m.effectValue(tg, "bait") : 1;
+    knock(tg, dx, dz, dist * braced * hot * shield, stun * braced * shield);
+    const dazed = this.gain(m, tg, wobble * braced * hot * bait, c.index);
     this.lastHitBy(tg, c, t);
     m.emit({ type: "hit", id: c.id, tg: tg.id, kind, w: this.wobble[j], kx: tg.vx, kz: tg.vz });
     if (dazed) this.knockdown(m, tg, MELEE.daze, "daze", c);
