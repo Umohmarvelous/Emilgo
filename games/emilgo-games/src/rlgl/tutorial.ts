@@ -2,13 +2,14 @@
 // short field, played by a model who keeps every rule, while the steps light
 // up as they happen. Three scripted people, so every step is sure to be shown:
 //
-//   Ada     the model: runs while Mama sings, freezes the moment she turns,
+//   Ada     the model: runs while the sky sings, freezes the moment the song
+//           cuts,
 //           (Ball Haunting) fetches a ball, picks it up again if it's knocked
 //           loose, and carries it over the line.
-//   Tunde   runs straight through her first stare and is caught — the rule
+//   Tunde   runs straight through the eye's first look and is caught — the rule
 //           every new player needs to see once.
 //   Bisi    (Ball Haunting) shadows Ada, and once she has a ball sprints up
-//           and slaps it loose — while Mama sings, never while she looks,
+//           and slaps it loose — while the sky sings, never while it looks,
 //           and again if a swing misses. Ada doesn't sprint with the ball
 //           until then, so the slap is sure to come.
 
@@ -32,15 +33,15 @@ export function tutorialPeople(mode: Mode): { id: string; name: string; bot: boo
 
 export function tutorialSteps(mode: Mode): TutorialStep[] {
   const steps: TutorialStep[] = [
-    { id: "sing", title: "Mama sings: run", say: "When Mama sings, run. A small push on the stick walks, a full push runs. Sprint while your stamina lasts." },
-    { id: "hum", title: "She hums: get ready", say: "Before she turns, she hums for three seconds. Get ready to stop. Sometimes it's a trick, and she sings on." },
-    { id: "turn", title: "She turns: freeze", say: "She turns round. Let go of the stick and stand still. Ada stops at once.", hi: ".hud .compass" },
-    { id: "caught", title: "Move and you're out", say: "Tunde kept running while she looked. Anyone moving is out. Jumping or crouching counts as moving." },
+    { id: "sing", title: "The sky sings: run", say: "When the song plays from the sky, run. A small push on the stick walks, a full push runs. Sprint while your stamina lasts." },
+    { id: "hum", title: "The hum: get ready", say: "Before the song cuts, the sky hums for three seconds. Get ready to stop. Sometimes it's a trick, and the song plays on." },
+    { id: "turn", title: "The song cuts: freeze", say: "The song cuts and the eye in the sky opens. Let go of the stick and stand still. Ada stops at once.", hi: ".hud .compass" },
+    { id: "caught", title: "Move and you're out", say: "Tunde kept running while the eye looked: the sky laser took him. Anyone moving is out. Jumping or crouching counts as moving." },
   ];
   if (mode === "balls") {
     steps.push(
       { id: "grab", title: "Grab a ball", say: "In Ball Haunting you need a ball. There are fewer balls than players, so be quick. Some lie in the pens by the sides: in by the door." },
-      { id: "fight", title: "Fight for the balls", say: "Fist, slap or push someone close to knock their ball loose. Never while she's looking: the attacker is shot." },
+      { id: "fight", title: "Fight for the balls", say: "Fist, slap or push someone close to knock their ball loose. Never while the eye is open: the attacker is struck." },
     );
   }
   steps.push(
@@ -50,7 +51,7 @@ export function tutorialSteps(mode: Mode): TutorialStep[] {
       say: mode === "balls" ? "Carry your ball over the line. It drops in a basket and you are safe." : "Reach the line before the time runs out. Walking all the way won't make it.",
       hi: ".hud .minfo",
     },
-    { id: "end", title: "That's the game", say: "That's the game. Watch Mama, not the beat. Good luck!" },
+    { id: "end", title: "That's the game", say: "That's the game. Listen for the cut, not the beat. Good luck!" },
   );
   return steps;
 }
@@ -71,7 +72,7 @@ export class TutorialScript {
     const thief = round.get(THIEF);
     const singing = round.phase === "sing" || round.phase === "hum" || round.phase === "turningBack";
     if (demo) this.model(round, demo, singing);
-    // Tunde never stops, and is caught at her first stare (down the open middle, clear of any pen).
+    // Tunde never stops, and is caught at the eye's first look (down the open middle, clear of any pen).
     if (victim?.status === "alive") round.setInput(VICTIM, Math.max(-0.3, Math.min(0.3, 0.08 - victim.x * 0.12)), -1);
     if (thief) this.thiefThink(round, thief, demo, singing);
   }

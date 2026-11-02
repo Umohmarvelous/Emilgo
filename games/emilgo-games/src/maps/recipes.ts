@@ -1,5 +1,5 @@
 // The 24 maps, as recipes for the kit. Every map is the same game — a run of
-// 100, 200 or 300 m to Mama Gele's stage — dressed as a different place. The
+// 100, 200 or 300 m to the finish's stage — dressed as a different place. The
 // run itself is always flat and clear (the referee has no notion of height);
 // everything a recipe builds stands outside the field's half width.
 //
@@ -86,7 +86,7 @@ export const RECIPES: Record<string, Recipe> = {
         for (let z = NEAR - 10; z > FAR; z -= 24) k.palm([s * 15, 0, z], r.range(6, 8));
       }
       lamps(k, 10.2, 18, "modern");
-      // The plaza: a two-storey shopping block behind Mama.
+      // The plaza: a two-storey shopping block behind the finish.
       k.building({ s: 1, front: -14, z: CLOSE + 1, w: 2, d: 28, floors: 2, color: "#e8d9b8", tex: "plaster", roof: "flat", windows: { color: "#2b3a4a", lit: "#ffe9a8", litChance: night ? 0.6 : 0.05 } });
       k.solid("#e8d9b8", [30, 6.5, 6], [0, 3.25, CLOSE - 2]);
       for (let i = -3; i <= 3; i++) k.glow(night ? "#ffe9a8" : "#2b3a4a", [2, 1.2, 0.1], [i * 4, 4.5, CLOSE + 1.05]);
@@ -156,7 +156,7 @@ export const RECIPES: Record<string, Recipe> = {
         k.building({ s: 1, front: 18, z, w, d: 7, floors: r.int(1, 2), color: r.pick(["#f6c9a8", "#cfe3f2", "#fafafa", "#efe6a5"]), tex: "plaster", roof: r.chance(0.5) ? "zinc" : "flat", windows: { color: "#2b3a4a", lit: "#ffe9a8", litChance: night ? 0.55 : 0.05, shutter: "#2a9d8f" }, shop: { canopy: r.pick(brollies) } });
       }, 6, 10, [1, 4]);
       for (let z = NEAR - 8; z > FAR; z -= 16) k.palm([12, 0, z], r.range(7, 8.5));
-      // Lifeguard tower behind Mama, then the sea.
+      // Lifeguard tower behind the finish, then the sea.
       for (const x of [-1.2, 1.2]) for (const z of [-1.2, 1.2]) k.cyl("#e9e4dc", 0.1, 4, [x + 6, 2, CLOSE + z], "main");
       k.solid("#e63946", [3, 2, 3], [6, 5, CLOSE]);
       k.cone("#f1faee", 2.4, 1, [6, 6.5, CLOSE], "main", undefined, 6);
@@ -255,7 +255,7 @@ export const RECIPES: Record<string, Recipe> = {
       }
       k.baobab([-14, 0, -60], 1.1);
       k.baobab([16, 0, -95], 0.95);
-      // The chief's compound wall and the great baobab behind Mama.
+      // The chief's compound wall and the great baobab behind the finish.
       k.solid("#a5714a", [32, 2.6, 0.6], [0, 1.3, CLOSE]);
       k.box("#3b2416", [3.2, 2.4, 0.1], [0, 1.2, CLOSE + 0.35], "main");
       k.baobab([0, 0, CLOSE - 9], 1.5);
@@ -331,7 +331,7 @@ export const RECIPES: Record<string, Recipe> = {
         k.cone("#8a6a52", Math.max(3.5, w * 0.55), 1.6, [16, 5.2, cz], "mass", undefined, 6);
         k.glow(night ? "#ffcf80" : "#2b2214", [0.08, 0.9, 0.9], [13.45, 3, cz]);
       }, 7, 9, [3, 6]);
-      // A jetty behind Mama, out over the water.
+      // A jetty behind the finish, out over the water.
       k.box("#7a5a3a", [24, 0.3, 4], [-6, 0.4, CLOSE], "main");
       for (let x = -16; x <= 4; x += 4) k.cyl("#4a3a28", 0.15, 2, [x, -0.4, CLOSE + 1.8], "main");
       k.tree([8, 0, CLOSE - 2], 10, ["#2f6b26", "#3b7a2a"]);
@@ -358,7 +358,7 @@ export const RECIPES: Record<string, Recipe> = {
           if (r.chance(0.12)) k.box("#4a3a2a", [0.6, 0.6, 5], [s * r.range(12, 16), 0.3, z], "main", [0, r.range(-0.6, 0.6), Math.PI / 2 * 0]);
         }
       }
-      // The great iroko behind Mama.
+      // The great iroko behind the finish.
       k.cyl("#4a3a2a", 1.6, 16, [0, 8, CLOSE - 4], "mass", { sides: 10, top: 0.6 });
       for (let i = 0; i < 6; i++) k.blob(r.pick(["#1f4f1f", "#2a5f24"]), [6, 4, 6], [r.range(-6, 6), r.range(15, 21), CLOSE - 4 + r.range(-4, 4)]);
       for (let i = 0; i < 40; i++) k.farCone(r.pick(["#1f3f1f", "#24461f", "#1a361a"]), r.range(5, 9), r.range(16, 28), [r.range(-120, 120), 8, r.range(-160, -260)], 6);
@@ -473,7 +473,7 @@ export const RECIPES: Record<string, Recipe> = {
           k.palm([s * 11.5, 0.6, z], r.range(6, 8));
         }
       }
-      // The needle tower, far behind Mama.
+      // The needle tower, far behind the finish.
       k.farBox("#bcd0e0", [14, 180, 14], [0, 90, -240]);
       k.farBox("#d8e8f4", [9, 120, 9], [0, 240, -240]);
       k.farCone("#e8f4ff", 4, 60, [0, 330, -240], 6);
@@ -509,7 +509,7 @@ export const RECIPES: Record<string, Recipe> = {
         for (let z = NEAR - 10; z > FAR; z -= 14) k.tree([s * 10.6, 0, z], 9, ["#5a7a2a", "#6a8a33", "#4e6f24"], "#8a7a5a");
       }
       lamps(k, 10.2, 14, "classic");
-      // The lattice tower far behind Mama (a generic iron tower).
+      // The lattice tower far behind the finish (a generic iron tower).
       for (let i = 0; i < 4; i++) {
         const w = 26 - i * 6.5;
         k.farBox("#6a5a48", [w, 2, w], [0, 6 + i * 22, -260]);
@@ -684,7 +684,7 @@ export const RECIPES: Record<string, Recipe> = {
           if (r.chance(0.25)) k.cyl("#2a5a1a", 0.04, r.range(4, 8), [x, r.range(6, 9), z], "foliage");
         }
       }
-      // A waterfall behind Mama: a rock face with falling water.
+      // A waterfall behind the finish: a rock face with falling water.
       k.solid("#4a5048", [40, 22, 8], [0, 11, CLOSE - 6]);
       k.glow("#dff2ff", [5, 20, 0.2], [0, 10, CLOSE - 1.9]);
       k.glow("#ffffff", [8, 0.6, 3], [0, 0.4, CLOSE - 1]);
@@ -712,7 +712,7 @@ export const RECIPES: Record<string, Recipe> = {
           if (r.chance(0.25)) k.deadTree([s * r.range(12, 20), 0, z - 2], r.range(5, 8), "#1e1a18");
         }
       }
-      // The volcano itself, glowing at the top, and a lava fall behind Mama.
+      // The volcano itself, glowing at the top, and a lava fall behind the finish.
       k.farCone("#2a2220", 120, 160, [0, 72, -300], 10);
       k.farGlowBox("#ff5a1f", [30, 6, 30], [0, 150, -300]);
       k.farGlowBox("#ff7a2a", [6, 120, 2], [10, 80, -240]);
@@ -783,7 +783,7 @@ export const RECIPES: Record<string, Recipe> = {
           }
         }
       }
-      // A huge gnarled tree behind Mama.
+      // A huge gnarled tree behind the finish.
       k.deadTree([0, 0, CLOSE - 5], 18, "#16120e");
       k.deadTree([-8, 0, CLOSE - 3], 12, "#1e1a16");
       k.deadTree([9, 0, CLOSE - 4], 13, "#1e1a16");

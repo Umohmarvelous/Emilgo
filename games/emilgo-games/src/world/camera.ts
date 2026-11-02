@@ -8,7 +8,7 @@
 // The camera pushes in when a wall is behind you.
 //
 // Modes:
-//   lobby      slow drift in front of Mama Gele (behind menus over the street)
+//   lobby      slow drift down the street (behind the menus)
 //   follow     third person behind a contestant (you, or whoever you spectate)
 //   first      first person, from the eyes
 //   cinematic  swing round to a catch, with shake
@@ -78,7 +78,7 @@ export class CameraRig {
   near: ((x: number, z: number, r: number) => readonly Collider[]) | null = null;
   /** The floor under the followed body (the arm never dips below it). */
   private floor = 0;
-  /** Where Mama stands this round, and the side walls the camera mustn't pass (Infinity: open ground). */
+  /** Where the finish is this round, and the side walls the camera mustn't pass (Infinity: open ground). */
   dollZ = DOLL_Z;
   wallX = FIELD.halfWidth + 1.4;
   /** First person: where the eyes are (the crowd fills it in each frame). */
@@ -267,7 +267,7 @@ export class CameraRig {
       this.look.lerp(this.cineTarget, 1 - Math.exp(-dt * 14));
       wantFov = this.baseFov * 0.62;
     } else {
-      // Lobby: a slow drift in front of Mama Gele, low, so she towers.
+      // Lobby: a slow, low drift down the street.
       const a = Math.sin(this.time * 0.1) * 0.32;
       this.wantPos.set(Math.sin(a) * 8, 2.2 + Math.sin(this.time * 0.2) * 0.25, this.dollZ + 17 + Math.cos(a) * 1);
       this.wantLook.set(0, 1.9, this.dollZ + 1);

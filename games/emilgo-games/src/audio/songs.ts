@@ -1,4 +1,5 @@
-// The doll's songs. She has two and takes turns with them (SPEC-V2 Decisions):
+// Ball Haunt's songs, sung from the sky (SPEC-V3 Phase 11; the doll's until
+// then). Two, taking turns (SPEC-V2 Decisions):
 //
 // 1. The traditional call of the Korean children's game
 // "Mugunghwa kkochi pieotseumnida" (the hibiscus has bloomed) — the playground
@@ -46,7 +47,7 @@ export interface Hit {
 }
 
 export interface Song {
-  /** The doll's songs, or a car radio loop (radio.ts). */
+  /** Ball Haunt's songs, or a car radio loop (radio.ts). */
   id: SongId | "highlife" | "afrobeats" | "fuji";
   title: string;
   bpm: number;

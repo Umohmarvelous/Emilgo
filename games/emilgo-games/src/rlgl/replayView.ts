@@ -1,11 +1,11 @@
 // Plays a recorded clip (game/replay.ts) on the real field: the kill cam and
 // the play of the game (SPEC-V2 §2.7, §2.9).
 //
-// The replay borrows the bodies, Mama and the balls. Everyone is put back as
+// The replay borrows the bodies, the eye in the sky and the balls. Everyone is put back as
 // they were at the clip's first frame (the fallen stand up again, those who
 // fell before it lie where they fell), then driven frame by frame: people
-// fall, cheer, swing and pick up again as they did, Mama turns as she did and
-// her beam fires again. The live round carries on underneath (online it
+// fall, cheer, swing and pick up again as they did, the eye opens as it did and
+// the sky laser strikes again. The live round carries on underneath (online it
 // can't wait); when the clip ends every body is given back to it — anyone who
 // was caught live meanwhile is lying down.
 //
@@ -18,7 +18,8 @@ import { freshMotion, type Contestant } from "../game/rules";
 import { REPLAY, ballAt, frameHead, runnerAt, runnerStatus, type Clip, type DollPose } from "../game/replay";
 import type { Ball } from "../game/balls";
 import type { Crowd } from "../world/crowd";
-import type { Doll } from "../world/doll";
+import type { SkyLaser } from "../world/skyLaser";
+import type { SkyWatcher } from "../world/skyWatcher";
 import type { Effects } from "../world/fx";
 import type { AnimState } from "../world/human/animator";
 import type { PropsView } from "../world/props";
@@ -36,13 +37,11 @@ export interface ReplayMoment {
   t: number;
   /** The runners as they are in the clip right now. */
   people: readonly Contestant[];
-  doll: Doll;
+  doll: SkyWatcher;
 }
 
 const _a = new Vector3();
 const _away = new Vector3();
-const _eyeL = new Vector3();
-const _eyeR = new Vector3();
 
 export class ReplayView {
   private clip: Clip | null = null;
@@ -59,13 +58,15 @@ export class ReplayView {
 
   constructor(
     private readonly crowd: Crowd,
-    /** Mama, made on first use (game/session.ts): there is always a round, so she exists, by the time a replay plays. */
-    private readonly dollOf: () => Doll,
+    /** The eye in the sky, made on first use (game/session.ts): there is always a round, so it exists by the time a replay plays. */
+    private readonly dollOf: () => SkyWatcher,
+    /** The sky laser it calls down (made with the eye). */
+    private readonly laserOf: () => SkyLaser | null,
     private readonly props: PropsView,
     private readonly fx: Effects,
   ) {}
 
-  private get doll(): Doll {
+  private get doll(): SkyWatcher {
     return this.dollOf();
   }
 
@@ -137,7 +138,7 @@ export class ReplayView {
     this.head = Math.min(clip.count - 1, this.head + frameDt * REPLAY.hz * k);
     this.fill(this.head);
     this.events();
-    // Bodies, Mama and the balls, at the clip's own pace (slow motion slows them).
+    // Bodies, the eye and the balls, at the clip's own pace (slow motion slows them).
     const dt = frameDt * k;
     this.crowd.update(dt, this.people, camPos);
     for (const c of this.people) this.crowd.setCarry(c.index, c.ball >= 0 && c.status !== "eliminated");
@@ -145,6 +146,7 @@ export class ReplayView {
     this.doll.update(dt);
     if (this.balls.length) this.props.update(dt, this.balls, (h, out) => this.crowd.hands(h, out));
     this.fx.update(dt);
+    this.laserOf()?.update(dt, camPos);
     const fov = this.cam(outPos, outLook, { u: this.progress, t: frameHead(clip, Math.floor(this.head)).t, people: this.people, doll: this.doll });
     const done = this.head >= clip.count - 1;
     if (done) this.stop(live);
@@ -173,7 +175,7 @@ export class ReplayView {
     this.saved = [];
   }
 
-  /** The runners, balls and Mama at (fractional) frame `f`. */
+  /** The runners, balls and the eye at (fractional) frame `f`. */
   private fill(f: number): void {
     const clip = this.clip!;
     const f0 = Math.floor(f);
@@ -216,7 +218,7 @@ export class ReplayView {
     this.dollPose.watching = h0.doll.watching;
   }
 
-  /** What changed since the last frame: falls (with her beam), finishes, swings, pick-ups. */
+  /** What changed since the last frame: falls (with the sky laser), finishes, swings, pick-ups. */
   private events(): void {
     for (const c of this.people) {
       const i = c.index;
@@ -225,16 +227,17 @@ export class ReplayView {
       if (c.status !== was) {
         this.status[i] = c.status;
         if (c.status === "eliminated") {
-          this.crowd.kill(i, c, 0, this.dollZ);
-          // Caught by Mama (she was looking): her head snaps, the beam, the blood again.
-          if (this.dollPose.watching) {
+          // Caught by the eye (it was looking): the sky laser again, the eye's flash, the blood.
+          const laser = this.dollPose.watching ? this.laserOf() : null;
+          if (laser) {
+            const at = { x: c.x, y: c.y, z: c.z };
+            const beam = laser.strike(`replay:${c.id}`, () => at, 0.06);
+            this.crowd.strike(i, c, beam.fromYaw, beam.lean);
             this.crowd.chest(c, _a);
             _away.set(c.x, 0, c.z - this.dollZ).normalize();
             this.doll.caught(c.x, c.z);
-            this.doll.eyes(_eyeL, _eyeR);
-            this.fx.beam(_eyeL, _eyeR, _a);
             this.fx.burst(_a, _away, 22, false);
-          }
+          } else this.crowd.kill(i, c, 0, this.dollZ);
         } else if (c.status === "finished") {
           this.crowd.finish(i);
         }

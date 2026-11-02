@@ -112,7 +112,7 @@ export function setBoosts(c: Contestant, ids: readonly string[] | undefined): vo
   c.grip = c.bst.grip;
 }
 
-/** Moving, as Mama sees it: on the move, in the air, changing stance, swinging or picking up. */
+/** Moving, as the eye sees it: on the move, in the air, changing stance, swinging or picking up. */
 export function isMoving(c: Contestant): boolean {
   return Math.hypot(c.vx, c.vz) > RULES.tolerance || c.y > 0.02 || c.stanceT > 0 || c.act > 0;
 }

@@ -29,7 +29,6 @@ import {
   PlaneGeometry,
   RepeatWrapping,
   ShaderMaterial,
-  SpotLight,
   type Texture,
   Vector3,
   type BufferGeometry,
@@ -39,7 +38,6 @@ import { DEFAULT_COURSE, FIELD, type Course } from "../config";
 import type { TierSpec } from "../graphics/tiers";
 import type { Collider } from "../world/camera";
 import { buildArena } from "../world/arena";
-import { Lasers } from "../world/lasers";
 import { buildPens } from "../world/pens";
 import { TUNNEL, buildTunnel } from "../world/tunnel";
 import { atlasQuad, merge } from "../world/geo";
@@ -77,8 +75,6 @@ export interface World {
   readonly clear: Color;
   readonly colliders: Collider[];
   readonly air: Air;
-  /** The field kit every map carries (SPEC-V2 §6.1). */
-  readonly lasers: Lasers;
   readonly potholes: Potholes | null;
   /** Per frame: weather follows the camera, the shadow box follows `focus`, water moves. */
   update(dt: number, focus: Vector3, cam: Vector3): void;
@@ -140,7 +136,7 @@ function lighting(info: MapInfo, time: TimeOfDay, weather: Weather, far: number)
     L.skyHorizon.set(0xcfe2ee);
   }
   if (time === "sunset") {
-    // Low sun behind Mama: she stands against it.
+    // Low sun behind the finish: the eye hangs against it.
     if (!own) {
       L.skyTop.set(0x4a5c9a);
       L.skyHorizon.set(0xffb070);
@@ -154,7 +150,7 @@ function lighting(info: MapInfo, time: TimeOfDay, weather: Weather, far: number)
     L.cloudTint.set(0xffc8a0);
     L.cloudCover = 0.6;
   } else if (time === "sunrise") {
-    // Low sun behind the runners, a pink sky over Mama, a cool fresh light.
+    // Low sun behind the runners, a pink sky over the finish, a cool fresh light.
     L.skyTop.set(0x7f9fd0);
     L.skyHorizon.set(0xf6c2b0);
     L.hemiSky.set(0xd8d0e8);
@@ -259,8 +255,8 @@ function waterMaterial(kind: "sea" | "river" | "lava" | "pool", time: { value: n
 
 /**
  * Build a map for a round. `skyState` is the final state (light / dark mode
- * already applied); null is the map's own. The view reaches past Mama however
- * long the run (the doll is never lost in the fog).
+ * already applied); null is the map's own. The view reaches past the finish
+ * however long the run.
  */
 export function buildWorld(id: string, skyState: SkyState | null, spec: TierSpec, atlas: Texture, course: Course = DEFAULT_COURSE): World {
   const info = mapOf(id);
@@ -303,20 +299,15 @@ export function buildWorld(id: string, skyState: SkyState | null, spec: TierSpec
     sun.shadow.bias = -0.0006;
     sun.shadow.normalBias = 0.03;
   }
-  // After dark, in fog or rain, Mama gets her own light: you must SEE her turn.
-  if (L.night || L.lampsOn || w !== "clear") {
-    const spot = new SpotLight(0xfff0d8, L.night ? 160 : 90, 40, 0.5, 0.5, 1.4);
-    spot.position.set(0, 14, course.dollZ + 14);
-    spot.target.position.set(0, 2.5, course.dollZ);
-    group.add(spot, spot.target);
-  }
+  // (Mama's spotlight after dark went with her in Phase 11: the eye in the sky
+  // glows by itself and fog never hides it, so you always SEE it open.)
 
   // ── Ground and run ──
   // The recipe's layout follows the course (the desert's flat field follows its width).
   useCourse(course);
   const flat = !recipe; // Lagos Street brings its own ground
   if (recipe) {
-    // From well behind the start to well past Mama, whatever the distance.
+    // From well behind the start to well past the finish, whatever the distance.
     const gsz = 520;
     const zNear = 200;
     const zFar = course.dollZ - 260;
@@ -397,7 +388,7 @@ export function buildWorld(id: string, skyState: SkyState | null, spec: TierSpec
     }
     group.add(arena.group);
   } else {
-    // Lay the recipe out for this course; the far backdrop moves back with Mama.
+    // Lay the recipe out for this course; the far backdrop moves back with the finish.
     useCourse(course);
     kit.back = course.finishZ - FIELD.finishZ;
     kit.tier = spec.tier;
@@ -480,11 +471,7 @@ export function buildWorld(id: string, skyState: SkyState | null, spec: TierSpec
   group.add(air.group);
   disposables.push(air);
 
-  // ── The field kit: laser towers, puddles, birds ──
-  const lasers = new Lasers(course, spec, L.night);
-  group.add(lasers.group);
-  for (const p of lasers.pieces) casters.push({ mesh: p.mesh, z: p.z, within: 45 });
-  disposables.push(lasers);
+  // ── The field kit: the tunnel, the pens, puddles, birds ──
   // The walkout's tunnel behind the start (SPEC-V2 §1.3).
   const tunnel = buildTunnel(spec);
   group.add(tunnel);
@@ -510,7 +497,7 @@ export function buildWorld(id: string, skyState: SkyState | null, spec: TierSpec
     group.add(birds.group);
     disposables.push(birds);
   }
-  // What the puddles mirror (High): the sky and the far backdrop (and Mama, in the session).
+  // What the puddles mirror (High): the sky and the far backdrop (and the eye in the sky, in the session).
   if (spec.fancy) {
     sky.group.traverse((x) => x.layers.enable(REFLECT_LAYER));
     group.traverse((x) => {
@@ -532,7 +519,6 @@ export function buildWorld(id: string, skyState: SkyState | null, spec: TierSpec
     clear,
     colliders,
     air,
-    lasers,
     potholes,
     update(dt, focus, cam) {
       uTime.value += dt;

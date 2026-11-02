@@ -35,7 +35,7 @@ export interface BoostMods {
   stamina: number;
   /** How fast stamina refills ×. */
   refill: number;
-  /** Extra seconds before her stare counts you (freeze resistance). */
+  /** Extra seconds before the eye counts you (freeze resistance). */
   grace: number;
   /** Hits a round that don't knock your ball loose (ball grip). */
   grip: number;
@@ -76,7 +76,7 @@ export const BOOSTS: readonly Boost[] = [
   { id: "sprinter", name: "Sprinter", blurb: "Sprint 4% faster.", cp: 120, icon: "bolt", mods: { sprint: 1.04 } },
   { id: "second_wind", name: "Second Wind", blurb: "A full stamina bar lasts 25% longer.", cp: 80, icon: "timer", mods: { stamina: 1.25 } },
   { id: "fast_breath", name: "Fast Breath", blurb: "Stamina refills 25% faster.", cp: 80, icon: "refresh", mods: { refill: 1.25 } },
-  { id: "cool_head", name: "Cool Head", blurb: "Freeze resistance: a tenth of a second more before her stare counts you.", cp: 150, icon: "eye", mods: { grace: 0.1 } },
+  { id: "cool_head", name: "Cool Head", blurb: "Freeze resistance: a tenth of a second more before the eye counts you.", cp: 150, icon: "eye", mods: { grace: 0.1 } },
   { id: "iron_grip", name: "Iron Grip", blurb: "Ball grip: the first hit each round doesn't knock your ball loose.", cp: 120, icon: "ball", balls: true, mods: { grip: 1 } },
   { id: "quick_hands", name: "Quick Hands", blurb: "Pick a ball up 40% faster.", cp: 60, icon: "grab", balls: true, mods: { grab: 0.6 } },
   { id: "thick_skin", name: "Thick Skin", blurb: "Stunned 30% shorter when hit.", cp: 80, icon: "body", mods: { stun: 0.7 } },

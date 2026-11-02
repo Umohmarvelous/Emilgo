@@ -28,8 +28,9 @@ export const DOLL_Z = -131;
 /**
  * Switches the developer flips in code (SPEC-V3). Ball Haunt (Red Light,
  * Green Light) is hidden now that Free For All plays (Phase 4): not in any
- * menu, refused by the server (its tests run one with BALL_HAUNT=1), and
- * Mama is never built. It comes back rebuilt on the shared core in Phase 11.
+ * menu, refused by the server (its tests run one with BALL_HAUNT=1), and its
+ * eye in the sky is never made. Phase 11 rebuilt it (Mama gone, the song from
+ * the sky, the shared sky laser); it stays hidden until this is switched on.
  */
 export const FEATURES = {
   ballHaunt: false,
@@ -183,11 +184,12 @@ export interface SingBands {
   weights: readonly number[];
 }
 
-// Hard mode, by design. Mama's song never tells you when it ends: it plays at
-// its own tempo and she cuts it wherever she likes — 0.7 s in, or deep into the
-// second verse. Sometimes she stops singing and DOESN'T turn (a feint). The one
-// rule that keeps it fair: nobody is ever caught until she has visibly turned
-// to face them, plus a short grace.
+// Hard mode, by design. The song from the sky never tells you when it ends: it
+// plays at its own tempo and is cut wherever the referee likes — 0.7 s in, or
+// deep into the second verse. Sometimes the hum comes and the song plays on (a
+// feint). The one rule that keeps it fair: nobody is ever caught until the eye
+// has visibly opened, plus a short grace. (The phases keep the doll's names:
+// "turning" is the eye opening, "turningBack" it closing.)
 export const RULES = {
   /** 5 → 1 in the centre, each number a timer tick (SPEC-V3: no bass drops). */
   countdown: 5,
@@ -200,24 +202,24 @@ export const RULES = {
   lateAt: 15,
   singLate: { bands: [[0.5, 1.2], [1.2, 2.6], [2.6, 4]], weights: [0.45, 0.4, 0.15] } satisfies SingBands,
   /**
-   * The warning hum (SPEC-V2 §2.2): 3 seconds of Mama humming under the song
-   * before every turn. Some hums are FAKE (the owner's choice, 17 Oct 2026): she
-   * hums, then sings on and doesn't turn. Players who froze lose time; nobody is
+   * The warning hum (SPEC-V2 §2.2): 3 seconds of humming under the song before
+   * every cut. Some hums are FAKE (the owner's choice, 17 Oct 2026): the hum
+   * comes, then the song plays on and the eye stays shut. Players who froze lose time; nobody is
    * ever caught during a hum. A fake never comes twice in a row, nor before
-   * her first real turn.
+   * the first real cut.
    */
   hum: { length: 3, fakeChance: 0.38 },
-  /** Doll turning to face the field — still safe to be moving. Varies: some turns snap. */
+  /** The eye opening as the song cuts — still safe to be moving. Varies: some open in a blink. */
   turning: { min: 0.35, max: 0.55 },
   /**
-   * Once she is facing you, how long before movement counts: forgiveness for a
+   * Once the eye is open, how long before movement counts: forgiveness for a
    * human thumb. Online, each player also gets their own measured lag on top.
    */
   grace: 0.2,
   watch: { min: 1.5, max: 5 },
-  /** Doll turning back to the wall: safe, and the moment to get a head start. */
+  /** The eye closing as the song comes back: safe, and the moment to get a head start. */
   turningBack: 0.4,
-  /** Speed above this while she watches is "moving". */
+  /** Speed above this while the eye watches is "moving". */
   tolerance: 0.2, // m/s
 } as const;
 
@@ -234,17 +236,17 @@ export const FLOW = {
   /** The field preview: four sweeps … */
   sweep: 1.6,
   sweeps: 4,
-  /** … Mama close up, the balls and baskets (Ball Haunting only), the laser guns … */
-  doll: 2.4,
+  /** … the eye in the sky close up, the balls and baskets (Ball Haunting only), along the field's edge … */
+  sky: 2.4,
   balls: 2.2,
-  lasers: 2.2,
+  edge: 2.2,
   /** … then back behind the players. */
   behind: 1.4,
 } as const;
 
 /** How long the walkout and field preview last for this mode (the countdown follows). */
 export function walkoutLength(mode: Mode): number {
-  return FLOW.walk + FLOW.sweep * FLOW.sweeps + FLOW.doll + (mode === "balls" ? FLOW.balls : 0) + FLOW.lasers + FLOW.behind;
+  return FLOW.walk + FLOW.sweep * FLOW.sweeps + FLOW.sky + (mode === "balls" ? FLOW.balls : 0) + FLOW.edge + FLOW.behind;
 }
 
 /**

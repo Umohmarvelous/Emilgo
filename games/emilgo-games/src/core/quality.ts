@@ -15,7 +15,7 @@ export class QualityGovernor {
   private samples = 0;
   private total = 0;
   private work = 0;
-  /** Asked before any change; false = not now (e.g. she's turning). */
+  /** Asked before any change; false = not now (e.g. the eye is opening). */
   canApply: () => boolean = () => true;
   private pending = -1;
   private calm = 0;
@@ -85,7 +85,7 @@ export class QualityGovernor {
       this.calm = 0;
     }
     if (want !== this.idx) this.pending = want;
-    // A resolution change stalls the GPU for a moment: never while she's turning or watching.
+    // A resolution change stalls the GPU for a moment: never while the eye opens or watches.
     if (this.pending >= 0 && this.canApply()) {
       this.idx = this.pending;
       this.pending = -1;

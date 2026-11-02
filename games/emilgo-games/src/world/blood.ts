@@ -1,6 +1,6 @@
 // Blood (SPEC-V2 §2.6 step 3), pooled so a crowd of catches never allocates.
 //
-//   drops   thrown from the chest, mostly away from Mama (the shot goes
+//   drops   thrown from the chest, mostly away from the finish (the shot goes
 //           through), stretched along their flight (one draw call)
 //   splats  where the drops land: irregular blots, stretched the way they were
 //           going; they stay until the match ends (one draw call)
@@ -139,7 +139,7 @@ export class Blood {
 
   /**
    * The shot: `count` drops from `origin`. Most fly on along `away` (unit,
-   * horizontal: away from Mama), a few spray back towards her. `lasting`:
+   * horizontal: away from the finish), a few spray back. `lasting`:
    * marks on the ground (a replay's drops leave none).
    */
   burst(origin: Vector3, away: Vector3, count: number, lasting = true): void {

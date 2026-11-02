@@ -25,7 +25,7 @@ export type Body = "m" | "f";
 export const SKIN_TONES = ["#3b2214", "#4a2912", "#5a3214", "#6b3e1f", "#7a4a26", "#8d5524", "#a0662f", "#c68642"] as const;
 export const HAIR_COLORS = ["#141110", "#2b1d16", "#4a2f22", "#6b4430", "#b07a4f", "#d8b26e", "#8a1f2b", "#e9e4dc"] as const;
 
-export type HairId = "afro" | "bun" | "lowcut" | "ponytail" | "braids" | "locs" | "fade" | "bald" | "pigtails";
+export type HairId = "afro" | "bun" | "lowcut" | "ponytail" | "braids" | "locs" | "fade" | "bald";
 
 export interface HairDef {
   id: HairId;
@@ -130,10 +130,6 @@ export interface Outfit {
   fits?: Body;
   /** The match uniform: zip, piping, the player's number. Never chosen in Customise. */
   uniform?: boolean;
-  /** The doll's pinafore: a bib and straps over the top (painted on the torso). */
-  pinafore?: string;
-  /** Knee socks, in this colour. */
-  socks?: string;
 }
 
 const ANKARA_A = ["#f2a71b", "#0e5a8a", "#d7263d", "#f6f1e1", "#1b998b"];
@@ -268,7 +264,7 @@ export const OUTFITS: Outfit[] = [
   {
     id: "outfit_midnight",
     name: "Midnight outfit",
-    blurb: "All black with a purple shine. Mama barely sees you (she does).",
+    blurb: "All black with a purple shine. The eye in the sky barely sees you (it does).",
     top: { pattern: { kind: "sheen", color: "#1d1630", shine: "#7b4dff" }, sleeve: "long", neck: "v", hem: "hip", trim: "#7b4dff" },
     bottom: { kind: "trousers", pattern: { kind: "plain", color: "#111111" }, length: "ankle" },
     shoes: { kind: "boots", color: "#141414", sole: "#0a0a0a" },
@@ -293,24 +289,7 @@ export const UNIFORM: Outfit = {
   uniform: true,
 };
 
-/**
- * The doll's clothes (SPEC-V2, the owner's choice: a giant schoolgirl doll in
- * our own green and white — not the show's doll): a white collared shirt
- * under a green pinafore, white knee socks, black shoes.
- */
-export const DOLL_DRESS: Outfit = {
-  id: "doll_dress",
-  name: "Doll's pinafore",
-  blurb: "",
-  top: { pattern: { kind: "plain", color: "#f4f1ea" }, sleeve: "short", neck: "collar", hem: "waist", trim: "#e8e2d6" },
-  bottom: { kind: "dress", pattern: { kind: "plain", color: "#0a8a4a" }, length: "knee", flare: 0.55 },
-  shoes: { kind: "sneakers", color: "#151515", sole: "#0b0b0b" },
-  accent: "#0a8a4a",
-  pinafore: "#0a8a4a",
-  socks: "#f4f4f2",
-};
-
-export const OUTFIT_BY_ID: Record<string, Outfit> = Object.fromEntries([...OUTFITS, UNIFORM, DOLL_DRESS].map((o) => [o.id, o]));
+export const OUTFIT_BY_ID: Record<string, Outfit> = Object.fromEntries([...OUTFITS, UNIFORM].map((o) => [o.id, o]));
 export const FREE_OUTFITS = OUTFITS.filter((o) => !o.product);
 
 // ── A whole look ──────────────────────────────────────────────────────────────
@@ -326,8 +305,6 @@ export interface Look {
   height: number;
   /** The number on the match uniform (1–99); set by the game, never by a player. */
   num?: number;
-  /** The doll's face: big round eyes, rosy cheeks, a small mouth. Never a player's. */
-  doll?: boolean;
   /** Hoodie colour (HOODIE_COLORS index) and design: the only clothes there are. */
   hoodie: number;
   design: HoodieDesign;
@@ -397,7 +374,7 @@ export function hoodieFromOutfit(outfit: string): { hoodie: number; design: Hood
   if (outfit === "outfit_midnight") return { hoodie: HOODIE_COLORS.findIndex((c) => c.id === "midnight"), design: "plain" };
   const accent = OUTFIT_BY_ID[outfit]?.accent;
   const design: HoodieDesign = outfit === "outfit_ankara" ? "ankara" : "plain";
-  if (!accent || outfit === "uniform" || outfit === "doll_dress") return { hoodie: GREEN, design };
+  if (!accent || outfit === "uniform") return { hoodie: GREEN, design };
   const rgb = (hex: string) => [1, 3, 5].map((k) => parseInt(hex.slice(k, k + 2), 16));
   const a = rgb(accent);
   let best = GREEN;
@@ -420,9 +397,6 @@ export function wearProduct(look: Look, product: string): Look | null {
   const d = HOODIE_DESIGNS.find((x) => x.product === product);
   return d ? { ...look, design: d.id } : null;
 }
-
-/** The doll: brown skin, a black bob with bangs and two pigtails, the pinafore. */
-export const DOLL_LOOK: Look = { body: "f", skin: 5, hair: "pigtails", hairColor: 0, outfit: "doll_dress", extras: [], height: 1, doll: true, hoodie: 0, design: "plain" };
 
 export const DEFAULT_LOOK: Look = { body: "m", skin: 4, hair: "lowcut", hairColor: 0, outfit: "street", extras: [], height: 1, hoodie: 6, design: "plain" };
 
@@ -453,7 +427,6 @@ export function cleanLook(raw: Partial<Look> | null | undefined, base: Look = DE
   const design = typeof r.design === "string" && r.design in DESIGN_BY_ID ? (r.design as HoodieDesign) : old.design;
   return {
     ...(num ? { num } : {}),
-    ...(r.doll ? { doll: true } : {}),
     hoodie,
     design,
     body,
@@ -526,5 +499,5 @@ export function scanPaintKey(l: Look): string {
 
 /** A stable key for caching textures: everything that changes the PAINT (generated people). */
 export function paintKey(l: Look): string {
-  return [l.body, l.skin, l.hair, l.hairColor, l.outfit, l.extras.slice().sort().join("+"), l.num ?? "", l.doll ? "doll" : ""].join("|");
+  return [l.body, l.skin, l.hair, l.hairColor, l.outfit, l.extras.slice().sort().join("+"), l.num ?? ""].join("|");
 }

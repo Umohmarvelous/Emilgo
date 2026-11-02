@@ -1,7 +1,7 @@
 // The 24 maps: what they are called, how they look by default, and a small
 // drawn thumbnail for the map picker. The 3D for each lives in maps/recipes.
 //
-// Every map is the same game — a 120 m run to Mama's stage — dressed as a
+// Every map is the same game — a 120 m run to the finish — dressed as a
 // different place. Names are generic: no real business appears anywhere.
 
 import { FIELD } from "../config";
@@ -89,7 +89,7 @@ const m = (
 
 export const MAPS: MapInfo[] = [
   // Nigerian urban
-  m("lagos-street", "Lagos Street", "ng-urban", "street", "golden", "clear", ["clear", "rain"], ["#6aa6d8", "#f3c98b", "#7d7468", "#3a2c24", "#ffd700"], "The classic: shopfronts, danfos and Mama Gele's stage."),
+  m("lagos-street", "Lagos Street", "ng-urban", "street", "golden", "clear", ["clear", "rain"], ["#6aa6d8", "#f3c98b", "#7d7468", "#3a2c24", "#ffd700"], "The classic: shopfronts, danfos and a song from the sky."),
   m("market-square", "Market Square", "ng-urban", "market", "day", "clear", ["clear", "rain"], ["#7bb4e0", "#f1dfb0", "#9a8566", "#5a2f1f", "#e85d04"], "Stalls, umbrellas and wheelbarrows. Mind the tomatoes."),
   m("university-campus", "University Campus", "ng-urban", "campus", "day", "clear", ["clear", "rain"], ["#86bde6", "#e9efe0", "#6e8f52", "#2f3b2a", "#0e5a8a"], "Lecture halls, a big lawn and a faculty bus."),
   m("beach-road", "Beach Road", "ng-urban", "beach", "golden", "clear", ["clear", "rain"], ["#5aa0d4", "#ffd29a", "#e7cf9e", "#2b4a5a", "#1b998b"], "Sand, palms and the Atlantic. The tide is not on your side."),
@@ -108,7 +108,7 @@ export const MAPS: MapInfo[] = [
   m("paris-cafe", "Paris Café", "intl-urban", "paris", "golden", "clear", ["clear", "rain"], ["#87a9d6", "#f6d5a8", "#9b8f80", "#3a3530", "#8a1f2b"], "Cream façades, café tables and a long boulevard."),
   m("rio-favela", "Rio Favela", "intl-urban", "favela", "golden", "clear", ["clear", "rain"], ["#5ea3db", "#fbd38a", "#a07a5a", "#4a2a2a", "#2b9348"], "Painted houses stacked up the hill."),
   // International nature
-  m("desert-field", "Desert Field", "intl-nature", "dunes", "day", "clear", ["clear", "rain"], ["#6fa9dc", "#f4dcae", "#dcb27a", "#9a6a3a", "#f2a71b"], "A wide open field of sand, far from anywhere. Mama waits at the end.", { halfWidth: 16, ballsHalfWidth: 24 }),
+  m("desert-field", "Desert Field", "intl-nature", "dunes", "day", "clear", ["clear", "rain"], ["#6fa9dc", "#f4dcae", "#dcb27a", "#9a6a3a", "#f2a71b"], "A wide open field of sand, far from anywhere. The eye waits at the end.", { halfWidth: 16, ballsHalfWidth: 24 }),
   m("snowy-mountains", "Snowy Mountains", "intl-nature", "snow", "day", "clear", ["clear", "rain"], ["#9cc4e8", "#eef4fa", "#e9eef3", "#5b6b80", "#35b8ff"], "Pines and deep snow."),
   m("tropical-jungle", "Tropical Jungle", "intl-nature", "jungle", "day", "rain", ["clear", "rain"], ["#5f9a7a", "#cfe8b8", "#3f6a2a", "#14240e", "#ffd60a"], "Giant leaves, vines and a lot of noise."),
   m("volcanic-island", "Volcanic Island", "intl-nature", "volcano", "dusk", "clear", ["clear", "rain"], ["#3a2a3a", "#e06a3a", "#3a302c", "#120c0c", "#ff5a1f"], "Black rock and the glow of lava."),

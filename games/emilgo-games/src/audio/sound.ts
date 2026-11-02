@@ -5,9 +5,10 @@
 // tap" and stops on pause. So: no AudioContext exists until unlock() is called
 // from a tap, and suspend()/resume() follow the world's onPause/onResume.
 //
-// Mama's songs (songs.ts) play at their own fixed tempo and loop. They carry NO
-// information about when she will turn: the referee cuts them at a random
-// moment, and the cut is instant — a short fade, no final note, no flourish.
+// Ball Haunt's songs (songs.ts), sung from the sky, play at their own fixed
+// tempo and loop. They carry NO information about when the eye will open: the
+// referee cuts them at a random moment, and the cut is instant — a short fade,
+// no final note, no flourish.
 // Notes are scheduled a little ahead of time (a look-ahead window), so a cut
 // silences only what was already queued.
 
@@ -66,7 +67,7 @@ interface Voice {
 const VOICES: Record<VoiceKind, Voice> = {
   // A child-like doll: high, thin, slightly too steady — then a slow wobble.
   doll: { wave: "triangle", transpose: 0, gain: 0.5, attack: 0.03, formant: 1.18, vibrato: 0.006, vibratoHz: 4.2, unison: 1, spread: 0 },
-  // The caller in "Mama Say Waka": a fuller, lower voice.
+  // A caller: a fuller, lower voice.
   lead: { wave: "sawtooth", transpose: -12, gain: 0.32, attack: 0.02, formant: 1, vibrato: 0.012, vibratoHz: 5.5, unison: 1, spread: 0 },
   // The street answering: three voices, a little out of tune with each other.
   crowd: { wave: "sawtooth", transpose: -12, gain: 0.22, attack: 0.03, formant: 0.95, vibrato: 0.01, vibratoHz: 5, unison: 3, spread: 14 },
@@ -76,7 +77,7 @@ export class Sound {
   private ctx: Ctx | null = null;
   private master: GainNode | null = null;
   private music: GainNode | null = null;
-  /** Sound effects (everything but the songs and her warning hum). */
+  /** Sound effects (everything but the songs and the warning hum). */
   private sfx: GainNode | null = null;
   private noiseBuf: AudioBuffer | null = null;
   private songNodes: AudioScheduledSourceNode[] = [];
@@ -148,7 +149,7 @@ export class Sound {
   }
 
   /**
-   * Master, music and effects volumes, 0…1. Music off (0) still leaves her
+   * Master, music and effects volumes, 0…1. Music off (0) still leaves the
    * warning hum: it is a rule of the game, so only the master volume turns it down.
    */
   setLevels(master: number, music: number, sfx: number): void {
@@ -243,9 +244,52 @@ export class Sound {
 
   // ── The song ───────────────────────────────────────────────────────────────
 
-  /** Start (or resume) `id` from `fromBeat`. Loops until stopSong(). */
+  /** Start (or resume) `id` from `fromBeat`. Loops until stopSong(). It comes from the sky (`skySend`). */
   playSong(id: SongId, fromBeat: number): void {
     this.playLoop(SONGS[id], fromBeat);
+    if (this.songBus) this.skySend(this.songBus);
+  }
+
+  /** The song's open-air echo, its return level (zero between songs, so a cut stays a cut). */
+  private sky: { in: AudioNode; wet: GainNode } | null = null;
+
+  /**
+   * Ball Haunt's song comes from the sky (SPEC-V3 Phase 11): the voice dry,
+   * plus a wide, high echo off the open air (a made-up hall: two seconds of
+   * noise dying away, a little late, its lows taken out). Built on first use.
+   */
+  private skySend(bus: GainNode): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.music) return;
+    if (!this.sky) {
+      const rate = ctx.sampleRate;
+      const len = Math.round(rate * 1.8);
+      const ir = ctx.createBuffer(2, len, rate);
+      let seed = 0x5eed;
+      for (let ch = 0; ch < 2; ch++) {
+        const d = ir.getChannelData(ch);
+        for (let i = 0; i < len; i++) {
+          seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+          const t = i / rate;
+          d[i] = ((seed / 4294967296) * 2 - 1) * Math.exp(-t * 2.6) * Math.min(1, t / 0.05);
+        }
+      }
+      const pre = ctx.createDelay(0.25);
+      pre.delayTime.value = 0.08;
+      const conv = ctx.createConvolver();
+      conv.buffer = ir;
+      const hp = ctx.createBiquadFilter();
+      hp.type = "highpass";
+      hp.frequency.value = 380;
+      const wet = ctx.createGain();
+      wet.gain.value = 0;
+      pre.connect(conv).connect(hp).connect(wet).connect(this.music);
+      this.sky = { in: pre, wet };
+    }
+    const g = this.sky.wet.gain;
+    g.cancelScheduledValues(ctx.currentTime);
+    g.setTargetAtTime(0.5, ctx.currentTime, 0.05);
+    bus.connect(this.sky.in);
   }
 
   /** The car radio (vehicles): a station, or off. It plays on the music bus, like a song. */
@@ -291,6 +335,11 @@ export class Sound {
       const bus = this.songBus;
       bus.gain.setTargetAtTime(0, ctx.currentTime, 0.008);
       setTimeout(() => bus.disconnect(), 200);
+    }
+    // The sky's echo goes with it: no tail to blur the cut.
+    if (ctx && this.sky) {
+      this.sky.wet.gain.cancelScheduledValues(ctx.currentTime);
+      this.sky.wet.gain.setTargetAtTime(0, ctx.currentTime, 0.012);
     }
     this.songBus = null;
     for (const n of this.songNodes) {
@@ -442,11 +491,10 @@ export class Sound {
     return this.ctx ? this.ctx.currentTime + 0.01 : 0;
   }
 
-  /** She starts turning: a falling talking-drum glide. */
   /**
-   * Mama's warning hum (SPEC-V2 §2.2): a closed-mouth "mmm" under the song for
-   * `dur` seconds, swelling and wavering. It sounds the same whether she turns
-   * after it or not — the fake hums are the game. It goes on the effects bus,
+   * The warning hum (SPEC-V2 §2.2): a closed-mouth "mmm" under the song for
+   * `dur` seconds, swelling and wavering. It sounds the same whether the song
+   * cuts after it or not — the fake hums are the game. It goes on the effects bus,
    * not the music one: switching the music off never mutes the warning.
    */
   hum(dur: number): void {
@@ -494,6 +542,7 @@ export class Sound {
     }
   }
 
+  /** The song cuts and the eye opens: a falling talking-drum glide. */
   turn(): void {
     const t = this.now;
     this.tone(260, t, 0.42, { type: "sine", gain: 0.34, to: 120 });
@@ -506,7 +555,7 @@ export class Sound {
     this.tone(55, t, 0.6, { type: "sine", gain: 0.35, attack: 0.03 });
   }
 
-  /** She turns back to the wall: a soft rising note — breathe out. */
+  /** The eye closes again: a soft rising note — breathe out. */
   release(): void {
     const t = this.now;
     this.tone(330, t, 0.25, { type: "triangle", gain: 0.12, to: 440 });
@@ -533,6 +582,18 @@ export class Sound {
     this.noise(t + 0.004, 0.09, { gain: 0.4 * g, freq: 900, type: "bandpass" });
     this.tone(180, t, 0.07, { type: "square", gain: 0.22 * g, to: 90 });
     this.tone(620, t + 0.05, 0.16, { type: "sawtooth", gain: 0.035 * g, to: 410 });
+  }
+
+  /**
+   * The eye in the sky has caught someone (SPEC-V3 Phase 11; the doll's neck
+   * crack before): a clap of thunder overhead, a split and a rolling rumble.
+   */
+  eyeFlash(near: boolean): void {
+    const t = this.now;
+    const g = near ? 1 : 0.6;
+    this.noise(t, 0.06, { gain: 0.5 * g, freq: 4200, type: "highpass" });
+    this.noise(t + 0.02, 1.4, { gain: 0.24 * g, freq: 240, type: "lowpass" });
+    this.tone(70, t + 0.03, 1.1, { type: "sine", gain: 0.3 * g, to: 38 });
   }
 
   /** A low, ominous drum after a catch (step 6): a deep hit and its softer echo. */
@@ -824,6 +885,11 @@ export class Sound {
   /** It hits: a white crack, a deep thump and the hiss of the smoke. */
   skyHit(near: number): void {
     const t = this.now;
+    // Several struck at once far away (Ball Haunt's catches come in batches): one stands for them all.
+    if (near < 0.5) {
+      if (t - this.farZapAt < 0.08) return;
+      this.farZapAt = t;
+    }
     const g = Math.max(0.12, near);
     this.noise(t, 0.09, { gain: 0.55 * g, freq: 2600, type: "highpass" });
     this.tone(95, t, 0.7, { type: "sine", gain: 0.5 * g, to: 34 });

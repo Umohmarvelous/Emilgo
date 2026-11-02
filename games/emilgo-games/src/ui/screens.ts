@@ -6,7 +6,7 @@
 // came from outside (a player's display name) goes through esc() — never raw
 // into innerHTML. Text is white or black; nothing is bigger than 16px; no emoji.
 
-import { DISTANCES, FLOW, MODES, MODE_NAME, NET, PRACTICE, SQUAD_COLORS, STAKED, TIME_LIMIT, ballCount } from "../config";
+import { DISTANCES, FEATURES, FLOW, MODES, MODE_NAME, NET, PRACTICE, SQUAD_COLORS, STAKED, TIME_LIMIT, ballCount } from "../config";
 import { CONTROLS, RLGL_CONTROLS, unusedReason } from "../input/actions";
 import type { ChallengeDef } from "../game/progress";
 import { CATEGORIES, MAPS, SKY_LABEL, SKY_STATES, mapOf, thumbSvg, type MapCategory, type SkyState } from "../maps/registry";
@@ -1035,8 +1035,8 @@ export class Screens {
         <p class="note" style="margin-top:10px">Low: no shadows, 2D clouds, lightest on battery, 30 fps on menus. Medium: shadows, sharper people and textures. High: full shadows, volumetric clouds, real reflections in puddles, glow and colour grading. Auto picks for your phone and adjusts the sharpness as you play.</p>`;
     } else if (tab === "audio") {
       body = `${range("master", "Master volume", "Everything")}
-        ${sw("music", "Music", "Her songs. Her warning hum still plays when off")}
-        ${range("musicVol", "Music volume", "Her songs", !s.music)}
+        ${sw("music", "Music", FEATURES.ballHaunt ? "Songs and the car radio. The warning hum still plays when off" : "Songs and the car radio")}
+        ${range("musicVol", "Music volume", "Songs and the car radio", !s.music)}
         ${sw("sound", "Sound effects")}
         ${range("sfxVol", "Sound effects volume", "Lasers, hits, footsteps, the drum", !s.sound)}
         ${ads ? `${sw("adsAudio", "Ads audio", "Sound from a billboard's film, when its advertiser allows it. Off: always silent")}

@@ -13,12 +13,15 @@
 // the tutorial) start at the countdown.
 //
 // The cycle:   countdown → sing → hum → (sing → hum)* → turning → watch → turningBack → sing → …
-//   sing         doll faces the wall, song plays. Move freely. She cuts it anywhere.
+// (The phases keep the doll's names; since SPEC-V3 Phase 11 there is no doll:
+// the song comes from the sky and an eye opens in it.)
+//   sing         the song plays from the sky. Move freely. It is cut anywhere.
 //   hum          3 s of humming under the song: the warning. Still safe to move.
-//                Sometimes it's fake: she sings on and doesn't turn.
-//   turning      she is turning round. Still safe — stop NOW.
-//   watch        she is looking. After `grace`, any speed > tolerance = out.
-//   turningBack  she turns to the wall again. Safe to set off early.
+//                Sometimes it's fake: the song plays on and the eye stays shut.
+//   turning      the song has cut, the eye is opening. Still safe — stop NOW.
+//   watch        the eye is open. After `grace`, any speed > tolerance = out:
+//                the sky laser strikes.
+//   turningBack  the eye closes. Safe to set off early.
 // The round ends when nobody is still running, or time is up (everyone still
 // on the field is eliminated).
 //
@@ -31,7 +34,7 @@
 // it HOLDING a ball (fewer balls than players); the ball goes in a basket and
 // you are safe for good. Attacks (fist, slap, push; combat.ts) knock a ball
 // loose — only when someone taps an attack button: running into people is
-// just a bump. While she watches, an attacker is shot and the one they hit is
+// just a bump. While the eye watches, an attacker is struck and the one they hit is
 // forgiven. Ball Haunting's pens (pens.ts) have solid walls: in and out by
 // the door, for everyone, in this same movement code.
 

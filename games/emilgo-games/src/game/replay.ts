@@ -5,11 +5,11 @@
 // snapshots (everyone else drawn 120 ms back, you predicted) online — 20 times
 // a second, for the last 12 seconds: every runner (where, which way, how fast,
 // stance, status, what they're doing, the ball they hold), every ball, and
-// Mama (which way she faces, her head, whether she's watching). That's about
+// the eye in the sky (how open, its glance, whether it's watching). That's about
 // 220 KB for a full room of 20 with 13 balls.
 //
-// From it the game cuts clips: the kill cam (the 2 s before you were shot,
-// replayed from her eyes) and the play of the game (the best moment, kept the
+// From it the game cuts clips: the kill cam (the 2 s before you were struck,
+// replayed from the eye) and the play of the game (the best moment, kept the
 // moment it's found, replayed after the match). A clip is a plain copy of
 // frames; playing it is the replay view's job (rlgl/replayView.ts).
 //
@@ -44,7 +44,7 @@ export function runnerStatus(flags: number): Contestant["status"] {
   return st === 0 ? "alive" : st === 1 ? "finished" : "eliminated";
 }
 
-/** What Mama looks like this frame (the recorder doesn't know about three.js). */
+/** How the eye in the sky looks this frame (the recorder doesn't know about three.js). */
 export interface DollPose {
   yaw: number;
   head: number;
@@ -64,7 +64,7 @@ export function frameSize(people: number, balls: number): number {
   return HEAD + people * RUNNER + balls * BALL;
 }
 
-/** Read frame `f` of a clip: its time, phase and Mama. */
+/** Read frame `f` of a clip: its time, phase and the eye. */
 export function frameHead(clip: Clip, f: number): { t: number; phase: number; doll: DollPose } {
   const o = f * clip.size;
   const d = clip.data;

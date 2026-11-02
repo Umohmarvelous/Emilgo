@@ -408,7 +408,7 @@ const CAP = [1500, 2400, 3600, 5000] as const;
  * the head grid never changes, so the painted face still fits.
  */
 export function buildBody(look: Look, level: Detail): BuiltBody {
-  if (!look.doll && scanReady()) return buildScanBody(look, level);
+  if (scanReady()) return buildScanBody(look, level);
   let T = LEVELS[level];
   for (let k = 0; ; k++) {
     const b = buildWith(look, T);
@@ -1012,26 +1012,6 @@ function hair(m: Builder, p: Proportions, id: HairId, T: TierSpec): void {
         const len = 0.24 + (i % 3) * 0.03;
         const pts = [s0, s0.clone().addScaledVector(out, 0.02).add(new Vector3(0, -0.06, 0)), s0.clone().addScaledVector(out, 0.035).add(new Vector3(0, -len, 0))];
         rod(m, pts, [0.0075, 0.007, 0.006], 4, T.detail ? 6 : 4, (q) => [["head", 1 - smooth(p.headY - 0.1, p.headY - 0.3, q.y) * 0.4], ["neck", smooth(p.headY - 0.1, p.headY - 0.3, q.y) * 0.4]], { uvAt: () => strand }, { capEnd: 0.004 });
-      }
-      return;
-    }
-    case "pigtails": {
-      // The doll's bob: full, down to the jaw, straight bangs to the brows…
-      cap(m, p, 0.012, rows + 2, seg, hairline(1.3, 1.95, 2.35), { grow: [0.016, 0.01, 0.016], offset: new Vector3(0, 0.004, -0.003) });
-      // …and two pigtails high on the sides, each with a white band.
-      for (const s of [1, -1]) {
-        const a = new Vector3(s * (hx + 0.012), p.headY + hy * 0.42, -hz * 0.3);
-        blob(m, a, [0.016, 0.02, 0.02], 4, 8, () => W1("head"), { uvAt: () => cellUv(CELL.white) });
-        rod(
-          m,
-          [a, a.clone().add(new Vector3(s * 0.035, -0.025, -0.01)), a.clone().add(new Vector3(s * 0.06, -0.09, -0.02)), a.clone().add(new Vector3(s * 0.062, -0.15, -0.015))],
-          [0.024, 0.03, 0.026, 0.016, 0.005],
-          Math.max(6, T.seg - 2),
-          Math.round(lerp(4, 8, T.ringK / 1.9)),
-          () => W1("head"),
-          { uvAt: () => strand },
-          { capEnd: 0.004 },
-        );
       }
       return;
     }

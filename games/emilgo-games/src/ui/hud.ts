@@ -181,8 +181,8 @@ export class Hud {
   }
 
   /**
-   * The compass: `yaw` is where the camera looks (0 = north, towards Mama).
-   * Mama's pin sits at her bearing from you.
+   * The compass: `yaw` is where the camera looks (0 = north, towards the finish).
+   * The finish's pin (the eye in the sky) sits at its bearing from you.
    */
   private compassW = 0;
   private compassReads = 0;

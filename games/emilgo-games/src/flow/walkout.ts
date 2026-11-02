@@ -106,7 +106,7 @@ export class Walk {
       w.z = z;
       w.vx = moving ? (dx / k) * p.speed : 0;
       w.vz = moving ? (dz / k) * p.speed : 0;
-      // Facing the way they walk; at their place, up the field (to Mama).
+      // Facing the way they walk; at their place, up the field (to the finish).
       w.heading = moving ? Math.atan2(dx, dz) : Math.PI;
     }
   }

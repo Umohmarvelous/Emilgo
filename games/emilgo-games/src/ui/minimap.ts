@@ -2,10 +2,10 @@
 // slightly see-through, over the map's own terrain — a top-down picture of the
 // place, taken once at the start of the round. It turns with your view (up is
 // where you look) and is centred on you. Tap it for the full map: the whole
-// field, north up (Mama at the top), everyone on it.
+// field, north up (the finish at the top), everyone on it.
 //
 // Marks: you (an arrow), runners (white), the safe (white rings), the out
-// (grey), Mama (white; red while she watches), balls and baskets.
+// (grey), the eye (white; red while it watches), balls and baskets.
 
 import { gameSize } from "./rotate";
 import { el } from "./dom";
@@ -302,7 +302,7 @@ export class Minimap {
     g.restore();
   }
 
-  /** The full map: the whole field, north up (Mama at the top). */
+  /** The full map: the whole field, north up (the finish at the top). */
   private drawBig(me: { x: number; z: number; heading: number; out: boolean }, marks: readonly MapMark[], doll: { x: number; z: number; watching: boolean } | null): void {
     const t = this.terrain;
     const dpr = Math.min(2, window.devicePixelRatio || 1);

@@ -71,7 +71,7 @@ export interface Settings {
   badge: boolean;
   /** Online chat (waiting room, results, spectating). Off hides it entirely. */
   chat: boolean;
-  /** Mama's song, or "shuffle" for a different one each round. */
+  /** Ball Haunt's song, or "shuffle" for a different one each round. */
   song: SongChoice;
   /** The stance your character holds in the lobby. */
   lobbyPose: PoseId;

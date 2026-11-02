@@ -71,7 +71,7 @@ export class Kit {
   /**
    * How far the far backdrop moves along z (negative: further away). Recipes
    * place skylines and mountains for the original 120 m street; a 300 m run
-   * pushes them back 180 m so they stay behind Mama.
+   * pushes them back 180 m so they stay behind the finish.
    */
   back = 0;
   /** Graphics tier: curved props get more segments on Medium and High. */
@@ -567,7 +567,7 @@ export class Kit {
 
 // ── The course: what every map shares ────────────────────────────────────────
 
-/** The track and stage: start line, chequered finish, the plaza, Mama's plinth. */
+/** The track and stage: start line, chequered finish, the plaza, the stage past the finish. */
 export function courseParts(o: { edge: string; line: string; plaza: string; stage: string; markings: boolean }, c: Course): BufferGeometry[] {
   const out: BufferGeometry[] = [];
   const hw = c.halfWidth;

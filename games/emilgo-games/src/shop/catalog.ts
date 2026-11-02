@@ -36,7 +36,7 @@ export const PRODUCTS: Product[] = [
   // The hoodies (once outfits: the ids stay, so earlier purchases still count).
   { id: "outfit_gold", kind: "hoodie", name: "Gold hoodie", blurb: "A gold satin finish, joggers to match. Shine like the celebrant.", price: 500, icon: "outfit" },
   { id: "outfit_ankara", kind: "hoodie", name: "Ankara hoodie design", blurb: "Ankara print on the hood and the pocket, on any colour you pick.", price: 500, icon: "outfit" },
-  { id: "outfit_midnight", kind: "hoodie", name: "Midnight hoodie", blurb: "Near black with a purple shine. Mama barely sees you (she does).", price: 500, icon: "outfit" },
+  { id: "outfit_midnight", kind: "hoodie", name: "Midnight hoodie", blurb: "Near black with a purple shine. The eye in the sky barely sees you (it does).", price: 500, icon: "outfit" },
   { id: "emotes_owambe", kind: "emotes", name: "Owambe emote pack", blurb: "Three dance emotes: Zanku, Shaku Shaku and Odogwu.", price: 300, icon: "emote" },
   { id: "badge_gold", kind: "badge", name: "Gold name badge", blurb: "A gold star and a gold frame on your name in every online chat.", price: 200, icon: "star" },
 ];

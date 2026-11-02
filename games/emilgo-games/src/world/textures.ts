@@ -2,8 +2,9 @@
 // the shop signs and the words painted on the road. Drawing it costs a few
 // milliseconds and zero network, which is why it is a canvas and not a PNG.
 //
-// Every sign is invented. No real brand, business, agency or person appears
-// anywhere in the street (Vatar Developer Agreement §3.3 and §4(i)).
+// Every sign names a trade, never a business: no real brand, business, agency
+// or person appears anywhere in the street (Vatar Developer Agreement §3.3 and
+// §4(i)), and no made-up one either (the owner's rule, SPEC-V3 Answers).
 
 import { CanvasTexture, LinearMipmapLinearFilter, SRGBColorSpace } from "three";
 
@@ -23,20 +24,20 @@ interface SignSpec {
 }
 
 export const SIGNS: SignSpec[] = [
-  { text: "IYA BASIRA KITCHEN", bg: "#c62828", fg: "#fff8e1", border: "#ffd54f", sub: "AMALA • EWEDU • GBEGIRI" },
-  { text: "GOD'S GRACE ELECTRONICS", bg: "#1565c0", fg: "#ffeb3b", border: "#ffffff" },
-  { text: "NO SHAKING BARBING SALON", bg: "#2e7d32", fg: "#ffffff", border: "#c8e6c9", sub: "LOW CUT • SKIN FADE" },
-  { text: "MAMA T PROVISIONS", bg: "#f9a825", fg: "#16203c", border: "#16203c" },
-  { text: "ALHAJI SUYA SPOT", bg: "#4e342e", fg: "#ffb74d", border: "#ffb74d", sub: "HOT • HOT • HOT" },
-  { text: "OGA LANRE VULCANISER", bg: "#37474f", fg: "#ffd600", border: "#ffd600" },
-  { text: "MADAM CHI FABRICS", bg: "#6a1b9a", fg: "#ffffff", border: "#ffd54f", sub: "ANKARA • LACE • GELE" },
-  { text: "FINE BOY PHONE REPAIRS", bg: "#00838f", fg: "#ffffff", border: "#b2ebf2" },
-  { text: "EKO CHOP & CHILL", bg: "#ef6c00", fg: "#ffffff", border: "#fff3e0" },
-  { text: "BLESSED HANDS TAILORING", bg: "#ad1457", fg: "#ffffff", border: "#f8bbd0" },
+  { text: "FOOD IS READY", bg: "#c62828", fg: "#fff8e1", border: "#ffd54f", sub: "AMALA • EWEDU • GBEGIRI" },
+  { text: "ELECTRONICS", bg: "#1565c0", fg: "#ffeb3b", border: "#ffffff" },
+  { text: "BARBING SALON", bg: "#2e7d32", fg: "#ffffff", border: "#c8e6c9", sub: "LOW CUT • SKIN FADE" },
+  { text: "PROVISIONS", bg: "#f9a825", fg: "#16203c", border: "#16203c" },
+  { text: "SUYA SPOT", bg: "#4e342e", fg: "#ffb74d", border: "#ffb74d", sub: "HOT • HOT • HOT" },
+  { text: "VULCANISER", bg: "#37474f", fg: "#ffd600", border: "#ffd600" },
+  { text: "FABRICS", bg: "#6a1b9a", fg: "#ffffff", border: "#ffd54f", sub: "ANKARA • LACE • GELE" },
+  { text: "PHONE REPAIRS", bg: "#00838f", fg: "#ffffff", border: "#b2ebf2" },
+  { text: "COLD DRINKS", bg: "#ef6c00", fg: "#ffffff", border: "#fff3e0" },
+  { text: "TAILORING", bg: "#ad1457", fg: "#ffffff", border: "#f8bbd0" },
   { text: "START", bg: null, fg: "#ffffff" },
   { text: "FINISH", bg: null, fg: "#ffffff" },
   { text: "POST NO BILL", bg: null, fg: "#b71c1c" },
-  { text: "EMILGO GAMES", bg: "#16203c", fg: "#ffd700", border: "#12b76a", sub: "RED LIGHT • GREEN LIGHT" },
+  { text: "EMILGO GAMES", bg: "#16203c", fg: "#ffd700", border: "#12b76a", sub: "BALL HAUNT" },
   { text: "NO SHAKING", bg: null, fg: "#ffd700" },
   { text: "WAKA!", bg: null, fg: "#ffffff" },
 ];

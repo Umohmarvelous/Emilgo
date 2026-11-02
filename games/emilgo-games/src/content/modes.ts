@@ -203,7 +203,7 @@ export const BUILTIN_MANIFEST: Manifest = {
     {
       id: "classic-run", v: 1, family: "rlgl", minRank: "rookie-1", players: { min: 1, max: 20, squad: [1, 1] }, map: "any", time: 80,
       name: { en: "Classic Run", pcm: "Classic Run" },
-      blurb: { en: "Reach the line. Freeze when she turns.", pcm: "Reach the line. Stand still when she turn." },
+      blurb: { en: "Reach the line. Freeze when the song cuts.", pcm: "Reach the line. Stand still when the song cut." },
       respawn: { on: false },
       modules: { doll: {} },
       win: { kind: "line" },

@@ -67,14 +67,10 @@ export function setMaxAnisotropy(n: number): void {
   maxAniso = Math.max(1, Math.min(8, n));
 }
 
-/** A player drawn as a scanned person (Mama, and everyone if the scans failed to load, is generated). */
-function scanned(look: Look): boolean {
-  return !look.doll && scanReady();
-}
 
 function bodyFor(look: Look, level: Detail): Body {
   // Scanned: one shape per body and level, and the levels loaded so far are in the key (one arriving makes new shapes).
-  const key = scanned(look) ? `${level}|scan|${look.body}|${scanStamp()}` : `${level}|${shapeKey(look)}`;
+  const key = scanReady() ? `${level}|scan|${look.body}|${scanStamp()}` : `${level}|${shapeKey(look)}`;
   let b = bodies.get(key);
   if (!b) {
     const built = buildBody(look, level);
@@ -91,7 +87,7 @@ function bodyFor(look: Look, level: Detail): Body {
 }
 
 function textureFor(look: Look, tier: Tier, size: number): CanvasTexture {
-  const key = `${tier}|${size}|${scanned(look) ? scanPaintKey(look) : paintKey(look)}`;
+  const key = `${tier}|${size}|${scanReady() ? scanPaintKey(look) : paintKey(look)}`;
   let e = textures.get(key);
   if (!e) {
     const tex = new CanvasTexture(paintLook(look, tier, size));
@@ -577,7 +573,7 @@ export class Human {
     this.skinDirty = true;
   }
 
-  /** A bone was turned by hand (the doll's head): the skin follows at the next render. */
+  /** A bone was turned by hand: the skin follows at the next render. */
   posed(): void {
     this.skinDirty = true;
   }

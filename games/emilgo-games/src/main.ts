@@ -88,7 +88,7 @@ async function boot(): Promise<void> {
   progress(0.25, "Loading Lagos...");
   const host = await detectHost();
   mark("host");
-  progress(0.55, "Calling Mama Gele...");
+  progress(0.55, "Waking the city...");
   const settings = loadSettings(host);
 
   const canvas = document.getElementById("scene") as HTMLCanvasElement;

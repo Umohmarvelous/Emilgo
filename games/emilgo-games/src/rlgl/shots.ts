@@ -1,6 +1,7 @@
 // Red Light, Green Light's field preview (SPEC-V2 §1.3), after the walk:
-// four sweeping angles of the arena, Mama close up, the balls and baskets
-// (Ball Haunting only), the laser guns, then back behind the players.
+// four sweeping angles of the arena, the eye in the sky close up, the balls
+// and baskets (Ball Haunting only), along the field's edge, then back behind
+// the players.
 //
 // Lengths come from FLOW (config.ts): the referee times the walkout with the
 // same numbers, so every phone cuts at the same moment.
@@ -15,9 +16,7 @@ export interface FieldInfo {
   course: Course;
   balls: readonly Ball[];
   baskets: readonly Basket[];
-  /** Where the laser towers stand. */
-  towers: readonly { x: number; z: number }[];
-  /** Mama's face (between her eyes), in the world. */
+  /** The watcher's eye in the sky (Phase 11: Mama is gone), in the world. */
   dollFace(out: Vector3): Vector3;
 }
 
@@ -31,19 +30,19 @@ export function previewShots(f: FieldInfo): Shot[] {
   const shots: Shot[] = [
     // 1. High along the field from behind the start, the whole run below.
     dolly(s, [-hw - 6, 16, 6], [hw + 2, 24, fz * 0.3], [0, 0, fz * 0.4], [0, 0, fz * 0.65], 55),
-    // 2. Low down the left side, the towers going by.
+    // 2. Low down the left side, the field going by.
     dolly(s, [-hw - 9, 3.4, fz * 0.18], [-hw - 8, 4, fz * 0.62], [0, 1.4, fz * 0.32], [0, 1.6, fz * 0.85], 50),
-    // 3. Round the far end: the line, the stage, Mama from above.
+    // 3. Round the far end: the line, and the sky over it.
     orbit(s, [0, 0, fz * 0.92], hw + 22, -0.9, 0.6, 18, 12, 2, 50),
     // 4. From beyond the line, looking all the way back to the start.
     dolly(s, [hw * 0.7, 7, fz - 4], [-hw * 0.5, 4.5, fz + 12], [0, 1.2, fz * 0.5], [0, 1.2, 0], 48),
-    // Mama, close: from below her chin, pushing in on the face.
-    follow(FLOW.doll, (u, out) => {
+    // The eye in the sky: from past the line, looking up at it, pushing in.
+    follow(FLOW.sky, (u, out) => {
       const face = f.dollFace(_face);
       const e = smooth(u);
-      out.pos.set(face.x + 3.6 - e * 1.8, face.y - 2.4 + e * 1.0, face.z + 12 - e * 4.5);
-      out.look.set(face.x, face.y - 0.2, face.z);
-      out.fov = 30;
+      out.pos.set(face.x + 14 - e * 8, 6 + e * 3, face.z + 150 - e * 30);
+      out.look.set(face.x, face.y, face.z);
+      out.fov = 34 - e * 8;
     }),
   ];
   if (c.mode === "balls" && f.balls.length) {
@@ -66,14 +65,8 @@ export function previewShots(f: FieldInfo): Shot[] {
     const bz = f.baskets[0]?.z ?? fz - 2.4;
     shots.push(dolly(half, [hw * 0.5, 2.2, bz + 7], [-hw * 0.2, 1.8, bz + 4.5], [0, 0.4, bz], [0, 0.35, bz], 42));
   }
-  // The laser guns: past a tower's turret, the row of them running away.
-  const t = nearestTower(f.towers, fz * 0.25);
-  if (t) {
-    const sx = Math.sign(t.x) || 1;
-    shots.push(dolly(FLOW.lasers, [t.x - sx * 3.2, 5.2, t.z + 6], [t.x - sx * 2.2, 6.6, t.z + 3.2], [t.x, 7.1, t.z], [t.x, 6.9, t.z - 14], 44));
-  } else {
-    shots.push(dolly(FLOW.lasers, [hw + 3, 6, -6], [hw, 7, -10], [hw + 2.6, 7, -12], [hw + 2.6, 7, -40], 44));
-  }
+  // Along the field's edge, the run ahead (the towers were here before the sky laser).
+  shots.push(dolly(FLOW.edge, [hw + 3, 6, -6], [hw, 7, -10], [hw + 2.6, 7, -12], [hw + 2.6, 7, -40], 44));
   return shots;
 }
 
@@ -96,24 +89,20 @@ const _mid = new Vector3();
 const _dir = new Vector3();
 
 /**
- * The kill cam's lens: Mama's own eyes, looking at the runner (her head is
- * just behind the lens, so it never fills the frame). It starts wide enough to
- * see them run and closes in as the beam fires (u: 0 … 1 of the replay).
+ * The kill cam's lens: from the eye in the sky's side — up the line from the
+ * runner toward the eye, 16 m out — looking down at them. It starts wide
+ * enough to see them run and closes in as the sky laser strikes (u: 0 … 1 of
+ * the replay). (The eye itself is 200 m and more away: filmed from there, a
+ * runner was a few pixels behind the beams.)
  */
 export function killCamLens(eyes: (l: Vector3, r: Vector3) => void, chest: Vector3, u: number, pos: Vector3, look: Vector3): number {
   eyes(_mid, _dir);
   _mid.add(_dir).multiplyScalar(0.5);
-  _dir.subVectors(chest, _mid);
-  const d = _dir.length();
-  _dir.divideScalar(d || 1);
-  pos.copy(_mid).addScaledVector(_dir, 1.4);
-  look.copy(chest);
-  // Wide enough at first for a few metres round them, then tight on them.
-  const wide = (2 * Math.atan(6 / Math.max(4, d)) * 180) / Math.PI;
-  const tight = (2 * Math.atan(1.6 / Math.max(4, d)) * 180) / Math.PI;
+  _dir.subVectors(_mid, chest).normalize();
   const e = smooth(Math.min(1, u * 1.25));
-  // From 200 m away that's a long lens: a degree or so.
-  return Math.max(1.2, Math.min(40, wide + (tight - wide) * e));
+  pos.copy(chest).addScaledVector(_dir, 16 - e * 7);
+  look.copy(chest);
+  return 40 - e * 12;
 }
 
 /**
@@ -153,8 +142,3 @@ export function finalTwoLens(a: Vector3, b: Vector3, u: number, pos: Vector3, lo
   return fov;
 }
 
-function nearestTower(list: readonly { x: number; z: number }[], z: number): { x: number; z: number } | null {
-  let best: { x: number; z: number } | null = null;
-  for (const t of list) if (t.z < 0 && (!best || Math.abs(t.z - z) < Math.abs(best.z - z) || (Math.abs(t.z - best.z) < 0.1 && t.x < best.x))) best = t;
-  return best;
-}

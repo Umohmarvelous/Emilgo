@@ -71,7 +71,8 @@ import { ReplayOverlay } from "../ui/replay";
 import { Bubbles, ChatPanel, EmoteWheel } from "../ui/social";
 import { CameraRig } from "../world/camera";
 import { Crowd, accentOf } from "../world/crowd";
-import { Doll } from "../world/doll";
+import { SkyWatcher } from "../world/skyWatcher";
+import { SkyLaser } from "../world/skyLaser";
 import { Effects } from "../world/fx";
 import { ensureScanLevels, setMaxAnisotropy, warmLook } from "../world/human";
 import { cleanLook, ownedOnly, randomLook, uniformLook, wearProduct, type ExtraId, type HoodieDesign, type Look } from "../world/human/wardrobe";
@@ -140,8 +141,10 @@ export class Game {
   // Far enough for the mountains behind a 300 m run (the fog ends the view first).
   private readonly camera = new PerspectiveCamera(65, 1, 0.1, 900);
   private readonly rig: CameraRig;
-  /** Mama: see `doll`. */
-  private dollObj: Doll | null = null;
+  /** Ball Haunt's eye in the sky: see `doll`. */
+  private dollObj: SkyWatcher | null = null;
+  /** Ball Haunt's sky laser (Phase 11): it takes whoever moves while the eye looks. */
+  private skyLaser: SkyLaser | null = null;
   private readonly crowd = new Crowd(MAX_PEOPLE);
   private readonly fx = new Effects();
   private readonly props: PropsView;
@@ -409,7 +412,7 @@ export class Game {
       this.showResults();
     });
     ui.append(this.resultsBtn);
-    this.replay = new ReplayView(this.crowd, () => this.doll, this.props, this.fx);
+    this.replay = new ReplayView(this.crowd, () => this.doll, () => this.skyLaser, this.props, this.fx);
     this.replayUi = new ReplayOverlay(ui);
     this.replayUi.skipBtn.addEventListener("click", () => {
       this.sound.ui();
@@ -546,16 +549,18 @@ export class Game {
   }
 
   /**
-   * Mama. She isn't in the lobby and she is the heaviest thing to make (a
-   * featured body at High detail, her textures), so she isn't made at boot:
-   * the lobby's idle time makes her, or the first round if it comes first.
+   * Ball Haunt's watcher (SPEC-V3 Phase 11: Mama is gone): the eye in the sky
+   * over the far end, and the sky laser it calls down. Made with the first
+   * round (or in the lobby's idle time while Ball Haunt is switched on).
    */
-  private get doll(): Doll {
+  private get doll(): SkyWatcher {
     if (!this.dollObj) {
-      this.dollObj = new Doll();
+      this.dollObj = new SkyWatcher();
       this.scene.add(this.dollObj.root);
-      // She shows in the puddles' mirror (High).
+      // It shows in the puddles' mirror (High).
       this.dollObj.root.traverse((o) => o.layers.enable(REFLECT_LAYER));
+      this.skyLaser = new SkyLaser(this.spec.tier);
+      this.scene.add(this.skyLaser.group);
     }
     return this.dollObj;
   }
@@ -582,12 +587,12 @@ export class Game {
     void this.shop?.boot();
     const idle = (window as unknown as { requestIdleCallback?: (fn: () => void, o?: object) => void }).requestIdleCallback;
     const later = (fn: () => void, t: number) => (idle ? idle(fn, { timeout: t }) : setTimeout(fn, t));
-    // Get the (silent) audio engine ready while the lobby is idle, make Mama,
-    // and paint a few CPU outfits ahead so the first round starts without a stall.
+    // Get the (silent) audio engine ready while the lobby is idle, make the eye
+    // in the sky (when Ball Haunt is on), and paint a few CPU outfits ahead so the first round starts without a stall.
     later(() => this.sound.prepare(), 2500);
     // The matches' code (its own chunk): fetched while the lobby is idle, so a match starts without waiting.
     later(() => void this.loadV3().catch(() => undefined), 1500);
-    // Ball Haunt switched off (SPEC-V3): Mama is never made.
+    // Ball Haunt switched off (SPEC-V3): its eye is never made.
     if (FEATURES.ballHaunt) later(() => void this.doll, 3000);
     later(() => {
       const rng = new Rng(1234);
@@ -956,6 +961,7 @@ export class Game {
     this.loop.setStepping(false);
     this.sound.stopSong();
     this.fx.clear();
+    this.skyLaser?.clear();
     this.bubbles.clear();
     this.wheel.close();
     this.spectateId = null;
@@ -1074,7 +1080,7 @@ export class Game {
     // On the field everyone wears the black suit with their seat number.
     this.looks = this.ownLooks.map((l, i) => uniformLook(l, i + 1));
     this.crowd.setup(this.looks, meIndex);
-    // Through the walkout she faces the field (the close-up); she turns to the wall for the countdown.
+    // Through the walkout the eye is open (the close-up); it shuts for the countdown.
     this.doll.setFacing(round.phase === "walkout");
 
     this.my = "playing";
@@ -1136,12 +1142,10 @@ export class Game {
     this.hud.show(false);
     this.setLive(false);
     const me = round.get(this.meId) ?? round.contestants[0];
-    const lasers = this.world?.lasers;
     const preview = previewShots({
       course: round.course,
       balls: round.balls,
       baskets: round.baskets,
-      towers: lasers?.spots ?? [],
       dollFace: (out) => {
         this.doll.eyes(_eyeL, _eyeR);
         return out.addVectors(_eyeL, _eyeR).multiplyScalar(0.5);
@@ -1455,7 +1459,7 @@ export class Game {
     }
   }
 
-  /** The walkout is over (or there wasn't one): HUD and controls on, the lens behind you, Mama to the wall. */
+  /** The walkout is over (or there wasn't one): HUD and controls on, the lens behind you, the eye shut. */
   private toCountdown(fromWalkout: boolean): void {
     const round = this.round;
     if (!round) return;
@@ -1477,26 +1481,24 @@ export class Game {
     if (!c || !me) return;
     const isMe = id === this.meId && !this.tut;
 
-    // The elimination (SPEC-V2 §2.6). Per body: the beam from the nearest laser
-    // gun, the blood, the slow fall that stays, the kill feed. Per batch (all
-    // caught this step, afterCatches): her head's crack, the drum, the zoom.
+    // The elimination (SPEC-V2 §2.6; Phase 11: the sky laser, not the towers).
+    // Per body: the beam out of the clouds, the blood, the slow fall that
+    // stays, the kill feed. Per batch (all caught this step, afterCatches):
+    // the eye's flash, the drum, the zoom.
     this.crowd.chest(c, _chest);
     _away.set(c.x, 0, c.z - round.course.dollZ).normalize();
     if (cause === "moved") {
-      if (this.world) {
-        this.world.lasers.fireAt(_chest, _eyeL);
-        this.fx.beam(_eyeL, _eyeL, _chest);
-      } else {
-        this.doll.eyes(_eyeL, _eyeR);
-        this.fx.beam(_eyeL, _eyeR, _chest);
-      }
-    }
+      void this.doll;
+      const at = { x: c.x, y: c.y, z: c.z };
+      const beam = this.skyLaser!.strike(`${id}@${round.elapsed.toFixed(2)}`, () => at, 0.06);
+      this.crowd.strike(c.index, c, beam.fromYaw, beam.lean);
+    } else this.crowd.kill(c.index, c, 0, round.course.dollZ);
     this.fx.burst(_chest, _away, isMe ? 40 : cause === "time" ? 14 : 24);
-    this.crowd.kill(c.index, c, 0, round.course.dollZ);
     if (cause === "moved") this.caughtNow.push(c);
 
     const near = isMe || Math.hypot(c.x - me.x, c.z - me.z) < 7;
-    this.sound.catch(near);
+    if (cause === "moved") this.sound.skyHit(isMe ? 1 : Math.max(0, 1 - Math.hypot(c.x - me.x, c.z - me.z) / 150));
+    else this.sound.catch(near);
     this.rig.kick(isMe ? 1.2 : near ? 0.35 : 0.1);
     // The kill feed (step 9): "[Name] was eliminated".
     this.hud.pushFeed(`${isMe ? "You were" : `${this.label(c)} was`} eliminated`, "out");
@@ -1539,9 +1541,9 @@ export class Game {
   }
 
   /**
-   * Everyone Mama caught this step, together: her head snaps round to the
-   * nearest of them with a CRACK (step 1), her eyes flash red (step 8), one
-   * low drum (step 6). Your screen zooms in on that one for a moment (step 2,
+   * Everyone the eye caught this step, together: it glances at the nearest of
+   * them with a white flash and a clap of thunder (step 1, step 8), one low
+   * drum (step 6). Your screen zooms in on that one for a moment (step 2,
    * once a turn), their fall in slow motion (step 4), a shake (step 5) and a
    * red edge (step 7) — unless it was you: then your own sequence plays.
    */
@@ -1557,7 +1559,7 @@ export class Game {
     const mine = list.some((c) => c.id === this.meId) && !this.tut;
     const near = mine || Math.hypot(nearest.x - me.x, nearest.z - me.z) < 12;
     this.doll.caught(nearest.x, nearest.z);
-    this.sound.crack(near);
+    this.sound.eyeFlash(near);
     this.sound.drum(near);
     if (mine || this.replaying || this.zoomTurn === this.turnNo || this.view !== "game") return;
     this.zoomTurn = this.turnNo;
@@ -1628,7 +1630,7 @@ export class Game {
     this.resultsBtn.classList.add("visible");
   }
 
-  /** The kill cam (SPEC-V2 §2.7): the 2 s before you were shot, from Mama's eyes. */
+  /** The kill cam (SPEC-V2 §2.7): the 2 s before you were struck, from the eye in the sky. */
   private startKillCam(): boolean {
     const round = this.round;
     const me = round?.get(this.meId);
@@ -2204,6 +2206,7 @@ export class Game {
     for (const c of list) this.crowd.setCarry(c.index, c.ball >= 0 && c.status !== "eliminated");
     if (round.balls.length) this.props.update(vdt, round.balls, (h, out) => this.crowd.hands(h, out));
     this.doll.update(vdt);
+    this.skyLaser?.update(vdt, this.camera.position);
     this.fx.update(vdt);
     const me = round.get(this.meId);
     if (me && this.my === "out" && this.rig.current === "cinematic") this.rig.track(this.crowd.chest(me, _chest));
@@ -2226,8 +2229,6 @@ export class Game {
       this.updateHud(round, me, frameDt);
       _focus.set(target.x, 0, target.z);
       this.world?.update(frameDt, _focus, this.camera.position);
-      // The towers track runners while she turns and stares.
-      this.world?.lasers.update(frameDt, round.phase === "turning" || round.phase === "watch", list);
       // Feet in puddles splash.
       const pot = this.world?.potholes;
       if (pot) {
@@ -2285,7 +2286,6 @@ export class Game {
     if (!r.done) this.rig.shot(_lensPos, _lensLook, r.fov);
     this.rig.update(frameDt, null);
     this.world?.update(frameDt, _lensLook, this.camera.position);
-    this.world?.lasers.update(frameDt, false, round.contestants);
     this.updateSocial(round);
     this.draw();
     if (r.done) this.endReplay();
@@ -2330,10 +2330,10 @@ export class Game {
     this.crowd.update(vdt, w.walk.walkers, this.camera.position);
     if (round.balls.length) this.props.update(vdt, round.balls, (h, out) => this.crowd.hands(h, out));
     this.doll.update(vdt);
+    this.skyLaser?.update(vdt, this.camera.position);
     this.rig.shot(this.shotFrame.pos, this.shotFrame.look, this.shotFrame.fov);
     this.rig.update(frameDt, null);
     this.world?.update(frameDt, this.shotFrame.look, this.camera.position);
-    this.world?.lasers.update(frameDt, false, round.contestants);
     this.flowBtns.show(w.canSkip(t) && !this.paused, this.offerTutorial && !this.paused);
     this.draw();
   }

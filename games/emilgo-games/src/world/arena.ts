@@ -3,7 +3,7 @@
 // Black-and-yellow kerbs, pastel shopfronts with hand-painted signs, black
 // rooftop water tanks, a tangle of NEPA wires on leaning poles, danfos parked in
 // the side streets, palms in the plaza — and at the far end, under an iroko
-// tree, Mama Gele's stage.
+// tree, the stage past the finish.
 //
 // Draw calls for all of this: 3. Everything vertex-coloured is merged into one
 // mesh; the signs and road paint share one textured mesh; the wires are one
@@ -157,7 +157,7 @@ export interface Arena {
 }
 
 export function buildArena(atlas: Texture, course: Course = DEFAULT_COURSE): Arena {
-  // The street runs as long as the round: the line, Mama's stage and the end
+  // The street runs as long as the round: the line, the stage and the end
   // of the street all follow the course.
   const FINISH = course.finishZ;
   const DOLL_Z = course.dollZ;
@@ -214,7 +214,7 @@ export function buildArena(atlas: Texture, course: Course = DEFAULT_COURSE): Are
   paint(CELL.waka, 4.2, 1.05, [-4, 0.02, -20]);
   paint(CELL.waka, 4.2, 1.05, [4, 0.02, -58]);
 
-  // Start gantry with the game's banner — high, so it never hides the doll.
+  // Start gantry with the game's banner — high, so it never hides the eye in the sky.
   for (const s of [-1, 1]) solid.push(cyl("#263238", 0.14, 10, [s * 9.7, 5, 0.4], undefined, true));
   solid.push(box("#263238", [19.8, 0.25, 0.25], [0, 9.9, 0.4]));
   painted.push(atlasQuad(9, 2.25, cellUv(CELL.banner), { p: [0, 8.7, 0.42] }));
@@ -311,10 +311,10 @@ export function buildArena(atlas: Texture, course: Course = DEFAULT_COURSE): Are
   const palms: V3[] = [[-9, 0, FINISH - 7], [9, 0, FINISH - 7], [-9.5, 0, FINISH - 17], [9.5, 0, FINISH - 17], [-8.5, 0, 12], [8.5, 0, 12]];
   for (const p of palms) solid.push(moved(palm(rng), { p }));
 
-  // ── Mama Gele's stage ──
+  // ── The stage past the finish (Mama's until Phase 11; the eye looks down on it) ──
   solid.push(cyl("#b0a493", 3.4, 0.5, [0, 0.25, DOLL_Z], undefined, true));
   solid.push(cyl("#8d816f", 3.6, 0.12, [0, 0.06, DOLL_Z], undefined, true));
-  // The iroko behind her.
+  // The iroko behind it.
   const treeZ = DOLL_Z - 6.5;
   solid.push(part(new CylinderGeometry(0.7, 1.1, 9, 7), "#5d4037", { p: [0, 4.5, treeZ] }));
   solid.push(part(new CylinderGeometry(0.25, 0.4, 3.5, 5), "#5d4037", { p: [1.6, 7.2, treeZ], r: [0, 0, -0.7] }));
@@ -415,7 +415,7 @@ export function buildArena(atlas: Texture, course: Course = DEFAULT_COURSE): Are
   wireMesh.matrixAutoUpdate = false;
   group.add(wireMesh);
 
-  // Soft contact shadow under the doll's stage (cheap, unlit).
+  // Soft contact shadow under the stage (cheap, unlit).
   const stageShadow = new Mesh(new CircleGeometry(4.2, 20), new MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.18, depthWrite: false }));
   stageShadow.rotation.x = -Math.PI / 2;
   stageShadow.position.set(0, 0.01, DOLL_Z);
