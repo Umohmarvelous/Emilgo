@@ -114,6 +114,10 @@ export interface Settings {
   founder: boolean;
   /** Commends from other players (SPEC-V3 §10.12), as the server last said: a cosmetic title. */
   honour: number;
+  /** The Form badge (§10.18): your last five online Free For All results, newest first ("W" or "L"). */
+  form: string;
+  /** Wins in a row, as the server last said (§10.18: 3 or more and you glow). */
+  streak: number;
   /** Today's challenges: the day they were set and progress on each. */
   daily: { day: string; progress: number[] };
   /** People you've played online with lately, newest first. `seat` reaches them while they're still online. */
@@ -176,6 +180,8 @@ export function defaults(host: Host): Settings {
     deviceXp: 0,
     founder: false,
     honour: 0,
+    form: "",
+    streak: 0,
     daily: { day: "", progress: [] },
     recent: [],
     mode: "classic",
@@ -206,7 +212,7 @@ export function defaults(host: Host): Settings {
  */
 export const KEPT_ON_RESET: readonly (keyof Settings)[] = [
   "look", "badge", "lobbyPose", "wheel", "map", "mode", "distance", "tutorialSeen", "best", "played", "wins", "xp",
-  "rankXp", "rankKnown", "deviceXp", "founder", "honour",
+  "rankXp", "rankKnown", "deviceXp", "founder", "honour", "form", "streak",
   "daily", "recent", "fid", "friends", "cp", "boosts", "boostsOn", "song",
 ];
 
@@ -268,6 +274,8 @@ export function loadSettings(host: Host): Settings {
     out.rankXp = Math.max(0, Math.floor(clamp(out.rankXp, 0, 1e10)));
     out.deviceXp = Math.max(0, Math.floor(clamp(out.deviceXp, 0, 1e10)));
     out.honour = Math.max(0, Math.floor(clamp(Number(out.honour) || 0, 0, 1e9)));
+    out.form = typeof out.form === "string" ? out.form.replace(/[^WL]/g, "").slice(0, 5) : "";
+    out.streak = Math.max(0, Math.floor(clamp(Number(out.streak) || 0, 0, 1e6)));
     // The old levels aren't carried onto the ladder (they could be edited on the phone): level 5 or more earns the Founder tag.
     if (!out.founder && levelOf(out.xp).level >= 5) out.founder = true;
     out.boosts = cleanBoosts(saved.boosts);

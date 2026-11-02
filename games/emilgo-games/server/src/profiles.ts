@@ -27,6 +27,8 @@ export interface Profile {
   lastDay: string;
   /** Commends from other players after matches (SPEC-V3 §10.12): a cosmetic title. */
   honour: number;
+  /** Wins in a row, now (§10.18: the streak glow). */
+  streak: number;
 }
 
 export interface ProfileStore {
@@ -62,29 +64,31 @@ export class SqliteProfiles implements ProfileStore {
     // Phase 6: commends (an older file gains the column).
     const cols = this.db.prepare("PRAGMA table_info(profiles)").all() as { name: string }[];
     if (!cols.some((c) => c.name === "honour")) this.db.exec("ALTER TABLE profiles ADD COLUMN honour INTEGER NOT NULL DEFAULT 0");
+    if (!cols.some((c) => c.name === "streak")) this.db.exec("ALTER TABLE profiles ADD COLUMN streak INTEGER NOT NULL DEFAULT 0");
     this.q = {
-      get: this.db.prepare("SELECT key, xp, matches, wins, last_day, honour FROM profiles WHERE key = ?"),
+      get: this.db.prepare("SELECT key, xp, matches, wins, last_day, honour, streak FROM profiles WHERE key = ?"),
       commend: this.db.prepare(
         `INSERT INTO profiles (key, xp, matches, wins, last_day, created_at, updated_at, honour) VALUES (?, 0, 0, 0, '', ?, ?, 1)
          ON CONFLICT(key) DO UPDATE SET honour = honour + 1, updated_at = excluded.updated_at`,
       ),
       upsert: this.db.prepare(
-        `INSERT INTO profiles (key, xp, matches, wins, last_day, created_at, updated_at) VALUES (?, ?, 1, ?, ?, ?, ?)
+        `INSERT INTO profiles (key, xp, matches, wins, last_day, created_at, updated_at, streak) VALUES (?, ?, 1, ?, ?, ?, ?, ?)
          ON CONFLICT(key) DO UPDATE SET xp = xp + excluded.xp, matches = matches + 1, wins = wins + excluded.wins,
-           last_day = excluded.last_day, updated_at = excluded.updated_at`,
+           last_day = excluded.last_day, updated_at = excluded.updated_at,
+           streak = CASE WHEN excluded.wins > 0 THEN streak + 1 ELSE 0 END`,
       ),
       remove: this.db.prepare("DELETE FROM profiles WHERE key = ?"),
     };
   }
 
   get(key: string): Profile | null {
-    const r = this.q.get.get(key) as { key: string; xp: number; matches: number; wins: number; last_day: string; honour: number } | undefined;
-    return r ? { key: r.key, xp: Number(r.xp), matches: Number(r.matches), wins: Number(r.wins), lastDay: r.last_day, honour: Number(r.honour) } : null;
+    const r = this.q.get.get(key) as { key: string; xp: number; matches: number; wins: number; last_day: string; honour: number; streak: number } | undefined;
+    return r ? { key: r.key, xp: Number(r.xp), matches: Number(r.matches), wins: Number(r.wins), lastDay: r.last_day, honour: Number(r.honour), streak: Number(r.streak) } : null;
   }
 
   award(key: string, xp: number, won: boolean, day: string): Profile {
     const t = Date.now();
-    this.q.upsert.run(key, Math.max(0, Math.round(xp)), won ? 1 : 0, day, t, t);
+    this.q.upsert.run(key, Math.max(0, Math.round(xp)), won ? 1 : 0, day, t, t, won ? 1 : 0);
     return this.get(key)!;
   }
 

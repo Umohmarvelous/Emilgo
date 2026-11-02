@@ -55,7 +55,7 @@ import { Identity, SqliteProfiles, utcDay, type ProfileStore } from "./profiles"
 import { Room } from "./room";
 import { matchXp } from "../../src/rank/xp";
 import { BOOST_IDS, BOOST_SLOTS } from "../../src/shop/boosts";
-import { allowedLook } from "../../src/shop/catalog";
+import { allowedLook, type WireLook } from "../../src/shop/catalog";
 import { Shop } from "./shop";
 import { SqliteStore } from "./store";
 import { VatarApi, vatarConfigFromEnv, webhookSigned } from "./vatar";
@@ -92,11 +92,19 @@ Room.onAward = (peer, facts) => {
   const gain = matchXp({ ...facts, firstToday: !!peer.profile && had?.lastDay !== day });
   if (peer.profile) {
     const p = profiles.award(peer.profile, gain, facts.won, day);
-    peer.send({ t: "rank", xp: p.xp, gain });
+    peer.streak = p.streak;
+    peer.look = withStreak(peer.look, p.streak);
+    peer.send({ t: "rank", xp: p.xp, gain, st: p.streak });
   } else {
     peer.send({ t: "rank", gain, off: 1 });
   }
 };
+
+/** The streak glow (§10.18): on the look everyone sees, from the profile (3 wins in a row or more), never from the phone. */
+function withStreak(look: WireLook, streak: number): WireLook {
+  const { st: _, ...rest } = look;
+  return streak >= 3 ? { ...rest, st: Math.min(99, streak) } : rest;
+}
 
 // Commends (§10.12): counted on the commended player's profile (a guest just hears it).
 Room.onCommend = (from, to) => {
@@ -339,7 +347,7 @@ function handle(peer: Peer, msg: ClientMsg): void {
       // Only what a genuine ticket says you own is ever shown to anyone.
       const t = msg.ticket ? shop?.verify(msg.ticket) : null;
       peer.owned = new Set(t?.o ?? []);
-      peer.look = allowedLook(msg.look, peer.owned);
+      peer.look = withStreak(allowedLook(msg.look, peer.owned), peer.streak);
       // The room shows everyone's look while they wait together.
       lobby.roomOf(peer)?.broadcastRoom();
       break;
@@ -377,7 +385,9 @@ function handle(peer: Peer, msg: ClientMsg): void {
         .then((key) => {
           peer.profile = key;
           const p = profiles.get(key);
-          peer.send({ t: "rank", xp: p?.xp ?? 0, ...(p?.honour ? { hon: p.honour } : {}) });
+          peer.streak = p?.streak ?? 0;
+          peer.look = withStreak(peer.look, peer.streak);
+          peer.send({ t: "rank", xp: p?.xp ?? 0, ...(p?.honour ? { hon: p.honour } : {}), st: peer.streak });
         })
         .catch(() => {
           peer.profile = null;

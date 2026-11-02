@@ -39,6 +39,8 @@ export class Peer {
   /** What this player owns (from a verified ticket) and is wearing. */
   owned: ReadonlySet<string> = new Set();
   look: WireLook = {};
+  /** Wins in a row on this player's profile (0 for a guest). */
+  streak = 0;
   /** CP boosts this player brings to free rooms (SPEC-V2 §7.7), at most BOOST_SLOTS. */
   boosts: BoostId[] = [];
   /** Rank profile key (profiles.ts), once the phone has proved who it is; null for guests. */

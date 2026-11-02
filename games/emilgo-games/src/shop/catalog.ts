@@ -65,6 +65,8 @@ export interface WireLook {
   ht?: number;
   /** Gold name badge. */
   b?: 1;
+  /** Wins in a row (SPEC-V3 §10.18), 3 or more: the streak glow. Only ever set by the server, from the profile. */
+  st?: number;
 }
 
 /** Keep only what is valid and, for paid items, owned. Used by the server on everything a phone claims. */

@@ -107,6 +107,9 @@ class LocalSource implements Source {
   dispose(): void {}
 }
 
+/** The winning-streak glow on someone's clothes. */
+const STREAK_GLOW = 0x5a3c00;
+
 /** A squad ping stays on the map this long (s). */
 const PING_SHOW = 8;
 
@@ -162,6 +165,10 @@ export class FfaMode implements GameMode {
     const looks: Look[] = m.contestants.map((c, i) => (c === me ? h.myLook() : wire[i] ? fromWire(wire[i]!) : randomLook(new Rng((rng.next() * 1e9) ^ (i * 977)))));
     this.looks = looks;
     h.crowd.setup(looks, me.index);
+    // The streak glow (§10.18): 3 wins in a row or more, as the server's profile says.
+    wire.forEach((w, i) => {
+      if ((w?.st ?? 0) >= 3) h.crowd.setTint(i, null, STREAK_GLOW);
+    });
     h.crowd.hideMyHead = h.rig.firstPerson;
 
     // The world, its sky, and the camera's walls.

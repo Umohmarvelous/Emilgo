@@ -60,6 +60,10 @@ const store = new SqliteProfiles(":memory:");
 store.award("em:abc", 200, true, "2026-10-28");
 const p = store.award("em:abc", 50, false, "2026-10-29");
 check(p.xp === 250 && p.matches === 2 && p.wins === 1 && p.lastDay === "2026-10-29", "awards add up");
+for (const won of [true, true, true]) store.award("em:abc", 10, won, "2026-10-30");
+check(store.get("em:abc")!.streak === 3, "three wins in a row: a streak of 3 (§10.18)");
+check(store.award("em:abc", 10, false, "2026-10-30").streak === 0, "a loss ends it");
+check(store.commend("em:abc") === 1 && store.commend("em:abc") === 2 && store.commend("em:new") === 1, "commends count up, and a first commend makes the profile (§10.12)");
 check(store.remove("em:abc") && store.get("em:abc") === null, "deleted on request");
 
 console.log("\nEMILGO tokens:");

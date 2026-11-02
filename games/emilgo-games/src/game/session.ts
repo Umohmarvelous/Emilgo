@@ -1877,6 +1877,7 @@ export class Game {
         break;
       case "rank":
         if (m.hon !== undefined) this.settings.honour = m.hon;
+        if (m.st !== undefined) this.settings.streak = m.st;
         this.onRank(m);
         break;
       case "honour":
@@ -3368,6 +3369,8 @@ export class Game {
     };
     this.pendingGain = null;
     if (r.won) this.settings.wins++;
+    // The Form badge (§10.18): online matches only.
+    if (online) this.settings.form = ((r.won ? "W" : "L") + this.settings.form).slice(0, 5);
     this.endFfa();
     this.hud.show(false);
     this.view = "lobby";

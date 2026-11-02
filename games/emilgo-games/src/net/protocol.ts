@@ -266,7 +266,7 @@ export type ServerMsg =
    * earned (gain), or off: no profile (a guest, or the identity didn't check
    * out: the phone keeps its own count for this device only).
    */
-  | { t: "rank"; xp?: number; gain?: number; off?: 1; hon?: number }
+  | { t: "rank"; xp?: number; gain?: number; off?: 1; hon?: number; st?: number }
   /** Someone commended you (§10.12); n: your commends now (none for a guest). */
   | { t: "honour"; by: string; n?: number };
 
