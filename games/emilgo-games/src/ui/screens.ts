@@ -6,7 +6,7 @@
 // came from outside (a player's display name) goes through esc() — never raw
 // into innerHTML. Text is white or black; nothing is bigger than 16px; no emoji.
 
-import { DISTANCES, FLOW, MODES, MODE_NAME, NET, PRACTICE, STAKED, TIME_LIMIT, ballCount } from "../config";
+import { DISTANCES, FLOW, MODES, MODE_NAME, NET, PRACTICE, SQUAD_COLORS, STAKED, TIME_LIMIT, ballCount } from "../config";
 import { CONTROLS, RLGL_CONTROLS, unusedReason } from "../input/actions";
 import type { ChallengeDef } from "../game/progress";
 import { CATEGORIES, MAPS, SKY_LABEL, SKY_STATES, mapOf, thumbSvg, type MapCategory, type SkyState } from "../maps/registry";
@@ -1192,6 +1192,36 @@ export class Screens {
   /** Solo: a moment while the map is built. */
   loading(): void {
     this.mount("loading", `<div class="sq-status glass sq-loading" style="bottom:50%"><span>Loading</span><i class="sq-load busy"><b></b></i></div>`);
+  }
+
+  /**
+   * The match loading screen (SPEC-V3 §12, Brief 1): your squad's cards (or you
+   * alone in a run) over the 3D people on the stage behind, a map card with
+   * the mode and its one-line goal, and a danfo route sign that fills as the
+   * world builds. A Pidgin radio line. Free For All in Harmattan gold, Dead
+   * Streets red-black with lightning behind.
+   */
+  matchLoading(s: { kind: "ffa" | "run"; mode: string; goal: string; time: number; map: string; players: { name: string; rank: string; squad: number; me: boolean }[]; best?: number; daily?: string; top?: number[] }): void {
+    const lines = s.kind === "run"
+      ? ["Oya, the Mast dey wait. No waste time o!", "Dem talk say churches and mosques safe. Remember am.", "Torch battery na life. No play with am.", "If you hear drum, run go find cover!"]
+      : ["Oya, the flag dey hide for market side o!", "Zone don dey close. Shine your eye!", "Danfo dey road. No stand for front!", "Na who sharp pass go win today o!"];
+    const line = lines[Math.floor(Math.random() * lines.length)];
+    const cards = s.players
+      .map((p) => `<div class="ld-card ${p.me ? "me" : ""}" style="--sq:${SQUAD_COLORS[p.squad % SQUAD_COLORS.length]}"><span class="bar"></span><b>${esc(p.name)}</b><small>${esc(p.rank)}</small>${p.me ? `<span class="tick">${icon("check", "", 12)}</span>` : ""}</div>`)
+      .join("");
+    const extra = s.kind === "run"
+      ? `${s.best ? `<span class="small">${esc(t("Your best"))}: <b class="num">${fmtTime(s.best)}</b> · ${esc(t("its ghost runs with you"))}</span>` : ""}
+         ${s.daily ? `<span class="small">${esc(t("Daily Run"))}: <b>${esc(s.daily)}</b></span>` : ""}
+         ${s.top?.length ? `<span class="small">${esc(t("Today's best"))}: ${s.top.slice(0, 3).map((x, i) => `${i + 1}. <b class="num">${fmtTime(x)}</b>`).join(" · ")}</span>` : ""}`
+      : "";
+    this.mount(
+      "room",
+      `<div class="loadscreen ${s.kind}">
+        <div class="ld-people">${cards}</div>
+        <div class="ld-map glass"><span class="label">${esc(s.map)}</span><b class="ld-mode">${esc(s.mode)}</b><span class="small">${esc(s.goal)}</span><span class="small">${Math.round(s.time / 60)} min</span>${extra}<span class="ld-radio">“${esc(line)}”</span><button class="btn secondary ld-cancel" data-act="leave-room">Cancel</button></div>
+        <div class="ld-sign"><span class="ld-route">${["Building world", "Spawning items", s.kind === "run" ? "Waking the dead" : "Syncing players"].map((x, i) => `<i class="stop" style="animation-delay:${i * 1.1}s"></i><span>${esc(t(x))}</span>`).join("")}</span></div>
+      </div>`,
+    );
   }
 
   /** A short holding card while the server answers. */

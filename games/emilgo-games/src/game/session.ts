@@ -296,6 +296,8 @@ export class Game {
   private runTok: { id: string; seed: number } | null = null;
   private runWait: ((tok: { id: string; seed: number } | null) => void) | null = null;
   private runWeapon = "pistol";
+  /** Today's best Daily Run times, as the server last said (the loading screen's top 3). */
+  private dailyTop: number[] = [];
   private ffaWait: { start: StartInfo; log: WireEvent[]; snap?: MatchSnap } | null = null;
   private ffaRes: FfaResultView | null = null;
   private party: { code: string; members: { id: string; name: string }[]; lead: string } | null = null;
@@ -1924,6 +1926,7 @@ export class Game {
         this.runWait?.({ id: m.id, seed: m.seed });
         break;
       case "runres": {
+        if (m.daily && m.board) this.dailyTop = m.board.map((b) => b.secs);
         const f = this.ffaRes;
         if (f) {
           f.runNote = m.ok ? `${t("Checked")}: +${m.gain ?? 0} XP${m.place ? ` · ${ordinal(m.place)} ${t("on the board")}` : ""}` : `${t("Not counted")}: ${m.why ?? ""}`;
@@ -2064,6 +2067,25 @@ export class Game {
     this.toLobby();
     this.playError = "Your connection dropped for too long, so you lost your place.";
     this.showPlay();
+  }
+
+  /** The match loading screen (Brief 1) while the world builds: you on the stage, the cards, the map card, the route sign. */
+  private showLoading(kind: "ffa" | "run", def: ModeDef, players?: { name: string; rank: string; squad: number; me: boolean }[]): void {
+    this.view = "lobby";
+    this.stage.setMode("lobby");
+    this.stage.setDummy(false);
+    this.stage.setLook(this.myLook(), this.settings.lobbyPose);
+    this.stage.setFraming("center");
+    const me = { name: this.host.player.name || "You", rank: rankOf(this.rankXp).name, squad: 0, me: true };
+    this.screens.matchLoading({
+      kind,
+      mode: def.name.en,
+      goal: def.blurb.en,
+      time: def.time,
+      map: kind === "run" ? "Spooky World" : def.map.includes(":") ? "Naija World · the market" : "Naija World",
+      players: players?.length ? players.map((p) => (p.me ? { ...p, rank: me.rank } : p)) : [me],
+      ...(kind === "run" ? { best: this.settings.runBest, ...(this.settings.runDaily ? { daily: new Date().toISOString().slice(0, 10) } : {}), top: this.dailyTop } : {}),
+    });
   }
 
   private showWaiting(text: string): void {
@@ -3353,7 +3375,7 @@ export class Game {
     this.leaveOnline();
     this.endRound();
     this.mode = "practice";
-    this.showWaiting("Building Spooky World…");
+    this.showLoading("run", def);
     // Online, the server hands out the run (its seed and the clock); offline it's played, not counted.
     const net = this.net;
     const tok =
@@ -3385,7 +3407,7 @@ export class Game {
     this.leaveOnline();
     this.endRound();
     this.mode = "practice";
-    this.showWaiting("Building Naija World…");
+    this.showLoading("ffa", def);
     void this.ensureNaija().then((w) => {
       // Cancelled while it built.
       if (this.screens.name !== "room" || this.room || this.gm) return;
@@ -3408,7 +3430,9 @@ export class Game {
     const w = this.naija?.tier === this.spec.tier ? this.naija.w : null;
     if (!w) {
       this.ffaWait = { start, log: [...log], snap };
-      this.showWaiting("Building Naija World…");
+      const def = this.content.manifest.modes.find((d) => d.id === start.ffa?.mode);
+      if (def) this.showLoading("ffa", def, start.roster.map((r, i) => ({ name: r.name, rank: "", squad: start.ffa?.sq[i] ?? i, me: r.id === this.meId })));
+      else this.showWaiting("Building Naija World…");
       void this.ensureNaija().then(() => {
         const wait = this.ffaWait;
         if (!wait || !this.naija?.w) return;
