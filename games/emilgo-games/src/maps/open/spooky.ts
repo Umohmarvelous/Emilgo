@@ -23,7 +23,7 @@ const HALF = 160;
 const ROAD_W = 8;
 
 /** The route, corner by corner (each leg is a street). */
-const ROUTE: readonly [number, number][] = [
+export const SPOOKY_ROUTE: readonly [number, number][] = [
   [-130, -135], [-130, -95], [-70, -95], [-70, -140], [0, -140], [0, -100], [60, -100], [60, -140], [130, -140], [130, -70],
   [80, -70], [80, -20], [130, -20], [130, 40], [60, 40], [0, 40], [0, -30], [-60, -30], [-60, 40], [-130, 40], [-130, 110],
   [-40, 110], [-40, 140], [60, 140], [125, 140],
@@ -147,13 +147,13 @@ export function buildSpookyWorld(seed = 4013): OpenLayout & { run: SpookyRun } {
   const nextV = () => (rng.next() * 4294967296) >>> 0;
 
   const at: number[] = [0];
-  for (let i = 1; i < ROUTE.length; i++) at.push(at[i - 1] + Math.hypot(ROUTE[i][0] - ROUTE[i - 1][0], ROUTE[i][1] - ROUTE[i - 1][1]));
+  for (let i = 1; i < SPOOKY_ROUTE.length; i++) at.push(at[i - 1] + Math.hypot(SPOOKY_ROUTE[i][0] - SPOOKY_ROUTE[i - 1][0], SPOOKY_ROUTE[i][1] - SPOOKY_ROUTE[i - 1][1]));
   const run: SpookyRun = {
-    route: ROUTE.map(([x, z]) => [x, z]),
+    route: SPOOKY_ROUTE.map(([x, z]) => [x, z]),
     at,
     length: at[at.length - 1],
-    start: [ROUTE[0][0], ROUTE[0][1] + 6],
-    finish: [ROUTE[ROUTE.length - 1][0], ROUTE[ROUTE.length - 1][1]],
+    start: [SPOOKY_ROUTE[0][0], SPOOKY_ROUTE[0][1] + 6],
+    finish: [SPOOKY_ROUTE[SPOOKY_ROUTE.length - 1][0], SPOOKY_ROUTE[SPOOKY_ROUTE.length - 1][1]],
     sanctuaries: [],
     obstacles: [],
     hazards: [],
@@ -161,9 +161,9 @@ export function buildSpookyWorld(seed = 4013): OpenLayout & { run: SpookyRun } {
   };
   // Streets: every leg of the route, a little longer so the corners join.
   const roads: Road[] = [];
-  for (let i = 0; i + 1 < ROUTE.length; i++) {
-    const [ax, az] = ROUTE[i];
-    const [bx, bz] = ROUTE[i + 1];
+  for (let i = 0; i + 1 < SPOOKY_ROUTE.length; i++) {
+    const [ax, az] = SPOOKY_ROUTE[i];
+    const [bx, bz] = SPOOKY_ROUTE[i + 1];
     const len = Math.hypot(bx - ax, bz - az);
     const ux = (bx - ax) / len;
     const uz = (bz - az) / len;

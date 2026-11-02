@@ -22,6 +22,7 @@ import {
   type Fog,
   HemisphereLight,
   ConeGeometry,
+  CylinderGeometry,
   DoubleSide,
   Group,
   IcosahedronGeometry,
@@ -38,17 +39,35 @@ import { SURVIVAL } from "../config";
 import type { Tier } from "../graphics/tiers";
 import type { Match } from "../game/core/match";
 import type { MatchEvent } from "../game/core/module";
+import { LORE } from "../content/lore";
+import { ghostAt, loadGhost } from "../game/ghost";
+import { itemName } from "../ui/play";
 import type { SurvivalModule } from "../game/modules/survival";
 import { routeAt } from "../maps/open/spooky";
 import { el, esc, fmtTime } from "../ui/dom";
 import type { Hud, ItemPin } from "../ui/hud";
-import { t } from "../ui/i18n";
+import { getLang, t } from "../ui/i18n";
 import type { MapMark } from "../ui/minimap";
 import type { Crowd } from "./crowd";
 
 const ZOMBIE_TINT = 0x8a9878;
 const ZOMBIE_GLOW = 0x200404;
+/** Each kind's paint (§3.4 #2): tint and glow. The bounty zombie glows gold. */
+const KIND_PAINT: Record<string, [number, number]> = {
+  shambler: [0x8a9878, 0x200404],
+  runner: [0x9aa58a, 0x300808],
+  crawler: [0x6f7a60, 0x180303],
+  bloater: [0xb0b070, 0x2a2a00],
+  screamer: [0xc8c8b8, 0x301010],
+  brute: [0x7a6a5a, 0x401008],
+  lurker: [0x5f8070, 0x002018],
+  masked: [0x5a5048, 0x3a2a10],
+};
+const BOUNTY_GLOW = 0x6a4a00;
+const REVEAL_GLOW = 0xff4a20;
 const _m = new Matrix4();
+/** The run's weekly mutators by name (§3.4 #11). */
+export const RUN_MUTATOR_NAME: Record<string, string> = { haze: "Harmattan Haze", runners: "Double Runners", onebullet: "One Bullet", notorch: "No Torch" };
 const REDDENED = new WeakSet<Fog>();
 
 export interface DeadViewOptions {
@@ -78,6 +97,16 @@ export class DeadView {
   private boltT = -1;
   private thunderAt = -1;
   private thunderNear = 0;
+  /** Lightning reveals (§3.4 #5): zombies outlined until then. */
+  private revealUntil = -1;
+  private readonly paint: [number, number][] = [];
+  private readonly gasEl = el("div", "gaswash");
+  /** Birds on the roofs (§3.4 #15): where each flock sits, and when it took off (−1: sitting). */
+  private flocks: { x: number; z: number; up: number }[] = [];
+  private bellAt = 20;
+  /** Your best run's ghost (§3.4 #12), raced: its trace and its body. */
+  private ghost: number[] | null = null;
+  private ghostMesh: Mesh | null = null;
 
   constructor(o: DeadViewOptions) {
     this.o = o;
@@ -98,7 +127,7 @@ export class DeadView {
     this.bits.count = 0;
     this.group.add(this.bits);
     this.hudEl.setAttribute("role", "status");
-    o.layer.append(this.hudEl, this.nvEl);
+    o.layer.append(this.hudEl, this.nvEl, this.gasEl);
   }
 
   /** Every zombie in paint, every sleeping one hidden; the night's sky a little red. */
@@ -110,7 +139,19 @@ export class DeadView {
       fog.color.lerp(red, 0.45);
       clear?.lerp(red, 0.45);
     }
+    // Your best run's ghost, if this phone has one.
+    this.ghost = loadGhost();
+    if (this.ghost) {
+      this.ghostMesh = new Mesh(new CylinderGeometry(0.28, 0.24, 1.7, 10).translate(0, 0.85, 0), new MeshBasicMaterial({ color: 0x9ad8ff, transparent: true, opacity: 0.28, blending: AdditiveBlending, depthWrite: false }));
+      this.group.add(this.ghostMesh);
+    }
+    const run = m.module<SurvivalModule>("survival")?.run;
+    if (run) for (let d = 60; d < run.length - 60; d += 150) {
+      const p = routeAt(run, d);
+      this.flocks.push({ x: p.x + p.uz * 6, z: p.z - p.ux * 6, up: -1 });
+    }
     for (let i = 1; i < m.contestants.length; i++) {
+      this.paint[i] = [ZOMBIE_TINT, ZOMBIE_GLOW];
       this.o.crowd.setTint(i, ZOMBIE_TINT, ZOMBIE_GLOW);
       this.o.crowd.setHidden(i, true);
       this.hidden[i] = true;
@@ -127,6 +168,10 @@ export class DeadView {
           if (!z) break;
           this.o.crowd.setHidden(z.index, false);
           this.hidden[z.index] = false;
+          const p = KIND_PAINT[e.kind ?? "shambler"] ?? KIND_PAINT.shambler;
+          this.paint[z.index] = [p[0], e.bounty ? BOUNTY_GLOW : p[1]];
+          this.o.crowd.setTint(z.index, p[0], e.bounty ? BOUNTY_GLOW : p[1]);
+          if (e.bounty) this.o.hud.pushFeed(t("A zombie with a gold key: put it down"), "info");
           this.o.crowd.revive(z.index);
           this.rising.set(z.index, 0);
           break;
@@ -160,6 +205,40 @@ export class DeadView {
           else if (e.how === "open") this.o.hud.pushFeed(t("The way is open"), "safe");
           else if (e.how === "hit") this.o.hud.pushFeed(`${e.n} / ${SURVIVAL.blows}`, "info");
           break;
+        case "horde":
+          s?.talkingDrum();
+          break;
+        case "scream": {
+          const z = m.get(e.id);
+          s?.scream(z ? Math.max(0.2, 1 - Math.hypot(z.x - me.x, z.z - me.z) / 50) : 0.5);
+          this.o.hud.pushFeed(t("A Screamer: more are coming"), "out");
+          break;
+        }
+        case "charge":
+          this.o.hud.pushFeed(t("A Brute charges: side-step!"), "out");
+          s?.thud(0.8);
+          break;
+        case "grabbed":
+          this.o.hud.pushFeed(t("Grabbed by the legs: strike down to break free"), "out");
+          this.o.hud.flashRed();
+          break;
+        case "gas":
+          this.o.hud.pushFeed(t("Pepper gas"), "info");
+          break;
+        case "stand":
+          this.o.hud.pushFeed(t("The Last Stand: hold the Mast until the gate opens"), "info");
+          s?.talkingDrum();
+          break;
+        case "find": {
+          if (e.kind === "lore") {
+            const l = LORE[e.n];
+            if (l) this.o.hud.pushFeed(`${t(l.kind === "radio" ? "Radio" : l.kind === "diary" ? "A diary page" : "A cutting")}: ${getLang() === "pcm" ? l.text.pcm : l.text.en}`, "info");
+          } else if (e.kind === "cache") this.o.hud.pushFeed(`${t("Grandma's tin box")}: ${e.items.map((k) => itemName(k)).join(", ")}`, "safe");
+          else if (e.kind === "vault") this.o.hud.pushFeed(`${t("The vault")}: ${e.items.map((k) => itemName(k)).join(", ")}`, "safe");
+          else if (e.kind === "key") this.o.hud.pushFeed(t("The gold key: find the vault"), "safe");
+          else if (e.kind === "egg") this.o.hud.pushFeed(e.n < 3 ? `${"✦".repeat(e.n)} ${t("Her eyes glint…")}` : t("Something opened nearby"), "info");
+          break;
+        }
         case "kit":
           if (e.why === "sanctuary") this.o.hud.pushFeed(t("A sanctuary: rest here a moment"), "safe");
           break;
@@ -175,6 +254,7 @@ export class DeadView {
     const sv = m.module<SurvivalModule>("survival");
     const me = m.contestants[this.o.me];
     if (!sv) return { pin: null };
+    const run0 = sv.run;
     // Zombies: rising out of the ground; asleep in the pool, hidden.
     for (let i = 1; i < m.contestants.length; i++) {
       const z = m.contestants[i];
@@ -212,6 +292,9 @@ export class DeadView {
       this.flash.color.setHex(Math.random() < 0.5 ? 0xff5a2a : 0xff9a3a);
       const far = 0.3 + Math.random() * 0.7;
       this.thunderAt = this.time + far * 2.5;
+      // Lightning reveals: every zombie outlined for a moment.
+      this.revealUntil = this.time + 0.3;
+      for (let i = 1; i < m.contestants.length; i++) if (sv.state[i] !== 0) this.o.crowd.setTint(i, this.paint[i]?.[0] ?? ZOMBIE_TINT, REVEAL_GLOW);
       this.thunderNear = 1 - far * 0.7;
     }
     if (this.boltT >= 0) {
@@ -220,9 +303,30 @@ export class DeadView {
       this.flash.intensity = u < 1 ? 2.6 * (1 - u) * (0.6 + 0.4 * Math.sin(this.boltT * 120)) : 0;
       if (u >= 1) this.boltT = -1;
     }
+    if (this.revealUntil >= 0 && this.time >= this.revealUntil) {
+      this.revealUntil = -1;
+      for (let i = 1; i < m.contestants.length; i++) {
+        const p = this.paint[i];
+        if (p) this.o.crowd.setTint(i, p[0], p[1]);
+      }
+    }
+    // The pepper gas; a bell from a sanctuary near (soft, never a jump scare).
+    this.gasEl.classList.toggle("on", m.elapsed < sv.gasUntil);
+    if (this.time >= this.bellAt && run0) {
+      this.bellAt = this.time + 22;
+      let best = Infinity;
+      for (const sa of run0.sanctuaries) best = Math.min(best, Math.hypot(sa.x - me.x, sa.z - me.z));
+      if (best > 12 && best < 70) this.o.sound?.bell(1 - best / 70);
+    }
     if (this.thunderAt >= 0 && this.time >= this.thunderAt) {
       this.thunderAt = -1;
       this.o.sound?.explosion(this.thunderNear * 0.5);
+    }
+    // The ghost runs your best.
+    if (this.ghost && this.ghostMesh) {
+      const g = ghostAt(this.ghost, m.elapsed);
+      this.ghostMesh.visible = !!g;
+      if (g) this.ghostMesh.position.set(g.x, g.h, g.z);
     }
     // Night vision.
     this.nvEl.classList.toggle("on", m.elapsed < sv.nvUntil);
@@ -256,6 +360,27 @@ export class DeadView {
           if (Math.hypot(x - me.x, z - me.z) < 25) pin = { x, z, kind: "rare" };
         }
       }
+      // What to find: chalk marks by the caches, lore's pages, the vault, the doll's eyes.
+      for (const f of sv.finds) {
+        if (sv.found.has(f.k) || n >= 64 || Math.hypot(f.x - cam.x, f.z - cam.z) > 30) continue;
+        const bob = Math.sin(this.time * 2 + f.k) * 0.05;
+        const sc = f.kind === "lore" ? 0.6 : f.kind === "egg" ? 0.5 : 1;
+        _m.makeScale(sc, sc, sc).setPosition(f.x, (f.kind === "egg" ? 1.4 : 0.5) + bob, f.z);
+        this.bits.setMatrixAt(n++, _m);
+      }
+      // Birds on the roofs till you run near, then up and away.
+      for (const fl of this.flocks) {
+        const d = Math.hypot(fl.x - me.x, fl.z - me.z);
+        if (fl.up < 0 && d < 14 && me.sprinting) fl.up = this.time;
+        if (fl.up >= 0 && this.time - fl.up > 40) fl.up = -1;
+        if (d > 45 || (fl.up >= 0 && this.time - fl.up > 4)) continue;
+        for (let k = 0; k < 6 && n < 64; k++) {
+          const u = fl.up >= 0 ? this.time - fl.up : 0;
+          const a = k * 1.05;
+          _m.makeScale(0.35, 0.2, 0.35).setPosition(fl.x + Math.cos(a) * (0.8 + u * 5), 4.2 + u * 6 + Math.sin(this.time * 9 + k) * (u > 0 ? 0.3 : 0), fl.z + Math.sin(a) * (0.8 + u * 5));
+          this.bits.setMatrixAt(n++, _m);
+        }
+      }
       // The Mast: a flare over the finish.
       marks.push({ x: run.finish[0], z: run.finish[1], kind: "goal", r: SURVIVAL.finish });
       if (!pin) {
@@ -268,13 +393,15 @@ export class DeadView {
     this.bits.instanceMatrix.needsUpdate = true;
     // The run's HUD (redrawn only when a number changes).
     const bleed = Math.max(0, 720 - m.elapsed);
-    const key = `${Math.ceil(sv.hp)}|${Math.round(sv.armour)}|${sv.ammo}|${Math.round(sv.torch)}|${Math.ceil(bleed)}|${Math.round(sv.tally.route * 100)}|${m.elapsed < sv.nvUntil}`;
+    const stand = sv.standAt >= 0 && !sv.tally.finished ? Math.max(0, Math.ceil(sv.standAt + SURVIVAL.stand.s - m.elapsed)) : -1;
+    const key = `${stand}|${Math.ceil(sv.hp)}|${Math.round(sv.armour)}|${sv.ammo}|${Math.round(sv.torch)}|${Math.ceil(bleed)}|${Math.round(sv.tally.route * 100)}|${m.elapsed < sv.nvUntil}`;
     if (key !== this.hudKey) {
       this.hudKey = key;
       const hp = Math.max(0, Math.min(100, sv.hp));
       this.hudEl.innerHTML = `<div class="bar hp"><i style="width:${hp}%"></i><span>${Math.ceil(hp)}</span></div>
         ${sv.armour > 0 ? `<div class="bar ar"><i style="width:${Math.min(100, sv.armour)}%"></i></div>` : ""}
         <div class="row"><span>${esc(t("Rounds"))} <b class="num">${sv.ammo}</b></span><span>${esc(t("Torch"))} <b class="num">${Math.round(sv.torch)}%</b></span></div>
+        ${stand >= 0 ? `<div class="row stand"><span>${esc(t("Hold the Mast"))}</span><b class="num">${stand} s</b></div>` : ""}
         <div class="row"><span class="${bleed <= 0 ? "bleed" : ""}">${bleed > 0 ? `${esc(t("Bleed in"))} <b class="num">${fmtTime(bleed)}</b>` : esc(t("Bleeding"))}</span><span><b class="num">${Math.round(sv.tally.route * 100)}%</b></span></div>`;
     }
     return { pin };
@@ -283,9 +410,14 @@ export class DeadView {
   dispose(): void {
     this.hudEl.remove();
     this.nvEl.remove();
+    this.gasEl.remove();
     this.torch.dispose();
     this.cone.geometry.dispose();
     (this.cone.material as MeshBasicMaterial).dispose();
     this.bits.dispose();
+    if (this.ghostMesh) {
+      this.ghostMesh.geometry.dispose();
+      (this.ghostMesh.material as MeshBasicMaterial).dispose();
+    }
   }
 }

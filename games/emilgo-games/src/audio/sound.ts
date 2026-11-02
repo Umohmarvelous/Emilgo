@@ -911,6 +911,27 @@ export class Sound {
   }
 
   /** The radio: a burst of static and two blips (a hint is in). */
+  /** Dead Streets (§3.4 #18): a church bell far off, soft (a sanctuary near). Never a jump scare. */
+  bell(near: number): void {
+    if (near <= 0.02) return;
+    const t = this.now;
+    for (const [f, g] of [[392, 1], [784, 0.35], [1175, 0.18]] as const) this.tone(f, t, 3.2, { type: "sine", gain: 0.05 * g * near, attack: 0.005 });
+  }
+
+  /** A Screamer's call (§3.4 #2): a rising, ragged wail. */
+  scream(near: number): void {
+    if (near <= 0.02) return;
+    const t = this.now;
+    this.tone(420, t, 1.1, { type: "sawtooth", gain: 0.06 * near, to: 980, attack: 0.08 });
+    this.noise(t, 1.0, { gain: 0.05 * near, freq: 1400, type: "bandpass" });
+  }
+
+  /** The talking drum before a horde (§3.4 #1): three quick bent tones. */
+  talkingDrum(): void {
+    const t = this.now;
+    [0, 0.18, 0.32].forEach((at, i) => this.tone(i === 1 ? 220 : 180, t + at, 0.22, { type: "sine", gain: 0.12, to: i === 1 ? 300 : 120, attack: 0.005 }));
+  }
+
   radio(): void {
     const t = this.now;
     this.noise(t, 0.35, { gain: 0.08, freq: 2000, type: "bandpass" });

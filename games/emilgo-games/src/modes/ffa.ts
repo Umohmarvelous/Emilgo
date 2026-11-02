@@ -113,6 +113,11 @@ class LocalSource implements Source {
   dispose(): void {}
 }
 
+/** A run's result: the tally, the trace, and the caches, lore and vault it missed. */
+function runResult(sv: SurvivalModule, trace: number[]): NonNullable<ModeResult["run"]> {
+  return { tally: { ...sv.tally }, trace: trace.slice(), missed: sv.finds.filter((f) => !sv.found.has(f.k) && f.kind !== "egg").map((f) => [f.x, f.z] as [number, number]) };
+}
+
 /** The winning-streak glow on someone's clothes. */
 const STREAK_GLOW = 0x5a3c00;
 
@@ -223,6 +228,11 @@ export class FfaMode implements GameMode {
     if (this.dead) {
       h.scene.add(this.dead.group);
       this.dead.setup(m, world.fog, world.clear);
+      // Harmattan Haze week (§3.4 #11): the dust over the dead city.
+      if (m.module<SurvivalModule>("survival")?.mutator === "haze") {
+        this.dust = this.dustSet = 0.6;
+        world.setDust(0.6, HARMATTAN.see * 1.4);
+      }
       h.renderer.setClearColor(world.clear);
     }
 
@@ -722,7 +732,7 @@ export class FfaMode implements GameMode {
       measure: measureName(m),
       ...(this.best.text ? { play: this.best.text } : {}),
       trail: this.trail,
-      ...(this.dead ? { run: { tally: { ...m.module<SurvivalModule>("survival")!.tally }, trace: this.trace.slice() } } : {}),
+      ...(this.dead ? { run: runResult(m.module<SurvivalModule>("survival")!, this.trace) } : {}),
     };
     this.host.onEnd(r);
   }

@@ -81,5 +81,5 @@ export interface ModeResult {
   /** Where you went (§10.22): x, z every second, and 1 where you had the objective in hand. */
   trail?: [number, number, number][];
   /** A Dead Streets run: what it did, and where it went (t, x, z, the floor's height, a second apart) for the server's check. */
-  run?: { tally: RunTally; trace: number[] };
+  run?: { tally: RunTally; trace: number[]; missed: [number, number][] };
 }

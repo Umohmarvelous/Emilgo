@@ -992,3 +992,11 @@ input { font: inherit; color: inherit; }
 .dshud .bleed { color: #ff6a5a; }
 .nvwash { position: absolute; inset: 0; z-index: 4; pointer-events: none; opacity: 0; transition: opacity 0.4s; background: radial-gradient(ellipse at center, rgba(60, 255, 120, 0.16) 0%, rgba(20, 90, 40, 0.3) 60%, rgba(0, 0, 0, 0.85) 100%); mix-blend-mode: screen; }
 .nvwash.on { opacity: 1; }
+.gaswash { position: absolute; inset: 0; z-index: 4; pointer-events: none; opacity: 0; transition: opacity 0.5s; background: radial-gradient(ellipse at center, rgba(170, 190, 60, 0.12), rgba(120, 140, 30, 0.42)); backdrop-filter: blur(2px); }
+.gaswash.on { opacity: 1; }
+.dshud .stand { color: var(--yellow); }
+.runkit { display: grid; gap: 6px; }
+.runkit .chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.runkit .chip { font: 600 11px var(--body); padding: 5px 9px; border-radius: 14px; border: 1px solid rgba(255, 255, 255, 0.22); background: rgba(255, 255, 255, 0.06); color: inherit; }
+.runkit .chip.on { background: rgba(255, 194, 58, 0.25); border-color: var(--yellow); }
+.runkit .chip:disabled { opacity: 0.45; }

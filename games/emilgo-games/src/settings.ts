@@ -83,6 +83,14 @@ export interface Settings {
   game: "ffa" | "rlgl" | "survival";
   /** Dead Streets: your best finished run (seconds, 0 none) on this device. */
   runBest: number;
+  /** Dead Streets' loadout (§3.4): weapon, perks, juju charms, weapon mods, and the Daily Run picked. */
+  runWeapon: string;
+  runPerks: string[];
+  runCharms: string[];
+  runMods: string[];
+  runDaily: boolean;
+  /** Where past runs ended (x, z; the run summary map's red dots), the last 30. */
+  runDeaths: [number, number][];
   ffaMode: string;
   /** The Free For All modes whose "How to play" cards you've seen (ids, comma-separated). */
   /** The items you've used at least once (their counter shows on the first use, SPEC-V3 §10.16). */
@@ -190,6 +198,12 @@ export function defaults(host: Host): Settings {
     distance: DEFAULT_DISTANCE,
     game: "ffa",
     runBest: 0,
+    runWeapon: "pistol",
+    runPerks: [],
+    runCharms: [],
+    runMods: [],
+    runDaily: false,
+    runDeaths: [],
     ffaMode: "find-the-flag",
     ffaSeen: "",
     itemsSeen: "",
@@ -215,7 +229,7 @@ export function defaults(host: Host): Settings {
  */
 export const KEPT_ON_RESET: readonly (keyof Settings)[] = [
   "look", "badge", "lobbyPose", "wheel", "map", "mode", "distance", "tutorialSeen", "best", "played", "wins", "xp",
-  "rankXp", "rankKnown", "deviceXp", "founder", "honour", "form", "streak", "runBest",
+  "rankXp", "rankKnown", "deviceXp", "founder", "honour", "form", "streak", "runBest", "runWeapon", "runPerks", "runCharms", "runMods", "runDaily", "runDeaths",
   "daily", "recent", "fid", "friends", "cp", "boosts", "boostsOn", "song",
 ];
 
@@ -277,6 +291,13 @@ export function loadSettings(host: Host): Settings {
     out.rankXp = Math.max(0, Math.floor(clamp(out.rankXp, 0, 1e10)));
     out.deviceXp = Math.max(0, Math.floor(clamp(out.deviceXp, 0, 1e10)));
     out.honour = Math.max(0, Math.floor(clamp(Number(out.honour) || 0, 0, 1e9)));
+    const strs = (v: unknown, ok: readonly string[], most: number) => (Array.isArray(v) ? v.filter((x) => typeof x === "string" && ok.includes(x)).slice(0, most) : []);
+    out.runWeapon = ["pistol", "dane", "pestle", "flame"].includes(out.runWeapon) ? out.runWeapon : "pistol";
+    out.runPerks = strs(out.runPerks, ["breath", "quiet", "eagle", "mule", "steady"], 2);
+    out.runCharms = strs(out.runCharms, ["notorch", "melee", "six"], 3);
+    out.runMods = strs(out.runMods, ["suppressor", "scope"], 2);
+    out.runDaily = out.runDaily === true;
+    out.runDeaths = Array.isArray(out.runDeaths) ? out.runDeaths.filter((p) => Array.isArray(p) && p.length === 2 && p.every((v) => typeof v === "number" && Number.isFinite(v))).slice(-30) : [];
     out.form = typeof out.form === "string" ? out.form.replace(/[^WL]/g, "").slice(0, 5) : "";
     out.streak = Math.max(0, Math.floor(clamp(Number(out.streak) || 0, 0, 1e6)));
     // The old levels aren't carried onto the ladder (they could be edited on the phone): level 5 or more earns the Founder tag.

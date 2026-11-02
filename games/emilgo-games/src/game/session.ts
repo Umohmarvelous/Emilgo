@@ -86,6 +86,11 @@ import type { ModeDef } from "../content/modes";
 import { buildOpenWorldIdle, type OpenWorld } from "../maps/open/build";
 import { buildNaijaWorld } from "../maps/open/naija";
 import { buildSpookyWorld } from "../maps/open/spooky";
+import { dailySeed, medalOf, runMutator } from "../game/modules/survival";
+import { divisionIndex } from "../content/validate";
+import { WEAPON_RANK, type RunWeapon } from "../config";
+import { RUN_MUTATOR_NAME } from "../world/deadView";
+import { saveGhost } from "./ghost";
 import type { MatchSnap, WireEvent } from "../net/matchWire";
 import { FfaMode, MUTATOR_NAME } from "../modes/ffa";
 import { weeklyMutator } from "./core/match";
@@ -289,6 +294,7 @@ export class Game {
   /** The run on screen, as the server knows it (none: played offline, not counted). */
   private runTok: { id: string; seed: number } | null = null;
   private runWait: ((tok: { id: string; seed: number } | null) => void) | null = null;
+  private runWeapon = "pistol";
   private ffaWait: { start: StartInfo; log: WireEvent[]; snap?: MatchSnap } | null = null;
   private ffaRes: FfaResultView | null = null;
   private party: { code: string; members: { id: string; name: string }[]; lead: string } | null = null;
@@ -824,7 +830,21 @@ export class Game {
     // Ball Haunt hidden: Free For All is the only game on the strip that plays.
     if (!list.some((g) => g.id === "rlgl") && this.settings.game === "rlgl") this.settings.game = "ffa";
     if (this.settings.game === "survival") {
-      this.screens.playRun({ games: list, best: this.settings.runBest, error: this.playError });
+      const k = rankOf(this.rankXp).k;
+      const st = this.settings;
+      const mu = runMutator(Date.now());
+      this.screens.playRun({
+        games: list,
+        best: st.runBest,
+        error: this.playError,
+        weapon: st.runWeapon,
+        perks: st.runPerks,
+        charms: st.runCharms,
+        mods: st.runMods,
+        daily: st.runDaily,
+        open: { dane: k >= divisionIndex(WEAPON_RANK.dane), pestle: k >= divisionIndex(WEAPON_RANK.pestle), flame: k >= divisionIndex(WEAPON_RANK.flame), perk2: k >= divisionIndex("legendary-1") },
+        mutator: mu ? RUN_MUTATOR_NAME[mu] : "",
+      });
       return;
     }
     if (this.settings.game === "ffa") {
@@ -2917,6 +2937,34 @@ export class Game {
         if (r.down) this.screens.toast(`${t("Down in")} ${r.hits} ${t("shoves")}`);
         break;
       }
+      case "photo": {
+        // Photo mode (§3.4 #20): the results away, the camera turning slowly round you; a tap brings them back.
+        const el = this.screens.root;
+        el.style.visibility = "hidden";
+        const done = () => {
+          el.style.visibility = "";
+          document.removeEventListener("pointerdown", done, true);
+        };
+        setTimeout(() => document.addEventListener("pointerdown", done, true), 50);
+        break;
+      }
+      case "run-weapon":
+      case "run-perk":
+      case "run-charm":
+      case "run-mod":
+      case "run-daily": {
+        const id = node.dataset.id ?? "";
+        const st = this.settings;
+        const flip = (list: string[], most: number) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id].slice(-most));
+        if (act === "run-weapon") st.runWeapon = id;
+        else if (act === "run-perk") st.runPerks = flip(st.runPerks, rankOf(this.rankXp).k >= divisionIndex("legendary-1") ? 2 : 1);
+        else if (act === "run-charm") st.runCharms = flip(st.runCharms, 3);
+        else if (act === "run-mod") st.runMods = flip(st.runMods, 2);
+        else st.runDaily = !st.runDaily;
+        saveSettings(this.host, st);
+        this.showPlay();
+        break;
+      }
       case "commend": {
         const id = node.dataset.id;
         const f = this.ffaRes;
@@ -3308,7 +3356,7 @@ export class Game {
       net && net.state === "open"
         ? new Promise<{ id: string; seed: number } | null>((res) => {
             this.runWait = res;
-            net.send({ t: "runstart" });
+            net.send({ t: "runstart", ...(this.settings.runDaily ? { daily: true } : {}) });
             setTimeout(() => res(null), 2500);
           })
         : Promise.resolve(null);
@@ -3316,7 +3364,15 @@ export class Game {
       this.runWait = null;
       if (this.screens.name !== "room" || this.room || this.gm) return;
       this.runTok = k;
-      this.beginFfa(FfaMode.run(this.modeHost(), w, def, k?.seed ?? randomSeed(), this.host.player.name || "You"));
+      // The loadout: a rank weapon only from its rank; this week's mutator (the Daily Run's too).
+      const st = this.settings;
+      const kk = rankOf(this.rankXp).k;
+      const weapon = kk >= divisionIndex(WEAPON_RANK[st.runWeapon as RunWeapon] ?? "rookie-1") ? st.runWeapon : "pistol";
+      const loadout = { weapon, perks: st.runPerks, charms: st.runCharms, mods: st.runMods, mutator: runMutator(Date.now()) };
+      const runDef = { ...def, modules: { ...def.modules, survival: { ...def.modules.survival, ...loadout } } };
+      this.runWeapon = weapon;
+      const seed = k?.seed ?? (st.runDaily ? dailySeed(new Date().toISOString().slice(0, 10)) : randomSeed());
+      this.beginFfa(FfaMode.run(this.modeHost(), w, runDef, seed, this.host.player.name || "You"));
     });
   }
 
@@ -3456,7 +3512,19 @@ export class Game {
       this.ffaRes.mode = "Dead Streets";
       this.ffaRes.measure = "";
       this.ffaRes.runLine = `${ty.finished ? `${t("At the Mast in")} ${fmtTime(secs)}` : `${Math.round(ty.route * 100)}% ${t("of the way")}`} · ${ty.kills} ${t("down")} · ${ty.headshots} ${t("head shots")}`;
-      if (ty.finished && (!this.settings.runBest || secs < this.settings.runBest)) this.settings.runBest = Math.round(secs);
+      if (ty.finished && (!this.settings.runBest || secs < this.settings.runBest)) {
+        this.settings.runBest = Math.round(secs);
+        // Your best run's ghost (§3.4 #12): kept on this phone.
+        saveGhost(this.host, r.run.trace);
+      }
+      const medal = medalOf(ty);
+      const flawless = ty.finished && ty.hurt <= 0;
+      if (medal || flawless) this.ffaRes.runLine += ` · ${medal ? t(medal[0].toUpperCase() + medal.slice(1)) : ""}${flawless ? ` ${t("Flawless")}` : ""}`;
+      if (!ty.finished) {
+        const tr = r.run.trace;
+        if (tr.length >= 4) this.settings.runDeaths = [...this.settings.runDeaths, [tr[tr.length - 3], tr[tr.length - 2]] as [number, number]].slice(-30);
+      }
+      this.ffaRes.runMap = { trace: r.run.trace, deaths: this.settings.runDeaths, missed: r.run.missed };
       const net = this.net;
       const tok = this.runTok;
       this.runTok = null;
@@ -3465,7 +3533,7 @@ export class Game {
         this.ffaRes.online = "quick";
         const pts = r.run.trace;
         for (let i = 0; i < pts.length; i += 540) net.send({ t: "runpart", id: tok.id, pts: pts.slice(i, i + 540) });
-        net.send({ t: "runend", id: tok.id, secs: Math.round(secs * 10) / 10, fin: ty.finished, kills: ty.kills, heads: ty.headshots, route: Math.round(ty.route * 1000) / 1000 });
+        net.send({ t: "runend", id: tok.id, secs: Math.round(secs * 10) / 10, fin: ty.finished, kills: ty.kills, heads: ty.headshots, route: Math.round(ty.route * 1000) / 1000, wp: this.runWeapon, charm: ty.charm });
       } else this.ffaRes.runNote = t("Played offline: not counted");
     }
     // The Form badge (§10.18): online matches only.

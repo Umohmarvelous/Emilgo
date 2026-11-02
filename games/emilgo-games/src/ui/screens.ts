@@ -24,6 +24,7 @@ import { EMOTES, EMOTE_BY_ID, type EmoteId } from "../social/emotes";
 import { POSES } from "../world/human/animator";
 import { HOODIE_COLORS, HOODIE_DESIGNS, type HoodieDesign, type Look } from "../world/human/wardrobe";
 import { esc, fmtTime, ordinal } from "./dom";
+import { SPOOKY_ROUTE } from "../maps/open/spooky";
 import { t, translateTree } from "./i18n";
 import { icon } from "./icons";
 
@@ -90,6 +91,8 @@ export interface FfaResultView {
   runLine?: string;
   runNote?: string;
   board?: { secs: number; you: boolean }[];
+  /** The run summary map (§3.4 #22): where you went, where past runs ended, what you missed. */
+  runMap?: { trace: readonly number[]; deaths: readonly [number, number][]; missed: readonly [number, number][] };
   online: "quick" | "private" | "match" | null;
   matchNote?: string | null;
   xp: number | null;
@@ -725,7 +728,27 @@ export class Screens {
 
   /** The Play screen, Free For All picked: how to play (queue, room, practice, stakes), which mode, your party. */
   /** Dead Streets on the Play screen (Phase 7): the run, your best, start. */
-  playRun(s: { games: GameEntry[]; best: number; error: string | null }): void {
+  playRun(s: { games: GameEntry[]; best: number; error: string | null; weapon: string; perks: string[]; charms: string[]; mods: string[]; daily: boolean; open: { dane: boolean; pestle: boolean; flame: boolean; perk2: boolean }; mutator: string }): void {
+    const chip = (act: string, id: string, label: string, on: boolean, locked = false, why = "") =>
+      `<button class="chip ${on ? "on" : ""}" data-act="${act}" data-id="${id}" ${locked ? "disabled" : ""} aria-pressed="${on}">${esc(label)}${locked ? ` <span class="soon">${esc(why)}</span>` : ""}</button>`;
+    const weapons = [
+      chip("run-weapon", "pistol", "Pistol", s.weapon === "pistol"),
+      chip("run-weapon", "dane", "Dane gun", s.weapon === "dane", !s.open.dane, "Pro"),
+      chip("run-weapon", "pestle", "Thunder Pestle", s.weapon === "pestle", !s.open.pestle, "Legendary"),
+      chip("run-weapon", "flame", "Gen-Set Torch", s.weapon === "flame", !s.open.flame, "Master"),
+    ].join("");
+    const perkNames: Record<string, string> = { breath: "Second Breath", quiet: "Quiet Feet", eagle: "Eagle Eye", mule: "Pack Mule", steady: "Steady Hand" };
+    const perks = Object.entries(perkNames).map(([id, n]) => chip("run-perk", id, n, s.perks.includes(id))).join("");
+    const charms = [chip("run-charm", "notorch", "No torch ×1.15", s.charms.includes("notorch")), chip("run-charm", "melee", "Melee only ×1.2", s.charms.includes("melee")), chip("run-charm", "six", "6 slots ×1.15", s.charms.includes("six"))].join("");
+    const mods = [chip("run-mod", "suppressor", "Suppressor", s.mods.includes("suppressor")), chip("run-mod", "scope", "NV scope", s.mods.includes("scope"))].join("");
+    const loadout = `<div class="glass gamecard runkit">
+        <div class="label">Weapon</div><div class="chips">${weapons}</div>
+        <div class="label">Perk${s.open.perk2 ? "s (2)" : " (1; a second at Legendary)"}</div><div class="chips">${perks}</div>
+        <div class="label">Weapon mods</div><div class="chips">${mods}</div>
+        <div class="label">Juju charms (harder, more XP)</div><div class="chips">${charms}</div>
+        <div class="chips">${chip("run-daily", "daily", "Daily Run: today's seed for everyone", s.daily)}</div>
+        ${s.mutator ? `<span class="small">${icon("star", "", 12)} ${esc(t("This week"))}: ${esc(t(s.mutator))}</span>` : ""}
+      </div>`;
     const games = s.games
       .map((g) => `<button class="gm ${g.id === "survival" ? "on" : ""}" data-act="pick-game" data-g="${g.id}" ${g.state === "play" ? "" : "disabled"}>${esc(g.name)}${g.state === "play" ? "" : `<span class="soon">${g.state === "locked" ? "Locked" : "Soon"}</span>`}</button>`)
       .join("");
@@ -740,6 +763,7 @@ export class Screens {
             <div class="row"><b>Spooky World</b></div>
             <span class="small">A dead city at night, 320 × 320 m: from the Motor Park of the Lost to the Broadcast Mast, 1.4 km of streets through twelve districts and thirty obstacles. Churches and mosques are sanctuaries.</span>
           </div>
+          ${loadout}
           <div class="glass gamecard"><div class="label">Dead Streets</div><span class="small">Cross the dead city to the Mast. Fast, and alive. After 12:00 you bleed. On your own; your run is checked by our server.</span>
             <span class="small">${s.best > 0 ? `Your best: <b class="num">${fmtTime(s.best)}</b>` : "No finished run yet."}</span></div>
         </div>
@@ -871,17 +895,21 @@ export class Screens {
          ${r.runLine ? `<div class="pm-play"><span class="label">${t("Your run")}</span><span class="small">${esc(r.runLine)}</span><span class="small" data-run-note>${esc(r.runNote ?? "")}</span></div>` : ""}
          ${r.board?.length ? `<div class="pm-play" data-board><span class="label">${t("Best times")}</span><span class="small">${r.board.map((b, i) => `${i + 1}. <b class="num">${fmtTime(b.secs)}</b>${b.you ? ` · ${t("You")}` : ""}`).join("<br>")}</span></div>` : ""}
          ${r.play ? `<div class="pm-play"><span class="label">${t("Play of the game")}</span><span class="small">${esc(r.play)}</span></div>` : ""}
-         ${r.trail && r.trail.length > 4 ? `<div class="pm-heat"><span class="label">${t("Where you went")}</span><canvas width="120" height="120" data-heat></canvas></div>` : ""}
+         ${r.runMap ? `<div class="pm-heat"><span class="label">${t("Your run")}</span><canvas width="140" height="140" data-runmap></canvas></div>` : ""}
+         ${r.trail && r.trail.length > 4 && !r.runMap ? `<div class="pm-heat"><span class="label">${t("Where you went")}</span><canvas width="120" height="120" data-heat></canvas></div>` : ""}
          <div class="pm-xp" data-rank-line>${r.online ? rankLine(r) : `<span class="small">Practice: no XP. Play online to rank up.</span>`}</div>
          ${r.online === "match" ? `<div class="status" data-match-outcome>${esc(r.matchNote ?? "Sending the result to Lagos Life…")}</div>` : ""}
          <div class="pm-actions">
            ${primary}
+           ${r.runMap ? `<button class="btn secondary" data-act="photo">${icon("fpv", "", 16)}Photo</button>` : ""}
            <button class="btn secondary" data-act="menu">${icon("home", "", 16)}${r.online ? "Leave" : "Lobby"}</button>
          </div>
        </div>`,
     );
     const heat = this.root.querySelector<HTMLCanvasElement>("canvas[data-heat]");
     if (heat && r.trail) this.drawHeat(heat, r.trail);
+    const rm = this.root.querySelector<HTMLCanvasElement>("canvas[data-runmap]");
+    if (rm && r.runMap) this.drawRunMap(rm, r.runMap);
   }
 
   /** The server's word on a run arrived after the results went up: its note and the board. */
@@ -891,6 +919,35 @@ export class Screens {
     if (r.board?.length && !this.root.querySelector("[data-board]")) {
       const xp = this.root.querySelector<HTMLElement>("[data-rank-line]");
       xp?.insertAdjacentHTML("beforebegin", `<div class="pm-play" data-board><span class="label">${esc(t("Best times"))}</span><span class="small">${r.board.map((b, i) => `${i + 1}. <b class="num">${fmtTime(b.secs)}</b>${b.you ? ` · ${esc(t("You"))}` : ""}`).join("<br>")}</span></div>`);
+    }
+  }
+
+  /** The run summary map (§3.4 #22): the route, your way along it, past runs' ends (red), what you missed (rings). */
+  private drawRunMap(c: HTMLCanvasElement, r: NonNullable<FfaResultView["runMap"]>): void {
+    const g = c.getContext("2d");
+    if (!g) return;
+    const W = c.width;
+    const half = 160;
+    const px = (v: number) => ((v + half) / (2 * half)) * W;
+    g.fillStyle = "rgba(20,10,10,0.88)";
+    g.fillRect(0, 0, W, W);
+    g.lineWidth = 3;
+    g.strokeStyle = "rgba(255,255,255,0.14)";
+    g.beginPath();
+    for (const [i, [x, z]] of SPOOKY_ROUTE.entries()) (i ? g.lineTo(px(x), px(z)) : g.moveTo(px(x), px(z)));
+    g.stroke();
+    g.lineWidth = 1.6;
+    g.strokeStyle = "rgba(255,194,58,0.9)";
+    g.beginPath();
+    for (let i = 0; i + 3 < r.trace.length; i += 4) (i ? g.lineTo(px(r.trace[i + 1]), px(r.trace[i + 2])) : g.moveTo(px(r.trace[i + 1]), px(r.trace[i + 2])));
+    g.stroke();
+    g.fillStyle = "rgba(255,70,50,0.45)";
+    for (const [x, z] of r.deaths) g.fillRect(px(x) - 1.5, px(z) - 1.5, 3, 3);
+    g.strokeStyle = "rgba(160,220,255,0.7)";
+    for (const [x, z] of r.missed) {
+      g.beginPath();
+      g.arc(px(x), px(z), 2.5, 0, Math.PI * 2);
+      g.stroke();
     }
   }
 
