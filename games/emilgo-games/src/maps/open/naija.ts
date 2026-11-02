@@ -218,7 +218,7 @@ function districtOf(x: number, z: number): Kind {
 
 // ── Footprints, kept apart ────────────────────────────────────────────────────
 
-interface Rect {
+export interface Rect {
   x: number;
   z: number;
   hx: number;
@@ -227,7 +227,7 @@ interface Rect {
   s: number;
 }
 
-function rectOf(x: number, z: number, w: number, d: number, rot: number): Rect {
+export function rectOf(x: number, z: number, w: number, d: number, rot: number): Rect {
   return { x, z, hx: w / 2, hz: d / 2, c: Math.cos(rot), s: Math.sin(rot) };
 }
 
@@ -243,7 +243,7 @@ function overlap(a: Rect, b: Rect): boolean {
   return true;
 }
 
-class Taken {
+export class Taken {
   private readonly cells = new Map<number, Rect[]>();
   private key(q: number, r: number): number {
     return (q + 64) * 1024 + (r + 64);
