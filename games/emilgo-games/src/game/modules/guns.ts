@@ -478,6 +478,13 @@ export class GunsModule implements RuleModule {
       if (this.gun[i][1] >= 0) this.drop(m, "gun", this.gun[i][1], this.rarity[i][1], e.x, e.z, e.h, this.mag[i][1], this.res[i][1]);
       if (this.armour[i] >= GUNS.armour.plate) this.drop(m, "plate", -1, 0, e.x + 0.6, e.z, e.h);
     } else if (e.type === "respawn") this.fresh(m, e.id);
+    else if (e.type === "take") this.itemArmour(m, e.id);
+  }
+
+  /** Every item taken into the backpack is armour too (the copy does the same from the event). */
+  private itemArmour(m: Match, id: string): void {
+    const c = m.get(id);
+    if (c) this.armour[c.index] = Math.min(GUNS.armour.max, this.armour[c.index] + GUNS.armour.item);
   }
 
   /** Back in: full health, no armour, a pistol and nothing else. */
@@ -622,6 +629,9 @@ export class GunsModule implements RuleModule {
       }
       case "respawn":
         this.fresh(m, e.id);
+        break;
+      case "take":
+        this.itemArmour(m, e.id);
         break;
     }
   }

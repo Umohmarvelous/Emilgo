@@ -240,6 +240,11 @@ export class Crowd {
     h.anim.steer = !!seat?.driver;
   }
 
+  /** The operator's dress and armour tier (v4), or null. */
+  setGear(i: number, kit: import("./human/gear").Kit | null, tier = 0): void {
+    this.people[i]?.setGear(kit, tier);
+  }
+
   setCarry(i: number, on: boolean): void {
     this.people[i]?.setCarry(on);
   }

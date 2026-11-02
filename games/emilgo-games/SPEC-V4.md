@@ -52,6 +52,10 @@ hidden and untouched).
 | The edges | Red: steady from 60 health down, pulsing under 30, a flash on every hit (shot, claw, hazard). Orange: outside the zone, 35% plus the exposure; pulsing when the sky has seen you. |
 | Dead Streets' centre | The arc is health (left) and the torch's battery (right, amber); the rounds by it (no spare count: Dead Streets has no magazines); the watch shows the run's clock with the bleed (or the Mast's hold) under it. |
 | Zombie health bars | Over any zombie hurt in the last 3 s, within 40 m and on screen, nearest ten; the bar is its health against what it rose with; a Masked one's bar is edged amber (only a head shot puts it down). |
+| The operator | Everyone in Free For All and the Dead Streets runner (not the zombies, not Ball Haunt). One material change re-dresses the scanned body on every tier: camo (tri-planar on the bind pose), gloves, boots, a balaclava with one slit (the eyes and the bridge of the nose show; the scanned eyes and lids still move). Three original kits (Ironwood, Ash, Dune), picked by a player's colour. No real-world camo patterns, no brands. |
+| Gear and LODs | Helmet (rails, comms, NVG mount), plate carrier (straps, cummerbund, mag pouches), belt, holster, knee pads, boot shells: low-poly pieces weighted to their bones and written into the body's own geometry, so a dressed body is still one draw; each detail level gets its own gear (the far level: helmet, plates and boots only). |
+| The armour ladder's look | By armour points (guns: 0–150): T0 Operator, T1 Plated from 25 (pauldrons, vambraces, greaves), T2 Juggernaut from 60 (heavier plates, a collar, a visor with a slit), T3 Warlord from 100 (black plate, spikes, ember glow), T4 Titan from 140 (obsidian and gold, horns, a crown, a glowing core). **No growth** (the owner). Dead Streets' runner by its armour × 1.5. To be refined later (the owner). |
+| "Every item becomes armour" | Every backpack item taken also gives 10 armour (up to 150); the items still do what they do. |
 | "1 million users at once" | One server process can't hold that. The build makes each room server stateless between matches and adds a room directory so many machines share the load. Tested here at **10,000 simulated players** (the owner's number); the 1M path is described in README (machines × rooms), not tested. |
 
 ## Phases (built back to back, no waiting; each tested, committed, pushed, the test site republished)
@@ -98,3 +102,14 @@ Not done in Phase 2: a real phone; the guns' look past low-poly (the sample soun
 | Builds | EMILGO embed |
 
 Not done in Phase 3: a real phone.
+
+### Phase 4: Operators and armour (done 3 Nov 2026)
+
+| Check | Result |
+|---|---|
+| In headless Chrome (real GPU) | `dev/humans.html?set=uniform&gear=ladder`: T0–T4 side by side in the three kits; `set=face&gear=0`: only the eyes and the bridge of the nose show under the helmet; boots, gloves. In a match: your operator from behind, re-dressed as armour fills (T0 → T2 → T4). |
+| Frame rate online, 12 operators hunting you and shooting (CPU 4×, 844×390) | Low lowest 59, mean 59.9 (51 draws, 42K) · Medium lowest 47, mean 53.5 (94 draws, 98K): within the limits, near v3's live-match Medium (47.9–60). |
+| Tests | gunstest 47 (items now armour too); typecheck. |
+| Builds | EMILGO embed |
+
+Not done in Phase 4: a real phone; the armour's look refined (the owner: later).

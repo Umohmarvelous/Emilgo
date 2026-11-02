@@ -301,7 +301,7 @@ export const SUV = {
 export const HEAD_PAD = 0.05;
 
 /** Solid cells in the palette block (8 × 4). */
-export const SCELL = { hood: 0, pocket: 1, string: 2, tip: 3, inner: 4, cuff: 5, band: 6, mouth: 7, teeth: 8 } as const;
+export const SCELL = { hood: 0, pocket: 1, string: 2, tip: 3, inner: 4, cuff: 5, band: 6, mouth: 7, teeth: 8, gear: 9 } as const;
 export function scellUv(cell: number): [number, number] {
   const [u0, v0, u1, v1] = SUV.palette;
   return [u0 + (((cell % 8) + 0.5) / 8) * (u1 - u0), v0 + ((Math.floor(cell / 8) + 0.5) / 4) * (v1 - v0)];

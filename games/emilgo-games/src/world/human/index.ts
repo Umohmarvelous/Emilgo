@@ -13,6 +13,7 @@
 
 import {
   Bone,
+  type BufferGeometry,
   Matrix4,
   CanvasTexture,
   DetachedBindMode,
@@ -37,6 +38,8 @@ import { FALL_TIME, type FallKind } from "./ragdoll";
 import { packMesh } from "./pack";
 import { BONES, PARENT, type BoneName } from "./skeleton";
 import { applyHold, type Hold } from "./hold";
+import { dressedGeometry, type Kit } from "./gear";
+import { dress } from "./dress";
 import { normalMapFor } from "./normals";
 import { loadScanLevel, onScanLevel, scanReady, scanStamp } from "./scanbody";
 import { OUTFIT_BY_ID, paintKey, scanPaintKey, shapeKey, type Look } from "./wardrobe";
@@ -350,7 +353,34 @@ export class Human {
   }
 
   get triangles(): number {
-    return this.body.triangles;
+    return this.trianglesAt(this.level);
+  }
+
+  /** The operator's kit and armour tier (v4), or null: as they are. */
+  private gear: { kit: Kit; tier: number } | null = null;
+
+  /** Dress as a tactical operator (kit), with the armour tier's gear; null takes it all off. */
+  setGear(kit: Kit | null, tier = 0): void {
+    const same = this.gear && kit && this.gear.kit.id === kit.id && this.gear.tier === tier;
+    if (same || (!kit && !this.gear)) return;
+    this.gear = kit ? { kit, tier } : null;
+    dress(this.mesh.material as Material, kit, this.body.rest);
+    this.showGeometry();
+  }
+
+  get gearTier(): number {
+    return this.gear ? this.gear.tier : -1;
+  }
+
+  /** The geometry for the body at this level: dressed with the gear, or bare. */
+  private geometryFor(b: Body, level: Detail): BufferGeometry {
+    return this.gear ? dressedGeometry(b.geometry, b.rest, this.gear.tier, level, this.gear.kit) : b.geometry;
+  }
+
+  private showGeometry(): void {
+    this.mesh.geometry = this.geometryFor(this.body, this.level);
+    this.restedAt = -1;
+    this.skinDirty = true;
   }
 
   /** Current geometry detail. */
@@ -360,7 +390,9 @@ export class Human {
 
   /** Triangles this person would cost at a detail level (builds it if needed, cached). */
   trianglesAt(level: Detail): number {
-    return bodyFor(this.look, level).triangles;
+    const b = bodyFor(this.look, level);
+    if (!this.gear) return b.triangles;
+    return (this.geometryFor(b, level).index?.count ?? 0) / 3;
   }
 
   /** A better scanned level arrived: same bones, finer geometry. */
@@ -368,9 +400,7 @@ export class Human {
     const b = bodyFor(this.look, this.level);
     if (b === this.body) return;
     this.body = b;
-    this.mesh.geometry = b.geometry;
-    this.restedAt = -1;
-    this.skinDirty = true;
+    this.showGeometry();
     this.castShadows(this.shadow);
   }
 
@@ -411,7 +441,7 @@ export class Human {
     if (level === this.level) return;
     this.level = level;
     this.body = bodyFor(this.look, level);
-    this.mesh.geometry = this.body.geometry;
+    this.mesh.geometry = this.geometryFor(this.body, level);
     if (this.shadow) this.castShadows(true);
   }
 

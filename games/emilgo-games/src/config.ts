@@ -433,7 +433,8 @@ export const DROPZONES = { radius: 5, minApart: 60 } as const;
  */
 export const GUNS = {
   hp: 100,
-  armour: { max: 150, plate: 25, share: 0.7 },
+  /** `item`: every backpack item taken is armour too (v4: "every item becomes extra armour"). */
+  armour: { max: 150, plate: 25, share: 0.7, item: 10 },
   /** Health comes back `rate` a second once nothing has hurt you for `after` s. */
   regen: { after: 6, rate: 8 },
   rewind: 0.15,

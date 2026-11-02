@@ -41,6 +41,7 @@ import type { ItemsModule } from "../game/modules/items";
 import { gunStats, type GunsModule } from "../game/modules/guns";
 import { CombatHud } from "../ui/combat";
 import { FieldKit, leftLine, type ZombieBar } from "../ui/fieldkit";
+import { armourTier, KITS } from "../world/human/gear";
 import { GunsView } from "../world/gunsView";
 import { getLang, t } from "../ui/i18n";
 import { PING_LINES } from "../ui/quickchat";
@@ -220,6 +221,12 @@ export class FfaMode implements GameMode {
       if ((w?.st ?? 0) >= 3) h.crowd.setTint(i, null, STREAK_GLOW);
     });
     h.crowd.hideMyHead = h.rig.firstPerson;
+    // v4: everyone a tactical operator (their kit by their colours); Dead Streets' zombies stay as they are.
+    const zombies = !!m.module("survival");
+    m.contestants.forEach((_c, i) => {
+      if (zombies && i !== me.index) return;
+      h.crowd.setGear(i, KITS[looks[i].hoodie % KITS.length], 0);
+    });
 
     // The world, its sky, and the camera's walls.
     h.scene.add(world.group);
@@ -858,6 +865,7 @@ export class FfaMode implements GameMode {
   /** HUD A, each frame: the watch, the plates, the edges; Dead Streets' centre arc and the zombies' bars. */
   private fieldFrame(m: Match, me: Contestant): void {
     const h = this.host;
+    this.armourLook(m, me);
     const ps = this.play.state;
     const sv = m.module<SurvivalModule>("survival");
     const g = m.module<GunsModule>("guns");
@@ -951,6 +959,20 @@ export class FfaMode implements GameMode {
     list.sort((a, b) => a[0] - b[0]);
     for (const [, b] of list) this.zBars.push(b);
     this.fk.zombies(this.zBars);
+  }
+
+  /** The armour ladder's look: each body's gear follows its armour (a changed tier re-dresses it). */
+  private armourLook(m: Match, me: Contestant): void {
+    const g = m.module<GunsModule>("guns");
+    const sv = m.module<SurvivalModule>("survival");
+    const crowd = this.host.crowd;
+    for (const c of m.contestants) {
+      if (sv && c !== me) continue;
+      const points = sv ? sv.armour * 1.5 : g ? g.armour[c.index] : 0;
+      const tier = armourTier(points);
+      const h = crowd.human(c.index);
+      if (h && h.gearTier >= 0 && h.gearTier !== tier) crowd.setGear(c.index, KITS[this.looks[c.index].hoodie % KITS.length], tier);
+    }
   }
 
   /** Guns, each frame: the camera down the sights, the guns drawn, the gun HUD, a dry click. */
@@ -1056,6 +1078,7 @@ export class FfaMode implements GameMode {
     }
     this.combat?.root.remove();
     this.fk.dispose();
+    for (let i = 0; i < this.src.match.contestants.length; i++) h.crowd.setGear(i, null);
     h.hud.setFieldKit(false);
     h.rig.adsWant = 0;
     h.controls.setGuns(false);

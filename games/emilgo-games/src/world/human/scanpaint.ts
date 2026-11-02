@@ -54,6 +54,8 @@ export function paintScanLook(look: Look, tier: Tier, size: number): HTMLCanvasE
     [SCELL.band, trim],
     [SCELL.mouth, "#2a0c0a"],
     [SCELL.teeth, "#d9d2c3"],
+    // The operator's hard gear (v4): white, its colour per vertex (gear.ts).
+    [SCELL.gear, "#ffffff"],
   ];
   const [pu0, pv0, pu1, pv1] = SUV.palette;
   const cw = ((pu1 - pu0) / 8) * size;

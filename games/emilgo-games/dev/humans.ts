@@ -1,6 +1,7 @@
 // Dev only: a line-up of people, for screenshots. Not in any build.
 //   /dev/humans.html?tier=1&set=outfits|hair|tiers|face|poses&pose=hair&cam=front|back|face
 // Players are the scanned people; &gen=1 shows the generated ones instead (the fallback).
+import { KITS } from "../src/world/human/gear";
 import { ACESFilmicToneMapping, AmbientLight, Color, DirectionalLight, HemisphereLight, Mesh, MeshStandardMaterial, PerspectiveCamera, PlaneGeometry, Scene, SRGBColorSpace, WebGLRenderer } from "three";
 import { Human, loadScans, type Tier } from "../src/world/human";
 import { loadScanLevel } from "../src/world/human/scanbody";
@@ -72,6 +73,9 @@ looks.forEach((l, i) => {
   if (q.get("pose")) h.setPose(q.get("pose") as never);
   if (q.get("emote")) h.emote(q.get("emote") as never);
   if (q.get("nonormal")) ((h.mesh.material as unknown) as { normalMap: unknown }).normalMap = null;
+  // v4: the operator's gear (?gear=ladder: tiers 0–4 across; ?gear=0..4 for all; ?kit=0..2).
+  const gq = q.get("gear");
+  if (gq !== null) h.setGear(KITS[Number(q.get("kit") ?? i) % KITS.length], gq === "ladder" ? i % 5 : Number(gq));
   scene.add(h.mesh);
   people.push(h);
 });
