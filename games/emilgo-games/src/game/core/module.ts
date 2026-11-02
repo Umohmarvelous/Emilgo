@@ -174,7 +174,24 @@ export type MatchEvent =
   | { type: "grab"; id: string; ball: number }
   /** A ball rolls loose (knocked out of someone's hands, or theirs as they fall). */
   | { type: "ball"; ball: number; x: number; z: number }
-  | { type: "bank"; id: string; ball: number; basket: number };
+  | { type: "bank"; id: string; ball: number; basket: number }
+  // ── Guns (v4 Phase 2, guns.ts) ──
+  /** A shot: the gun (GUN_KINDS index), where its first pellet ended, what it hit (HIT_KINDS index), the rounds left. */
+  | { type: "fire"; id: string; g: number; x: number; y: number; z: number; hit: number; mag: number }
+  /** Damage on a body: health and armour now, a head shot, how much. */
+  | { type: "dmg"; tg: string; by: string | null; hp: number; ar: number; head: boolean; amt: number }
+  /** Out by a gun, a blow or a blast: who did it. */
+  | { type: "kill"; tg: string; by: string | null; how: string; head: boolean }
+  /** A reload starts (done at `at`) or is done; the slot's magazine and spare rounds. */
+  | { type: "reload"; id: string; how: "start" | "done"; s: number; mag: number; res: number; at: number }
+  /** The other slot in hand. */
+  | { type: "swap"; id: string; s: number }
+  /** A pickup in play (a dropped gun, a crate's gift): kind, gun, rarity, where; a dropped gun's rounds (−1 full). */
+  | { type: "pick"; p: number; kind: "gun" | "ammo" | "plate"; g: number; r: number; x: number; z: number; h: number; mag: number; res: number }
+  /** A pickup taken: the taker's health, armour, primary (gun, rarity, magazine, spare) and the pistol's spare rounds now. */
+  | { type: "ptake"; p: number; id: string; hp: number; ar: number; g1: number; r1: number; mag: number; res: number; res0: number }
+  /** A crate or drum broken. */
+  | { type: "brk"; b: number; by: string | null; x: number; z: number; h: number };
 
 /** Why someone went down: melee's reasons, then a car's (pulled out, thrown by a blast, out at speed). */
 export type DownWhy = "daze" | "trip" | "tackle" | "throw" | "ringout" | "hijack" | "blast" | "tumble";

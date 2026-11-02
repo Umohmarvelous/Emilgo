@@ -43,8 +43,10 @@ export type ClientMsg =
    * | brace << 3 (Free For All); j = jump counter; a = attack (counter << 2 |
    * kind 1 fist 2 slap 3 push); g = grab counter. Open worlds (protocol 12):
    * i = interact counter | held << 8; k = the backpack (Match.setPack).
+   * Guns (protocol 15): y = the aim's yaw, p its pitch (milliradians); w =
+   * trigger | ADS << 1 | reload counter << 2 (4 bits) | swap counter << 6.
    */
-  | { t: "in"; x: number; z: number; b?: number; j?: number; a?: number; g?: number; i?: number; k?: number }
+  | { t: "in"; x: number; z: number; b?: number; j?: number; a?: number; g?: number; i?: number; k?: number; y?: number; p?: number; w?: number }
   | { t: "pong"; s: number }
   /**
    * Play my Lagos Life match. `session` is a fresh Vatar.session() token; the
@@ -401,7 +403,10 @@ export function parseClient(raw: string): ClientMsg | null {
       const g = o.g === undefined ? 0 : int(o.g, 0, 255);
       const i = o.i === undefined ? 0 : int(o.i, 0, 511);
       const k = o.k === undefined ? 0 : int(o.k, 0, 16383);
-      return x === null || z === null || b === null || j === null || a === null || g === null || i === null || k === null ? null : { t: "in", x, z, b, j, a, g, i, k };
+      const y = o.y === undefined ? 0 : int(o.y, -3142, 3142);
+      const p = o.p === undefined ? 0 : int(o.p, -1100, 1100);
+      const w = o.w === undefined ? 0 : int(o.w, 0, 1023);
+      return x === null || z === null || b === null || j === null || a === null || g === null || i === null || k === null || y === null || p === null || w === null ? null : { t: "in", x, z, b, j, a, g, i, k, y, p, w };
     }
     case "pong": {
       const s = typeof o.s === "number" && Number.isFinite(o.s) ? o.s : null;

@@ -230,13 +230,42 @@ export class CameraRig {
    */
   turn(x: number, y: number): void {
     if (!x && !y) return;
-    this.yaw -= x;
-    this.pitch += y * (this.invertY ? -1 : 1);
+    // Down the sights the touchpad is finer.
+    const fine = 1 - 0.38 * this.adsK;
+    this.yaw -= x * fine;
+    this.pitch += y * fine * (this.invertY ? -1 : 1);
     this.pitch = Math.max(PITCH_MIN, Math.min(PITCH_MAX, this.pitch));
     this.idle = 0;
     this.padAt = this.time;
   }
   private padAt = -1e9;
+
+  /** Guns (v4): aiming down the sights wanted (0/1), its zoom (× the lens), and how far in it is now. */
+  adsWant = 0;
+  adsZoom = 1;
+  private adsK = 0;
+  /** Recoil still to come back (radians of pitch). */
+  private recoilBack = 0;
+
+  /** Where the crosshair points: the view's yaw and pitch (what a shot follows). */
+  get aimYaw(): number {
+    return this.viewYaw;
+  }
+  get aimPitch(): number {
+    return this.viewPitch;
+  }
+  /** 0 … 1: how far down the sights. */
+  get ads(): number {
+    return this.adsK;
+  }
+
+  /** A shot's kick: the view jumps up (and a little sideways); about half of it comes back. */
+  recoil(up: number, side: number): void {
+    this.pitch = Math.max(PITCH_MIN, this.pitch - up);
+    this.viewPitch = Math.max(PITCH_MIN, this.viewPitch - up * 0.6);
+    this.yaw += side;
+    this.recoilBack += up * 0.5;
+  }
 
   kick(amount: number): void {
     if (this.shakeEnabled) this.shake = Math.min(1.2, this.shake + amount);
@@ -246,6 +275,13 @@ export class CameraRig {
     this.time += dt;
     this.idle += dt;
     // Smoothing: about 15% of the way each 60th of a second.
+    // Down the sights, and the recoil coming back.
+    this.adsK += (this.adsWant - this.adsK) * (1 - Math.exp(-dt * 14));
+    if (this.recoilBack > 1e-4) {
+      const r = this.recoilBack * (1 - Math.exp(-dt * 9));
+      this.recoilBack -= r;
+      this.pitch = Math.min(PITCH_MAX, this.pitch + r);
+    }
     // The touchpad follows within a frame or two; the stick and keys keep the calm 0.15.
     const k = 1 - Math.pow(1 - (this.time - this.padAt < 0.3 ? 0.6 : SMOOTH), dt * 60);
     let dy = this.yaw - this.viewYaw;
@@ -272,7 +308,7 @@ export class CameraRig {
         this.pos.lerp(this.wantPos, 1 - Math.exp(-dt * 18));
         this.look.copy(this.wantLook);
       }
-      wantFov = this.zoomed(dt, wantFov);
+      wantFov = this.zoomed(dt, wantFov) * (1 + (this.adsZoom - 1) * this.adsK);
     } else if (this.mode === "shot") {
       wantFov = this.fov;
     } else if (this.mode === "cinematic") {
@@ -349,7 +385,10 @@ export class CameraRig {
     // Collision: shorten the arm if a wall or box is in the way.
     const want = this.clearance(this.pivot, -d.x, -d.y, -d.z, rx, rz);
     this.dist += (want - this.dist) * (want < this.dist ? 1 : 1 - Math.exp(-dt * 4));
-    this.wantPos.set(this.pivot.x - d.x * this.dist + rx * SHOULDER, Math.max(this.floor + 0.25, this.pivot.y - d.y * this.dist), this.pivot.z - d.z * this.dist + rz * SHOULDER);
+    // Down the sights: closer in over the shoulder.
+    const dist = this.dist * (1 - 0.42 * this.adsK);
+    const sh = SHOULDER + 0.12 * this.adsK;
+    this.wantPos.set(this.pivot.x - d.x * dist + rx * sh, Math.max(this.floor + 0.25, this.pivot.y - d.y * dist), this.pivot.z - d.z * dist + rz * sh);
     // Aim straight ahead from the shoulder, so the player sits left of centre.
     this.wantLook.set(this.wantPos.x + d.x * 10, this.wantPos.y + d.y * 10, this.wantPos.z + d.z * 10);
   }

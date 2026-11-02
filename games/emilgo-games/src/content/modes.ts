@@ -14,11 +14,13 @@ export const MODULE_IDS = [
   "flags", "dropzones", "capture", "economy", "rooms", "tag", "riddles", "blackout", "survival",
   // The §10 items' effects in the world (Phase 6): rides along with `items`, never named by a mode.
   "gadgets", "harmattan", "traffic", "zips",
+  // v4: guns ride along with melee in Free For All (never named by a mode either).
+  "guns",
 ] as const;
 export type ModuleId = (typeof MODULE_IDS)[number];
 
 /** The modules this build can play. Grows phase by phase (SPEC-V3 §13). */
-export const BUILT: ReadonlySet<ModuleId> = new Set<ModuleId>(["doll", "balls", "zone", "items", "airfall", "vehicles", "melee", "flags", "dropzones", "capture", "gadgets", "tag", "blackout", "economy", "riddles", "rooms", "harmattan", "traffic", "zips", "survival"]);
+export const BUILT: ReadonlySet<ModuleId> = new Set<ModuleId>(["doll", "balls", "zone", "items", "airfall", "vehicles", "melee", "flags", "dropzones", "capture", "gadgets", "tag", "blackout", "economy", "riddles", "rooms", "harmattan", "traffic", "zips", "survival", "guns"]);
 
 export type Family = "ffa" | "survival" | "rlgl";
 export type Text = { en: string; pcm?: string };

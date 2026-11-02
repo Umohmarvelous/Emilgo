@@ -149,8 +149,9 @@ export class FfaGame {
   }
 
   /** A person's buttons, as "in" carries them (protocol 12). */
-  input(seat: string, x: number, z: number, b: number, j: number, a: number, g: number, i: number, k: number): void {
+  input(seat: string, x: number, z: number, b: number, j: number, a: number, g: number, i: number, k: number, y = 0, p = 0, w = 0): void {
     const m = this.match;
+    m.setAim(seat, y / 1000, p / 1000, (w & 1) === 1, (w & 2) === 2, (w >> 2) & 15, (w >> 6) & 15);
     m.setInput(seat, x / 100, z / 100);
     m.setButtons(seat, (b & 1) === 1, Math.min(2, (b >> 1) & 3) as 0 | 1 | 2, j);
     m.setBrace(seat, (b & 8) !== 0);
@@ -163,6 +164,8 @@ export class FfaGame {
   idle(seat: string): void {
     this.match.setInput(seat, 0, 0);
     this.match.setBrace(seat, false);
+    const a = this.match.get(seat) ? this.match.aims[this.match.get(seat)!.index] : null;
+    if (a) a.trigger = a.ads = false;
     const c = this.match.get(seat);
     if (c) this.match.setInteract(seat, 0, false);
   }

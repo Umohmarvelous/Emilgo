@@ -23,10 +23,11 @@ import { SurvivalModule } from "./survival";
 import { ItemsModule } from "./items";
 import { MeleeModule } from "./melee";
 import { VehiclesModule } from "./vehicles";
+import { GunsModule } from "./guns";
 import { ZoneModule } from "./zone";
 
 /** Phase 3: the zone, items and Airfall. Phase 4: melee, flags, drop zones, the rally point. Phase 5: vehicles. Phase 11: Ball Haunt's doll and balls. */
-export const MATCH_MODULES: ReadonlySet<ModuleId> = new Set<ModuleId>(["doll", "balls", "zone", "items", "airfall", "melee", "flags", "dropzones", "capture", "vehicles", "gadgets", "tag", "blackout", "economy", "riddles", "rooms", "harmattan", "traffic", "zips", "survival"]);
+export const MATCH_MODULES: ReadonlySet<ModuleId> = new Set<ModuleId>(["doll", "balls", "zone", "items", "airfall", "melee", "flags", "dropzones", "capture", "vehicles", "gadgets", "tag", "blackout", "economy", "riddles", "rooms", "harmattan", "traffic", "zips", "survival", "guns"]);
 
 /**
  * The modules for a mode's settings, in the order they step: Ball Haunt's
@@ -55,6 +56,8 @@ export function makeModules(mods: Partial<Record<ModuleId, Record<string, unknow
     if (mods.melee) out.push(new ZipsModule());
   }
   if (mods.melee) out.push(new MeleeModule(mods.melee));
+  // v4: Free For All is a shooter: guns ride with melee, except where the rules are a touch or a find (Chase & Reverse, Lights Out).
+  if (mods.melee && !mods.tag && !mods.blackout) out.push(new GunsModule());
   if (mods.items) {
     out.push(new ItemsModule(mods.items));
     // What the §10 items do in the world comes with them.

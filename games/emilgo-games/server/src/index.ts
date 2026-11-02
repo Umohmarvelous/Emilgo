@@ -387,7 +387,7 @@ function handle(peer: Peer, msg: ClientMsg): void {
   const room = lobby.roomOf(peer);
   switch (msg.t) {
     case "in":
-      room?.input(peer, msg.x, msg.z, msg.b, msg.j, msg.a, msg.g, msg.i, msg.k);
+      room?.input(peer, msg.x, msg.z, msg.b, msg.j, msg.a, msg.g, msg.i, msg.k, msg.y, msg.p, msg.w);
       break;
     case "fq":
       sendErr(peer, lobby.fq(peer, msg.m, msg.r === true));

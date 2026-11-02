@@ -17,9 +17,9 @@ export type Status = "alive" | "finished" | "eliminated";
 /**
  * moved: caught by the doll; time: the clock ran out; noball: every ball was
  * banked without yours. Open worlds (SPEC-V3): zone: the sky laser, your
- * exposure full; hazard: a live wire, a fire.
+ * exposure full; hazard: a live wire, a fire. v4: shot (guns, a blow), blast (a drum, a car).
  */
-export type Cause = "moved" | "time" | "noball" | "zone" | "hazard" | "found";
+export type Cause = "moved" | "time" | "noball" | "zone" | "hazard" | "found" | "shot" | "blast";
 
 export interface Contestant {
   readonly id: string;

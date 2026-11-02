@@ -58,6 +58,13 @@ export class NetClient {
   private sentI = 0;
   private wantK = 0;
   private sentK = 0;
+  /** Guns (protocol 15): the aim in milliradians, and the gun buttons word. */
+  private wantY = 0;
+  private sentY = 0;
+  private wantP = 0;
+  private sentP = 0;
+  private wantW = 0;
+  private sentW = 0;
   private match = false;
   private lastInputAt = 0;
   private inputTimer = 0;
@@ -154,8 +161,10 @@ export class NetClient {
     this.wantX = Math.round(Math.max(-1, Math.min(1, x)) * 100);
     this.wantZ = Math.round(Math.max(-1, Math.min(1, z)) * 100);
     const buttons =
-      this.wantB !== this.sentB || this.wantJ !== this.sentJ || this.wantA !== this.sentA || this.wantG !== this.sentG || this.wantBrace !== this.sentBrace || this.wantI !== this.sentI || this.wantK !== this.sentK;
-    if (this.wantX === this.sentX && this.wantZ === this.sentZ && !buttons) return;
+      this.wantB !== this.sentB || this.wantJ !== this.sentJ || this.wantA !== this.sentA || this.wantG !== this.sentG || this.wantBrace !== this.sentBrace || this.wantI !== this.sentI || this.wantK !== this.sentK || this.wantW !== this.sentW;
+    // The aim alone is throttled like the stick (a moving aim is a steady stream).
+    const aimed = Math.abs(this.wantY - this.sentY) > 2 || Math.abs(this.wantP - this.sentP) > 2;
+    if (this.wantX === this.sentX && this.wantZ === this.sentZ && !buttons && !aimed) return;
     // Stops and buttons go at once: a late stop, jump, crouch or punch is a lost round.
     const stop = (this.wantX === 0 && this.wantZ === 0) || buttons;
     const gap = 1000 / NET.inputHz;
@@ -190,12 +199,22 @@ export class NetClient {
     this.setInput(this.wantX / 100, this.wantZ / 100);
   }
 
+  /** Guns: where the camera aims (yaw, pitch radians) and the gun buttons (trigger, ADS, reload and swap counters). The buttons go at once. */
+  setAim(yaw: number, pitch: number, trigger: boolean, ads: boolean, reload: number, swap: number): void {
+    this.match = true;
+    this.wantY = Math.round(Math.atan2(Math.sin(yaw), Math.cos(yaw)) * 1000);
+    this.wantP = Math.round(Math.max(-1.1, Math.min(1.1, pitch)) * 1000);
+    this.wantW = (trigger ? 1 : 0) | (ads ? 2 : 0) | ((reload & 15) << 2) | ((swap & 15) << 6);
+    this.setInput(this.wantX / 100, this.wantZ / 100);
+  }
+
   resetInput(): void {
     this.wantX = this.wantZ = 0;
     this.wantB = 0;
     this.wantBrace = false;
     this.wantI &= 255;
-    if (this.sentX || this.sentZ || this.sentB || this.sentBrace || this.sentI !== this.wantI) this.flushInput();
+    this.wantW &= ~3;
+    if (this.sentX || this.sentZ || this.sentB || this.sentBrace || this.sentI !== this.wantI || this.sentW !== this.wantW) this.flushInput();
     this.match = false;
   }
 
@@ -211,9 +230,12 @@ export class NetClient {
     this.sentBrace = this.wantBrace;
     this.sentI = this.wantI;
     this.sentK = this.wantK;
+    this.sentY = this.wantY;
+    this.sentP = this.wantP;
+    this.sentW = this.wantW;
     this.lastInputAt = performance.now();
     const b = this.sentB | (this.sentBrace ? 8 : 0);
-    if (this.match) this.send({ t: "in", x: this.sentX, z: this.sentZ, b, j: this.sentJ, a: this.sentA, g: this.sentG, i: this.sentI, k: this.sentK });
+    if (this.match) this.send({ t: "in", x: this.sentX, z: this.sentZ, b, j: this.sentJ, a: this.sentA, g: this.sentG, i: this.sentI, k: this.sentK, y: this.sentY, p: this.sentP, w: this.sentW });
     else this.send({ t: "in", x: this.sentX, z: this.sentZ, b, j: this.sentJ, a: this.sentA, g: this.sentG });
   }
 

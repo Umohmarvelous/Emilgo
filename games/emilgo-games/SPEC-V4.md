@@ -40,6 +40,14 @@ hidden and untouched).
 | Touch look numbers | 0.12° per px of thumb travel at sensitivity 1 for a slow thumb; the boost rises (smoothstep) from 0.15 to 1.6 px/ms up to ×(1 + acceleration); default acceleration 1.4, dead zone 3 px (the step that crosses it counts only past it). Vertical = 0.8 × horizontal at the default sliders. The view chases the touchpad at 0.6 a frame (the stick and keys keep 0.15). Presets: Precise 0.8/0.6, Classic 1/1.4, Fast 1.3/2.4, Linear 1/0. |
 | Fixed move stick | Centred 40 px + its radius in from the bottom corner (150 px higher in portrait). A thumb landing more than two radii away gets the stick under it for that touch; Settings has Floating for the old behaviour. |
 | The old look-stick settings | "Look stick: always drawn" becomes "Show touch point: on". The horizontal and vertical sliders now scale the touchpad (30% = 1×); the mouse keeps its own feel. |
+| Guns: which modes | Every Free For All mode and the staked Flag Duel, except Chase & Reverse and Lights Out (their rules are a touch and a find: a gun would end them in a second). Guns ride with melee (not named in the manifest), so a newer manifest from the server can't drop them. Dead Streets keeps its own gun. |
+| Guns: the numbers | Pistol 24 (×1.8 head, 4/s, 12+48), assault rifle 26 (×1.6, 10/s, 30+120), SMG 19 (×1.4, 14/s, 32+160), shotgun 8 × 13 (×1.25, 1.4/s, 6+30). Damage falls to 0.3–0.7× between each gun's near and far range. Rarities: damage ×1.00/1.05/1.10/1.17/1.25/1.35, magazine +0/0/15/25/40/50%. All in `GUNS` (config.ts). |
+| Health | 100, plus armour up to 150 (plates of 25 on the ground; armour takes 70% of a hit). Health comes back at 8 a second after 6 s unhurt (respawning modes keep fights flowing). Melee costs health too (fist 18, slap 7, push 4, trip 10, charge 14, a prop 26, a throw 20). |
+| Hits | Hitscan from the shoulder the camera looks over, along the camera's aim, so the crosshair is exact; walls stop bullets (Space.ray); the target rewound by the shooter's lag (≤150 ms, as melee). Friendly fire off. Seated in a car you can't be shot (the car takes it); a car's blast now hurts (90 at its heart, 6 m), so does a fuel drum's (85, 5 m). |
+| "Anything shootable can be destroyed" | Crates (they give ammo, a plate or a gun), fuel drums (they blow, and set off drums near), the street props, and cars. Buildings and the billboards stay (the owner: "leave billboards intact"). |
+| Loot | Per 10,000 m²: 2.4 guns, 2 ammo boxes, 2 plates, 2.6 crates, 1.2 drums, placed from the match's seed (the copy places the same). Ammo and plates are taken by walking over them; a gun needs interact. Falling drops your primary and a plate. |
+| Keys (computer) | Left button fire, right button aim (held), wheel or Q swap, R reload; with guns the slap moves to Z, the grab to G, the emote wheel to J. |
+| Protocol 15 | "in" carries the aim (milliradians) and the gun buttons. **The test server on Fly needs `fly deploy`** (the owner's) before the test site plays online again. |
 | "1 million users at once" | One server process can't hold that. The build makes each room server stateless between matches and adds a room directory so many machines share the load. Tested here at **10,000 simulated players** (the owner's number); the 1M path is described in README (machines × rooms), not tested. |
 
 ## Phases (built back to back, no waiting; each tested, committed, pushed, the test site republished)
@@ -65,3 +73,14 @@ hidden and untouched).
 | Builds | typecheck · EMILGO embed 2,832 KB |
 
 Not done in Phase 1: a real phone.
+
+### Phase 2: Guns (done 3 Nov 2026)
+
+| Check | Result |
+|---|---|
+| Tests | **gunstest 47** (new: which modes carry guns; the loadout; body and head shots; falloff; armour; out at 0 and back with a pistol; no friendly fire; walls; the lag rewind 100 ms yes / 300 ms no; pickups, the swap, reloads; ammo and plates; a crate's loot; a drum's blast; a car dented; melee costs health; the phone's copy the same). Every earlier suite: rules, content, space, world, shared, cars, extras, ffa (offline and 12 phones online), survival, matchtest (the staked Flag Duel, now with guns): all pass. |
+| In headless Chrome | Practice: the pistol held in both hands (the arms posed round it), firing, the ammo count, ADS (closer and narrower), the centre arc (health left, armour right), the weapon panel. Online against 11 scripted phones that shoot (`ffaplay --shoot`): their guns in their hands, hits on each other, the damage arc toward the shooter, a gun on the ground over its rarity pillar. |
+| Frame rate, CPU 4×, real GPU, 844×390, firing | Low lowest 60, mean 60.2 (49 draws, 37K) · Medium 60 / 60.2 (62 draws, 50K). |
+| Builds | typecheck · server · EMILGO embed 2,882 KB (was 2,832) |
+
+Not done in Phase 2: a real phone; the guns' look past low-poly (the sample sounds come in Phase 8).

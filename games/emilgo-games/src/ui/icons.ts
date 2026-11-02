@@ -115,6 +115,10 @@ const P: Record<string, string> = {
   heal: `<rect x="4.5" y="4.5" width="15" height="15" rx="3"/><path d="M12 8.5v7M8.5 12h7"/>`,
   ammo: `<path d="M7 20V9.5a2 2 0 0 1 4 0V20M13 20V9.5a2 2 0 0 1 4 0V20M5.5 20h13M7 12h4M13 12h4"/>`,
   gun: `<path d="M3.5 9h15l1.5 2h-4v2.5h-3.5l-1 4.5H8l1-4.5H6.5L5.5 11H3.5z"/>`,
+  // v4 guns: a reticle (fire), a sight (aim down sights), a magazine going in (reload).
+  shoot: `<circle cx="12" cy="12" r="6.5"/><path d="M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4"/><circle cx="12" cy="12" r="1" fill="currentColor"/>`,
+  sight: `<rect x="5" y="8" width="14" height="9" rx="2"/><circle cx="12" cy="12.5" r="2.2"/><path d="M8 8V6h8v2"/>`,
+  reload: `<path d="M19 12a7 7 0 1 1-2.1-5"/><path d="M19.5 4.5v3.5H16"/><rect x="10" y="10" width="4" height="6" rx="1"/>`,
   cutlass: `<path d="M5 19l3-3M7 21l-4-4M8 16 19.5 4.5c.5 3-1 6.5-4.5 9.5L10.5 18"/>`,
   torch: `<path d="M9 3.5h6l-1 5h-4zM10 8.5h4v11.5h-4zM6.5 2l2 1.5M17.5 2l-2 1.5"/>`,
   bundle: `<path d="M6 11c0-2.5 2.7-4 6-4s6 1.5 6 4l1.5 7a2 2 0 0 1-2 2.5h-11a2 2 0 0 1-2-2.5z"/><path d="M10 7l-1.5-3h7L14 7"/>`,

@@ -10,7 +10,7 @@
 import { Vector3 } from "three";
 
 import { RADIO_IDS, RADIO_NAME, type RadioId } from "../audio/radio";
-import { HARMATTAN, SURVIVAL, VEHICLES } from "../config";
+import { GUN_KINDS, GUNS, HARMATTAN, SURVIVAL, VEHICLES } from "../config";
 import { ITEM_DEFS } from "../content/items";
 import { type ModeDef } from "../content/modes";
 import { Rng } from "../core/rng";
@@ -38,6 +38,9 @@ import { BillboardView } from "../world/billboards";
 import { DeadView } from "../world/deadView";
 import type { SurvivalModule } from "../game/modules/survival";
 import type { ItemsModule } from "../game/modules/items";
+import { gunStats, type GunsModule } from "../game/modules/guns";
+import { CombatHud } from "../ui/combat";
+import { GunsView } from "../world/gunsView";
 import { getLang, t } from "../ui/i18n";
 import { PING_LINES } from "../ui/quickchat";
 import { PlayHud } from "../ui/play";
@@ -75,6 +78,8 @@ interface Source {
   setButtons(sprint: boolean, stance: 0 | 1 | 2, jump: number): void;
   setActions(attack: number, grab: number): void;
   setMatchButtons(brace: boolean, interact: number, hold: boolean, pack: number): void;
+  /** Guns (v4): the camera's aim and the gun buttons. */
+  setAim(yaw: number, pitch: number, trigger: boolean, ads: boolean, reload: number, swap: number): void;
   step(dt: number): void;
   drain(): MatchEvent[];
   dispose(): void;
@@ -106,6 +111,9 @@ class LocalSource implements Source {
     this.match.setBrace("me", brace);
     this.match.setInteract("me", interact, hold);
     this.match.setPack("me", pack);
+  }
+  setAim(yaw: number, pitch: number, trigger: boolean, ads: boolean, reload: number, swap: number): void {
+    this.match.setAim("me", yaw, pitch, trigger, ads, reload, swap);
   }
   step(dt: number): void {
     this.match.step(dt);
@@ -153,6 +161,10 @@ export class FfaMode implements GameMode {
   private inCar = -1;
   private station: RadioId | null = null;
   private readonly play = new PlayHud();
+  /** Guns (v4): the guns drawn, and the gun HUD (Free For All's shooter modes only). */
+  private readonly gunsView: GunsView | null;
+  private readonly combat: CombatHud | null;
+  private dryAt = 0;
   private readonly focus = new Vector3();
   private readonly marks: MapMark[] = [];
   private readonly looks: Look[];
@@ -232,6 +244,10 @@ export class FfaMode implements GameMode {
     h.scene.add(this.gadgets.group);
     this.modes6 = new ModesView({ crowd: h.crowd, hud: h.hud, sound: h.sound, me: me.index });
     h.scene.add(this.modes6.group);
+    const guns = m.module<GunsModule>("guns");
+    this.gunsView = guns ? new GunsView({ crowd: h.crowd, sound: h.sound, tier: h.spec.tier, me: me.index, blood: h.settings.blood }) : null;
+    this.combat = guns ? new CombatHud() : null;
+    if (this.gunsView) h.scene.add(this.gunsView.group);
     this.dead = m.module("survival") ? new DeadView({ crowd: h.crowd, hud: h.hud, sound: h.sound, me: me.index, layer: h.ui, tier: h.spec.tier }) : null;
     if (this.dead) {
       h.scene.add(this.dead.group);
@@ -275,6 +291,10 @@ export class FfaMode implements GameMode {
     map.reach = 80;
     map.names = world.layout.landmarks;
     h.ui.append(this.play.root);
+    if (this.combat) {
+      h.ui.append(this.combat.root);
+      this.combat.onSwap = () => h.controls.swap();
+    }
     this.play.onInteract = (down) => this.interact(down);
     this.play.onUse = (slot) => (this.packAct = ((++this.packN & 511) << 5) | slot);
     this.play.onDrop = (slot) => (this.packAct = ((++this.packN & 511) << 5) | 16 | slot);
@@ -288,6 +308,7 @@ export class FfaMode implements GameMode {
     c.onSlot = (slot, drop) => this.play.key(slot, drop);
     c.onRadio = () => this.nextStation();
     if (this.dead) c.setSurvival(true);
+    c.setGuns(!!guns);
     h.rig.follow(true, { x: me.x, z: me.z, y: me.y, stance: me.stance, ground: me.h });
   }
 
@@ -441,10 +462,12 @@ export class FfaMode implements GameMode {
       src.setButtons(c.sprint, c.stance as 0 | 1 | 2, c.jumps);
       src.setActions(c.attacks, c.grabs);
       src.setMatchButtons(c.brace, this.press, this.hold, this.packAct);
+      if (this.gunsView) src.setAim(h.rig.aimYaw, h.rig.aimPitch, c.trigger, c.ads, c.reloads, c.swaps);
     } else {
       src.setInput(0, 0);
       src.setButtons(false, 0, c.jumps);
       src.setMatchButtons(false, this.press, false, this.packAct);
+      if (this.gunsView) src.setAim(h.rig.aimYaw, h.rig.aimPitch, false, false, c.reloads, c.swaps);
     }
     src.step(dt);
     const events = src.drain();
@@ -455,6 +478,7 @@ export class FfaMode implements GameMode {
     this.gadgets.events(events, m, cam);
     this.modes6.events(events, m);
     this.dead?.events(events, m);
+    this.gunsView?.events(events, m, cam);
     for (const e of events) this.onEvent(e);
     // Your trail, once a second of play (the heat map).
     if (m.phase === "play" && me.status === "alive" && m.elapsed >= this.trailAt) {
@@ -545,6 +569,60 @@ export class FfaMode implements GameMode {
       }
       case "car":
         if (m.phase === "play") h.hud.pushFeed(t("A danfo has come"), "info");
+        break;
+      // ── Guns (v4) ──
+      case "fire":
+        if (e.id === me.id) {
+          const K = GUNS.kinds[GUN_KINDS[e.g] ?? "pistol"];
+          const ads = h.rig.ads;
+          h.rig.recoil(K.recoil * (1 - 0.35 * ads), (Math.random() - 0.5) * K.recoil * 0.5);
+          h.rig.kick(K.pellets > 1 ? 0.25 : 0.06);
+        }
+        break;
+      case "dmg":
+        if (e.by === me.id && e.tg !== me.id) {
+          const dead = e.hp <= 0;
+          this.combat?.hitMark(e.head, dead);
+          h.sound.hitMarker(e.head, dead);
+          h.haptic("select");
+        }
+        if (e.tg === me.id) {
+          const by = e.by ? m.get(e.by) : null;
+          if (by) {
+            // Where it came from, on screen: 0 ahead, + to the right.
+            const yaw = h.rig.aimYaw;
+            const a = Math.atan2(by.x - me.x, by.z - me.z);
+            const fwd = Math.atan2(-Math.sin(yaw), -Math.cos(yaw));
+            this.combat?.hurt(-Math.atan2(Math.sin(a - fwd), Math.cos(a - fwd)));
+          }
+          h.hud.flashRed();
+          h.haptic("heavy");
+        }
+        break;
+      case "kill": {
+        const tg = m.get(e.tg);
+        const by = e.by ? m.get(e.by) : null;
+        if (!tg) break;
+        if (by === me && tg !== me) this.combat?.killed(tg.name, e.head);
+        const how = e.how === "blast" ? t("blew up") : e.how === "melee" ? t("knocked out") : t("dropped");
+        h.hud.pushFeed(by ? `${by === me ? t("You") : by.name} ${how} ${tg === me ? t("you") : tg.name}${e.head ? " · " + t("head") : ""}` : `${tg === me ? t("You") : tg.name} ${t("went down")}`, tg === me ? "out" : by === me ? "safe" : "info");
+        break;
+      }
+      case "reload":
+        if (e.id === me.id && e.how === "start") {
+          const g = m.module<GunsModule>("guns");
+          const kind = GUN_KINDS[g?.gun[me.index][e.s] ?? 0] ?? "pistol";
+          h.sound.reload(kind, Math.max(0.4, e.at - m.elapsed));
+        }
+        break;
+      case "ptake":
+        if (e.id === me.id) {
+          const g = m.module<GunsModule>("guns");
+          const p = g?.pickups[e.p];
+          if (p?.kind === "plate") h.sound.plate();
+          else h.sound.pickup();
+          if (p?.kind === "gun") h.hud.pushFeed(`${t(["Pistol", "Assault rifle", "SMG", "Shotgun"][p.gun] ?? "Gun")} · ${t(["Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic"][p.rarity])}`, "safe");
+        }
         break;
       default:
         break;
@@ -682,6 +760,7 @@ export class FfaMode implements GameMode {
     const { pin } = this.ms.update(dt, m, cam, this.marks, extra);
     const { goal: flagGoal } = this.view.update(dt, m, h.camera, this.marks, h.rig.firstPerson && target === me);
     const deadPin = this.dead?.update(dt, m, cam, this.marks).pin ?? null;
+    if (this.gunsView) this.gunFrame(dt, m, me);
     const goal = flagGoal ?? deadPin ?? this.modes6.update(dt, m, this.marks).pin;
     // The Harmattan: the siren, then the dust; footprints gone; headlights on (or in a power cut).
     const hm = m.module<HarmattanModule>("harmattan");
@@ -745,6 +824,53 @@ export class FfaMode implements GameMode {
     } else h.draw(LOOKS.naija);
   }
 
+  /** Guns, each frame: the camera down the sights, the guns drawn, the gun HUD, a dry click. */
+  private gunFrame(dt: number, m: Match, me: Contestant): void {
+    const h = this.host;
+    const g = m.module<GunsModule>("guns")!;
+    const c = h.controls;
+    const i = me.index;
+    const live = me.status === "alive" && m.phase === "play" && !m.seated(me);
+    const s = g.slot[i];
+    const kind = GUN_KINDS[g.gun[i][s]] ?? "pistol";
+    const K = GUNS.kinds[kind];
+    h.rig.adsWant = live && c.ads ? 1 : 0;
+    // Aiming or firing, you face the aim (the server turns your body the same way).
+    if (live && (c.ads || c.trigger || m.elapsed - g.aimedAt[i] < 0.8)) me.heading = h.rig.aimYaw + Math.PI;
+    h.rig.adsZoom = K.zoom;
+    this.gunsView!.myPitch = h.rig.aimPitch;
+    this.gunsView!.myAiming = live && (c.ads || c.trigger);
+    this.gunsView!.update(dt, m, h.camera);
+    // The trigger on nothing at all: a dry click now and then.
+    if (live && c.trigger && g.mag[i][s] <= 0 && g.res[i][s] <= 0 && m.elapsed - this.dryAt > 0.4) {
+      this.dryAt = m.elapsed;
+      h.sound.dryFire();
+    }
+    const cb = this.combat!;
+    cb.show(live || (me.status === "alive" && m.phase === "countdown"));
+    // The crosshair's gap: the spread now (as the rules work it out), on screen.
+    const moving = Math.hypot(me.vx, me.vz) > 0.6;
+    const spread = (c.ads ? K.ads : K.hip) * (me.stance === 1 ? 0.8 : me.stance === 2 ? 0.6 : 1) + (moving ? K.move : 0) + (me.y > 0.05 ? K.move * 2 : 0) + g.bloom[i];
+    const halfFov = ((h.camera.fov / 2) * Math.PI) / 180;
+    const gap = (Math.tan(spread) / Math.tan(halfFov)) * (h.ui.clientHeight / 2);
+    const ra = g.reloadAt[i];
+    cb.update({
+      hp: g.hp[i],
+      hpMax: GUNS.hp,
+      armour: g.armour[i],
+      armourMax: GUNS.armour.max,
+      kind,
+      rarity: g.rarity[i][s],
+      mag: Math.max(0, g.mag[i][s]),
+      magMax: gunStats(kind, g.rarity[i][s]).mag,
+      res: g.res[i][s],
+      reload: ra >= 0 ? Math.max(0, Math.min(1, 1 - (ra - m.elapsed) / K.reload)) : -1,
+      gap,
+      ads: h.rig.ads > 0.5,
+      two: g.gun[i][1] >= 0,
+    });
+  }
+
   /** The match is over: the result, for the session's results screen. */
   private finish(): void {
     const m = this.src.match;
@@ -795,6 +921,13 @@ export class FfaMode implements GameMode {
     this.view.dispose();
     this.cars?.dispose();
     this.gadgets.dispose();
+    if (this.gunsView) {
+      h.scene.remove(this.gunsView.group);
+      this.gunsView.dispose();
+    }
+    this.combat?.root.remove();
+    h.rig.adsWant = 0;
+    h.controls.setGuns(false);
     if (this.dead) {
       h.scene.remove(this.dead.group);
       this.dead.dispose();

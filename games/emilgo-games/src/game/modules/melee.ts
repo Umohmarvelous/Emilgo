@@ -628,6 +628,14 @@ export class MeleeModule implements RuleModule {
     return best;
   }
 
+  /** A bullet breaks a street prop on the ground (v4 guns). */
+  shatter(m: Match, index: number, by: Contestant): void {
+    const p = this.props[index];
+    if (!p || p.holder !== -1) return;
+    p.holder = -2;
+    m.emit({ type: "prop", id: by.id, prop: p.index, kind: p.kind, how: "break", x: p.x, z: p.z, h: p.h });
+  }
+
   private use(m: Match, c: Contestant, p: GroundProp): void {
     p.uses--;
     if (p.uses > 0) return;

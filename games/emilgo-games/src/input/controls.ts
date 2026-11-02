@@ -120,6 +120,23 @@ export class Controls {
   private braceTouch = false;
   private braceMouse = false;
   private finisher = false;
+  /** Guns (v4): the trigger held (FIRE buttons, the left mouse button), aiming down the sights, the reload and swap counters. */
+  get trigger(): boolean {
+    return this.fireTouch > 0 || this.fireMouse;
+  }
+  ads = false;
+  reloads = 0;
+  swaps = 0;
+  private fireTouch = 0;
+  private fireMouse = false;
+  private adsMouse = false;
+  /** Free For All with guns: the FIRE buttons, ADS and reload. */
+  readonly gunpad: HTMLDivElement;
+  private readonly fireBtn: HTMLButtonElement;
+  private readonly fireLBtn: HTMLButtonElement;
+  private readonly adsBtn: HTMLButtonElement;
+  private readonly reloadBtn: HTMLButtonElement;
+  private guns = false;
   /** Free For All: interact pressed and released (E). */
   onInteract: ((down: boolean) => void) | null = null;
   /** Free For All: the backpack (B), and a slot used or dropped (1–0, Shift). */
@@ -225,6 +242,26 @@ export class Controls {
     this.braceBtn = vbtn("brace", "Brace (hold)");
     this.radioBtn = vbtn("radio", "Radio");
 
+    // Guns (v4): FIRE where the right thumb rests (a drag from it also aims), a second on the left, ADS, reload.
+    this.gunpad = document.createElement("div");
+    this.gunpad.className = "gunpad";
+    this.gunpad.hidden = true;
+    const gbtn = (cls: string, ico: string, aria: string, size: number) => {
+      const b = document.createElement("button");
+      b.className = `abtn ${cls}`;
+      b.dataset.ui = "1";
+      b.setAttribute("aria-label", aria);
+      b.innerHTML = icon(ico, "", size);
+      this.gunpad.append(b);
+      return b;
+    };
+    this.fireBtn = gbtn("fire", "shoot", "Fire", 30);
+    this.fireLBtn = gbtn("fireL", "shoot", "Fire", 22);
+    this.adsBtn = gbtn("ads", "sight", "Aim down the sights", 22);
+    this.reloadBtn = gbtn("reload", "reload", "Reload", 20);
+    this.aimFrom(this.fireBtn);
+    this.aimFrom(this.fireLBtn);
+
     const press = (b: HTMLElement, down: (e: PointerEvent) => void, up?: (e: PointerEvent) => void) => {
       b.addEventListener("pointerdown", (e) => {
         e.preventDefault();
@@ -253,6 +290,15 @@ export class Controls {
       b.addEventListener("pointercancel", end);
     };
     press(this.jumpBtn, () => this.jump());
+    for (const b of [this.fireBtn, this.fireLBtn]) {
+      press(
+        b,
+        () => this.fireTouch++,
+        () => (this.fireTouch = Math.max(0, this.fireTouch - 1)),
+      );
+    }
+    press(this.adsBtn, () => this.setAds(!this.ads));
+    press(this.reloadBtn, () => this.reload());
     press(this.radioBtn, () => this.onRadio?.());
     ATTACK_KINDS.forEach((k, i) => press(this.attackBtns[i], () => this.attack(k)));
     press(this.grabBtn, () => this.grab());
@@ -309,13 +355,32 @@ export class Controls {
     surface.addEventListener("contextmenu", (e) => e.preventDefault());
     document.addEventListener("mousemove", this.lockedMove);
     // Free For All with the mouse taken: left click a fist, right click a brace.
+    // With guns (v4): left fires (held), right aims down the sights (held), the wheel swaps.
     document.addEventListener("mousedown", (e) => {
       if (!this.locked || !this.on || this.layout !== "ffa") return;
+      if (this.guns) {
+        if (e.button === 0) this.fireMouse = true;
+        else if (e.button === 2) {
+          this.adsMouse = true;
+          this.setAds(true);
+        }
+        return;
+      }
       if (e.button === 0) this.attack("fist");
       else if (e.button === 2) this.braceMouse = true;
     });
     document.addEventListener("mouseup", (e) => {
-      if (e.button === 2) this.braceMouse = false;
+      if (e.button === 0) this.fireMouse = false;
+      if (e.button === 2) {
+        this.braceMouse = false;
+        if (this.adsMouse) {
+          this.adsMouse = false;
+          this.setAds(false);
+        }
+      }
+    });
+    document.addEventListener("wheel", (e) => {
+      if (this.locked && this.on && this.guns && Math.abs(e.deltaY) > 4) this.swap();
     });
     document.addEventListener("pointerlockchange", () => this.onPointerLock?.(this.locked));
   }
@@ -497,6 +562,7 @@ export class Controls {
     this.actions.classList.toggle("play", on);
     this.moveSide.hidden = !on;
     this.vitals.hidden = !on;
+    this.gunpad.hidden = !on || !this.guns || !!this.driving;
     if (!on) this.setNear(false, false);
     this.placeMoveHome();
   }
@@ -530,6 +596,7 @@ export class Controls {
       }
     }
     if (this.radioBtn.hidden === !!mode) this.radioBtn.hidden = !mode;
+    if (mode && !this.gunpad.hidden) this.gunpad.hidden = true;
     if (mode) {
       this.attackBtns.forEach((b, i) => {
         const on = slap && ATTACK_KINDS[i] === "slap";
@@ -570,6 +637,31 @@ export class Controls {
       b.setAttribute("aria-label", k[0].toUpperCase() + k.slice(1));
       b.classList.toggle("finish", on);
     });
+  }
+
+  /** Guns on (Free For All's shooter modes): the gun buttons and keys. */
+  setGuns(on: boolean): void {
+    this.guns = on;
+    if (!on) {
+      this.fireTouch = 0;
+      this.fireMouse = false;
+      this.setAds(false);
+    }
+    this.gunpad.hidden = !on || this.actions.hidden || !!this.driving;
+    this.gunpad.classList.toggle("lefty", this.leftHanded);
+  }
+
+  setAds(on: boolean): void {
+    this.ads = on;
+    this.adsBtn.classList.toggle("on", on);
+  }
+
+  reload(): void {
+    this.reloads = (this.reloads + 1) & 15;
+  }
+
+  swap(): void {
+    this.swaps = (this.swaps + 1) & 15;
   }
 
   attack(kind: AttackKind): void {
@@ -615,6 +707,9 @@ export class Controls {
     this.keys.clear();
     this.shiftSprint = false;
     this.braceKey = this.braceTouch = this.braceMouse = false;
+    this.fireTouch = 0;
+    this.fireMouse = this.adsMouse = false;
+    this.setAds(false);
     this.setFinisher(false);
     this.setSprint(false);
     this.setStance(0);
@@ -893,7 +988,13 @@ export class Controls {
       return true;
     }
     if (!down) return false;
-    if (k === "f") this.attack("fist");
+    // With guns (v4): R reloads, Q swaps; the slap moves to Z, the grab to G (the emote wheel to J).
+    if (this.guns && k === "r") this.reload();
+    else if (this.guns && k === "q") this.swap();
+    else if (this.guns && k === "z") this.attack("slap");
+    else if (this.guns && k === "g") this.grab();
+    else if (this.guns && k === "j") this.onWheel?.(true, gameSize().w / 2, gameSize().h / 2);
+    else if (k === "f") this.attack("fist");
     else if (k === "r") this.attack("slap");
     else if (k === "x") this.attack("push");
     else if (k === "q") this.grab();

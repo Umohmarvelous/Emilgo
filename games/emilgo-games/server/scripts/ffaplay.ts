@@ -4,9 +4,10 @@
 // (Find the Flag), walk to the flag or a drop zone, and swing at anyone close.
 // Not bots in the game: test clients on the network, like the load test.
 //
-//   node server/dist/ffaplay.mjs [--url ws://localhost:8797] [--mode find-the-flag] [--n 11] [--seconds 300] [--hunt]
+//   node server/dist/ffaplay.mjs [--url ws://localhost:8797] [--mode find-the-flag] [--n 11] [--seconds 300] [--hunt] [--shoot]
 //
 // --hunt: they ignore the objective and go for you (anyone not named "Tester …"), to see melee up close.
+// --shoot (v4 guns): they fire in bursts at the nearest rival in sight within 35 m.
 
 import type { FlagsModule } from "../../src/game/modules/flags";
 import type { DropzonesModule } from "../../src/game/modules/dropzones";
@@ -21,6 +22,7 @@ const mode = arg("mode", "find-the-flag");
 const n = Number(arg("n", "11"));
 const seconds = Number(arg("seconds", "300"));
 const hunt = process.argv.includes("--hunt");
+const shoot = process.argv.includes("--shoot");
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function main(): Promise<void> {
@@ -41,6 +43,15 @@ async function main(): Promise<void> {
       if (!m || !c || m.phase !== "play" || c.status !== "alive") continue;
       const f = m.module<FlagsModule>("flags");
       const dz = m.module<DropzonesModule>("dropzones");
+      // Guns: a burst at the nearest rival in sight (35 m), about one second in three.
+      if (shoot) {
+        const foe = m.contestants
+          .filter((o) => o !== c && o.status === "alive" && Math.hypot(o.x - c.x, o.z - c.z) < 35 && m.world.space.lineClear(c.x, c.z, o.x, o.z, c.h + 1.5))
+          .sort((a, b) => Math.hypot(a.x - c.x, a.z - c.z) - Math.hypot(b.x - c.x, b.z - c.z))[0];
+        const burst = (Date.now() / 1000 + phones.indexOf(p) * 0.37) % 3 < 1;
+        if (foe) p.aim(foe.x, foe.h + 1.1, foe.z, burst);
+        else p.aim(c.x - Math.sin(c.heading + Math.PI), c.h + 1.6, c.z - Math.cos(c.heading + Math.PI), false);
+      }
       // Anyone within 1.8 m: a swing now and then.
       const near = m.contestants.find((o) => o !== c && o.status === "alive" && Math.hypot(o.x - c.x, o.z - c.z) < 1.8);
       if (near && Math.random() < 0.08) p.swing((1 + Math.floor(Math.random() * 3)) as 1 | 2 | 3);

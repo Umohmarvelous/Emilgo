@@ -393,7 +393,7 @@ export class Game {
     bubbleLayer.className = "bubble-layer";
     ui.append(this.touch, bubbleLayer, this.hud.root, moveStick, lookStick);
     this.controls = new Controls(this.touch, moveStick, lookStick);
-    ui.append(this.controls.actions, this.controls.moveSide, this.controls.vitals);
+    ui.append(this.controls.actions, this.controls.moveSide, this.controls.vitals, this.controls.gunpad);
     this.board = new Scoreboard(ui);
     this.quick = new QuickChat(ui);
     ui.append(this.screens.root, this.screens.toastNode);
@@ -1781,7 +1781,7 @@ export class Game {
     let boardNote: string | null = null;
     if (this.host.kind === "lagoslife" && !this.host.can.leaderboard) boardNote = "Sign in to Lagos Life to rank";
     this.recorded = {
-      outcome: outcome === "zone" || outcome === "hazard" || outcome === "found" ? "moved" : outcome,
+      outcome: outcome === "zone" || outcome === "hazard" || outcome === "found" || outcome === "shot" || outcome === "blast" ? "moved" : outcome,
       place: me.place,
       time: me.finishTime,
       progress: Math.min(1, me.progress / round.course.distance),

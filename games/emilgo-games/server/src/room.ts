@@ -279,11 +279,11 @@ export class Room {
     if (this.inRound.has(seat)) this.round.skip(seat);
   }
 
-  input(peer: Peer, x: number, z: number, b = 0, j = 0, a = 0, g = 0, i = 0, k = 0): void {
+  input(peer: Peer, x: number, z: number, b = 0, j = 0, a = 0, g = 0, i = 0, k = 0, y = 0, p = 0, w = 0): void {
     if (this.state !== "playing") return;
     const seat = this.seatOf(peer);
     if (!this.inRound.has(seat)) return;
-    if (this.game) return this.game.input(seat, x, z, b, j, a, g, i, k);
+    if (this.game) return this.game.input(seat, x, z, b, j, a, g, i, k, y, p, w);
     if (!this.round) return;
     this.round.setInput(seat, x / 100, z / 100);
     this.round.setButtons(seat, (b & 1) === 1, Math.min(2, (b >> 1) & 3) as 0 | 1 | 2, j);

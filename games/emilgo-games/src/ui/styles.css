@@ -1026,3 +1026,62 @@ input { font: inherit; color: inherit; }
 @keyframes ld-stop { to { background: #111; } }
 .ld-cancel { justify-self: start; margin-top: 6px; pointer-events: auto; }
 @media (prefers-reduced-motion: reduce) { .loadscreen.run, .ld-route .stop { animation: none; } }
+
+/* ── v4 guns: HUD A (Field Kit) with C's centre arc ─────────────────────── */
+.combat { --amber: #ffb23a; --ink: #f2e6c9; position: absolute; inset: 0; pointer-events: none; font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; }
+.combat[hidden] { display: none; }
+.c-ring { position: absolute; left: 50%; top: 50%; width: 96px; height: 96px; margin: -48px; overflow: visible; transition: transform 0.18s, opacity 0.18s; }
+.combat.ads .c-ring { transform: scale(0.82); opacity: 0.55; }
+.c-ring circle { fill: none; stroke-width: 2.6; stroke-linecap: round; transform-origin: 0 0; }
+.c-track { stroke: rgba(0, 0, 0, 0.35); }
+.c-hp { stroke: rgba(242, 230, 201, 0.92); transition: stroke-dasharray 0.18s, stroke 0.2s; filter: drop-shadow(0 0 1px #000); }
+.c-hp.low { stroke: #ff4a3a; animation: c-low 0.9s ease-in-out infinite; }
+@keyframes c-low { 50% { opacity: 0.45; } }
+.c-ar { stroke: #5ec8ff; transition: stroke-dasharray 0.18s; filter: drop-shadow(0 0 1px #000); }
+.c-rl { stroke: var(--amber); stroke-width: 1.6; opacity: 0; transition: opacity 0.15s; }
+.c-xh { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+.c-xh i { position: absolute; left: 0; top: 0; background: var(--ink); box-shadow: 0 0 1px #000, 0 0 2px #0008; transition: transform 0.06s linear; }
+.c-xh .t0, .c-xh .t1 { width: 2px; height: 7px; }
+.c-xh .t2, .c-xh .t3 { width: 7px; height: 2px; }
+.c-dot { position: absolute; left: -1.5px; top: -1.5px; width: 3px; height: 3px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 0 1px #0009; }
+.c-hit { position: absolute; left: 50%; top: 50%; width: 0; height: 0; opacity: 0; }
+.c-hit i { position: absolute; width: 9px; height: 2px; background: #fff; box-shadow: 0 0 2px #000; }
+.c-hit i:nth-child(1) { transform: translate(5px, 5px) rotate(45deg); }
+.c-hit i:nth-child(2) { transform: translate(-14px, 5px) rotate(-45deg); }
+.c-hit i:nth-child(3) { transform: translate(5px, -7px) rotate(-45deg); }
+.c-hit i:nth-child(4) { transform: translate(-14px, -7px) rotate(45deg); }
+.c-hit.on { animation: c-hit 0.26s ease-out; }
+.c-hit.head i { background: #ffd23a; }
+.c-hit.kill i { background: #ff3b30; width: 12px; }
+@keyframes c-hit { from { opacity: 1; transform: scale(1.35); } 60% { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(1); } }
+.c-dmg { position: absolute; left: 50%; top: 50%; width: 0; height: 0; opacity: 0; }
+.c-dmg::before { content: ""; position: absolute; left: -28px; top: -86px; width: 56px; height: 14px; border-radius: 50% 50% 0 0 / 100% 100% 0 0; border-top: 4px solid #ff3a2a; filter: drop-shadow(0 0 4px #ff3a2a); }
+.c-dmg.on { animation: c-dmg 0.9s ease-out; }
+@keyframes c-dmg { from { opacity: 1; } to { opacity: 0; } }
+.c-small { position: absolute; left: 50%; top: 50%; transform: translate(52px, 18px); font: 800 12px/1 var(--num, "JetBrains Mono"), monospace; color: var(--ink); text-shadow: 0 1px 2px #000; }
+.c-small.low { color: #ff6b5a; }
+.c-kill { position: absolute; left: 50%; top: calc(50% + 62px); transform: translateX(-50%); font-size: 10px; font-weight: 800; letter-spacing: 0.08em; color: var(--amber); text-shadow: 0 1px 2px #000; text-transform: uppercase; opacity: 0; white-space: nowrap; }
+.c-kill.on { animation: c-kill 1.8s ease-out; }
+@keyframes c-kill { 0% { opacity: 0; transform: translate(-50%, 6px); } 12% { opacity: 1; transform: translate(-50%, 0); } 80% { opacity: 1; } 100% { opacity: 0; } }
+.c-weapon { position: absolute; right: calc(var(--safe-r) + 96px); bottom: calc(var(--safe-b) + 12px); min-width: 150px; padding: 4px 8px 6px; text-align: right; background: #14150fb3; border: 1px solid #6b6a52; border-radius: 4px; color: var(--ink); pointer-events: auto; font: inherit; }
+.c-weapon .n { font-size: 22px; font-weight: 800; line-height: 1; text-shadow: 0 1px 0 #000; }
+.c-weapon .n small { font-size: 11px; color: #b8b39a; }
+.c-weapon .w { font-size: 8px; letter-spacing: 0.12em; margin-top: 2px; }
+.c-weapon .led { display: flex; gap: 2px; height: 5px; margin-top: 4px; padding: 1px; background: #100f0a; border-radius: 2px; }
+.c-weapon .led i { flex: 1; background: var(--amber); box-shadow: 0 0 4px var(--amber); border-radius: 1px; }
+.c-weapon .led i.o { background: #3a2a10; box-shadow: none; }
+.c-weapon .led.low i:not(.o) { animation: c-low 0.5s steps(2) infinite; }
+.c-weapon.reloading .n { opacity: 0.5; }
+/* The gun buttons (Free For All): FIRE where the right thumb rests, a second FIRE on the left, ADS and reload. */
+.gunpad { position: absolute; inset: 0; pointer-events: none; }
+.gunpad[hidden] { display: none; }
+.abtn.fire { right: calc(var(--safe-r) + 200px); bottom: calc(var(--safe-b) + 112px); width: 74px; height: 74px; border: 2px solid #ffb23a; background: rgba(29, 30, 22, 0.45); }
+.abtn.fireL { left: calc(var(--safe-l) + 160px); bottom: calc(var(--safe-b) + 196px); width: 52px; height: 52px; border: 1.5px solid #ffb23a; }
+.abtn.ads { right: calc(var(--safe-r) + 214px); bottom: calc(var(--safe-b) + 200px); width: 46px; height: 46px; }
+.abtn.reload { right: calc(var(--safe-r) + 254px); bottom: calc(var(--safe-b) + 56px); width: 42px; height: 42px; }
+.gunpad.lefty .abtn.fire { right: auto; left: calc(var(--safe-l) + 200px); }
+.gunpad.lefty .abtn.fireL { left: auto; right: calc(var(--safe-r) + 160px); }
+.gunpad.lefty .abtn.ads { right: auto; left: calc(var(--safe-l) + 214px); }
+.gunpad.lefty .abtn.reload { right: auto; left: calc(var(--safe-l) + 254px); }
+.gunpad.lefty ~ .combat .c-weapon, .combat.lefty .c-weapon { right: auto; left: calc(var(--safe-l) + 96px); }
+@media (orientation: portrait) { .abtn.fire { bottom: calc(var(--safe-b) + 300px); } .abtn.ads { bottom: calc(var(--safe-b) + 390px); } .abtn.fireL { bottom: calc(var(--safe-b) + 360px); } }

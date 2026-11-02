@@ -36,6 +36,7 @@ import { paintLook, TEX_SIZE } from "./paint";
 import { FALL_TIME, type FallKind } from "./ragdoll";
 import { packMesh } from "./pack";
 import { BONES, PARENT, type BoneName } from "./skeleton";
+import { applyHold, type Hold } from "./hold";
 import { normalMapFor } from "./normals";
 import { loadScanLevel, onScanLevel, scanReady, scanStamp } from "./scanbody";
 import { OUTFIT_BY_ID, paintKey, scanPaintKey, shapeKey, type Look } from "./wardrobe";
@@ -415,6 +416,9 @@ export class Human {
   }
 
   /** Bone by name (camera eye, effects). */
+  /** The gun held (v4 guns), or null: applied after each pose. */
+  hold: Hold | null = null;
+
   bone(name: BoneName): Bone {
     return this.bones[BONES.indexOf(name)];
   }
@@ -521,6 +525,8 @@ export class Human {
     stepGait(a, a.sitWant > 0 ? 0 : speed, dt);
     computePose(a, this.pose);
     this.apply();
+    // A gun in the hands (v4): the arms round it, after the pose (never while down or falling).
+    if (this.hold && a.dead < 0) applyHold(this, this.hold);
     this.restedAt = a.dead > REST_AT ? this.level : -1;
   }
 

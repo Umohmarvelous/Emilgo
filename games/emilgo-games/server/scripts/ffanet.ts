@@ -81,7 +81,7 @@ export class Phone {
   playMs = 0;
   snaps = 0;
   private waiters: { test: (m: ServerMsg) => boolean; done: (m: ServerMsg) => void }[] = [];
-  private input = { x: 0, z: 0, b: 0, i: 0, a: 0 };
+  private input = { x: 0, z: 0, b: 0, i: 0, a: 0, y: 0, p: 0, w: 0 };
 
   constructor(readonly name: string, private readonly url: string) {}
 
@@ -277,6 +277,18 @@ export class Phone {
   /** A swing: 1 fist, 2 slap, 3 push. */
   swing(kind: 1 | 2 | 3): void {
     this.input.a = ((((this.input.a >> 2) + 1) & 63) << 2) | kind;
+  }
+
+  /** Guns (v4): aim at a point (from about the shoulder) with some wobble, and hold the trigger or not. */
+  aim(x: number, y: number, z: number, trigger: boolean, wobble = 0.03): void {
+    const c = this.me();
+    if (!c) return;
+    const yaw = Math.atan2(-(x - c.x), -(z - c.z)) + (Math.random() - 0.5) * wobble;
+    const d = Math.max(0.5, Math.hypot(x - c.x, z - c.z));
+    const pitch = Math.atan2(c.h + 1.6 - y, d) + (Math.random() - 0.5) * wobble;
+    this.input.y = Math.round(Math.atan2(Math.sin(yaw), Math.cos(yaw)) * 1000);
+    this.input.p = Math.round(Math.max(-1.1, Math.min(1.1, pitch)) * 1000);
+    this.input.w = (this.input.w & ~1) | (trigger ? 1 : 0);
   }
 
   sendInput(): void {

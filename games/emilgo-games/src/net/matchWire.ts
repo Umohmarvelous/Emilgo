@@ -114,4 +114,4 @@ export function unpackMeter(m: number): { wobble: number; exposure: number; down
 /** What's in your hands: 0 nothing, 1–6 a street prop (melee PROP_IDS + 1), 7 a flag. */
 export const HAND_FLAG = 7;
 
-export const CAUSE_WIRE: readonly Cause[] = ["moved", "time", "noball", "zone", "hazard", "found"];
+export const CAUSE_WIRE: readonly Cause[] = ["moved", "time", "noball", "zone", "hazard", "found", "shot", "blast"];

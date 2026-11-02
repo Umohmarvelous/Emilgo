@@ -53,6 +53,16 @@ export interface Zip {
 }
 
 /** The world a match is played in: its solids, its starts and the places worth finding. */
+/** Where a body aims, and its gun buttons (Match.setAim). */
+export interface Aim {
+  yaw: number;
+  pitch: number;
+  trigger: boolean;
+  ads: boolean;
+  reload: number;
+  swap: number;
+}
+
 export interface MatchWorld {
   readonly space: Space;
   readonly spawns: readonly (readonly [number, number])[];
@@ -193,6 +203,8 @@ export class Match {
   private readonly inPack: number[];
   private readonly packSeen: number[];
   private readonly inBrace: boolean[];
+  /** Guns (v4): where each body aims (the camera's yaw and pitch), the trigger and ADS held, the reload and swap counters. */
+  readonly aims: Aim[];
   /** This step's speed share from the modules (a brace, a flag), reset every step. */
   private readonly mul: number[];
   private readonly slowed: BoostMods[];
@@ -257,6 +269,7 @@ export class Match {
     this.inPack = new Array(n).fill(0);
     this.packSeen = new Array(n).fill(0);
     this.inBrace = new Array(n).fill(false);
+    this.aims = Array.from({ length: n }, () => ({ yaw: 0, pitch: 0, trigger: false, ads: false, reload: 0, swap: 0 }));
     this.mul = new Array(n).fill(1);
     this.slowed = this.contestants.map((c) => ({ ...c.bst }));
     this.squads = opts.contestants.map((p, i) => (Number.isInteger(p.squad) && (p.squad as number) >= 0 ? (p.squad as number) : 1000 + i));
@@ -409,6 +422,23 @@ export class Match {
 
   braced(c: Contestant): boolean {
     return this.inBrace[c.index];
+  }
+
+  /**
+   * Guns (v4): the camera's yaw (0 looks down −z, + turns left) and pitch
+   * (+ looks down), the trigger and ADS held, and the reload and swap
+   * counters (each change is one press).
+   */
+  setAim(id: string, yaw: number, pitch: number, trigger: boolean, ads: boolean, reload: number, swap: number): void {
+    const c = this.byId.get(id);
+    if (!c || !isFinite(yaw) || !isFinite(pitch)) return;
+    const a = this.aims[c.index];
+    a.yaw = Math.atan2(Math.sin(yaw), Math.cos(yaw));
+    a.pitch = Math.max(-1.1, Math.min(1.1, pitch));
+    a.trigger = !!trigger;
+    a.ads = !!ads;
+    if (Number.isInteger(reload)) a.reload = reload & 15;
+    if (Number.isInteger(swap)) a.swap = swap & 15;
   }
 
   /** A module slows c this step (×k on run and sprint): a brace, a flag carried, a clinch. */

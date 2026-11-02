@@ -168,6 +168,81 @@ export class Space {
     return true;
   }
 
+  /**
+   * A bullet (v4): how far a ray from (ox, oy, oz) along the unit (dx, dy, dz)
+   * goes before it meets a solid or the ground, at most `max`. Walks the grid
+   * cell by cell (Amanatides–Woo) and tests each solid once (a slab test in
+   * the solid's own axes; a ramp as a box up to its mean top). Pits and the
+   * open ground stop it at the floor (y 0 outside solids).
+   */
+  ray(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, max: number): number {
+    let best = max;
+    // The ground plane (everything stands on y ≥ 0; pits are a few cm down at most to a bullet).
+    if (dy < -1e-6) best = Math.min(best, Math.max(0, -oy / dy));
+    const t = ++this.tick;
+    const b = this.bounds;
+    let q = Math.floor((ox - b.x0) / GRID);
+    let r = Math.floor((oz - b.z0) / GRID);
+    const sq = dx > 0 ? 1 : -1;
+    const sr = dz > 0 ? 1 : -1;
+    const tdq = Math.abs(dx) > 1e-9 ? GRID / Math.abs(dx) : Infinity;
+    const tdr = Math.abs(dz) > 1e-9 ? GRID / Math.abs(dz) : Infinity;
+    let tq = Math.abs(dx) > 1e-9 ? ((dx > 0 ? (q + 1) * GRID : q * GRID) - (ox - b.x0)) / dx : Infinity;
+    let tr = Math.abs(dz) > 1e-9 ? ((dz > 0 ? (r + 1) * GRID : r * GRID) - (oz - b.z0)) / dz : Infinity;
+    let tc = 0;
+    for (let n = 0; n < 512 && tc <= best; n++) {
+      if (q >= 0 && r >= 0 && q < this.cols && r < this.rows) {
+        for (const i of this.cells[r * this.cols + q]) {
+          if (this.stamp[i] === t) continue;
+          this.stamp[i] = t;
+          const so = this.solids[i];
+          if (so.kind === "pit") continue;
+          const hit = this.slab(i, ox, oy, oz, dx, dy, dz, best);
+          if (hit < best) best = hit;
+        }
+      } else if ((q < 0 && sq < 0) || (r < 0 && sr < 0) || (q >= this.cols && sq > 0) || (r >= this.rows && sr > 0)) break;
+      if (tq < tr) {
+        tc = tq;
+        tq += tdq;
+        q += sq;
+      } else {
+        tc = tr;
+        tr += tdr;
+        r += sr;
+      }
+    }
+    return best;
+  }
+
+  /** Where a ray enters solid i (or `max`): the slab test in its own frame. */
+  private slab(i: number, ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, max: number): number {
+    const so = this.solids[i];
+    const c = this.cos[i];
+    const sn = this.sin[i];
+    const px = ox - so.x;
+    const pz = oz - so.z;
+    const lo = [px * c - pz * sn, oy, px * sn + pz * c];
+    const ld = [dx * c - dz * sn, dy, dx * sn + dz * c];
+    const top = so.kind === "ramp" ? (so.y1 + (so.y2 ?? so.y1)) / 2 : so.y1;
+    const mins = [-so.hx, so.y0, -so.hz];
+    const maxs = [so.hx, top, so.hz];
+    let t0 = 0;
+    let t1 = max;
+    for (let a = 0; a < 3; a++) {
+      if (Math.abs(ld[a]) < 1e-9) {
+        if (lo[a] < mins[a] || lo[a] > maxs[a]) return max;
+        continue;
+      }
+      let u = (mins[a] - lo[a]) / ld[a];
+      let v = (maxs[a] - lo[a]) / ld[a];
+      if (u > v) [u, v] = [v, u];
+      if (u > t0) t0 = u;
+      if (v < t1) t1 = v;
+      if (t0 > t1) return max;
+    }
+    return t0;
+  }
+
   /** The highest top of anything solid within r of (x, z) (0: open ground). Zip-lines check their path with it. */
   topNear(x: number, z: number, r: number): number {
     let best = 0;

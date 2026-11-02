@@ -421,6 +421,52 @@ export const FLAGS = {
 /** Steal & Reposition's drop zones. */
 export const DROPZONES = { radius: 5, minApart: 60 } as const;
 
+/**
+ * Guns (v4 Phase 2): Free For All is a shooter. Everyone spawns with a
+ * pistol; the assault rifle, SMG and shotgun are loot in six rarities. Hits
+ * are hitscan, judged by the server with the target rewound by the shooter's
+ * lag (at most `rewind`). 100 health plus armour; armour takes `share` of
+ * each hit until it's gone. Spread (radians, a cone's half-angle) is the
+ * stance's base, more on the move or in the air, plus a bloom that grows with
+ * each shot and drains. Damage falls from `dmg` at `near` m to × `low` at `far`.
+ * `recoil`: the view's kick a shot (radians up; the phone's camera only).
+ */
+export const GUNS = {
+  hp: 100,
+  armour: { max: 150, plate: 25, share: 0.7 },
+  /** Health comes back `rate` a second once nothing has hurt you for `after` s. */
+  regen: { after: 6, rate: 8 },
+  rewind: 0.15,
+  histTicks: 12,
+  /** The eye by stance (m above the floor) and the camera's shoulder offset, as the phone's camera has them. */
+  eye: [1.6, 1.05, 0.45] as readonly number[],
+  shoulder: 0.5,
+  /** A body: a cylinder of `r` (prone: `proneR`) up to its head, a head ball of `head` m round. */
+  body: { r: 0.34, proneR: 0.5, head: 0.17 },
+  kinds: {
+    pistol: { dmg: 24, head: 1.8, rate: 4, mag: 12, reserve: 48, reload: 1.3, range: 50, near: 12, far: 35, low: 0.6, hip: 0.03, ads: 0.008, move: 0.025, bloom: 0.012, most: 0.07, drain: 0.12, pellets: 1, recoil: 0.02, zoom: 0.82, speed: 1 },
+    rifle: { dmg: 26, head: 1.6, rate: 10, mag: 30, reserve: 120, reload: 2.2, range: 100, near: 30, far: 75, low: 0.7, hip: 0.04, ads: 0.004, move: 0.03, bloom: 0.006, most: 0.06, drain: 0.1, pellets: 1, recoil: 0.016, zoom: 0.62, speed: 0.93 },
+    smg: { dmg: 19, head: 1.4, rate: 14, mag: 32, reserve: 160, reload: 1.8, range: 45, near: 10, far: 30, low: 0.55, hip: 0.032, ads: 0.012, move: 0.015, bloom: 0.004, most: 0.06, drain: 0.14, pellets: 1, recoil: 0.011, zoom: 0.76, speed: 0.98 },
+    shotgun: { dmg: 13, head: 1.25, rate: 1.4, mag: 6, reserve: 30, reload: 2.6, range: 24, near: 5, far: 16, low: 0.3, hip: 0.085, ads: 0.065, move: 0.02, bloom: 0, most: 0.09, drain: 0.2, pellets: 8, recoil: 0.06, zoom: 0.86, speed: 0.95 },
+  },
+  /** Rarities: Common, Uncommon, Rare, Epic, Legendary, Mythic. Damage × `dmg`, magazine × (1 + `mag`). */
+  rarity: { dmg: [1, 1.05, 1.1, 1.17, 1.25, 1.35], mag: [0, 0, 0.15, 0.25, 0.4, 0.5], odds: [36, 26, 18, 11, 6, 3] },
+  /** Melee as backup: health off a landed blow, by kind. */
+  melee: { fist: 18, slap: 7, push: 4, grab: 0, trip: 10, charge: 14, prop: 26, throw: 20 } as Record<string, number>,
+  /** Loot on the ground (per 10,000 m² of the world's bounds) and what a broken crate gives. */
+  loot: { guns: 2.4, ammo: 2, plates: 2, crates: 2.6, drums: 1.2, crateGives: [0.55, 0.3, 0.15] as readonly number[] },
+  /** Breakables: a crate's and a drum's health; a drum blows (radius, damage at its heart, falling to nothing at the edge). */
+  crate: { hp: 60, half: 0.45 },
+  drum: { hp: 35, r: 0.32, tall: 0.9, blast: 5, blastDmg: 85 },
+  /** A car: what a bullet does to it (VEHICLES' damage, 0–100) per health it would have done; its blast hurts. */
+  car: { perDmg: 0.12, blast: 6, blastDmg: 90 },
+  /** Friendly fire off; a pickup is in reach this close. */
+  reach: 1.8,
+} as const;
+export type GunKind = keyof typeof GUNS.kinds;
+export const GUN_KINDS = Object.keys(GUNS.kinds) as GunKind[];
+export const RARITY_NAMES = ["Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic"] as const;
+
 /** Squad Rally's moving point. */
 export const RALLY = { speed: 1.4, radius: 9 } as const;
 
@@ -741,7 +787,8 @@ export const NET = {
    * and baskets, fist / slap / push, rooms of 20. 3: jump, crouch, prone,
    * sprint, the map, rich looks.)
    */
-  protocol: 14,
+  // 15 (v4): guns: the aim (y, p) and the gun buttons (w) in "in", and the guns events.
+  protocol: 15,
   tickHz: 60,
   /** Server → client state broadcasts per second. */
   snapshotHz: 15,

@@ -314,7 +314,8 @@ export class VehiclesModule implements RuleModule {
 
   // ── Damage ──
 
-  private hurt(m: Match, car: Car, amount: number): void {
+  /** Damage on a car (a crash; v4: a bullet). */
+  hurt(m: Match, car: Car, amount: number): void {
     if (car.state >= 3 || amount <= 0) return;
     car.damage = Math.min(100, car.damage + amount);
     const st = VEHICLES.damage.states;

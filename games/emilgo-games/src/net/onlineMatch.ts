@@ -158,6 +158,14 @@ export class OnlineMatch {
     this.net.setMatchButtons(brace, interact, hold, pack);
   }
 
+  /** Guns (v4): the aim and the gun buttons; the copy's own aim too (the body turns to it as the server's will). */
+  setAim(yaw: number, pitch: number, trigger: boolean, ads: boolean, reload: number, swap: number): void {
+    const me = this.me;
+    if (!me) return;
+    this.match.setAim(me.id, yaw, pitch, trigger, ads, reload, swap);
+    this.net.setAim(yaw, pitch, trigger, ads, reload, swap);
+  }
+
   /** The events since the last call, applied to the copy, in order. */
   drain(): MatchEvent[] {
     return this.match.drain();

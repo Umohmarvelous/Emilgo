@@ -45,6 +45,7 @@ const SCHEMAS: Record<ModuleId, Record<string, Spec>> = {
   harmattan: {},
   traffic: {},
   zips: {},
+  guns: {},
   survival: { bleedAfter: ["num", 120, 1800], bleedRate: ["num", 0, 0.1], route: ["num", 200, 5000], zombies: ["tuple", [["int", 1, 40], ["int", 1, 40], ["int", 1, 40]]] },
 };
 

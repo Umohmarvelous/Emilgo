@@ -805,6 +805,73 @@ export class Sound {
     this.noise(t + 0.05, 0.2, { gain: 0.08 * near, freq: 5000, type: "highpass" });
   }
 
+  // ── Guns (v4 Phase 2): synthesised until the sample layer (Phase 8). `near` 0 … 1. ──
+
+  /** A shot: a crack and a body by gun; far off, only the low thump; yours is fullest. */
+  gunshot(kind: "pistol" | "rifle" | "smg" | "shotgun", near: number, mine: boolean): void {
+    if (near <= 0.03 || this.busy(mine ? VOICE_CAP : VOICE_CAP - 8)) return;
+    const t = this.now;
+    const g = (mine ? 1 : 0.75) * near;
+    const far = 1 - near;
+    if (kind === "shotgun") {
+      this.noise(t, 0.28, { gain: 0.5 * g, freq: 1400 - far * 900, type: "lowpass" });
+      this.tone(75, t, 0.3, { type: "sine", gain: 0.5 * g, to: 30 });
+      if (near > 0.4) this.noise(t, 0.05, { gain: 0.25 * g, freq: 3500, type: "highpass" });
+      // The pump.
+      if (mine) {
+        this.noise(t + 0.42, 0.05, { gain: 0.1, freq: 2200, type: "bandpass" });
+        this.noise(t + 0.55, 0.05, { gain: 0.12, freq: 1800, type: "bandpass" });
+      }
+      return;
+    }
+    const len = kind === "rifle" ? 0.11 : kind === "smg" ? 0.065 : 0.09;
+    const body = kind === "rifle" ? 105 : kind === "smg" ? 150 : 170;
+    this.noise(t, len, { gain: (kind === "smg" ? 0.3 : 0.38) * g, freq: 2600 - far * 1800, type: "lowpass" });
+    this.tone(body, t, len + 0.05, { type: "sine", gain: 0.35 * g, to: body * 0.42 });
+    if (near > 0.35) this.noise(t, 0.025, { gain: 0.22 * g, freq: 4200, type: "highpass" });
+  }
+
+  /** A reload: the magazine out, in, the slide. */
+  reload(kind: "pistol" | "rifle" | "smg" | "shotgun", seconds: number): void {
+    const t = this.now;
+    if (kind === "shotgun") {
+      for (let i = 0; i < 4; i++) this.noise(t + 0.25 + (i * (seconds - 0.6)) / 4, 0.04, { gain: 0.1, freq: 1600, type: "bandpass" });
+    } else {
+      this.noise(t + 0.15, 0.05, { gain: 0.1, freq: 900, type: "bandpass" });
+      this.tone(220, t + seconds * 0.55, 0.04, { type: "square", gain: 0.03 });
+      this.noise(t + seconds * 0.55, 0.05, { gain: 0.14, freq: 1500, type: "bandpass" });
+    }
+    this.noise(t + seconds - 0.15, 0.06, { gain: 0.14, freq: 2600, type: "bandpass" });
+  }
+
+  /** The trigger on an empty magazine. */
+  dryFire(): void {
+    this.noise(this.now, 0.025, { gain: 0.12, freq: 3200, type: "highpass" });
+  }
+
+  /** Your shot landed: a tick (a body), a ping (a head), a deeper knock (a kill). */
+  hitMarker(head: boolean, kill: boolean): void {
+    const t = this.now;
+    if (kill) {
+      this.tone(520, t, 0.09, { type: "triangle", gain: 0.1 });
+      this.tone(780, t + 0.06, 0.12, { type: "triangle", gain: 0.09 });
+    } else if (head) this.tone(1500, t, 0.07, { type: "sine", gain: 0.1, to: 1900 });
+    else this.noise(t, 0.03, { gain: 0.12, freq: 2800, type: "bandpass" });
+  }
+
+  /** A bullet striking near you: the snap of the round and the hit. */
+  impact(near: number, metal: boolean): void {
+    if (near <= 0.05 || this.busy(VOICE_CAP - 10)) return;
+    this.noise(this.now, 0.04, { gain: 0.12 * near, freq: metal ? 4200 : 1800, type: metal ? "highpass" : "bandpass" });
+  }
+
+  /** Armour plated on, or a pickup into the pouch. */
+  plate(): void {
+    const t = this.now;
+    this.noise(t, 0.12, { gain: 0.12, freq: 900, type: "bandpass" });
+    this.tone(180, t + 0.05, 0.08, { type: "sine", gain: 0.12, to: 120 });
+  }
+
   /** A car blowing up: a deep boom, a roar of noise, debris after. */
   explosion(near: number): void {
     const t = this.now;
