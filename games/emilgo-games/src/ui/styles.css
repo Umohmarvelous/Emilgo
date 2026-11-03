@@ -1243,3 +1243,33 @@ input { font: inherit; color: inherit; }
 .screen.cined .pm-head, .screen.cined .pm-card, .screen.cined .pm-return, .screen.cined .pm-plates { opacity: 0; pointer-events: none; }
 .screen.cined .pm-card { transform: translate(-50%, 24px); }
 @media (prefers-reduced-motion: reduce) { .cine .lb, .cine b, .cine .k, .cine .p, .cine::after, .ld-drop { animation: none; } }
+
+/* v4 rework: every game-screen control is placed by the layout (input/layout.ts: the
+   defaults, or the player's own arrangement). Circles only for FIRE, aim and the sticks;
+   everything else is a box, in two rows along the bottom centre (COD-style). */
+.actions.arranged, .mside.arranged, .vitals.arranged { position: absolute; left: 0; top: 0; right: 0; bottom: 0; width: auto; height: auto; transform: none; display: block; pointer-events: none; }
+[data-ctl].ctl { position: absolute !important; left: var(--cx) !important; top: var(--cy) !important; right: auto !important; bottom: auto !important; margin: 0 !important; transform: translate(-50%, -50%) scale(var(--cs, 1)) !important; }
+[data-ctl].ctl.down, [data-ctl].ctl:active { transform: translate(-50%, -50%) scale(calc(var(--cs, 1) * 0.93)) !important; }
+.abtn.ctl.box { width: 46px; height: 36px; border-radius: 5px; background: rgba(20, 21, 15, 0.62); border: 1px solid rgba(255, 255, 255, 0.5); box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.3); animation: none; }
+.abtn.ctl.box.down, .abtn.ctl.box:active { background: rgba(255, 178, 58, 0.3); border-color: #ffb23a; }
+.abtn.ctl.box.on { background: #ffb23a; border-color: #ffb23a; color: #14150f; }
+.abtn.ctl.box.finish { border-color: #ffb23a; }
+.abtn.ctl.box .stam-ring { display: none; }
+.abtn.ctl.box.sprint::after { content: ""; position: absolute; left: 5px; right: 5px; bottom: 3px; height: 2px; border-radius: 1px; background: linear-gradient(to right, #fff calc(var(--stam, 1) * 100%), rgba(255, 255, 255, 0.18) 0); }
+.abtn.ctl.box.sprint.low::after { background: linear-gradient(to right, #e5292a calc(var(--stam, 1) * 100%), rgba(255, 255, 255, 0.18) 0); }
+.abtn.ctl.round { border-radius: 50%; }
+.ppack.ctl { width: 46px !important; height: 36px !important; border-radius: 5px !important; }
+
+/* Arrange the buttons (Settings → Controls). */
+.ctl-editor { position: fixed; inset: 0; z-index: 200; background: rgba(8, 9, 7, 0.78); pointer-events: auto; touch-action: none; }
+.ce-bar { position: absolute; left: 50%; top: calc(var(--safe-t, 0px) + 8px); transform: translateX(-50%); display: flex; align-items: center; gap: 6px; padding: 6px 8px; max-width: calc(100% - 16px); background: rgba(20, 21, 15, 0.92); border: 1px solid #6b6a52; border-radius: 5px; font: 600 11px var(--body); color: #fff; white-space: nowrap; }
+.ce-bar small { color: #b8b39a; font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
+.ce-bar .grow { flex: 1; }
+.ce-b { min-width: 30px; height: 28px; padding: 0 10px; border-radius: 4px; border: 1px solid #6b6a52; background: #1d1e16; color: #fff; font: 700 11px var(--head); letter-spacing: 0.06em; text-transform: uppercase; }
+.ce-b.ce-save { background: #ffb23a; color: #14150f; border-color: #ffb23a; }
+.ce-ctl { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; border: 1px dashed rgba(255, 255, 255, 0.7); background: rgba(20, 21, 15, 0.75); color: #fff; touch-action: none; cursor: grab; }
+.ce-ctl.box { border-radius: 5px; }
+.ce-ctl.round { border-radius: 50%; }
+.ce-ctl span { font: 600 7px var(--head); letter-spacing: 0.04em; text-transform: uppercase; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 3px; opacity: 0.85; }
+.ce-ctl.picked { border: 2px solid #ffb23a; background: rgba(60, 44, 14, 0.85); }
+.ce-dot { width: 6px; height: 6px; border-radius: 50%; background: #fff; }

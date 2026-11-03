@@ -98,6 +98,7 @@ export class CombatHud {
     this.small = el("div", "c-small");
     this.kill = el("div", "c-kill");
     this.weapon = el("button", "c-weapon") as HTMLButtonElement;
+    this.weapon.dataset.ctl = "weapon";
     this.weapon.dataset.ui = "1";
     this.weapon.setAttribute("aria-label", "Swap weapon");
     this.wN = el("div", "n");

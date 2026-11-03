@@ -114,6 +114,8 @@ export interface Settings {
   lightMode: "auto" | "light" | "dark";
   /** Controls (SPEC-V2 §4, §7.5): stick size and opacity, how sprint works. */
   stickSize: "small" | "medium" | "large";
+  /** v4 rework: the player's own arrangement of the game-screen controls (layout.ts), JSON; "" the defaults. */
+  ctlLayout: string;
   stickOpacity: number;
   sprintMode: "toggle" | "hold" | "auto";
   /** HUD: the minimap's size, and whether the kill feed shows. */
@@ -228,6 +230,7 @@ export function defaults(host: Host): Settings {
     ranked: false,
     lightMode: "auto",
     stickSize: "medium",
+    ctlLayout: "",
     stickOpacity: 0.8,
     sprintMode: "toggle",
     mapSize: "medium",
@@ -302,6 +305,7 @@ export function loadSettings(host: Host): Settings {
     if (typeof out.itemsSeen !== "string" || !/^[a-z0-9,-]{0,400}$/.test(out.itemsSeen)) out.itemsSeen = base.itemsSeen;
     if (!["auto", "light", "dark"].includes(out.lightMode)) out.lightMode = base.lightMode;
     if (!["small", "medium", "large"].includes(out.stickSize)) out.stickSize = base.stickSize;
+    if (typeof out.ctlLayout !== "string" || out.ctlLayout.length > 8000) out.ctlLayout = base.ctlLayout;
     if (!["small", "medium", "large"].includes(out.mapSize)) out.mapSize = base.mapSize;
     if (!["toggle", "hold", "auto"].includes(out.sprintMode)) out.sprintMode = base.sprintMode;
     out.stickOpacity = clamp(out.stickOpacity, 0.3, 1);

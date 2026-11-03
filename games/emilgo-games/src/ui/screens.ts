@@ -1112,6 +1112,7 @@ export class Screens {
         <div class="row-set"><span class="lbl"><b>Stick size</b></span>${seg("stickSize", s.stickSize, [["small", "Small"], ["medium", "Medium"], ["large", "Large"]])}</div>
         ${range("stickOpacity", "Stick opacity", "How solid the move stick looks")}
         ${sw("leftHanded", "Left-handed", "Move on the right, look on the left")}
+        <div class="row-set"><span class="lbl"><b>Arrange the buttons</b><small>Drag every button where you want it and resize it. Saved for landscape and portrait apart</small></span><span class="seg"><button data-act="arrange-ctl">Arrange</button><button data-act="arrange-reset">Reset</button></span></div>
         <div class="row-set"><span class="lbl"><b>Sprint</b><small>Toggle: tap on, tap off. Hold: sprint while held. Auto: a full push sprints</small></span>${seg("sprintMode", s.sprintMode, [["toggle", "Toggle"], ["hold", "Hold"], ["auto", "Auto"]])}</div>
         <div class="row-set"><span class="lbl"><b>Mouse</b><small>Computer: click to take the mouse (Esc gives it back), or drag as a stick</small></span>${seg("mouseLook", s.mouseLook, [["lock", "Mouse look"], ["stick", "Joystick"]])}</div>
         ${sw("autoCam", "Camera drifts back behind you", "Off: the camera stays where you leave it")}

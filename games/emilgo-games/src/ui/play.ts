@@ -92,10 +92,10 @@ export class PlayHud {
   private readonly expo = el("div", "pexpo");
   private readonly expoFill = el("i");
   private readonly expoText = el("span");
-  private readonly act = el("button", "pint glass");
+  readonly act = el("button", "pint glass");
   private readonly actRing = el("i", "ring");
   private readonly actText = el("span");
-  private readonly packBtn = el("button", "ppack ibtn glass");
+  readonly packBtn = el("button", "ppack ibtn glass");
   private readonly packCount = el("b", "dot-badge");
   private readonly radial = el("div", "pradial");
   private readonly wheel = el("div", "pwheel");
@@ -131,6 +131,8 @@ export class PlayHud {
     this.act.append(this.actRing, this.actText);
     this.act.dataset.ui = "1";
     this.packBtn.innerHTML = icon("pack", "", 18);
+    this.packBtn.dataset.ctl = "pack";
+    this.act.dataset.ctl = "interact";
     this.packBtn.append(this.packCount);
     this.packBtn.dataset.ui = "1";
     this.packBtn.setAttribute("aria-label", "Backpack");

@@ -39,6 +39,7 @@
 import { gameSize, toGame } from "../ui/rotate";
 import { ATTACK_KINDS, type AttackKind, type Stance } from "../config";
 import { icon } from "../ui/icons";
+import { applySpots, type CtlId, type CtlSpot } from "./layout";
 
 export interface Vec2 {
   x: number;
@@ -218,6 +219,14 @@ export class Controls {
     this.crouchBtn = btn("crouch", "crouch", "Crouch (hold to lie down)");
     this.jumpBtn = btn("jump", "jump", "Jump");
     this.chatBtn.hidden = true;
+    // v4 rework: every control is placed by the layout (layout.ts), boxes and circles.
+    const tag = (b: HTMLElement, id: CtlId) => (b.dataset.ctl = id);
+    tag(this.sprintBtn, "sprint");
+    tag(this.emoteBtn, "emote");
+    tag(this.chatBtn, "chat");
+    tag(this.quickBtn, "quick");
+    tag(this.crouchBtn, "crouch");
+    tag(this.jumpBtn, "jump");
     // Your stamina, round the sprint button.
     this.sprintBtn.insertAdjacentHTML("beforeend", `<svg class="stam-ring" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="30" /></svg>`);
     this.stamRing = this.sprintBtn.querySelector("circle")!;
@@ -241,6 +250,10 @@ export class Controls {
     this.grabBtn = vbtn("grab", "Grab the ball");
     this.braceBtn = vbtn("brace", "Brace (hold)");
     this.radioBtn = vbtn("radio", "Radio");
+    ATTACK_KINDS.forEach((k, i) => (this.attackBtns[i].dataset.ctl = k));
+    this.grabBtn.dataset.ctl = "grab";
+    this.braceBtn.dataset.ctl = "brace";
+    this.radioBtn.dataset.ctl = "radio";
 
     // Guns (v4): FIRE where the right thumb rests (a drag from it also aims), a second on the left, ADS, reload.
     this.gunpad = document.createElement("div");
@@ -259,6 +272,11 @@ export class Controls {
     this.fireLBtn = gbtn("fireL", "shoot", "Fire", 22);
     this.adsBtn = gbtn("ads", "sight", "Aim down the sights", 22);
     this.reloadBtn = gbtn("reload", "reload", "Reload", 20);
+    this.fireBtn.dataset.ctl = "fire";
+    this.fireLBtn.dataset.ctl = "fireL";
+    this.adsBtn.dataset.ctl = "ads";
+    this.reloadBtn.dataset.ctl = "reload";
+    for (const c of [this.actions, this.moveSide, this.vitals, this.gunpad]) c.classList.add("arranged");
     this.aimFrom(this.fireBtn);
     this.aimFrom(this.fireLBtn);
 
@@ -351,7 +369,10 @@ export class Controls {
     window.addEventListener("keydown", this.keyDown);
     window.addEventListener("keyup", this.keyUp);
     window.addEventListener("blur", () => this.reset());
-    window.addEventListener("resize", () => this.placeMoveHome());
+    window.addEventListener("resize", () => {
+      this.arrange();
+      this.placeMoveHome();
+    });
     surface.addEventListener("contextmenu", (e) => e.preventDefault());
     document.addEventListener("mousemove", this.lockedMove);
     // Free For All with the mouse taken: left click a fist, right click a brace.
@@ -448,12 +469,25 @@ export class Controls {
     return Math.hypot(this.move.x, this.move.y) > 0.01;
   }
 
-  setLayout(leftHanded: boolean, moveFixed: boolean): void {
+  setLayout(leftHanded: boolean, moveFixed: boolean, ctlLayout = this.ctlLayout): void {
     this.leftHanded = leftHanded;
     this.moveFixed = moveFixed;
+    this.ctlLayout = ctlLayout;
     this.actions.classList.toggle("lefty", leftHanded);
     this.moveSide.classList.toggle("lefty", leftHanded);
+    this.arrange();
     this.placeMoveHome();
+  }
+
+  /** The player's arrangement (settings.ctlLayout), and the spots worked out from it for this screen. */
+  private ctlLayout = "";
+  private spots: Record<CtlId, CtlSpot> | null = null;
+  /** Other HUD parts that carry data-ctl (the interact prompt, the backpack, the weapon panel). */
+  readonly extraRoots: HTMLElement[] = [];
+
+  /** Put every control where the layout says (after a resize, a rotation, or a new arrangement). */
+  arrange(): void {
+    for (const r of [this.actions, this.moveSide, this.vitals, this.gunpad, ...this.extraRoots]) this.spots = applySpots(r, this.ctlLayout, this.leftHanded);
   }
 
   /** The touch look's feel (Settings): sensitivity × each axis, acceleration, dead zone px, the touch point, aim from FIRE. */
@@ -547,6 +581,7 @@ export class Controls {
   setStamina(v: number, sprinting: boolean): void {
     const c = 188.5; // 2π × 30
     this.stamRing.style.strokeDashoffset = String(c * (1 - v));
+    this.sprintBtn.style.setProperty("--stam", v.toFixed(3));
     this.sprintBtn.classList.toggle("low", v < 0.2);
     const bar = this.sticks.move.el.querySelector<HTMLElement>(".bar");
     if (bar) {
@@ -775,6 +810,8 @@ export class Controls {
   private moveHome(): Vec2 {
     const g = gameSize();
     const portrait = g.h > g.w;
+    const sp = this.spots?.move;
+    if (sp) return { x: (this.leftHanded ? 1 - sp.x : sp.x) * g.w, y: sp.y * g.h };
     const x = 40 + this.radius;
     const y = g.h - (portrait ? 150 : 40) - this.radius;
     return { x: this.leftHanded ? g.w - x : x, y };

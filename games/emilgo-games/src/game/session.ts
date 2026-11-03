@@ -42,6 +42,7 @@ import type { ReplayView } from "../rlgl/replayView";
 import type { TutorialScript } from "../rlgl/tutorial";
 import { tierSpec, type Tier, type TierSpec } from "../graphics/tiers";
 import { Controls } from "../input/controls";
+import { editSpots } from "../input/layout";
 import type { World } from "../maps/world";
 import { DEFAULT_MAP, SKY_STATES, fieldHalfWidth, groundSurface, mapOf, withMode, type MapCategory, type SkyState, type Surface } from "../maps/registry";
 import { NetClient } from "../net/client";
@@ -3187,6 +3188,21 @@ export class Game {
       case "pause-menu":
         this.screens.pause(this.host, this.mode === "online");
         break;
+      case "arrange-ctl":
+        // Arrange the buttons (v4 rework): drag, resize, save per orientation.
+        void editSpots(document.body, this.settings.ctlLayout, this.settings.leftHanded).then((out) => {
+          if (out === null) return;
+          this.settings.ctlLayout = out;
+          saveSettings(this.host, this.settings);
+          this.applySettings();
+        });
+        break;
+      case "arrange-reset":
+        this.settings.ctlLayout = "";
+        saveSettings(this.host, this.settings);
+        this.applySettings();
+        this.showSettings();
+        break;
       case "pause-tab":
         this.settingsFrom = "pause";
         this.settingsTab = d.tab ?? "game";
@@ -3880,7 +3896,7 @@ export class Game {
     this.rig.sensH = s.sensH * s.sens;
     this.rig.sensV = s.sensV * s.sens;
     this.stage?.setLightMode(s.lightMode);
-    this.controls.setLayout(s.leftHanded, s.moveStick === "fixed");
+    this.controls.setLayout(s.leftHanded, s.moveStick === "fixed", s.ctlLayout);
     // Touch look: "Camera sensitivity" scales both axes; the horizontal and vertical sliders (0.3 = 1×) each axis.
     this.controls.setPad(s.sens, s.sensH / 0.3, (s.sensV / 0.3) * 0.8, s.lookAccel, s.lookDead, s.lookDot, s.fireAim);
     this.controls.mouseMode = s.mouseLook;

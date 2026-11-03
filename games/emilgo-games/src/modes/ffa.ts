@@ -336,6 +336,11 @@ export class FfaMode implements GameMode {
     // The controls: Free For All's buttons and keys.
     const c = h.controls;
     c.layout = "ffa";
+    // The interact prompt, the backpack and the weapon panel are arranged with the buttons (v4 rework).
+    c.extraRoots.length = 0;
+    c.extraRoots.push(this.play.root);
+    if (this.combat) c.extraRoots.push(this.combat.root);
+    c.arrange();
     c.reset();
     c.onInteract = (down) => this.interact(down);
     c.onPack = () => this.play.openPack(!this.play.packOpen);
@@ -1140,6 +1145,7 @@ export class FfaMode implements GameMode {
     h.rig.arm = 1;
     h.rig.lift = 0;
     this.play.root.remove();
+    h.controls.extraRoots.length = 0;
     this.voteEl.remove();
     const c = h.controls;
     c.layout = "rlgl";
