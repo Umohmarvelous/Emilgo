@@ -56,6 +56,8 @@ const TRUNK = new BoxGeometry(1, 1, 1);
 /** A kit that draws one prefab at a time into a scratch chunk, in local axes. */
 export class PrefabKit extends Kit {
   scratch: OpenChunk = emptyChunk();
+  /** Prefabs another draw stands in for (the scanned boulders, build.ts): their own look is skipped. */
+  skip: ReadonlySet<string> = new Set();
   readonly localLamps: V3[] = [];
 
   override chunkAt(): Chunk {
@@ -256,6 +258,7 @@ function van(k: PrefabKit, at: V3, color: string): void {
 // ── Each prefab ───────────────────────────────────────────────────────────────
 
 function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
+  if (k.skip.has(p.prefab)) return;
   const v = p.v;
   const ps = parts(p.prefab, v);
   const r = k.rng;
@@ -736,10 +739,21 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
       break;
     // ── v4 Phase 7: the big world's places (low-poly, coloured per vertex, merged per cell) ──
     case "pine": {
-      const h = 9 + r.range(0, 5);
-      k.cyl("#4a3a2a", 0.28, h * 0.45, [0, h * 0.22, 0], "mass", { sides: 6, top: 0.6 });
-      const greens = ["#24402a", "#2c4a2e", "#1e3a26"];
-      for (let i = 0; i < 4; i++) k.cyl(r.pick(greens), 2.2 - i * 0.45, h * 0.28, [0, h * (0.32 + i * 0.17), 0], "foliage", { sides: 6, top: 0 });
+      // A spruce (v4 rework: the forest less like a toy): a tapering trunk, more,
+      // thinner tiers that narrow to a spire, each turned and tipped a little,
+      // the greens varied per tree. Medium and up: 7 tiers of 10 sides.
+      const h = 10 + r.range(0, 6);
+      const hi = k.tier >= 1;
+      k.cyl("#3b2e23", 0.32, h * 0.55, [0, h * 0.27, 0], "mass", { sides: hi ? 10 : 6, top: 0.45 });
+      const tint = r.range(-0.04, 0.04);
+      const greens = ["#1d3822", "#24402a", "#2b472d", "#203a26"].map((c) => shadeHex(c, tint));
+      const n = hi ? 7 : 5;
+      for (let i = 0; i < n; i++) {
+        const t = i / (n - 1);
+        const rad = (2.7 - t * 2.15) * r.range(0.88, 1.08);
+        const th = h * (0.26 - t * 0.1);
+        k.cone(r.pick(greens), rad, th, [r.range(-0.1, 0.1), h * (0.2 + t * 0.66), r.range(-0.1, 0.1)], "foliage", [r.range(-0.07, 0.07), r.range(0, 6.28), r.range(-0.07, 0.07)], hi ? 10 : 6);
+      }
       break;
     }
     case "rock": {
@@ -885,4 +899,11 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
       allParts(k, ps, byMaterial(WALLS[0]));
   }
   void RUST;
+}
+
+/** A hex colour lightened (k > 0) or darkened (k < 0) by a fraction. */
+function shadeHex(c: string, k: number): string {
+  const n = parseInt(c.slice(1), 16);
+  const f = (v: number) => Math.max(0, Math.min(255, Math.round(v * (1 + k))));
+  return `#${((f(n >> 16) << 16) | (f((n >> 8) & 255) << 8) | f(n & 255)).toString(16).padStart(6, "0")}`;
 }

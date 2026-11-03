@@ -64,7 +64,11 @@ async function buildAll() {
   mkdirSync(OUT, { recursive: true });
   const manifest = { built: new Date().toISOString().slice(0, 10), models: {} };
   let over = 0;
+  // `build <id>…` rebuilds just those (the manifest keeps the others).
+  const only = process.argv.slice(3);
+  if (only.length && existsSync(join(OUT, "manifest.json"))) manifest.models = JSON.parse(readFileSync(join(OUT, "manifest.json"), "utf8")).models;
   for (const m of vital.models) {
+    if (only.length && !only.includes(m.id)) continue;
     const src = join(IN, m.id, `${m.id}.gltf`);
     if (!existsSync(src)) {
       console.log(`skip ${m.id}: not fetched`);
@@ -73,7 +77,7 @@ async function buildAll() {
     const lods = [];
     for (let k = 0; k < m.lods.length; k++) {
       const doc = await io.read(src);
-      await doc.transform(dedup(), weld(), prune(), resample(), simplify({ simplifier: MeshoptSimplifier, ratio: m.lods[k], error: 0.002 * (k + 1) }), meshopt({ encoder: MeshoptEncoder, level: "high" }));
+      await doc.transform(dedup(), weld(), prune(), resample(), simplify({ simplifier: MeshoptSimplifier, ratio: m.lods[k], error: (m.error ?? 0.002) * (k + 1) }), meshopt({ encoder: MeshoptEncoder, level: "high" }));
       // Textures: halved per LOD (the far ones need little).
       const sharp = await import("sharp").catch(() => null);
       if (sharp) {

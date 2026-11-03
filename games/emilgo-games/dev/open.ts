@@ -20,6 +20,7 @@ import { Rng } from "../src/core/rng";
 import { freshMotion, moveContestant, type Contestant } from "../src/game/core/body";
 import { tierSpec } from "../src/graphics/tiers";
 import { buildNaijaWorld } from "../src/maps/open/naija";
+import { buildMaxWorld } from "../src/maps/open/max";
 import { buildOpenWorld, buildOpenWorldIdle } from "../src/maps/open/build";
 import { NO_BOOST } from "../src/shop/boosts";
 import { CameraRig } from "../src/world/camera";
@@ -49,7 +50,9 @@ const out = document.getElementById("hud")!;
 const t0 = performance.now();
 await loadScans();
 const tScans = performance.now();
-const layout = buildNaijaWorld();
+// &max=1: the big world (Meridian Max).
+const layout = q.get("max") === "1" ? buildMaxWorld() : buildNaijaWorld();
+(window as unknown as { __layout: unknown }).__layout = layout;
 const tLayout = performance.now();
 // &idle=1: built in slices between frames, as the game will (the longest frame gap while it builds is kept).
 let stall = 0;

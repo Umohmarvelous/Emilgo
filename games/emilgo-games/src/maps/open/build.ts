@@ -13,6 +13,9 @@ import {
   Color,
   DirectionalLight,
   DoubleSide,
+  InstancedMesh,
+  Matrix4,
+  Quaternion,
   SphereGeometry,
   type DataTexture,
   type Texture,
@@ -49,9 +52,16 @@ import type { TexKind } from "../kit";
 import { emptyChunk, PrefabKit, TEX_KINDS, TEX_STRIDE, type OpenChunk } from "./art";
 import { EDGE, GUTTER, SURFACE_OF, type GroundKind, type OpenLayout } from "./naija";
 import { sky as librarySky, texAlbedo, texSet, texSize, type SkyName, type TexName } from "../../assets/library";
+import { modelFor, type CdnModel } from "../../assets/cdn";
+import type { Placement } from "./prefabs";
 import type { TerrainShot } from "../../ui/minimap";
 
 export const CELL = 50;
+const _up = new Vector3(0, 1, 0);
+const _sc = new Vector3();
+const _at = new Vector3();
+const _q = new Quaternion();
+const _m4 = new Matrix4();
 /** View distance by tier (SPEC-V3 §6.2): beyond it, haze, and nothing drawn. */
 export const VIEW = [110, 160, 220] as const;
 /** The PVS holds while the camera is below this; higher up (a roof, the mast) it sees everything in range. */
@@ -158,6 +168,8 @@ const GROUND_SAT = [1, 0.45, 1, 0.9, 0.4, 1];
 export interface WorldLibrary {
   walls: ({ a: HTMLImageElement; n: HTMLImageElement | null } | null)[];
   ground: ({ a: HTMLImageElement; n: HTMLImageElement | null } | null)[];
+  /** The scanned CC0 rocks (Poly Haven, the pipeline's) for the "rock" prefab, Medium and up: mossy on grass, bare granite on sand. */
+  rocks: { grass: CdnModel | null; sand: CdnModel | null };
   /** The HDR sky (Poly Haven, CC0): its picture, its light, and the colour at its horizon (the haze matches it). */
   sky: { bg: Texture; env: DataTexture | null; horizon: Color; sun: Vector3 } | null;
 }
@@ -223,9 +235,17 @@ export async function loadWorldLibrary(spec: TierSpec, night: boolean): Promise<
     return s ? { a: s.a, n: s.n } : null;
   };
   const key = night ? "night" : "day";
-  const [walls, ground, sk] = await Promise.all([Promise.all(WALL_LIB[key].map(get)), Promise.all(GROUND_LIB[key].map(get)), librarySky(SKY_OF[key], spec.pbr)]);
+  const rockLod = spec.tier >= 2 ? 1 : 2;
+  const rockOf = (use: string) => (spec.tier >= 1 ? modelFor(use, rockLod, spec.tier).catch(() => null) : Promise.resolve(null));
+  const [walls, ground, sk, grassRock, sandRock] = await Promise.all([
+    Promise.all(WALL_LIB[key].map(get)),
+    Promise.all(GROUND_LIB[key].map(get)),
+    librarySky(SKY_OF[key], spec.pbr),
+    rockOf("rocks"),
+    rockOf("rock"),
+  ]);
   if (!ground.some(Boolean) && !walls.some(Boolean)) return null;
-  return { walls, ground, sky: sk.bg ? { bg: sk.bg, env: sk.env, horizon: horizonOf(sk.bg), sun: sunOf(sk.bg) } : null };
+  return { walls, ground, rocks: { grass: grassRock, sand: sandRock }, sky: sk.bg ? { bg: sk.bg, env: sk.env, horizon: horizonOf(sk.bg), sun: sunOf(sk.bg) } : null };
 }
 
 /**
@@ -831,10 +851,15 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }, lib: W
   const cellIndex = (x: number, z: number) => Math.min(n - 1, Math.max(0, Math.floor((z + L.half) / CELL))) * n + Math.min(n - 1, Math.max(0, Math.floor((x + L.half) / CELL)));
   const kit = new PrefabKit(1957);
   kit.tier = spec.tier;
+  // The scanned rocks stand in for the drawn ones (Medium and up, with the library).
+  const rockSet = lib && (lib.rocks.grass || lib.rocks.sand) ? lib.rocks : null;
+  if (rockSet) kit.skip = new Set(["rock"]);
+  const rocksIn: Placement[][] = [];
   let drawn0 = 0;
   for (const p of L.placements) {
     // Small batches: the big landmarks take a few ms each.
     if (++drawn0 % 6 === 0) yield;
+    if (rockSet && p.prefab === "rock") (rocksIn[cellIndex(p.x, p.z)] ??= []).push(p);
     const { chunk } = kit.draw(p, night);
     const c = chunks[cellIndex(p.x, p.z)];
     c.mass.push(...chunk.mass);
@@ -1016,6 +1041,37 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }, lib: W
     if (gm) {
       cell.objects.push(gm);
       group.add(gm);
+    }
+    // The cell's rocks: an instanced draw per shape, each sized and turned as its drawn rock was.
+    const rs = rocksIn[i];
+    if (rockSet && rs?.length) {
+      const groups = new Map<BufferGeometry, { m: CdnModel; ps: Placement[] }>();
+      for (const p of rs) {
+        const m = (L.groundAt(p.x, p.z) === "sand" ? rockSet.sand : rockSet.grass) ?? rockSet.grass ?? rockSet.sand!;
+        const g = m.parts.length ? m.parts[p.v % m.parts.length] : m.geometry;
+        const e = groups.get(g) ?? { m, ps: [] };
+        e.ps.push(p);
+        groups.set(g, e);
+      }
+      for (const [g, { m, ps }] of groups) {
+        g.computeBoundingBox();
+        const bb = g.boundingBox!;
+        const bw = Math.max(0.01, bb.max.x - bb.min.x, bb.max.z - bb.min.z);
+        const im = new InstancedMesh(g, m.material, ps.length);
+        ps.forEach((p, j) => {
+          const s = 1.2 + (p.v % 7) * 0.4;
+          const k = (s * 2.1) / bw;
+          _sc.set(k, k * (0.8 + ((p.v >> 3) % 5) * 0.1), k);
+          _q.setFromAxisAngle(_up, ((p.v >> 6) % 628) / 100 + p.rot);
+          _at.set(p.x, bb.min.y * -_sc.y - 0.1 * s, p.z);
+          im.setMatrixAt(j, _m4.compose(_at, _q, _sc));
+        });
+        im.computeBoundingSphere();
+        im.receiveShadow = spec.shadows;
+        cell.objects.push(im);
+        cell.casters.push(im);
+        group.add(im);
+      }
     }
     cells.push(cell);
   }
