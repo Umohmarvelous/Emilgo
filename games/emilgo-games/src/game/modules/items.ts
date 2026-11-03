@@ -14,6 +14,10 @@
 //             phones); you come back with an empty one.
 
 import { LOOT } from "../../config";
+import { SpotGrid } from "../core/spotgrid";
+
+/** The items' lookup grid (m). */
+const ITEM_CELL = 8;
 import { builtLoot, ITEM_DEFS, type ItemId, type LootTable } from "../../content/items";
 import type { Contestant } from "../core/body";
 import type { Match } from "../core/match";
@@ -83,6 +87,7 @@ export class ItemsModule implements RuleModule {
     const count = Math.round((LOOT.perHectare * (b.x1 - b.x0) * (b.z1 - b.z0) * this.density) / 10000);
     const places = m.world.places;
     const sp2 = LOOT.spacing * LOOT.spacing;
+    const grid = new SpotGrid(Math.max(1, LOOT.spacing));
     for (let n = 0; n < count; n++) {
       const atPlace = places.length > 0 && rng.chance(LOOT.atPlaces);
       let spot: [number, number, number] | null = null;
@@ -98,11 +103,12 @@ export class ItemsModule implements RuleModule {
         const [cx, cz] = reach.centre(cell);
         const x = cx + rng.range(-0.4, 0.4);
         const z = cz + rng.range(-0.4, 0.4);
-        if (this.items.some((it) => (it.x - x) ** 2 + (it.z - z) ** 2 < sp2)) continue;
+        if (grid.any(x, z, LOOT.spacing, (sx, sz) => (sx - x) ** 2 + (sz - z) ** 2 < sp2)) continue;
         spot = [x, z, reach.h[cell]];
       }
       if (!spot) continue;
       this.items.push({ index: this.items.length, kind: pick(loot, rng.next()), x: spot[0], z: spot[1], h: spot[2], taken: false });
+      grid.add(spot[0], spot[1]);
     }
   }
 
@@ -143,14 +149,28 @@ export class ItemsModule implements RuleModule {
     const feet = c.h + c.y;
     let best: Target | null = null;
     let bestD: number = LOOT.reach;
-    for (const it of this.items) {
-      if (it.taken || Math.abs(it.h - feet) > LOOT.reachUp) continue;
-      const d = Math.hypot(it.x - c.x, it.z - c.z);
-      if (d <= bestD) {
-        bestD = d;
-        best = { item: it };
+    // v4: only the grid cells within reach (the big world has thousands); ties go to the later item, as a full scan's did.
+    let bestI = -1;
+    const g = this.itemGrid();
+    const q0 = Math.floor((c.x - LOOT.reach) / ITEM_CELL);
+    const q1 = Math.floor((c.x + LOOT.reach) / ITEM_CELL);
+    const r0 = Math.floor((c.z - LOOT.reach) / ITEM_CELL);
+    const r1 = Math.floor((c.z + LOOT.reach) / ITEM_CELL);
+    for (let q = q0; q <= q1; q++)
+      for (let r = r0; r <= r1; r++) {
+        const list = g.get(q * 65536 + r);
+        if (!list) continue;
+        for (const i of list) {
+          const it = this.items[i];
+          if (it.taken || Math.abs(it.h - feet) > LOOT.reachUp) continue;
+          const d = Math.hypot(it.x - c.x, it.z - c.z);
+          if (d < bestD || (d === bestD && i > bestI)) {
+            bestD = d;
+            bestI = i;
+            best = { item: it };
+          }
+        }
       }
-    }
     for (const bag of this.bags) {
       if (!bag.kinds.length || Math.abs(bag.h - feet) > LOOT.reachUp) continue;
       const d = Math.hypot(bag.x - c.x, bag.z - c.z);
@@ -161,6 +181,24 @@ export class ItemsModule implements RuleModule {
     }
     return best;
   }
+
+  /** The items by grid cell (built on first use: items never move, a drop goes in a bag). */
+  private itemGrid(): Map<number, number[]> {
+    if (this.grid && this.gridN === this.items.length) return this.grid;
+    const g = new Map<number, number[]>();
+    for (const it of this.items) {
+      if (!it) continue;
+      const k = Math.floor(it.x / ITEM_CELL) * 65536 + Math.floor(it.z / ITEM_CELL);
+      let list = g.get(k);
+      if (!list) g.set(k, (list = []));
+      list.push(it.index);
+    }
+    this.grid = g;
+    this.gridN = this.items.length;
+    return g;
+  }
+  private grid: Map<number, number[]> | null = null;
+  private gridN = -1;
 
   private interact(m: Match, c: Contestant): void {
     const t = this.target(c);
@@ -257,6 +295,7 @@ export class ItemsModule implements RuleModule {
   add(m: Match, kind: ItemId, x: number, z: number, h: number, by: string | null, slot = -1): GroundItem {
     const it: GroundItem = { index: this.items.length, kind, x, z, h, taken: false };
     this.items.push(it);
+    this.grid = null;
     m.emit({ type: "drop", id: by, item: it.index, kind, x, z, h, ...(slot >= 0 ? { slot } : {}) });
     return it;
   }
@@ -274,7 +313,10 @@ export class ItemsModule implements RuleModule {
         }
         break;
       case "drop":
-        if (!this.items[e.item]) this.items[e.item] = { index: e.item, kind: e.kind, x: e.x, z: e.z, h: e.h, taken: false };
+        if (!this.items[e.item]) {
+          this.items[e.item] = { index: e.item, kind: e.kind, x: e.x, z: e.z, h: e.h, taken: false };
+          this.grid = null;
+        }
         if (pack && e.slot !== undefined && pack[e.slot] === e.kind) pack[e.slot] = null;
         break;
       case "use": {

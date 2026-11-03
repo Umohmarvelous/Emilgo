@@ -27,6 +27,7 @@
 // Pure, shared with the server, like every module.
 
 import { MELEE, MOVE, type AttackKind } from "../../config";
+import { SpotGrid } from "../core/spotgrid";
 import type { ItemId } from "../../content/items";
 import { knock } from "../combat";
 import type { Contestant } from "../core/body";
@@ -150,6 +151,7 @@ export class MeleeModule implements RuleModule {
     const rng = m.rng("props");
     const places = m.world.places;
     const reach = m.reach;
+    const grid = new SpotGrid(4);
     for (let n = 0; n < count; n++) {
       for (let t = 0; t < 12; t++) {
         let cell: number;
@@ -161,9 +163,10 @@ export class MeleeModule implements RuleModule {
           if (cell < 0 || !reach.ground[cell]) continue;
         } else cell = reach.open[rng.int(0, reach.open.length - 1)];
         const [x, z] = reach.centre(cell);
-        if (this.props.some((p) => Math.hypot(p.x - x, p.z - z) < 4)) continue;
+        if (grid.any(x, z, 4, (sx, sz) => Math.hypot(sx - x, sz - z) < 4)) continue;
         const kind = PROP_IDS[rng.int(0, PROP_IDS.length - 1)];
         this.props.push({ index: this.props.length, kind, x, z, h: reach.h[cell], uses: MELEE.prop[kind].uses, holder: -1 });
+        grid.add(x, z);
         break;
       }
     }

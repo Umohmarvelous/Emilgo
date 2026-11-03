@@ -48,6 +48,8 @@ export interface LobbyOptions {
   ballHaunt?: boolean;
   /** A person's total rank XP (0 for a guest): which modes they have opened. */
   xpOf?: (peer: Peer) => number;
+  /** v4 room directory: this node's shard letter; every room and party code starts with it. */
+  shard?: string;
 }
 
 export class Lobby {
@@ -68,7 +70,9 @@ export class Lobby {
   ) {
     this.rlgl = FEATURES.ballHaunt || opts.ballHaunt === true;
     this.xpOf = opts.xpOf ?? (() => 0);
+    this.shard = opts.shard && NET.codeAlphabet.includes(opts.shard) ? opts.shard : "";
   }
+  private readonly shard: string;
 
   roomOf(peer: Peer): Room | undefined {
     return peer.roomId ? this.rooms.get(peer.roomId) : undefined;
@@ -322,8 +326,8 @@ export class Lobby {
 
   private newCode(): string {
     for (;;) {
-      let code = "";
-      for (let i = 0; i < NET.codeLength; i++) code += NET.codeAlphabet[randomInt(0, NET.codeAlphabet.length)];
+      let code = this.shard;
+      while (code.length < NET.codeLength) code += NET.codeAlphabet[randomInt(0, NET.codeAlphabet.length)];
       if (!this.codes.has(code)) return code;
     }
   }

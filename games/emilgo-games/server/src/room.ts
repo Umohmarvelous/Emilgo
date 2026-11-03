@@ -453,6 +453,9 @@ export class Room {
     // Events go out at 30 Hz (and with each snapshot, and at the end): half the socket writes of every tick.
     if (events.length) this.mev.push(...events);
     const snapNow = (this.ticks + 1) % SNAP_EVERY === 0 || game.over;
+    // v4: a tick sending both the events and a snapshot sends them in one write per phone (corked).
+    const both = snapNow && this.mev.length > 0;
+    if (both) this.cork(true);
     if (this.mev.length && ((this.ticks + 1) % 2 === 0 || snapNow)) {
       this.broadcast({ t: "mev", e: this.mev });
       this.mev = [];
@@ -463,6 +466,7 @@ export class Room {
       const measures = (this.ticks / SNAP_EVERY) % NET.snapshotHz === 0 || game.over;
       this.broadcastRaw(JSON.stringify(game.snapshot(now(), false, measures)), half);
     }
+    if (both) this.cork(false);
     if (game.over) {
       this.state = "ended";
       this.endedAt = now();
@@ -658,6 +662,21 @@ export class Room {
   broadcastRoom(): void {
     this.broadcast({ t: "room", room: this.info() });
   }
+
+  /** Hold every member's socket writes (true) and let them go as one (false). */
+  private cork(on: boolean): void {
+    if (!on) {
+      for (const sock of this.corked.splice(0)) sock.uncork();
+      return;
+    }
+    for (const p of this.members) {
+      const sock = p.connected ? (p.socket as unknown as { _socket?: { cork(): void; uncork(): void } } | null)?._socket : null;
+      if (!sock) continue;
+      sock.cork();
+      this.corked.push(sock);
+    }
+  }
+  private readonly corked: { uncork(): void }[] = [];
 
   private broadcast(msg: object): void {
     this.broadcastRaw(JSON.stringify(msg));

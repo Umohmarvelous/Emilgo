@@ -39,3 +39,20 @@ function isLocal(host: string): boolean {
     /^172\.(1[6-9]|2\d|3[01])\./.test(host)
   );
 }
+
+/**
+ * v4 room directory (server/src/directory.ts): with one, the phone asks it
+ * which game server to use (quick play: the one with the most room; a code:
+ * the server holding it) before connecting. VITE_GAMES_DIRECTORY at build
+ * time (https://…), or ?dir=… in development. None: the one server above.
+ */
+export function directoryUrl(): string | null {
+  if (import.meta.env.DEV) {
+    const q = new URLSearchParams(location.search).get("dir");
+    if (q && /^https?:\/\//.test(q)) return q;
+  }
+  const url = ((import.meta.env.VITE_GAMES_DIRECTORY as string | undefined) ?? "").trim();
+  if (!/^https?:\/\//.test(url)) return null;
+  if (location.protocol === "https:" && url.startsWith("http:")) return null;
+  return url;
+}

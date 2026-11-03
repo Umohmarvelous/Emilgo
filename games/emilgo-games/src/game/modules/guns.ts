@@ -23,6 +23,7 @@
 // (Match.mirror) applies the server's events and works out only the regen.
 
 import { GUN_KINDS, GUNS, VEHICLES, type GunKind } from "../../config";
+import { SpotGrid } from "../core/spotgrid";
 import type { Contestant } from "../core/body";
 import type { Match } from "../core/match";
 import type { MatchEvent, RuleModule } from "../core/module";
@@ -146,14 +147,14 @@ export class GunsModule implements RuleModule {
     const reach = m.reach;
     if (!reach.open.length) return;
     const rng = this.rng;
-    const spots: [number, number][] = [];
+    const spots = new SpotGrid(8);
     const place = (minGap: number): [number, number, number] | null => {
       for (let t = 0; t < 30; t++) {
         const cell = reach.open[rng.int(0, reach.open.length - 1)];
         if (!reach.ground[cell]) continue;
         const [x, z] = reach.centre(cell);
-        if (spots.some(([sx, sz]) => Math.hypot(sx - x, sz - z) < minGap)) continue;
-        spots.push([x, z]);
+        if (spots.any(x, z, minGap, (sx, sz) => Math.hypot(sx - x, sz - z) < minGap)) continue;
+        spots.add(x, z);
         return [x, z, reach.h[cell]];
       }
       return null;
@@ -575,7 +576,7 @@ export class GunsModule implements RuleModule {
   pre(m: Match): void {
     for (const c of m.contestants) {
       if (c.status !== "alive" || m.seated(c)) continue;
-      for (const pi of this.near(this.pickupGrid, c.x, c.z)) {
+      for (const pi of this.nearR(this.pickupGrid, c.x, c.z, 1.1)) {
         const p = this.pickups[pi];
         if (p.taken || p.kind === "gun" || Math.abs(p.h - c.h) > 1.5) continue;
         if (Math.hypot(p.x - c.x, p.z - c.z) > 1.1) continue;
@@ -583,6 +584,20 @@ export class GunsModule implements RuleModule {
         this.take(m, c, p);
       }
     }
+  }
+
+  /** The indices in the buckets within r of (x, z) (usually one: a walk-over pickup is a step away). */
+  private nearR(grid: Map<number, number[]>, x: number, z: number, r: number): number[] {
+    _near.length = 0;
+    const q0 = Math.floor((x - r) / BUCKET);
+    const q1 = Math.floor((x + r) / BUCKET);
+    const r0 = Math.floor((z - r) / BUCKET);
+    const r1 = Math.floor((z + r) / BUCKET);
+    for (let q = q0; q <= q1; q++) for (let w = r0; w <= r1; w++) {
+      const list = grid.get(key(q, w));
+      if (list) for (const i of list) _near.push(i);
+    }
+    return _near;
   }
 
   /** The indices in (x, z)'s bucket and its neighbours. */

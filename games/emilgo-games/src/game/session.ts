@@ -46,7 +46,7 @@ import type { World } from "../maps/world";
 import { DEFAULT_MAP, SKY_STATES, fieldHalfWidth, groundSurface, mapOf, withMode, type MapCategory, type SkyState, type Surface } from "../maps/registry";
 import { NetClient } from "../net/client";
 import { ERROR_TEXT, normalizeCode, type ClientMsg, type RoomInfo, type ServerMsg, type StartInfo, type SyncInfo } from "../net/protocol";
-import { serverUrl } from "../net/serverUrl";
+import { directoryUrl, serverUrl } from "../net/serverUrl";
 import { fetchFeed, reportSeen, type AdFeed } from "../net/ads";
 import type { HouseInfo } from "../world/billboards";
 import type { Host, MatchView } from "../platform/types";
@@ -1877,7 +1877,7 @@ export class Game {
   private ensureNet(): NetClient | null {
     if (!this.server) return null;
     if (!this.net) {
-      const net = new NetClient(this.server, this.host.player.name);
+      const net = new NetClient(this.server, this.host.player.name, directoryUrl());
       net.on((m) => this.onServer(m));
       net.onState((s) => this.onNetState(s));
       this.net = net;

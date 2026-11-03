@@ -19,6 +19,8 @@ const options = {
 
 if (!watch) {
   await build(options);
+  // v4: the room directory, its own small service.
+  await build({ ...options, entryPoints: ["server/src/dirMain.ts"], outfile: "server/dist/directory.mjs" });
 } else {
   let child = null;
   const restart = () => {

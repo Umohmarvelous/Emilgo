@@ -25,6 +25,14 @@
 //   TRUST_PROXY       "1" to read the client address from CF-Connecting-IP / X-Forwarded-For
 //   LAG_GRACE_CAP     seconds; default NET.lagGraceCap. 0 only to prove the fairness test
 //
+// One node of many (v4 room directory, directory.ts; all four, or none):
+//   DIRECTORY         the directory's address (https://…)
+//   DIR_SECRET        the shared secret its heartbeats carry
+//   NODE_URL          this node's public WebSocket address (wss://…)
+//   SHARD             this node's letter (A–Z less I and O): its codes start with it
+//   NODE_CAP          players it takes before the directory sends them elsewhere (default 2000)
+// On SIGTERM such a node drains: no new players, and it exits when its last match ends.
+//
 // Lagos Life matches (Phase 3) — server-side only, never in the game's code:
 //   VATAR_SECRET          vtr_test_… (sandbox) or vtr_live_… (after approval)
 //   VATAR_RESULTS_SECRET  signs match results
@@ -68,11 +76,22 @@ import { WEAPON_RANK, type RunWeapon } from "../../src/config";
 import { BOOST_IDS, BOOST_SLOTS } from "../../src/shop/boosts";
 import { allowedLook, type WireLook } from "../../src/shop/catalog";
 import { adsBackendFromEnv, Billboards } from "./ads";
+import { startBeating } from "./directory";
+import { worldFor } from "./ffa";
 import { Shop } from "./shop";
 import { SqliteStore } from "./store";
 import { VatarApi, vatarConfigFromEnv, webhookSigned } from "./vatar";
 
 const PORT = Number(process.env.PORT ?? 8787);
+// v4 room directory (directory.ts): set all four to run as one node of many.
+const DIR = {
+  url: process.env.DIRECTORY?.trim() || "",
+  secret: process.env.DIR_SECRET?.trim() || "",
+  node: process.env.NODE_URL?.trim() || "",
+  shard: (process.env.SHARD?.trim() || "").toUpperCase(),
+  cap: Number(process.env.NODE_CAP ?? 2000),
+};
+const ON_DIR = !!(DIR.url && DIR.secret && DIR.node && DIR.shard);
 const MAX_PEERS = Number(process.env.MAX_PEERS ?? 20000);
 const MAX_PER_IP = Number(process.env.MAX_PER_IP ?? 32);
 const TRUST_PROXY = process.env.TRUST_PROXY === "1";
@@ -87,6 +106,7 @@ const vatar = vatarCfg ? new VatarApi(vatarCfg) : null;
 const lobby = new Lobby(vatar, (event, info) => console.log(`match ${event} ${JSON.stringify(info)}`), {
   ballHaunt: process.env.BALL_HAUNT === "1",
   xpOf: (peer) => (peer.profile ? (profiles.get(peer.profile)?.xp ?? 0) : 0),
+  shard: DIR.shard,
 });
 const presence = new Presence(lobby);
 const store = vatar ? new SqliteStore(`${process.env.DATA_DIR ?? "./data"}/emilgo-games.db`) : null;
@@ -696,6 +716,14 @@ setInterval(() => {
   }
 }, NET.pingEveryMs);
 
+// v4: the worlds are built before the first player (Naija Max takes seconds: mid-match it would stall every room).
+if (process.env.WARM_WORLDS !== "0") {
+  const w0 = performance.now();
+  worldFor("naija-world");
+  worldFor("max-world");
+  console.log(`worlds ready in ${Math.round(performance.now() - w0)} ms`);
+}
+
 http.listen(PORT, () => {
   console.log(`emilgo games server on :${PORT}${ORIGINS.length ? ` (origins: ${ORIGINS.join(", ")})` : ""}`);
   console.log(vatar ? `Lagos Life matches + shop: ON (${vatar.mode} mode, ${vatarCfg!.api})` : "Lagos Life matches + shop: off (no VATAR_SECRET / VATAR_RESULTS_SECRET)");
@@ -707,6 +735,43 @@ http.listen(PORT, () => {
   }
 });
 
+// v4: one node of many: beat to the directory; on SIGTERM drain first.
+let draining = false;
+const stopBeating = ON_DIR
+  ? startBeating(DIR.url, DIR.secret, () => {
+      const sorted = [...tickCost].sort((a, b) => a - b);
+      const st = lobby.stats();
+      return {
+        shard: DIR.shard,
+        url: DIR.node,
+        peers: peers.size,
+        cap: DIR.cap,
+        rooms: st.rooms,
+        playing: st.playing,
+        tickP99: round2(sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.99))] : 0),
+        rssMb: Math.round(process.memoryUsage().rss / 1e6),
+        draining,
+      };
+    })
+  : null;
+if (ON_DIR) console.log(`node ${DIR.shard} of the directory ${DIR.url} (cap ${DIR.cap})`);
+
+function drainThenShutdown(): void {
+  if (!stopBeating || draining) return shutdown();
+  draining = true;
+  console.log("emilgo games server: draining (no new players; leaving after the last match)");
+  const started = now();
+  const iv = setInterval(() => {
+    // Those not mid-match go now (1012: their phone asks the directory for another node).
+    for (const p of peers.values()) if (p.connected && !lobby.roomOf(p)?.playing) p.socket?.close(1012, "moved");
+    if (lobby.stats().playing === 0 || now() - started > 15 * 60_000) {
+      clearInterval(iv);
+      stopBeating();
+      shutdown();
+    }
+  }, 2000);
+}
+
 function shutdown(): void {
   store?.close();
   console.log("emilgo games server: shutting down");
@@ -714,5 +779,5 @@ function shutdown(): void {
   http.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 3000).unref();
 }
-process.on("SIGTERM", shutdown);
+process.on("SIGTERM", drainThenShutdown);
 process.on("SIGINT", shutdown);

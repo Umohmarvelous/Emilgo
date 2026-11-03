@@ -71,10 +71,64 @@ export class NetClient {
   private connectWaiters: { ok: () => void; no: (e: Error) => void }[] = [];
 
   constructor(
-    readonly url: string,
+    private url: string,
     private readonly displayName: string,
+    /** v4 room directory: ask it where to connect (null: always `url`). */
+    private readonly dir: string | null = null,
   ) {
     window.addEventListener("online", this.backOnline);
+  }
+
+  /** The node we're on (directory only): its address and shard letter. */
+  private node: { url: string; shard: string } | null = null;
+  /** Messages held while we move to the node that holds a code. */
+  private moving: ClientMsg[] = [];
+
+  /** The directory's word: where to connect (for a code or a Lagos Life match, the node holding it). */
+  private async pick(key = ""): Promise<{ url: string; shard: string } | null> {
+    if (!this.dir) return null;
+    try {
+      const ctl = new AbortController();
+      const timer = window.setTimeout(() => ctl.abort(), 4000);
+      const r = await fetch(`${this.dir.replace(/\/$/, "")}/dir/pick${key ? `?key=${encodeURIComponent(key)}` : ""}`, { signal: ctl.signal, cache: "no-store" });
+      clearTimeout(timer);
+      if (!r.ok) return null;
+      const j = (await r.json()) as { url?: unknown; shard?: unknown };
+      if (typeof j.url !== "string" || !/^wss?:\/\//.test(j.url) || typeof j.shard !== "string") return null;
+      if (location.protocol === "https:" && j.url.startsWith("ws://")) return null;
+      return { url: j.url, shard: j.shard };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * A room or party code, or a Lagos Life match, lives on one node: if it
+   * isn't ours, move there (a fresh connection, no seat to resume) and send
+   * the message once welcomed. Without a directory, or on the right node: send.
+   */
+  private route(msg: ClientMsg): boolean {
+    if (!this.dir || !this.node) return false;
+    const key = msg.t === "join" ? msg.code : msg.t === "party" && msg.op === "join" ? msg.code : msg.t === "vmatch" ? `v:${msg.id}` : "";
+    if (!key || (!key.startsWith("v:") && key[0] === this.node.shard)) return false;
+    void this.pick(key).then((n) => {
+      if (!n || n.url === this.node?.url) return this.sendNow(msg);
+      this.moving.push(msg);
+      this.node = n;
+      this.url = n.url;
+      this.token = "";
+      this.offsetSet = false;
+      const ws = this.ws;
+      this.ws = null;
+      try {
+        ws?.close(1000, "moving");
+      } catch {
+        /* already closed */
+      }
+      this.attempts = 0;
+      this.open();
+    });
+    return true;
   }
 
   /** The phone's network is back: try now, not at the end of the back-off. */
@@ -153,6 +207,11 @@ export class NetClient {
   }
 
   send(msg: ClientMsg): void {
+    if (this.route(msg)) return;
+    this.sendNow(msg);
+  }
+
+  private sendNow(msg: ClientMsg): void {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(msg));
   }
 
@@ -243,6 +302,20 @@ export class NetClient {
 
   private open(): void {
     this.setState(this.attempts ? "reconnecting" : "connecting");
+    // v4: with a directory, the first connection (and one after a node drained) asks it where to go.
+    if (this.dir && !this.node) {
+      void this.pick().then((n) => {
+        if (!this.wantConnection || this.ws) return;
+        this.node = n ?? { url: this.url, shard: "" };
+        this.url = this.node.url;
+        this.openSocket();
+      });
+      return;
+    }
+    this.openSocket();
+  }
+
+  private openSocket(): void {
     let ws: WebSocket;
     try {
       ws = new WebSocket(this.url);
@@ -269,6 +342,12 @@ export class NetClient {
     ws.onclose = (e) => {
       if (this.ws !== ws) return;
       this.ws = null;
+      // A node draining for a deploy (1012): ask the directory for another.
+      if (e.code === 1012 && this.dir) {
+        this.node = null;
+        this.token = "";
+        this.offsetSet = false;
+      }
       // 4001 = protocol version, 4008 = flooding: retrying won't help.
       if (e.code === 4001 || e.code === 4008 || !this.wantConnection) {
         this.setState("closed");
@@ -316,6 +395,11 @@ export class NetClient {
         if (!this.watchTimer) this.watchTimer = window.setInterval(this.watch, 1000);
         this.setState("open");
         for (const w of this.connectWaiters.splice(0)) w.ok();
+        // Moved for a code: say it now, on its node (after everyone has heard the welcome).
+        if (this.moving.length) {
+          const held = this.moving.splice(0);
+          queueMicrotask(() => held.forEach((x) => this.sendNow(x)));
+        }
         break;
       case "ping": {
         this.send({ t: "pong", s: m.s });
