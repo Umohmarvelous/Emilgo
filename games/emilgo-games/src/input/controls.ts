@@ -138,6 +138,10 @@ export class Controls {
   private readonly adsBtn: HTMLButtonElement;
   private readonly reloadBtn: HTMLButtonElement;
   private guns = false;
+  /** Dead Streets: the gun fires from the FIRE circle (held: again every 0.34 s). */
+  private survivalGun = false;
+  private survivalOn: boolean | null = null;
+  private gunNext = 0;
   /** Free For All: interact pressed and released (E). */
   onInteract: ((down: boolean) => void) | null = null;
   /** Free For All: the backpack (B), and a slot used or dropped (1–0, Shift). */
@@ -379,6 +383,11 @@ export class Controls {
     // With guns (v4): left fires (held), right aims down the sights (held), the wheel swaps.
     document.addEventListener("mousedown", (e) => {
       if (!this.locked || !this.on || this.layout !== "ffa") return;
+      if (this.survivalGun) {
+        if (e.button === 0) this.fireMouse = true;
+        else if (e.button === 2) this.attack("fist");
+        return;
+      }
       if (this.guns) {
         if (e.button === 0) this.fireMouse = true;
         else if (e.button === 2) {
@@ -597,7 +606,7 @@ export class Controls {
     this.actions.classList.toggle("play", on);
     this.moveSide.hidden = !on;
     this.vitals.hidden = !on;
-    this.gunpad.hidden = !on || !this.guns || !!this.driving;
+    this.gunpad.hidden = !on || !(this.guns || this.survivalGun) || !!this.driving;
     if (!on) this.setNear(false, false);
     this.placeMoveHome();
   }
@@ -647,18 +656,25 @@ export class Controls {
    * the gun (slap) and a shove (push), always there; no grab, no brace.
    */
   setSurvival(on: boolean): void {
+    if (on === this.survivalOn) return;
+    this.survivalOn = on;
     const names = on ? (["cutlass", "gun", "push"] as const) : ATTACK_KINDS;
     const labels = on ? ["Cutlass", "Shoot", "Shove"] : ATTACK_KINDS.map((k) => k[0].toUpperCase() + k.slice(1));
     this.attackBtns.forEach((b, i) => {
       b.innerHTML = icon(names[i], "", 24);
       b.setAttribute("aria-label", labels[i]);
-      b.hidden = false;
+      // The gun is the FIRE circle (v4 rework: "no circles except the aim, fire and the joysticks").
+      b.hidden = on && i === 1;
     });
     this.grabBtn.hidden = on;
     this.braceBtn.hidden = on;
-    // The gun: a drag that starts on it also aims (v4).
-    if (on) this.aimFrom(this.attackBtns[1]);
-    else delete this.attackBtns[1].dataset.aim;
+    this.survivalGun = on;
+    this.adsBtn.hidden = this.reloadBtn.hidden = on;
+    if (!on) {
+      this.fireTouch = 0;
+      this.fireMouse = false;
+    }
+    this.gunpad.hidden = !(on || this.guns) || this.actions.hidden || !!this.driving;
   }
 
   /** Free For All: holding someone, the attacks finish the clinch (fist Throw, slap Trip, push Drag). */
@@ -682,7 +698,7 @@ export class Controls {
       this.fireMouse = false;
       this.setAds(false);
     }
-    this.gunpad.hidden = !on || this.actions.hidden || !!this.driving;
+    this.gunpad.hidden = !(on || this.survivalGun) || this.actions.hidden || !!this.driving;
     this.gunpad.classList.toggle("lefty", this.leftHanded);
   }
 
@@ -766,6 +782,14 @@ export class Controls {
       my = (ky / len) * mag;
     }
     if (!this.enabled) mx = my = 0;
+    // Dead Streets: FIRE (or the mouse) held shoots the gun at its pace.
+    if (this.survivalGun && this.enabled && this.trigger) {
+      const t = performance.now();
+      if (t >= this.gunNext) {
+        this.attack("slap");
+        this.gunNext = t + 340;
+      }
+    }
     this.move.x = mx;
     this.move.y = my;
     // Auto-sprint: a full push sprints while stamina lasts (the button still toggles it).

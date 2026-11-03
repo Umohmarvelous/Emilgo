@@ -503,6 +503,8 @@ export class FfaMode implements GameMode {
       src.setActions(c.attacks, c.grabs);
       src.setMatchButtons(c.brace, this.press, this.hold, this.packAct);
       if (this.gunsView) src.setAim(h.rig.aimYaw, h.rig.aimPitch, c.trigger, c.ads, c.reloads, c.swaps);
+      // Dead Streets: shooting, you face where you aim (v4 rework: "when my 3d model fires a bullet he does not aim").
+      if (this.dead && c.trigger) me.heading = h.rig.aimYaw + Math.PI;
     } else {
       src.setInput(0, 0);
       src.setButtons(false, 0, c.jumps);
@@ -510,6 +512,7 @@ export class FfaMode implements GameMode {
       if (this.gunsView) src.setAim(h.rig.aimYaw, h.rig.aimPitch, false, false, c.reloads, c.swaps);
     }
     src.step(dt);
+    if (live && this.dead && c.trigger) me.heading = h.rig.aimYaw + Math.PI;
     const events = src.drain();
     const cam = h.camera.position;
     this.ms.events(events, m, cam);
