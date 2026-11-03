@@ -7,7 +7,7 @@
 // Models load once, on demand, and stay in an LRU under the tier's GPU
 // budget (Low 120 MB, Medium 200 MB, High 350 MB).
 
-import type { BufferGeometry, Material } from "three";
+import { BufferAttribute, type BufferGeometry, type Material } from "three";
 
 import type { Tier } from "../graphics/tiers";
 
@@ -82,8 +82,24 @@ async function load(url: string, tier: Tier): Promise<CdnModel | null> {
     gltf.scene.traverse((o) => {
       const mesh = o as import("three").Mesh;
       if (!mesh.isMesh) return;
-      const g = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
+      const g = mesh.geometry.clone();
       for (const k of Object.keys(g.attributes)) if (!["position", "normal", "uv"].includes(k)) g.deleteAttribute(k);
+      // The pipeline quantizes (KHR_mesh_quantization: int16 positions, int8 normals, uint16 UVs): to
+      // float first, or the node's scale would clip the positions and the meshes wouldn't merge.
+      for (const k of Object.keys(g.attributes)) {
+        const a = g.getAttribute(k);
+        if (a.array instanceof Float32Array && !a.normalized && !(a as { isInterleavedBufferAttribute?: boolean }).isInterleavedBufferAttribute) continue;
+        const n = a.itemSize;
+        const f = new Float32Array(a.count * n);
+        for (let i = 0; i < a.count; i++) {
+          f[i * n] = a.getX(i);
+          if (n > 1) f[i * n + 1] = a.getY(i);
+          if (n > 2) f[i * n + 2] = a.getZ(i);
+          if (n > 3) f[i * n + 3] = a.getW(i);
+        }
+        g.setAttribute(k, new BufferAttribute(f, n));
+      }
+      g.applyMatrix4(mesh.matrixWorld);
       geos.push(g);
       material ??= Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
     });
