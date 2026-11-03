@@ -87,13 +87,13 @@ export function suitMaterial(look: Look, tier: Tier, rest: Record<BoneName, V3>)
   mat.onBeforeCompile = (s) => {
     Object.assign(s.uniforms, u);
     s.vertexShader = s.vertexShader
-      .replace("#include <common>", "#include <common>\nattribute float region;\nattribute vec4 pal;\nattribute float accent;\nflat varying int vReg;\nvarying vec3 vBind;\nvarying vec3 vBindN;\nvarying vec4 vPal;\nvarying float vAcc;")
-      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvBind = position; vBindN = normal; vReg = int(region + 0.5); vPal = pal; vAcc = accent;");
+      .replace("#include <common>", "#include <common>\nattribute float region;\nattribute vec4 pal;\nattribute float accent;\nflat varying int vReg;\nvarying float vRS;\nvarying float vRS2;\nvarying vec3 vBind;\nvarying vec3 vBindN;\nvarying vec4 vPal;\nvarying float vAcc;")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvBind = position; vBindN = normal; vReg = int(region + 0.5); vRS = region; vRS2 = region * region; vPal = pal; vAcc = accent;");
     s.fragmentShader = s.fragmentShader
       .replace(
         "#include <common>",
         `#include <common>
-        flat varying int vReg; varying vec3 vBind; varying vec3 vBindN; varying vec4 vPal; varying float vAcc;
+        flat varying int vReg; varying float vRS, vRS2; varying vec3 vBind; varying vec3 vBindN; varying vec4 vPal; varying float vAcc;
         uniform sampler2D weaveMap; uniform vec3 skinCol, bandCol, eyeC; uniform vec2 eyeHalf;
         vec3 tri(vec3 p, vec3 n) {
           vec3 w = pow(abs(n), vec3(4.0)); w /= (w.x + w.y + w.z + 1e-5);
@@ -108,11 +108,27 @@ export function suitMaterial(look: Look, tier: Tier, rest: Record<BoneName, V3>)
           vec3 wv = tri(vBind * 9.0, vBindN);
           vec3 wear = tri(vBind * 3.0, vBindN);
           int r = vReg;
+          {
+            // Where a triangle spans two regions, the flat region alone switches per triangle
+            // (a sawtooth edge). From the region's mean and mean square, find the other region
+            // and how far toward it this point is: the boundary runs straight through the
+            // triangle, the same on both sides of an edge (v4 rework: no jagged cuffs and pads).
+            float a = float(vReg);
+            float d = vRS - a;
+            if (abs(d) > 0.01) {
+              float v = max(vRS2 - vRS * vRS, 0.0);
+              float span = (v + d * d) / d;
+              if (d / span > 0.5) r = clamp(int(floor(a + span + 0.5)), 0, 11);
+            }
+          }
           // The blended palette: colour (×0.1) and roughness per vertex.
           vec3 c = vPal.rgb * 0.1;
           rough = vPal.a;
           hgt = wv.r * 0.6;
           if (r == 0 || r == 1 || r == 7) {
+            // One black for the suit and the mannequin's joint gussets (no darker V at the hips,
+            // no outlined shoulder caps): the suit reads as one garment.
+            if (r <= 1) { c = vec3(0.034, 0.036, 0.041); rough = 0.88; }
             // Ripstop, worn a little grey at the knees, the seat, the elbows.
             c *= 0.82 + 0.36 * wv.r;
             c = mix(c, vec3(0.075, 0.072, 0.068), smoothstep(0.35, 0.9, wear.b) * 0.16);
