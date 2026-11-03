@@ -14,9 +14,13 @@ import { BufferAttribute, BufferGeometry, Quaternion, Sphere, Vector3 } from "th
 import type { BuiltBody, Detail } from "./mesh";
 import { BONES, PROPORTIONS, type BoneName, type V3 } from "./skeleton";
 import type { Body } from "./wardrobe";
-import urlM from "./op/op-m.bin?url";
-import urlF from "./op/op-f.bin?url";
 import urlClips from "./op/op-clips.bin?url";
+
+/** The bodies' files: the EMILGO app's one-file copy carries the lite ones (levels 0–2; tools/anim/lite.mjs). */
+const bodyUrls = (): Promise<[string, string]> =>
+  __HOST_BUILD__ === "emilgo"
+    ? Promise.all([import("./op/op-m.lite.bin?url"), import("./op/op-f.lite.bin?url")]).then(([m, f]) => [m.default, f.default])
+    : Promise.all([import("./op/op-m.bin?url"), import("./op/op-f.bin?url")]).then(([m, f]) => [m.default, f.default]);
 
 /** The suit's regions (operator.mjs R). */
 export const REGION = { suit: 0, seam: 1, glove: 2, boot: 3, head: 4, pad: 5, belt: 6, pocket: 7, band: 8, eye: 9, knuckle: 10, sole: 11 } as const;
@@ -108,8 +112,12 @@ let loading: Promise<void> | null = null;
 /** Both bodies and the clips. Safe to call more than once. */
 export function loadOperators(): Promise<void> {
   loading ??= Promise.all([
-    fetchBin(urlM).then(({ head, buf, at }) => void (bodies.m = readBody(head, buf, at))),
-    fetchBin(urlF).then(({ head, buf, at }) => void (bodies.f = readBody(head, buf, at))),
+    bodyUrls().then(([urlM, urlF]) =>
+      Promise.all([
+        fetchBin(urlM).then(({ head, buf, at }) => void (bodies.m = readBody(head, buf, at))),
+        fetchBin(urlF).then(({ head, buf, at }) => void (bodies.f = readBody(head, buf, at))),
+      ]),
+    ),
     fetchBin(urlClips).then(({ head, buf, at }) => {
       KEEP = head.keep;
       KEEP.forEach((b, j) => (SLOT[b] = j));
@@ -141,8 +149,10 @@ export function operatorsReady(): boolean {
 }
 
 /** The operator's body at a detail level (cached), as a BuiltBody the Human can wear. */
-export function operatorBody(body: Body, level: Detail): BuiltBody {
+export function operatorBody(body: Body, want: Detail): BuiltBody {
   const b = bodies[body]!;
+  // The app's lite files stop at level 2.
+  const level = Math.min(want, b.levels.length - 1) as Detail;
   let built = b.built[level];
   if (built) return built;
   const g = new BufferGeometry();
