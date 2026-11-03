@@ -78,6 +78,8 @@ import { allowedLook, type WireLook } from "../../src/shop/catalog";
 import { adsBackendFromEnv, Billboards } from "./ads";
 import { startBeating } from "./directory";
 import { worldFor } from "./ffa";
+import { reachOf } from "../../src/game/core/reach";
+import { BUILTIN_MANIFEST } from "../../src/content/modes";
 import { Shop } from "./shop";
 import { SqliteStore } from "./store";
 import { VatarApi, vatarConfigFromEnv, webhookSigned } from "./vatar";
@@ -662,6 +664,7 @@ function round2(v: number): number {
 const STEP = 1 / NET.tickHz;
 let last = now();
 let acc = 0;
+let slowSaid = 0;
 
 // Runs at ~2× the tick rate so steps land close to on time; the accumulator
 // keeps the referee on an exact 60 Hz however the timer jitters.
@@ -678,7 +681,13 @@ setInterval(() => {
   }
   if (steps === 5) acc = 0; // never spiral after a stall
   if (steps) {
-    tickCost.push((performance.now() - t0) / steps);
+    const ms = performance.now() - t0;
+    if (ms > 50 && lobby.slowest.ms > 20 && t - slowSaid > 10_000) {
+      slowSaid = t;
+      console.log(`slow step ${Math.round(ms)} ms: worst room ${Math.round(lobby.slowest.ms)} ms (${lobby.slowest.what})`);
+    }
+    lobby.slowest = { ms: 0, what: "" };
+    tickCost.push(ms / steps);
     if (tickCost.length > 600) tickCost.shift();
   }
 }, 1000 / NET.tickHz / 2);
@@ -719,8 +728,11 @@ setInterval(() => {
 // v4: the worlds are built before the first player (Naija Max takes seconds: mid-match it would stall every room).
 if (process.env.WARM_WORLDS !== "0") {
   const w0 = performance.now();
-  worldFor("naija-world");
-  worldFor("max-world");
+  // Each Free For All world and its walk grid (half a second on Naija Max: a match's first use would stall every room).
+  for (const map of new Set(BUILTIN_MANIFEST.modes.filter((m) => m.family === "ffa" && m.map !== "any").map((m) => m.map))) {
+    const w = worldFor(map);
+    reachOf(w.space, w.spawns[0] ?? [0, 0]);
+  }
   console.log(`worlds ready in ${Math.round(performance.now() - w0)} ms`);
 }
 

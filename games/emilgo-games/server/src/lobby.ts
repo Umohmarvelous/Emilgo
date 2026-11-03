@@ -301,9 +301,17 @@ export class Lobby {
     peer.roomId = null;
   }
 
+  /** The slowest room step since the last look (operators: a step over budget, and whose). */
+  slowest: { ms: number; what: string } = { ms: 0, what: "" };
+
   tick(dt: number): void {
+    Room.ffaStarts = 1;
     for (const room of this.rooms.values()) {
+      const t0 = performance.now();
+      const was = room.state;
       room.tick(dt);
+      const ms = performance.now() - t0;
+      if (ms > this.slowest.ms) this.slowest = { ms, what: `${room.ffa?.id ?? room.kind} ${was}→${room.state} ×${room.members.length}` };
       if (room.closed) {
         this.rooms.delete(room.id);
         if (room.code) this.codes.delete(room.code);

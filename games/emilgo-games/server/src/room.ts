@@ -93,6 +93,8 @@ export type Winner = string;
 const COMMEND_MS = 180_000;
 
 export class Room {
+  /** Free For All matches that may still start this step (the lobby sets it each step). */
+  static ffaStarts = 1;
   readonly id = `r${(nextRoomId++).toString(36)}`;
   state: "lobby" | "playing" | "ended" = "lobby";
   owner: string | null;
@@ -312,7 +314,14 @@ export class Room {
       this.pending = { seed, map: this.ffa ? this.ffa.map : MAPS[seed % MAPS.length].id };
       this.broadcastRoom();
     }
-    if (this.startsAt !== null && t >= this.startsAt) this.begin(t);
+    if (this.startsAt !== null && t >= this.startsAt) {
+      // A Free For All match costs a few ms to set up (20–40 on Naija Max): one a step, so a crowd starting at once doesn't stall every room.
+      if (this.ffa) {
+        if (Room.ffaStarts <= 0) return;
+        Room.ffaStarts--;
+      }
+      this.begin(t);
+    }
   }
 
   /** Quick and private rooms: everyone ready (two or more), or a quick room full or out of time. */
