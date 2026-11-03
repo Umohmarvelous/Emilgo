@@ -704,9 +704,10 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
     }
     case "borehole": {
       solidPart(k, ps[0], { color: "#9a9890" });
-      solidPart(k, ps[1], { color: "#2a5a9a" });
+      // v4 rework: a grey pump house and a steel tank (no blue borehole).
+      solidPart(k, ps[1], { color: "#7a8086" });
       allParts(k, ps.slice(2, 6), () => ({ color: METAL }));
-      k.cyl("#2a5a9a", 0.9, 1.6, [ps[6].x, 3.8, ps[6].z], "mass", { sides: 10 });
+      k.cyl("#9aa0a6", 0.9, 1.6, [ps[6].x, 3.8, ps[6].z], "mass", { sides: 10 });
       break;
     }
     case "mechanic": {

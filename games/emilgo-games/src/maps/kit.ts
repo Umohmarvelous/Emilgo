@@ -410,10 +410,22 @@ export class Kit {
   tree(p: V3, h = 8, colors = ["#2e7d32", "#388e3c", "#33691e"], trunk = "#5d4037"): void {
     const r = this.rng;
     this.cyl(trunk, 0.32 * (h / 8), h * 0.6, [p[0], h * 0.3, p[2]], "mass", { sides: 6, top: 0.65 });
-    const n = 3 + r.int(0, 2);
+    // v4 rework: a fuller, rounder crown (more clumps round a centre, smooth on High; two limbs).
+    const n = this.tier === 0 ? 3 + r.int(0, 2) : this.tier === 1 ? 6 : 8;
+    // An upright crown (taller than wide): never the flat umbrella of a savanna tree.
+    const cy = h * 0.66;
+    const R = h * 0.13;
+    for (let i = 0; i < 2 && this.tier > 0; i++) {
+      const a = r.range(0, Math.PI * 2);
+      this.put(part(CYL6, trunk, { p: [p[0] + Math.cos(a) * h * 0.05, h * 0.52, p[2] + Math.sin(a) * h * 0.05], r: [-Math.sin(a) * 0.5, 0, Math.cos(a) * 0.5], s: [0.1 * (h / 8), h * 0.22, 0.1 * (h / 8)] }), "main", p[2]);
+    }
     for (let i = 0; i < n; i++) {
-      const rr = h * r.range(0.22, 0.32);
-      this.blob(r.pick(colors), [rr, rr * 0.75, rr], [p[0] + r.range(-1, 1) * h * 0.15, h * r.range(0.65, 0.95), p[2] + r.range(-1, 1) * h * 0.15]);
+      const a = (i / n) * Math.PI * 2 + r.range(-0.4, 0.4);
+      const up = i === 0 ? 1 : r.range(-0.35, 0.75);
+      const out = i === 0 ? 0 : Math.sqrt(1 - up * up);
+      const rr = h * (i === 0 ? 0.22 : r.range(0.15, 0.2));
+      const c = colors[i % colors.length];
+      this.blob(c, [rr, rr * 1.15, rr], [p[0] + Math.cos(a) * out * R, cy + up * h * 0.2, p[2] + Math.sin(a) * out * R], "foliage", this.tier === 2);
     }
   }
 
