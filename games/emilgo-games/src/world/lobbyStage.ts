@@ -633,7 +633,8 @@ export class LobbyStage {
   render(): void {
     const r = this.renderer;
     r.getDrawingBufferSize(this.size);
-    if (this.mode === "lobby" && this.dropTex) {
+    // v4 rework: the drop's picture behind every lobby screen (the old street set is gone everywhere).
+    if (this.mode !== "podium" && this.dropTex) {
       r.autoClear = false;
       r.clear();
       this.drawCover(r);

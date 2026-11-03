@@ -26,7 +26,7 @@ import { HOODIE_COLORS, HOODIE_DESIGNS, type HoodieDesign, type Look } from "../
 import { esc, fmtTime, ordinal } from "./dom";
 import { SPOOKY_ROUTE } from "../maps/open/route";
 import { divisionIndex } from "../content/validate";
-import { t, translateTree } from "./i18n";
+import { getLang, t, translateTree } from "./i18n";
 import { icon } from "./icons";
 
 export interface ResultInfo {
@@ -471,7 +471,7 @@ export class Screens {
   /** Character editor: the hoodie (colour and design: the only clothes there are) and the body. Paid ones show their price and a lock. */
   customize(look: Look, tab: string, owned: ReadonlySet<string>, canBuy: boolean, rankK = 0): void {
     const tabs = [
-      ["hoodie", "Hoodie"],
+      ["hoodie", "Armband"],
       ["body", "Body"],
     ]
       .map(([id, label]) => `<button class="tab ${tab === id ? "on" : ""}" data-act="ctab" data-tab="${id}">${label}</button>`)
@@ -887,7 +887,7 @@ export class Screens {
         <div class="side">
           <div class="glass mapcard">
             <div class="row"><b>Meridian City</b></div>
-            <span class="small">One city, 400 × 400 m: market streets and the bus park in the east, compounds, farms and the river in the west. The zone closes in; the sky hunts whoever is outside it.</span>
+            <span class="small">One city, 400 × 400 m: glass offices, the arcade and the transit hub in the east, courtyard flats, old farms and the river in the west. The zone closes in; the sky hunts whoever is outside it.</span>
           </div>
           <div class="glass gamecard">${card}${partyBox}</div>
         </div>
@@ -1262,14 +1262,20 @@ export class Screens {
   /**
    * The match loading screen (SPEC-V3 §12, Brief 1): your squad's cards (or you
    * alone in a run) over the 3D people on the stage behind, a map card with
-   * the mode and its one-line goal, and a danfo route sign that fills as the
-   * world builds. A Pidgin radio line. Free For All in Harmattan gold, Dead
+   * the mode and its one-line goal, and a route sign that fills as the
+   * world builds. A radio line. Free For All in amber, Dead
    * Streets red-black with lightning behind.
    */
   matchLoading(s: { kind: "ffa" | "run"; mode: string; goal: string; time: number; map: string; players: { name: string; rank: string; squad: number; me: boolean }[]; best?: number; daily?: string; top?: number[]; drop?: string; kit?: [string, string, string][] }): void {
+    // v4 rework: radio chatter in the player's language (English, or Pidgin when chosen); no minibus slang.
+    const pcm = getLang() === "pcm";
     const lines = s.kind === "run"
-      ? ["Oya, the Mast dey wait. No waste time o!", "Dem talk say churches and mosques safe. Remember am.", "Torch battery na life. No play with am.", "If you hear drum, run go find cover!"]
-      : ["Oya, the flag dey hide for market side o!", "Zone don dey close. Shine your eye!", "Danfo dey road. No stand for front!", "Na who sharp pass go win today o!"];
+      ? pcm
+        ? ["Oya, the Mast dey wait. No waste time o!", "Torch battery na life. No play with am.", "If you hear drum, run go find cover!"]
+        : ["Command: the Mast is waiting. Move.", "Watch your torch battery. It's your life.", "Hear the drum? Find cover. Now."]
+      : pcm
+        ? ["Oya, the flag dey hide for arcade side o!", "Zone don dey close. Shine your eye!", "Na who sharp pass go win today o!"]
+        : ["Command: the flag is hidden near the arcade.", "The zone is closing. Eyes open.", "Weapons free. Last squad standing wins.", "Vehicles on the roads. Watch your six."];
     const line = lines[Math.floor(Math.random() * lines.length)];
     const cards = s.players
       .map((p) => `<div class="ld-card ${p.me ? "me" : ""}" style="--sq:${SQUAD_COLORS[p.squad % SQUAD_COLORS.length]}"><span class="bar"></span><b>${esc(p.name)}</b><small>${esc(p.rank)}</small>${p.me ? `<span class="tick">${icon("check", "", 12)}</span>` : ""}</div>`)

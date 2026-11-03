@@ -5,13 +5,16 @@
 // (Sound.gunshot … and the world's loops, world.ts); with no CDN, offline, in
 // the app or Lagos Life, everything stays synthesised as before.
 
-const base = ((import.meta.env.VITE_ASSET_CDN as string | undefined) ?? "").replace(/\/$/, "");
+// v4 rework: the site's own library (tools/audio/sfx.mjs, CC0 recordings) when no CDN is set; the
+// EMILGO app's offline copy streams it from the game's site.
+const LIB = __HOST_BUILD__ === "emilgo" ? "https://milgogames.pages.dev/lib" : `${import.meta.env.BASE_URL}lib`;
+const base = ((import.meta.env.VITE_ASSET_CDN as string | undefined) ?? LIB).replace(/\/$/, "");
 const buffers = new Map<string, AudioBuffer>();
 let started = false;
 
 /** Fetch and decode the listed samples once (after the first tap: decoding needs the context). */
 export function loadSamples(ctx: BaseAudioContext): void {
-  if (started || !/^https?:\/\//.test(base)) return;
+  if (started || !base) return;
   started = true;
   void fetch(`${base}/sfx/manifest.json`)
     .then((r) => (r.ok ? r.json() : null))

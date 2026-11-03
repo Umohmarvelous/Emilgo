@@ -852,6 +852,8 @@ export class Sound {
 
   /** A reload: the magazine out, in, the slide. */
   reload(kind: "pistol" | "rifle" | "smg" | "shotgun", seconds: number): void {
+    // A recorded reload (v4 rework): the handgun's, the rifle's, the shotgun's pump at the end.
+    if (kind === "shotgun" ? this.sample("pump", 0.7) : this.sample(kind === "pistol" ? "reload" : "reload-rifle", 0.7)) return;
     const t = this.now;
     if (kind === "shotgun") {
       for (let i = 0; i < 4; i++) this.noise(t + 0.25 + (i * (seconds - 0.6)) / 4, 0.04, { gain: 0.1, freq: 1600, type: "bandpass" });
