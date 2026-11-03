@@ -21,7 +21,8 @@ ln -s "$G/node_modules" "$SRC/node_modules"
 # frames (its SDK tag included); use it for the site registered as the Game URL.
 BUILD="${BUILD:-web}"
 if [ "$BUILD" = "lagoslife" ]; then MODE=production; else MODE=web; fi
-(cd "$SRC" && VITE_GAMES_SERVER="$SERVER" npx vite build --mode $MODE --outDir "$OUT/site" --emptyOutDir > /dev/null)
+# The downloaded assets (music, textures, skies, models: tools/audio, tools/assets) come from this checkout's assets-site/.
+(cd "$SRC" && ASSET_DIR="$G/assets-site" VITE_GAMES_SERVER="$SERVER" npx vite build --mode $MODE --outDir "$OUT/site" --emptyOutDir > /dev/null)
 (cd "$OUT" && wrangler pages deploy site --project-name $PROJECT --branch main --commit-dirty=true \
   --commit-message "deploy $(git -C "$G" rev-parse --short HEAD) → $SERVER" | tail -1)
 echo "play: https://$PROJECT.pages.dev"

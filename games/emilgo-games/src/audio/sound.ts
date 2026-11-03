@@ -14,7 +14,8 @@
 
 import { loadSamples, sampleBuffer } from "./samples";
 import type { Surface } from "../maps/registry";
-import { RADIO, type RadioId } from "./radio";
+import { RADIO_TRACK, type RadioId } from "./radio";
+import { Music } from "./music";
 import type { Hit, Song, SungNote, VoiceKind } from "./songs";
 
 type Ctx = AudioContext;
@@ -258,6 +259,8 @@ export class Sound {
    * Haunt's chunk, modes/rlgl.ts: the caller hands one over.)
    */
   playSong(song: Song, fromBeat: number): void {
+    // Ball Haunt's song from the sky has the music bus to itself.
+    this.score.play(null);
     this.playLoop(song, fromBeat);
     if (this.songBus) this.skySend(this.songBus);
   }
@@ -304,16 +307,23 @@ export class Sound {
     bus.connect(this.sky.in);
   }
 
-  /** The car radio (vehicles): a station, or off. It plays on the music bus, like a song. */
+  /**
+   * The car radio (vehicles): a station, or off. v4 rework: the stations play
+   * the downloaded CC0 tracks (music.ts), not loops made in code.
+   */
   carRadio(id: RadioId | null): void {
-    // Already on (and not cut off by something else since).
-    if (this.radioOn === id && (id === null || this.playing?.song === RADIO[id])) return;
+    if (this.radioOn === id) return;
     this.radioOn = id;
-    if (id) this.playLoop(RADIO[id], 0);
-    else this.stopSong();
+    this.score.play(id ? RADIO_TRACK[id] : null);
   }
 
+  /** The score: the downloaded tracks (v4 rework R8). */
+  readonly score = new Music(this);
+
   private radioOn: RadioId | null = null;
+  get radioPlaying(): boolean {
+    return this.radioOn !== null;
+  }
 
   private playLoop(song: Song, fromBeat: number): void {
     const ctx = this.ctx;
@@ -1120,24 +1130,20 @@ export class Sound {
     [hz(64), hz(62), hz(60)].forEach((f, i) => this.tone(f, t + i * 0.22, 0.4, { type: "triangle", gain: 0.16 }));
   }
 
-  /** v4 victory's sting under the cinematic: a boom, a rising wash, a held major chord. */
+  /** Victory's sting under the cinematic: a boom, then a cut of a downloaded track (v4 rework: no chords made here). */
   victory(): void {
     const t = this.now;
     this.tone(62, t, 0.7, { type: "sine", gain: 0.32, to: 38 });
     this.noise(t, 0.5, { gain: 0.08, freq: 260, type: "lowpass" });
-    this.noise(t + 0.05, 0.4, { gain: 0.035, freq: 2400, type: "bandpass" });
-    [hz(60), hz(64), hz(67)].forEach((f, i) => this.tone(f, t + 0.3 + i * 0.09, 0.35, { type: "square", gain: 0.035 }));
-    for (const f of [hz(48), hz(60), hz(64), hz(67), hz(72)]) this.tone(f, t + 0.62, 1.6, { type: "triangle", gain: 0.09, attack: 0.06 });
-    this.tone(hz(84), t + 0.62, 1.2, { type: "sine", gain: 0.04, attack: 0.2 });
+    this.score.sting("victory");
   }
 
-  /** v4 defeat's sting: a boom, a falling minor line over a low drone. */
+  /** Defeat's sting: a boom, then a dark cut of a downloaded track. */
   defeat(): void {
     const t = this.now;
     this.tone(55, t, 0.9, { type: "sine", gain: 0.3, to: 32 });
     this.noise(t, 0.6, { gain: 0.07, freq: 180, type: "lowpass" });
-    [hz(63), hz(62), hz(58)].forEach((f, i) => this.tone(f, t + 0.35 + i * 0.32, 0.5, { type: "triangle", gain: 0.12 }));
-    for (const f of [hz(39), hz(46), hz(51)]) this.tone(f, t + 0.35, 2.0, { type: "triangle", gain: 0.07, attack: 0.3 });
+    this.score.sting("defeat");
   }
 
   ui(): void {

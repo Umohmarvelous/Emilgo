@@ -380,7 +380,7 @@ export class Screens {
         <span class="h">${esc(t("Loadout"))}</span>
         ${card("Sidearm", "Pistol", "Common", "#b9bcc2")}
         ${card("Primary", "Loot: rifle, SMG, shotgun", "Up to Mythic", "#ffb020")}
-        ${card("Melee", "Gidigbo", "Backup", "#3a9bff")}
+        ${card("Melee", "Close quarters", "Backup", "#3a9bff")}
         ${card("Dead Streets", lo.dead, "Run weapon", "#ff5a4a")}
         <span class="h">${esc(t("Armour path"))} · ${esc(t(lo.kit))}</span>
         <div class="tiers">${tiers.map((x, i) => `<i class="${lo.armour >= from[i] ? "on" : ""}">${x}</i>`).join("")}</div>
@@ -396,7 +396,7 @@ export class Screens {
       ${icon("swap", "", 18)}
       <span class="txt art-t"><span class="label">Free For All</span>
       <b>${esc(s.ffa)}</b>
-      <span class="small">${t("Naija World")}</span></span>
+      <span class="small">${t("Meridian City")}</span></span>
     </button>`;
     }
     const map = mapOf(s.settings.map);
@@ -775,9 +775,9 @@ export class Screens {
       `<button class="chip ${on ? "on" : ""}" data-act="${act}" data-id="${id}" ${locked ? "disabled" : ""} aria-pressed="${on}">${esc(label)}${locked ? ` <span class="soon">${esc(why)}</span>` : ""}</button>`;
     const weapons = [
       chip("run-weapon", "pistol", "Pistol", s.weapon === "pistol"),
-      chip("run-weapon", "dane", "Dane gun", s.weapon === "dane", !s.open.dane, "Pro"),
-      chip("run-weapon", "pestle", "Thunder Pestle", s.weapon === "pestle", !s.open.pestle, "Legendary"),
-      chip("run-weapon", "flame", "Gen-Set Torch", s.weapon === "flame", !s.open.flame, "Master"),
+      chip("run-weapon", "dane", "Breacher", s.weapon === "dane", !s.open.dane, "Pro"),
+      chip("run-weapon", "pestle", "Thunder Maul", s.weapon === "pestle", !s.open.pestle, "Legendary"),
+      chip("run-weapon", "flame", "Flamer", s.weapon === "flame", !s.open.flame, "Master"),
     ].join("");
     const perkNames: Record<string, string> = { breath: "Second Breath", quiet: "Quiet Feet", eagle: "Eagle Eye", mule: "Pack Mule", steady: "Steady Hand" };
     const perks = Object.entries(perkNames).map(([id, n]) => chip("run-perk", id, n, s.perks.includes(id))).join("");
@@ -787,7 +787,7 @@ export class Screens {
         <div class="label">Weapon</div><div class="chips">${weapons}</div>
         <div class="label">Perk${s.open.perk2 ? "s (2)" : " (1; a second at Legendary)"}</div><div class="chips">${perks}</div>
         <div class="label">Weapon mods</div><div class="chips">${mods}</div>
-        <div class="label">Juju charms (harder, more XP)</div><div class="chips">${charms}</div>
+        <div class="label">Charms (harder, more XP)</div><div class="chips">${charms}</div>
         <div class="chips">${chip("run-daily", "daily", "Daily Run: today's seed for everyone", s.daily)}</div>
         ${s.mutator ? `<span class="small">${icon("star", "", 12)} ${esc(t("This week"))}: ${esc(t(s.mutator))}</span>` : ""}
       </div>`;
@@ -820,7 +820,7 @@ export class Screens {
     const info: Record<PlayMode, { name: string; sub: string; icon: string; tag: string }> = {
       new: { name: "Quick match", sub: "This week's featured modes · 12 players", icon: "people", tag: "Online" },
       friends: { name: "Private room", sub: "Any mode you've unlocked, with your people", icon: "invite", tag: "Online" },
-      solo: { name: "Practice", sub: "Naija World on your own: learn the moves", icon: "target", tag: "Alone" },
+      solo: { name: "Practice", sub: "Meridian City on your own: learn the moves", icon: "target", tag: "Alone" },
       lagos: { name: "Lagos Life match", sub: "The Flag Duel · 2–4 players · optional stakes", icon: "trophy", tag: "Stakes" },
     };
     const order: PlayMode[] = ["new", "friends", "solo", "lagos"];
@@ -886,7 +886,7 @@ export class Screens {
         </div>
         <div class="side">
           <div class="glass mapcard">
-            <div class="row"><b>Naija World</b></div>
+            <div class="row"><b>Meridian City</b></div>
             <span class="small">One city, 400 × 400 m: market streets and the bus park in the east, compounds, farms and the river in the west. The zone closes in; the sky hunts whoever is outside it.</span>
           </div>
           <div class="glass gamecard">${card}${partyBox}</div>
@@ -1317,7 +1317,7 @@ export class Screens {
     this.mount(
       "room",
       `<div class="sq-head">
-         <span class="label">${room.kind === "match" && room.stake ? `${naira(room.stake)} each` : room.ffa ? `${esc(BUILTIN_MANIFEST.modes.find((d) => d.id === room.ffa)?.name.en ?? "Free For All")} · ${t("Naija World")}${room.rk ? ` · ${t("Ranked")}` : ""}` : `${MODE_NAME[room.mode]} · ${room.dist} m`}</span>
+         <span class="label">${room.kind === "match" && room.stake ? `${naira(room.stake)} each` : room.ffa ? `${esc(BUILTIN_MANIFEST.modes.find((d) => d.id === room.ffa)?.name.en ?? "Free For All")} · ${t("Meridian City")}${room.rk ? ` · ${t("Ranked")}` : ""}` : `${MODE_NAME[room.mode]} · ${room.dist} m`}</span>
          <span class="h">${title}</span>
          ${room.code && room.kind !== "match" ? `<div style="display:flex;gap:6px;align-items:center"><span class="code" style="padding:6px 10px;font-size:14px">${esc(room.code)}</span><button class="ibtn glass" data-act="copy-code" aria-label="Copy code">${icon("copy", "", 18)}</button></div>` : ""}
        </div>

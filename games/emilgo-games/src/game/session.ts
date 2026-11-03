@@ -673,6 +673,8 @@ export class Game {
   }
 
   private showLobby(): void {
+    // The lobby's track (v4 rework: a downloaded CC0 track, streamed).
+    this.sound.score.play("lobby");
     const daily = ensureDaily(this.settings.daily);
     this.stage.setDummy(false);
     this.screens.lobby({
@@ -2187,7 +2189,7 @@ export class Game {
       mode: def.name.en,
       goal: def.blurb.en,
       time: def.time,
-      map: kind === "run" ? "Spooky World" : def.map.includes(":") ? "Naija World · the market" : "Naija World",
+      map: kind === "run" ? "Spooky World" : def.map.includes(":") ? "Meridian City · the arcade" : def.map.startsWith("naija-max") ? "Meridian Max" : "Meridian City",
       players: players?.length ? players.map((p) => (p.me ? { ...p, rank: me.rank } : p)) : [me],
       drop: art?.name ?? "Spooky World",
       kit,
@@ -2473,6 +2475,22 @@ export class Game {
    * guns and wet metal catch reflections. Off on every other tier.
    */
   private envFor(on: boolean): void {
+    // v4 rework: a world with an HDR sky lights High and Max with it (helmets, leather, glass, wet ground).
+    const hdr = this.spec.tier >= 2 ? this.openSkyEnv() : null;
+    if (hdr) {
+      if (this.skyEnvSrc !== hdr) {
+        this.skyEnvSrc = hdr;
+        const pm = new PMREMGenerator(this.renderer);
+        this.skyEnvTex?.dispose();
+        this.skyEnvTex = pm.fromEquirectangular(hdr).texture;
+        pm.dispose();
+      }
+      if (this.scene.environment !== this.skyEnvTex) {
+        this.scene.environment = this.skyEnvTex;
+        this.scene.environmentIntensity = this.spec.max ? 0.55 : 0.4;
+      }
+      return;
+    }
     if (!on) {
       if (this.scene.environment) this.scene.environment = null;
       return;
@@ -2498,6 +2516,13 @@ export class Game {
     }
   }
   private envTex: Texture | null = null;
+  private skyEnvSrc: Texture | null = null;
+  private skyEnvTex: Texture | null = null;
+  /** The HDR light of the open world being played, if it has one. */
+  private openSkyEnv(): Texture | null {
+    const gm = this.gm as { world?: { skyEnv?: Texture | null } } | null;
+    return gm?.world?.skyEnv ?? null;
+  }
 
   /** The lobby: its own pipeline (the blurred set), graded the Low way on every tier. */
   private drawLobby(): void {

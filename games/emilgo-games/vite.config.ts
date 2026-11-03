@@ -13,6 +13,8 @@
 
 import type { OutputAsset, OutputChunk } from "rollup";
 import { defineConfig, type Plugin } from "vite";
+import { cpSync, createReadStream, existsSync, statSync } from "node:fs";
+import { extname, join, normalize, resolve } from "node:path";
 
 export const FRAME_ANCESTORS =
   "frame-ancestors https://lagoslife.app https://www.lagoslife.app https://naijalife.app https://www.naijalife.app https://lagoslife.eliysites.com";
@@ -76,6 +78,41 @@ function preloadScans(): Plugin {
   };
 }
 
+/**
+ * The site's downloaded assets (v4 rework: the CC0 music, textures, skies and
+ * models the tools build into assets-site/, git-ignored): served at the root in
+ * dev, copied into the site's build. ASSET_DIR overrides where they are (the
+ * deploy script builds from a clean checkout). The EMILGO app's single file
+ * never carries them; it streams them from the site.
+ */
+function siteAssets(): Plugin {
+  const dir = resolve(process.env.ASSET_DIR ?? resolve(__dirname, "assets-site"));
+  const TYPES: Record<string, string> = { ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".webp": "image/webp", ".jpg": "image/jpeg", ".png": "image/png", ".ktx2": "image/ktx2", ".glb": "model/gltf-binary", ".json": "application/json", ".hdr": "image/vnd.radiance", ".txt": "text/plain", ".bin": "application/octet-stream" };
+  let out = "";
+  return {
+    name: "emilgo-games-site-assets",
+    configResolved(c) {
+      out = resolve(c.root, c.build.outDir);
+    },
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const url = decodeURIComponent((req.url ?? "").split("?")[0]);
+        if (!/^\/(music|lib)\//.test(url)) return next();
+        const file = normalize(join(dir, url));
+        if (!file.startsWith(dir) || !existsSync(file) || !statSync(file).isFile()) return next();
+        res.setHeader("Content-Type", TYPES[extname(file)] ?? "application/octet-stream");
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        res.setHeader("Content-Length", String(statSync(file).size));
+        createReadStream(file).pipe(res);
+      });
+    },
+    closeBundle() {
+      if (!existsSync(dir) || !out) return;
+      for (const sub of ["music", "lib"]) if (existsSync(join(dir, sub))) cpSync(join(dir, sub), join(out, sub), { recursive: true });
+    },
+  };
+}
+
 function escapeRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -107,6 +144,6 @@ export default defineConfig(({ mode }) => {
           }
         : {}),
     },
-    plugins: emilgo ? [stripVatarSdk(), singleFile()] : web ? [stripVatarSdk(), preloadScans()] : [preloadScans()],
+    plugins: emilgo ? [stripVatarSdk(), singleFile()] : web ? [stripVatarSdk(), preloadScans(), siteAssets()] : [preloadScans(), siteAssets()],
   };
 });

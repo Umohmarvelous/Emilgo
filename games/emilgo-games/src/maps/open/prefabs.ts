@@ -93,7 +93,8 @@ export function shopsP(v: number): ShopsP {
 }
 export function officeP(v: number): OfficeP {
   const r = vrand(v);
-  return { w: 15 + r() * 4, d: 11 + r() * 3, floors: 3 + Math.floor(r() * 2), glass: r() < 0.5, wall: Math.floor(r() * 8) };
+  // v4 rework: a modern city's office blocks, 5 to 12 floors, most of them glass.
+  return { w: 15 + r() * 4, d: 11 + r() * 3, floors: 5 + Math.floor(r() * 8), glass: r() < 0.65, wall: Math.floor(r() * 8) };
 }
 export function compoundP(v: number): CompoundP {
   const r = vrand(v);

@@ -325,7 +325,7 @@ export class FfaView {
           const c = body(e.tg);
           if (!c) break;
           this.o.sound?.thud(near(c.x, c.z, 40));
-          if (c === me) this.o.hud.pushFeed(t("The danfo shoved you off the road"), "out");
+          if (c === me) this.o.hud.pushFeed(t("The bus knocked you off the road"), "out");
           break;
         }
         case "bounty": {

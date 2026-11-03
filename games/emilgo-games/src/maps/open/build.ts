@@ -13,6 +13,9 @@ import {
   Color,
   DirectionalLight,
   DoubleSide,
+  SphereGeometry,
+  type DataTexture,
+  type Texture,
   Fog,
   Group,
   HemisphereLight,
@@ -27,6 +30,7 @@ import {
   CanvasTexture,
   SRGBColorSpace,
   LinearMipmapLinearFilter,
+  NearestFilter,
   RepeatWrapping,
   ShaderMaterial,
   Float32BufferAttribute,
@@ -43,7 +47,8 @@ import { canvasTexture, concrete, glassFacade, mud, plaster, thatch, wood, zinc,
 import { Sky } from "../sky";
 import type { TexKind } from "../kit";
 import { emptyChunk, PrefabKit, TEX_KINDS, TEX_STRIDE, type OpenChunk } from "./art";
-import { EDGE, GUTTER, SURFACE_OF, type OpenLayout } from "./naija";
+import { EDGE, GUTTER, SURFACE_OF, type GroundKind, type OpenLayout } from "./naija";
+import { sky as librarySky, texAlbedo, texSet, texSize, type SkyName, type TexName } from "../../assets/library";
 import type { TerrainShot } from "../../ui/minimap";
 
 export const CELL = 50;
@@ -73,6 +78,8 @@ export interface OpenWorld {
   setDust(k: number, see: number): void;
   /** What's drawn now (for the dev page and the perf gate). */
   stats(): { cells: number; pvsCut: number };
+  /** The HDR sky's light (an equirect HDR), for the lit tiers' environment; null without the library. */
+  readonly skyEnv: Texture | null;
   /** Is the cell at (x, z) drawn this frame (in range, not hidden by the PVS)? The billboards count what's seen with it. */
   cellOn(x: number, z: number): boolean;
   /** Compile every shader off the main thread where the browser can (before the first frame). */
@@ -86,22 +93,139 @@ const PAINTERS: Record<TexKind, Painter> = { plaster, concrete, brick, wood, mud
 
 // ── The atlas ─────────────────────────────────────────────────────────────────
 
-/** Eight wall textures side by side (4 × 2) in one canvas. */
-function* atlasTexture(tile: number): Generator<void, CanvasTexture> {
+/**
+ * Eight wall textures side by side (4 × 2) in one canvas. v4 rework: the
+ * library's CC0 photo textures where it has them (a normal atlas beside it on
+ * the lit tiers), the game's own drawn ones where it doesn't.
+ */
+function* atlasTexture(tile: number, lib: WorldLibrary | null): Generator<void, { map: CanvasTexture; normal: CanvasTexture | null }> {
   const c = document.createElement("canvas");
   c.width = tile * 4;
   c.height = tile * 2;
   const g = c.getContext("2d")!;
+  const nc = lib?.walls.some((w) => w?.n) ? document.createElement("canvas") : null;
+  const ng = nc?.getContext("2d") ?? null;
+  if (nc && ng) {
+    nc.width = tile * 4;
+    nc.height = tile * 2;
+    ng.fillStyle = "rgb(128,128,255)";
+    ng.fillRect(0, 0, nc.width, nc.height);
+  }
   for (let i = 0; i < TEX_KINDS.length; i++) {
-    const t = canvasTexture(TEX_KINDS[i], tile, PAINTERS[TEX_KINDS[i]]);
-    g.drawImage(t.image as HTMLCanvasElement, (i % 4) * tile, Math.floor(i / 4) * tile);
+    const x = (i % 4) * tile;
+    const y = Math.floor(i / 4) * tile;
+    const own = lib?.walls[i];
+    if (own) {
+      g.drawImage(own.a, x, y, tile, tile);
+      if (own.n && ng) ng.drawImage(own.n, x, y, tile, tile);
+    } else {
+      const t = canvasTexture(TEX_KINDS[i], tile, PAINTERS[TEX_KINDS[i]]);
+      g.drawImage(t.image as HTMLCanvasElement, x, y);
+    }
     yield;
   }
   const t = new CanvasTexture(c);
   t.colorSpace = SRGBColorSpace;
   t.minFilter = LinearMipmapLinearFilter;
   t.anisotropy = 4;
-  return t;
+  let n: CanvasTexture | null = null;
+  if (nc) {
+    n = new CanvasTexture(nc);
+    n.minFilter = LinearMipmapLinearFilter;
+    n.anisotropy = 4;
+  }
+  return { map: t, normal: n };
+}
+
+// ── The library (v4 rework R4): the CC0 photo textures for the walls and the ground ──
+
+/** The wall atlas's eight tiles as library textures (TEX_KINDS order), day and night. */
+const WALL_LIB: Record<"day" | "night", (TexName | null)[]> = {
+  // plaster, concrete, brick, wood, mud (now render), zinc (now steel sheet), glass (a tower's facade), thatch (now roof tiles)
+  day: ["plaster", "concrete", "brick", "planks", "paintedConcrete", "corrugated", "glassTower", "roofTiles"],
+  night: ["plaster", "concrete", "brick", "planks", "paintedConcrete", "rustSheet", "nightOffice", "roofTiles"],
+};
+/** The ground kinds in the ground atlas's order (3 × 2), their textures, and metres per repeat. */
+export const GROUND_KINDS: GroundKind[] = ["asphalt", "laterite", "paving", "grass", "earth", "sand"];
+const GROUND_LIB: Record<"day" | "night", TexName[]> = {
+  day: ["asphalt", "gravel", "paving", "grass", "dirt", "sand"],
+  night: ["roadDamaged", "gravel", "paving", "grassSparse", "mud", "sand"],
+};
+const GROUND_REP = [7, 6, 4, 5, 6, 7];
+/** How much of each kind's own colour shows (the photo dirt and gravel are warm; a city's verges are grey). */
+const GROUND_SAT = [1, 0.45, 1, 0.9, 0.4, 1];
+
+export interface WorldLibrary {
+  walls: ({ a: HTMLImageElement; n: HTMLImageElement | null } | null)[];
+  ground: ({ a: HTMLImageElement; n: HTMLImageElement | null } | null)[];
+  /** The HDR sky (Poly Haven, CC0): its picture, its light, and the colour at its horizon (the haze matches it). */
+  sky: { bg: Texture; env: DataTexture | null; horizon: Color; sun: Vector3 } | null;
+}
+
+/** Where the sky's sun is (its brightest patch), as a direction; kept at least 20° up so shadows stay short. */
+function sunOf(tex: Texture): Vector3 {
+  const im = tex.image as HTMLImageElement;
+  const c = document.createElement("canvas");
+  c.width = 128;
+  c.height = 64;
+  const g = c.getContext("2d")!;
+  g.drawImage(im, 0, 0, 128, 64);
+  const d = g.getImageData(0, 0, 128, 32).data;
+  let best = -1;
+  let at = 0;
+  for (let i = 0; i < d.length; i += 4) {
+    const l = d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11;
+    if (l > best) {
+      best = l;
+      at = i / 4;
+    }
+  }
+  const u = ((at % 128) + 0.5) / 128;
+  const v = 1 - (Math.floor(at / 128) + 0.5) / 64;
+  // The sky sphere's own mapping (SphereGeometry, mirrored to be seen from inside): azimuth 2πu from +x toward +z.
+  const phi = u * Math.PI * 2;
+  const th = Math.max(0.35, (v - 0.5) * Math.PI);
+  return new Vector3(Math.cos(th) * Math.cos(phi), Math.sin(th), Math.cos(th) * Math.sin(phi)).normalize();
+}
+
+/** Which sky each world wears (v4 rework): a clear afternoon for the cities, a moonlit night for Dead Streets. */
+const SKY_OF: Record<"day" | "night", SkyName> = { day: "day", night: "night" };
+
+/** The average colour of a sky picture's horizon row (where the fog meets it). */
+function horizonOf(tex: Texture): Color {
+  const im = tex.image as HTMLImageElement;
+  const c = document.createElement("canvas");
+  c.width = 64;
+  c.height = 32;
+  const g = c.getContext("2d")!;
+  g.drawImage(im, 0, 0, 64, 32);
+  const d = g.getImageData(0, 15, 64, 2).data;
+  let r = 0, gg = 0, b = 0;
+  for (let i = 0; i < d.length; i += 4) {
+    r += d[i];
+    gg += d[i + 1];
+    b += d[i + 2];
+  }
+  const n = d.length / 4;
+  return new Color().setRGB(r / n / 255, gg / n / 255, b / n / 255, SRGBColorSpace);
+}
+
+/** Fetch what a world of this tier draws with (null: the library isn't there). */
+export async function loadWorldLibrary(spec: TierSpec, night: boolean): Promise<WorldLibrary | null> {
+  const size = texSize(spec.tier);
+  const get = async (n: TexName | null) => {
+    if (!n) return null;
+    if (!spec.pbr) {
+      const a = await texAlbedo(n, size);
+      return a ? { a, n: null } : null;
+    }
+    const s = await texSet(n, size);
+    return s ? { a: s.a, n: s.n } : null;
+  };
+  const key = night ? "night" : "day";
+  const [walls, ground, sk] = await Promise.all([Promise.all(WALL_LIB[key].map(get)), Promise.all(GROUND_LIB[key].map(get)), librarySky(SKY_OF[key], spec.pbr)]);
+  if (!ground.some(Boolean) && !walls.some(Boolean)) return null;
+  return { walls, ground, sky: sk.bg ? { bg: sk.bg, env: sk.env, horizon: horizonOf(sk.bg), sun: sunOf(sk.bg) } : null };
 }
 
 /**
@@ -109,9 +233,31 @@ function* atlasTexture(tile: number): Generator<void, CanvasTexture> {
  * its fraction repeats inside it. Gradients come from the unwrapped UV, so the
  * tile edges don't show a seam of the wrong mip level.
  */
-function atlasMaterial(spec: TierSpec, map: CanvasTexture): Material {
+function atlasMaterial(spec: TierSpec, map: CanvasTexture, normal: CanvasTexture | null = null): Material {
   const m = spec.pbr ? new MeshStandardMaterial({ map, vertexColors: true, roughness: 0.85, metalness: 0 }) : new MeshLambertMaterial({ map, vertexColors: true });
   m.onBeforeCompile = (sh) => {
+    if (normal && spec.pbr) {
+      // The photo walls' relief: the normal atlas, sampled where the map is (screen-space tangents).
+      sh.uniforms.uWallN = { value: normal };
+      sh.fragmentShader = sh.fragmentShader
+        .replace("#include <common>", "#include <common>\nuniform sampler2D uWallN;\nvec2 gAuv; vec2 gDx; vec2 gDy;")
+        .replace(
+          "#include <normal_fragment_maps>",
+          `#include <normal_fragment_maps>
+          {
+            vec3 tn = textureGrad(uWallN, gAuv, gDx, gDy).xyz * 2.0 - 1.0;
+            vec3 q0 = dFdx(-vViewPosition), q1 = dFdy(-vViewPosition);
+            vec2 st0 = gDx * vec2(4.0, 2.0), st1 = gDy * vec2(4.0, 2.0);
+            vec3 N = normal;
+            vec3 q1perp = cross(q1, N), q0perp = cross(N, q0);
+            vec3 T = q1perp * st0.x + q0perp * st1.x;
+            vec3 B = q1perp * st0.y + q0perp * st1.y;
+            float det = max(dot(T, T), dot(B, B));
+            float sc = det == 0.0 ? 0.0 : inversesqrt(det);
+            normal = normalize(mat3(T * sc, B * sc, N) * vec3(tn.xy * 0.9, tn.z));
+          }`,
+        );
+    }
     sh.fragmentShader = sh.fragmentShader.replace(
       "#include <map_fragment>",
       `#ifdef USE_MAP
@@ -124,32 +270,35 @@ function atlasMaterial(spec: TierSpec, map: CanvasTexture): Material {
         vec2 auv = vec2((tileAt.x + f.x) / 4.0, (1.0 - tileAt.y + f.y) / 2.0);
         vec4 sampledDiffuseColor = textureGrad(map, auv, dFdx(local) / vec2(4.0, 2.0), dFdy(local) / vec2(4.0, 2.0));
         diffuseColor *= sampledDiffuseColor;
+        ${normal && spec.pbr ? "gAuv = auv; gDx = dFdx(local) / vec2(4.0, 2.0); gDy = dFdy(local) / vec2(4.0, 2.0);" : ""}
       #endif`,
     );
   };
-  m.customProgramCacheKey = () => "open-atlas";
+  m.customProgramCacheKey = () => (normal && spec.pbr ? "open-atlas-n" : "open-atlas");
   return m;
 }
 
 // ── The ground: one painted picture of the whole city ──────────────────────────
 
 /** Paint the ground: earth, grass, paving, roads and their lines; holes where the gutters and river are. */
-function* paintGround(L: OpenLayout, px: number, forMap: boolean): Generator<void, HTMLCanvasElement> {
+function* paintGround(L: OpenLayout, px: number, forMap: boolean, neutral = false): Generator<void, HTMLCanvasElement> {
   const c = document.createElement("canvas");
   c.width = c.height = px;
   const g = c.getContext("2d")!;
   const k = px / (L.half * 2);
   g.setTransform(k, 0, 0, k, L.half * k, L.half * k);
   const rnd = mulberry(7);
-  // The base: red-brown earth in the town, paler in the bush.
-  g.fillStyle = "#a8805a";
+  // The base (v4 rework: no red laterite; grey earth, green grass).
+  // `neutral`: the photo textures carry the colour; this picture only lightens and darkens them (wear, lines).
+  g.fillStyle = neutral ? "#808080" : "#8a8070";
   g.fillRect(-L.half, -L.half, L.half * 2, L.half * 2);
   // Grass and earth as the layout says (sampled on a 3 m grid, then softened).
   for (let z = -L.half, row = 0; z < L.half; z += 3, row++) {
     for (let x = -L.half; x < L.half; x += 3) {
       const kind = L.groundAt(x + 1.5, z + 1.5);
       if (kind === "asphalt" || kind === "laterite") continue;
-      g.fillStyle = kind === "grass" ? (rnd() < 0.5 ? "#7a8a48" : "#6f8242") : kind === "paving" ? (rnd() < 0.5 ? "#b8ac98" : "#aea290") : kind === "sand" ? "#d0b080" : rnd() < 0.5 ? "#a8805a" : "#9e7650";
+      if (neutral) g.fillStyle = rnd() < 0.5 ? "#848484" : "#7a7a7a";
+      else g.fillStyle = kind === "grass" ? (rnd() < 0.5 ? "#6c8248" : "#627a42") : kind === "paving" ? (rnd() < 0.5 ? "#a8a8a2" : "#9e9e98") : kind === "sand" ? "#c8b48c" : rnd() < 0.5 ? "#857a6a" : "#7c7262";
       g.fillRect(x - 0.4, z - 0.4, 3.8, 3.8);
     }
     if (row % 10 === 9) yield;
@@ -163,11 +312,11 @@ function* paintGround(L: OpenLayout, px: number, forMap: boolean): Generator<voi
     g.fill();
   }
   yield;
-  // Roads: laterite first, tar over it.
+  // Roads: gravel first, tar over it.
   for (const pass of ["laterite", "asphalt"] as const) {
     for (const r of L.roads) {
       if (r.kind !== pass) continue;
-      g.strokeStyle = pass === "asphalt" ? "#4a4845" : "#b0603a";
+      g.strokeStyle = neutral ? "#808080" : pass === "asphalt" ? "#4a4845" : "#8a8276";
       g.lineWidth = r.w;
       g.lineCap = "butt";
       g.beginPath();
@@ -202,11 +351,13 @@ function* paintGround(L: OpenLayout, px: number, forMap: boolean): Generator<voi
     }
     g.setLineDash([]);
   }
-  // The bus park's lot and the market's floor.
-  g.fillStyle = "#4e4c48";
-  g.fillRect(92 - 21, 110 - 27, 42, 54);
-  g.fillStyle = "#9e9484";
-  g.fillRect(30 - 23, -40 - 31, 46, 62);
+  // The transit hub's lot and the arcade's floor.
+  if (!neutral) {
+    g.fillStyle = "#4e4c48";
+    g.fillRect(92 - 21, 110 - 27, 42, 54);
+    g.fillStyle = "#9e9c96";
+    g.fillRect(30 - 23, -40 - 31, 46, 62);
+  }
   yield;
   if (forMap) {
     // The minimap: building footprints over the ground, darker, and the river in blue.
@@ -259,6 +410,114 @@ function* paintGround(L: OpenLayout, px: number, forMap: boolean): Generator<voi
   }
   g.globalCompositeOperation = "source-over";
   return c;
+}
+
+/** Each pixel's ground kind (GROUND_KINDS index × 40 + 20 in red), from the layout itself: no blending, so no kind is made up at an edge. */
+function* kindMap(L: OpenLayout, px: number): Generator<void, HTMLCanvasElement> {
+  const c = document.createElement("canvas");
+  c.width = c.height = px;
+  const g = c.getContext("2d")!;
+  const img = g.createImageData(px, px);
+  const m = (L.half * 2) / px;
+  for (let y = 0; y < px; y++) {
+    const z = -L.half + (y + 0.5) * m;
+    for (let x = 0; x < px; x++) {
+      const k = GROUND_KINDS.indexOf(L.groundAt(-L.half + (x + 0.5) * m, z));
+      const o = (y * px + x) * 4;
+      img.data[o] = Math.max(0, k) * 40 + 20;
+      img.data[o + 3] = 255;
+    }
+    if (y % 64 === 63) yield;
+  }
+  g.putImageData(img, 0, 0);
+  return c;
+}
+
+/** The ground's six photo textures side by side (3 × 2), and their normals. */
+function groundAtlas(lib: WorldLibrary, tile: number): { a: CanvasTexture; n: CanvasTexture | null } {
+  const mk = (pick: (x: { a: HTMLImageElement; n: HTMLImageElement | null }) => HTMLImageElement | null, fill: string) => {
+    const c = document.createElement("canvas");
+    c.width = tile * 3;
+    c.height = tile * 2;
+    const g = c.getContext("2d")!;
+    g.fillStyle = fill;
+    g.fillRect(0, 0, c.width, c.height);
+    lib.ground.forEach((s, i) => {
+      const im = s ? pick(s) : null;
+      if (im) g.drawImage(im, (i % 3) * tile, Math.floor(i / 3) * tile, tile, tile);
+    });
+    const t = new CanvasTexture(c);
+    t.minFilter = LinearMipmapLinearFilter;
+    t.anisotropy = 8;
+    return t;
+  };
+  const a = mk((s) => s.a, "#7a766e");
+  a.colorSpace = SRGBColorSpace;
+  const n = lib.ground.some((s) => s?.n) ? mk((s) => s.n, "rgb(128,128,255)") : null;
+  return { a, n };
+}
+
+/**
+ * The textured ground (v4 rework): each kind from its photo texture, blended
+ * between neighbouring kinds over the kind map's four nearest texels (one on
+ * Low), the neutral picture over it for the road lines and the wear.
+ */
+function texturedGround(spec: TierSpec, macro: CanvasTexture, kinds: CanvasTexture, atlas: { a: CanvasTexture; n: CanvasTexture | null }, half: number, kpx: number): Material {
+  const m = spec.pbr ? new MeshStandardMaterial({ map: macro, roughness: 0.93, alphaTest: 0.5 }) : new MeshLambertMaterial({ map: macro, alphaTest: 0.5 });
+  const taps = spec.tier === 0 ? 1 : 4;
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, { uKind: { value: kinds }, uGA: { value: atlas.a }, uGN: { value: atlas.n }, uHalf: { value: half }, uKN: { value: kpx }, uRep: { value: GROUND_REP }, uSat: { value: GROUND_SAT } });
+    sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nvarying vec2 vGround;").replace("#include <begin_vertex>", "#include <begin_vertex>\nvGround = (modelMatrix * vec4(position, 1.0)).xz;");
+    sh.fragmentShader = sh.fragmentShader
+      .replace(
+        "#include <common>",
+        `#include <common>
+        uniform sampler2D uKind; uniform sampler2D uGA; uniform sampler2D uGN; uniform float uHalf; uniform float uKN; uniform float uRep[6]; uniform float uSat[6];
+        varying vec2 vGround;
+        vec3 gN = vec3(0.0, 0.0, 1.0);
+        vec3 desat(vec3 c, int k) { float l = dot(c, vec3(0.3, 0.59, 0.11)); return mix(vec3(l), c, uSat[k]); }
+        vec2 tileUv(int k, out vec2 dx, out vec2 dy) {
+          vec2 w = vGround / uRep[k];
+          dx = dFdx(w) / vec2(3.0, 2.0); dy = dFdy(w) / vec2(3.0, 2.0);
+          vec2 f = clamp(fract(w), 0.004, 0.996);
+          float col = mod(float(k), 3.0); float row = floor(float(k) / 3.0);
+          return vec2((col + f.x) / 3.0, (1.0 - row + f.y) / 2.0);
+        }`,
+      )
+      .replace(
+        "#include <map_fragment>",
+        `#include <map_fragment>
+        {
+          vec2 kt = vec2((vGround.x + uHalf) / (2.0 * uHalf), 1.0 - (vGround.y + uHalf) / (2.0 * uHalf));
+          vec3 acc = vec3(0.0); vec3 nacc = vec3(0.0);
+          ${
+            taps === 1
+              ? `{ int k = int(texture2D(uKind, kt).r * 255.0 / 40.0); vec2 dx, dy; vec2 uv = tileUv(k, dx, dy); acc = desat(textureGrad(uGA, uv, dx, dy).rgb, k); ${atlas.n ? "nacc = textureGrad(uGN, uv, dx, dy).xyz;" : ""} }`
+              : `vec2 f = kt * uKN - 0.5; vec2 i0 = floor(f); vec2 fw = fract(f);
+                 for (int j = 0; j < 4; j++) {
+                   vec2 off = vec2(float(j - (j / 2) * 2), float(j / 2));
+                   float w = (off.x > 0.5 ? fw.x : 1.0 - fw.x) * (off.y > 0.5 ? fw.y : 1.0 - fw.y);
+                   int k = int(texture2D(uKind, (i0 + off + 0.5) / uKN).r * 255.0 / 40.0);
+                   vec2 dx, dy; vec2 uv = tileUv(k, dx, dy);
+                   acc += desat(textureGrad(uGA, uv, dx, dy).rgb, k) * w;
+                   ${atlas.n ? "nacc += textureGrad(uGN, uv, dx, dy).xyz * w;" : ""}
+                 }`
+          }
+          // The neutral picture (0.5 = as is) lightens and darkens: lines, wear, patches.
+          diffuseColor.rgb = acc * clamp(diffuseColor.rgb * 2.0, 0.0, 1.6);
+          gN = nacc * 2.0 - 1.0;
+        }`,
+      );
+    if (spec.pbr && atlas.n)
+      sh.fragmentShader = sh.fragmentShader.replace(
+        "#include <normal_fragment_maps>",
+        `#include <normal_fragment_maps>
+        // A flat ground: tangent along +x, bitangent along −z (the texture's v), the normal up.
+        normal = normalize((viewMatrix * vec4(normalize(vec3(gN.x, gN.z, -gN.y) * vec3(0.8, 1.0, 0.8)), 0.0)).xyz);`,
+      );
+  };
+  m.customProgramCacheKey = () => `open-ground-tex-${taps}-${!!atlas.n}`;
+  return m;
 }
 
 /** Give a geometry's copy (`g`, already filed) a plain colour and normals: the ground beyond the wall. */
@@ -454,7 +713,7 @@ interface CellMeshes {
 
 /** Build it all now (tests, the dev page). */
 export function buildOpenWorld(L: OpenLayout, spec: TierSpec, opts: { night?: boolean } = {}): OpenWorld {
-  const g = steps(L, spec, opts);
+  const g = steps(L, spec, opts, null);
   for (;;) {
     const r = g.next();
     if (r.done) return r.value;
@@ -466,7 +725,9 @@ export function buildOpenWorld(L: OpenLayout, spec: TierSpec, opts: { night?: bo
  * built after the lobby is up, in idle time), so the lobby never stalls.
  */
 export async function buildOpenWorldIdle(L: OpenLayout, spec: TierSpec, opts: { night?: boolean } = {}, slice = 8): Promise<OpenWorld> {
-  const g = steps(L, spec, opts);
+  // The library's textures first (v4 rework R4); without them the game's own.
+  const lib = await loadWorldLibrary(spec, !!opts.night).catch(() => null);
+  const g = steps(L, spec, opts, lib);
   for (;;) {
     const t = performance.now();
     for (;;) {
@@ -478,16 +739,17 @@ export async function buildOpenWorldIdle(L: OpenLayout, spec: TierSpec, opts: { 
   }
 }
 
-function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }): Generator<void, OpenWorld> {
+function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }, lib: WorldLibrary | null): Generator<void, OpenWorld> {
   const night = !!opts.night;
   const view = VIEW[spec.tier];
   const group = new Group();
   const uTime = { value: 0 };
   const space = new Space(L.solids, { x0: -L.half, z0: -L.half, x1: L.half, z1: L.half }, (x, z) => SURFACE_OF[L.groundAt(x, z)]);
 
-  // ── Light: a Harmattan afternoon. Warm, dusty, a pale sun through the haze. ──
-  const haze = new Color(night ? 0x1a1814 : 0xcdb894);
-  const sunDir = new Vector3(0.55, 0.62, 0.35).normalize();
+  // ── Light (v4 rework): with the HDR sky, a clear afternoon whose haze is its horizon; without it, the old warm haze. ──
+  const photo = lib?.sky ?? null;
+  const haze = photo ? photo.horizon.clone().lerp(new Color(night ? 0x10131c : 0xb8c4cc), 0.35) : new Color(night ? 0x1a1814 : 0xcdb894);
+  const sunDir = photo && !night ? photo.sun.clone() : new Vector3(0.55, 0.62, 0.35).normalize();
   const sky = new Sky(
     {
       top: new Color(night ? 0x0a0c16 : 0x9aa6b0),
@@ -503,8 +765,19 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }): Gener
     spec.fancy,
   );
   group.add(sky.group);
-  const hemi = new HemisphereLight(night ? 0x6a7ab0 : 0xf2e0c4, 0x6a5038, night ? 1.3 : 1.25);
-  const sun = new DirectionalLight(0xffd8a8, night ? 1.2 : 2.3);
+  if (photo) {
+    // The photo sky: a sphere round the camera (inside the far plane, unfogged), in place of the drawn dome.
+    for (const c of sky.group.children) c.visible = false;
+    const sm = new MeshBasicMaterial({ map: photo.bg, fog: false, depthWrite: false });
+    const sg = new SphereGeometry(view * 0.94, 32, 16);
+    sg.scale(-1, 1, 1);
+    const sphere = new Mesh(sg, sm);
+    sphere.renderOrder = -10;
+    sphere.frustumCulled = false;
+    sky.group.add(sphere);
+  }
+  const hemi = new HemisphereLight(photo ? (night ? 0x5a6a90 : 0xdfe8f2) : night ? 0x6a7ab0 : 0xf2e0c4, photo ? (night ? 0x202024 : 0x5a5650) : 0x6a5038, night ? 1.3 : 1.25);
+  const sun = new DirectionalLight(photo ? (night ? 0xb8c8ff : 0xfff2e0) : 0xffd8a8, night ? 1.2 : 2.3);
   sun.position.copy(sunDir).multiplyScalar(60);
   group.add(hemi, sun, sun.target);
   if (spec.shadows) {
@@ -521,16 +794,29 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }): Gener
 
   // ── Ground ──
   const gpx = spec.tier === 0 ? 1024 : 2048;
-  const gcan = yield* paintGround(L, gpx, false);
+  const textured = !!lib && lib.ground.some(Boolean);
+  const gcan = yield* paintGround(L, gpx, false, textured);
   const gtex = new CanvasTexture(gcan);
   gtex.colorSpace = SRGBColorSpace;
   gtex.minFilter = LinearMipmapLinearFilter;
   gtex.anisotropy = 4;
-  const grain = canvasTexture("sand", 128, sand);
-  grain.wrapS = grain.wrapT = RepeatWrapping;
   const gg = new PlaneGeometry(L.half * 2, L.half * 2, 1, 1);
   gg.rotateX(-Math.PI / 2);
-  const ground = new Mesh(gg, groundMaterial(spec, gtex, grain));
+  let gmat: Material;
+  if (textured) {
+    // About 0.4 m a texel in a city, 1 m on the big world.
+    const kpx = Math.min(2048, Math.max(512, Math.round((L.half * 2) / (L.half > 400 ? 1 : 0.4))));
+    const kc = yield* kindMap(L, kpx);
+    const kt = new CanvasTexture(kc);
+    kt.magFilter = kt.minFilter = NearestFilter;
+    kt.generateMipmaps = false;
+    gmat = texturedGround(spec, gtex, kt, groundAtlas(lib!, texSize(spec.tier)), L.half, kpx);
+  } else {
+    const grain = canvasTexture("sand", 128, sand);
+    grain.wrapS = grain.wrapT = RepeatWrapping;
+    gmat = groundMaterial(spec, gtex, grain);
+  }
+  const ground = new Mesh(gg, gmat);
   ground.receiveShadow = spec.shadows;
   group.add(ground);
   yield;
@@ -672,7 +958,8 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }): Gener
 
   // Merge each cell into its LOD and its atlas, foliage and glow draws.
   const vc = spec.pbr ? new MeshStandardMaterial({ vertexColors: true, roughness: 0.88, metalness: 0, side: DoubleSide }) : new MeshLambertMaterial({ vertexColors: true, side: DoubleSide });
-  const atlas = atlasMaterial(spec, yield* atlasTexture(spec.tier === 0 ? 256 : 512));
+  const at = yield* atlasTexture(lib ? texSize(spec.tier) : spec.tier === 0 ? 256 : 512, lib);
+  const atlas = atlasMaterial(spec, at.map, at.normal);
   const glowMat = new MeshBasicMaterial({ vertexColors: true });
   const near = spec.tier === 0 ? 45 : spec.tier === 1 ? 60 : 70;
   const mid = spec.tier === 0 ? 95 : spec.tier === 1 ? 130 : 160;
@@ -783,6 +1070,7 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }): Gener
     fog,
     clear,
     view,
+    skyEnv: photo?.env ?? null,
     setDim(k) {
       const d = Math.max(0, Math.min(1, k));
       hemi.intensity = lit.hemi * (1 - 0.82 * d);

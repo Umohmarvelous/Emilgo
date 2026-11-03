@@ -9,7 +9,7 @@ import { SURVIVAL, type RunMutator } from "../config";
 export type Mutator = "juju" | "rainy" | "market";
 export const MUTATORS: readonly Mutator[] = ["juju", "rainy", "market"];
 
-export const MUTATOR_NAME = { juju: "Juju Day: low gravity", rainy: "Rainy Season: slippery ground", market: "Market Day: double items" } as const;
+export const MUTATOR_NAME = { juju: "Moon Day: low gravity", rainy: "Rainy Season: slippery ground", market: "Market Day: double items" } as const;
 
 /**
  * This week's mutator: none, Market Day, Juju Day, Rainy Season in turn, by
@@ -21,7 +21,7 @@ export function weeklyMutator(ms: number): Mutator | undefined {
   return ([undefined, "market", "juju", "rainy"] as const)[((week % 4) + 4) % 4];
 }
 
-export const RUN_MUTATOR_NAME: Record<string, string> = { haze: "Harmattan Haze", runners: "Double Runners", onebullet: "One Bullet", notorch: "No Torch" };
+export const RUN_MUTATOR_NAME: Record<string, string> = { haze: "Dust Week", runners: "Double Runners", onebullet: "One Bullet", notorch: "No Torch" };
 
 /** This week's run mutator (§3.4 #11): none, Harmattan Haze, Double Runners, One Bullet, No Torch in turn (Monday to Sunday, UTC). */
 export function runMutator(ms: number): RunMutator | undefined {

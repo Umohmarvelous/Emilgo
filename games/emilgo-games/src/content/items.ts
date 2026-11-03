@@ -95,7 +95,7 @@ export const ITEM_DEFS: Record<ItemId, ItemDef> = {
   nv: def("nv", "Night Vision", "Night Vision", "See in the dark for 60 s", "See for dark for 60 seconds", { kind: "survival" }, false, "survival"),
   // Vehicles' (Phase 5).
   jerrycan: def("jerrycan", "Fuel Jerrycan", "Fuel Jerrycan", "+15 s of fuel for the car you're in or beside", "+15 seconds fuel for the motor wey you dey inside or near", { kind: "fuel" }, true, "vehicles"),
-  "danfo-key": def("danfo-key", "Danfo Key", "Danfo Key", "Calls a danfo to the road nearby", "E go call danfo come the road wey near", { kind: "call" }, true, "vehicles"),
+  "danfo-key": def("danfo-key", "Van Key", "Van Key", "Calls a minibus to the road nearby", "E go call minibus come the road wey near", { kind: "call" }, true, "vehicles"),
 };
 
 /** A loot table: items and their weights. */

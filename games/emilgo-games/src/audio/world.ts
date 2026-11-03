@@ -146,7 +146,6 @@ export class WorldSound {
   private readonly voices: Voice[] = [];
   private emitters: Emitter[] = [];
   private pick = 0;
-  private music: { gain: GainNode; filter: BiquadFilterNode; timer: number; at: number; bar: number } | null = null;
   private state: MusicState = "off";
   private wantState: MusicState = "off";
 
@@ -258,90 +257,23 @@ export class WorldSound {
     this.wantState = s;
   }
 
-  private musicTick(): void {
-    const g = this.sound.graph;
-    if (!g) return;
-    const ctx = g.ctx;
-    if (!this.music) {
-      const gain = ctx.createGain();
-      gain.gain.value = 0;
-      const filter = ctx.createBiquadFilter();
-      filter.type = "lowpass";
-      filter.frequency.value = 1800;
-      gain.connect(filter).connect(g.music);
-      this.music = { gain, filter, timer: 0, at: ctx.currentTime + 0.1, bar: 0 };
-    }
-    const M = this.music;
-    const t = ctx.currentTime;
-    if (this.wantState !== this.state) {
-      this.state = this.wantState;
-      const on = this.state !== "off";
-      M.gain.gain.setTargetAtTime(on ? 0.42 : 0, t, on ? 1.2 : 0.6);
-      M.filter.frequency.setTargetAtTime(this.state === "low" ? 380 : this.state === "combat" || this.state === "final" ? 2600 : 1500, t, 0.8);
-    }
-    if (this.state === "off") return;
-    // Schedule a bar ahead.
-    const bpm = this.state === "final" ? 124 : this.state === "combat" ? 104 : 84;
-    const bar = (60 / bpm) * 4;
-    while (M.at < t + 1.2) {
-      this.bar(M.at, bar, M.bar++);
-      M.at += bar;
-    }
-  }
+  /** Dead Streets plays its own two tracks; Free For All the others. */
+  theme: "ffa" | "dead" = "ffa";
 
-  /** One bar of the score: the pad's chord, and (combat, final) the pulse; the final circle's riser. */
-  private bar(at: number, len: number, n: number): void {
-    const g = this.sound.graph!;
-    const ctx = g.ctx;
-    const out = this.music!.gain;
-    // A minor walk, Am F C G.
-    const chords = [[57, 60, 64], [53, 57, 60], [48, 52, 55], [55, 59, 62]];
-    const ch = chords[n % 4];
-    for (const midi of ch) {
-      for (const det of [-6, 6]) {
-        const o = ctx.createOscillator();
-        o.type = "sawtooth";
-        o.frequency.value = 440 * Math.pow(2, (midi - 69) / 12);
-        o.detune.value = det;
-        const v = ctx.createGain();
-        v.gain.setValueAtTime(0.0001, at);
-        v.gain.exponentialRampToValueAtTime(0.035, at + len * 0.25);
-        v.gain.setValueAtTime(0.035, at + len * 0.8);
-        v.gain.exponentialRampToValueAtTime(0.0001, at + len * 1.02);
-        o.connect(v).connect(out);
-        o.start(at);
-        o.stop(at + len * 1.05);
-      }
-    }
-    if (this.state === "combat" || this.state === "final") {
-      const beat = len / 4;
-      for (let b = 0; b < 8; b++) {
-        const tt = at + b * (beat / 2);
-        const o = ctx.createOscillator();
-        o.type = "sine";
-        o.frequency.setValueAtTime(b % 2 ? 70 : 110, tt);
-        o.frequency.exponentialRampToValueAtTime(45, tt + 0.12);
-        const v = ctx.createGain();
-        v.gain.setValueAtTime(b % 2 ? 0.12 : 0.22, tt);
-        v.gain.exponentialRampToValueAtTime(0.0001, tt + 0.18);
-        o.connect(v).connect(out);
-        o.start(tt);
-        o.stop(tt + 0.2);
-      }
-    }
-    if (this.state === "final" && n % 4 === 3) {
-      const o = ctx.createOscillator();
-      o.type = "sawtooth";
-      o.frequency.setValueAtTime(220, at);
-      o.frequency.exponentialRampToValueAtTime(880, at + len);
-      const v = ctx.createGain();
-      v.gain.setValueAtTime(0.0001, at);
-      v.gain.exponentialRampToValueAtTime(0.04, at + len * 0.95);
-      v.gain.exponentialRampToValueAtTime(0.0001, at + len);
-      o.connect(v).connect(out);
-      o.start(at);
-      o.stop(at + len);
-    }
+  /** v4 rework: the state picks a downloaded track (music.ts); "low" muffles the one on. */
+  private musicTick(): void {
+    if (!this.sound.graph) return;
+    if (this.wantState === this.state) return;
+    this.state = this.wantState;
+    const sc = this.sound.score;
+    const dead = this.theme === "dead";
+    const calm = dead ? "dead" : "explore";
+    const s = this.state;
+    if (s === "off") {
+      // The car radio has the score in a car; otherwise silence until the next state.
+      if (!this.sound.radioPlaying) sc.play(null);
+    } else sc.play(s === "final" ? (dead ? "deadFight" : "final") : s === "combat" ? (dead ? "deadFight" : "combat") : s === "low" ? (sc.playing ?? calm) : calm);
+    sc.setLow(s === "low");
   }
 
   dispose(): void {
@@ -354,13 +286,8 @@ export class WorldSound {
       v.pan.disconnect();
     }
     this.voices.length = 0;
-    if (this.music) {
-      const m = this.music;
-      const g = this.sound.graph;
-      if (g) m.gain.gain.setTargetAtTime(0, g.ctx.currentTime, 0.4);
-      setTimeout(() => m.filter.disconnect(), 2000);
-      this.music = null;
-    }
+    if (this.state !== "off" && !this.sound.radioPlaying) this.sound.score.play(null);
+    this.sound.score.setLow(false);
     this.state = this.wantState = "off";
   }
 }

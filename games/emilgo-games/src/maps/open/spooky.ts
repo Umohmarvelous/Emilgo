@@ -29,13 +29,13 @@ export { SPOOKY_ROUTE };
 
 /** The twelve districts (SPEC-V3 §3.1), all fictional names. */
 export const SPOOKY_LANDMARKS: Landmark[] = [
-  { id: "motorpark", name: "Motor Park of the Lost", x: -130, z: -135 },
+  { id: "motorpark", name: "Depot of the Lost", x: -130, z: -135 },
   { id: "cathedral", name: "Cathedral of the Silent Bell", x: -92, z: -118 },
   { id: "nightmarket", name: "Night Market", x: -35, z: -122 },
-  { id: "oldmosque", name: "Old Mosque Courtyard", x: 30, z: -122 },
-  { id: "faceme", name: "Face-me-I-face-you", x: 105, z: -118 },
-  { id: "gutters", name: "The Gutters", x: 105, z: -45 },
-  { id: "estate", name: "Uncompleted Estate", x: 105, z: 8 },
+  { id: "oldmosque", name: "Old Museum Courtyard", x: 30, z: -122 },
+  { id: "faceme", name: "Courtyard Flats", x: 105, z: -118 },
+  { id: "gutters", name: "The Drains", x: 105, z: -45 },
+  { id: "estate", name: "Dead Construction Site", x: 105, z: 8 },
   { id: "tankfarm", name: "Tank Farm", x: 30, z: 18 },
   { id: "hospital", name: "St. Ruth's Hospital Wing", x: -30, z: 5 },
   { id: "farmedge", name: "Farm Edge", x: -100, z: 75 },

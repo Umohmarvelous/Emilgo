@@ -33,7 +33,8 @@ check(w.landmarks.length === 12, `12 landmarks (${w.landmarks.length})`);
 check(w.areas.length === 18, `18 places (${w.areas.length})`);
 check(ms2 < 400, `built fast enough to do in idle time (${ms2.toFixed(0)} ms < 400)`);
 const tallest = Math.max(...w.solids.filter((s) => s.kind === "box" && s.hx > 4 && s.hz > 4).map((s) => s.y1));
-check(tallest <= 5 * 3.3 + 0.6, `no skyscrapers: the tallest building is ${tallest.toFixed(1)} m (5 floors at most)`);
+// v4 rework: a modern city's office blocks rise to 12 floors (the old rule was one to four).
+check(tallest <= 12 * 3.3 + 0.6, `office blocks to 12 floors at most: the tallest building is ${tallest.toFixed(1)} m`);
 
 // ── On foot: a 1 m grid of where a standing body fits, flooded from the starts ──
 console.log("on foot:");

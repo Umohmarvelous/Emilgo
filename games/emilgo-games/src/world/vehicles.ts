@@ -71,6 +71,8 @@ const ENGINE: Record<VehicleKind, V3> = { danfo: [0, 1.4, 2.0], keke: [0, 0.9, -
 
 /** Tokunbo colours (second-hand imports: silver, black, white, navy, wine). */
 const TOKUNBO_COLORS = ["#b8bcc2", "#1d1f22", "#e9e9e6", "#23324d", "#6b1f2a", "#8a8f96"];
+/** What each kind is called on screen (v4 rework: the ids stay; the names are global). */
+export const VEHICLE_NAME: Record<VehicleKind, string> = { danfo: "Minibus", keke: "Trike", tokunbo: "Sedan" };
 
 const BOX = new BoxGeometry(1, 1, 1);
 const CYL = new CylinderGeometry(1, 1, 1, 12);
@@ -84,13 +86,14 @@ const box = (color: string, s: V3, p: V3, r?: V3): BufferGeometry => part(BOX, c
 // ─── The kinds, built along +Z (nose at +Z), from the ground up ──────────────
 
 function danfo(): { body: BufferGeometry; glass: BufferGeometry; far: BufferGeometry } {
-  const Y = "#f5bd02";
+  // v4 rework: a white city minibus (the yellow danfo's place; the same size and seats).
+  const Y = "#e4e6e8";
   const parts = [
     box(K, [1.8, 0.22, 4.4], [0, 0.32, 0]),
     box(Y, [1.95, 1.2, 4.7], [0, 0.98, 0]),
-    // The black stripes down both sides.
-    box(K, [1.97, 0.1, 4.72], [0, 1.22, 0]),
-    box(K, [1.97, 0.08, 4.72], [0, 0.78, 0]),
+    // A grey band down both sides.
+    box("#5a6068", [1.97, 0.1, 4.72], [0, 1.22, 0]),
+    box("#3a3e44", [1.97, 0.08, 4.72], [0, 0.78, 0]),
     // The upper cabin's frame: roof, pillars, the band under the windows.
     box(Y, [1.9, 0.1, 4.5], [0, 2.32, -0.05]),
     box(Y, [1.92, 0.12, 4.52], [0, 1.6, -0.05]),
@@ -112,10 +115,9 @@ function danfo(): { body: BufferGeometry; glass: BufferGeometry; far: BufferGeom
     box(K, [0.24, 0.04, 0.04], [-1.0, 1.7, 1.95]),
     // Wheel arches.
     ...[1.52, -1.5].flatMap((z) => [box(K, [0.06, 0.5, 0.95], [0.98, 0.5, z]), box(K, [0.06, 0.5, 0.95], [-0.98, 0.5, z])]),
-    // The roof rack and its rails.
-    box("#8d6e63", [1.5, 0.06, 2.4], [0, 2.42, -0.4]),
-    box("#6d4c41", [0.05, 0.1, 2.4], [0.74, 2.46, -0.4]),
-    box("#6d4c41", [0.05, 0.1, 2.4], [-0.74, 2.46, -0.4]),
+    // Roof bars.
+    box("#2a2e32", [0.05, 0.08, 2.4], [0.74, 2.4, -0.4]),
+    box("#2a2e32", [0.05, 0.08, 2.4], [-0.74, 2.4, -0.4]),
     // Seats, seen through the windows.
     box(SEAT, [1.7, 0.14, 0.5], [0, 0.9, 1.35]),
     box(SEAT, [1.7, 0.5, 0.1], [0, 1.2, 1.08]),
@@ -128,13 +130,14 @@ function danfo(): { body: BufferGeometry; glass: BufferGeometry; far: BufferGeom
     box("#26323a", [0.04, 0.62, 4.36], [-0.95, 1.96, -0.05]),
     box("#26323a", [1.8, 0.6, 0.04], [0, 1.96, -2.3]),
   ];
-  const far = merge([box(Y, [1.95, 1.95, 4.7], [0, 1.32, 0]), box("#3a4650", [1.97, 0.6, 4.3], [0, 1.96, 0]), box(K, [1.97, 0.1, 4.72], [0, 1.22, 0])]);
+  const far = merge([box(Y, [1.95, 1.95, 4.7], [0, 1.32, 0]), box("#3a4650", [1.97, 0.6, 4.3], [0, 1.96, 0]), box("#5a6068", [1.97, 0.1, 4.72], [0, 1.22, 0])]);
   return { body: merge(parts), glass: merge(glass), far };
 }
 
 function keke(): { body: BufferGeometry; glass: BufferGeometry; far: BufferGeometry } {
-  const G = "#2e9e4a";
-  const Y = "#f5c400";
+  // v4 rework: a utility trike in olive and black (the keke's place: the same seats and wheels).
+  const G = "#4a5238";
+  const Y = "#22262a";
   const parts = [
     box(K, [1.2, 0.12, 2.3], [0, 0.36, -0.05]),
     // The nose and its single front wheel's fork.

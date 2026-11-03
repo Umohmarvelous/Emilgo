@@ -197,7 +197,7 @@ export const BUILTIN_MANIFEST: Manifest = {
     // ── Naija Max (v4 Phase 7): the big world, 2 km across, 24 players ──
     {
       id: "max-royale", v: 1, family: "ffa", minRank: "rookie-1", players: { min: 8, max: 24, squad: [1, 4] }, map: "max-world", time: 900,
-      name: { en: "Naija Max: Royale", pcm: "Naija Max: Royale" },
+      name: { en: "Meridian Max: Royale", pcm: "Meridian Max: Royale" },
       blurb: { en: "The big world. Last squad standing wins. No comebacks.", pcm: "The big world. Last squad wey still stand win. No second chance." },
       respawn: { on: false },
       modules: { zone: MAX_ZONE, items: { table: "ffa-core", density: 0.5 }, vehicles: { count: [4, 6], kinds: ["danfo", "keke", "tokunbo"] }, airfall: AIRFALL, melee: MELEE, guns: { royale: true } },
@@ -205,7 +205,7 @@ export const BUILTIN_MANIFEST: Manifest = {
     },
     {
       id: "max-flag", v: 1, family: "ffa", minRank: "rookie-1", players: { min: 8, max: 24, squad: [1, 4] }, map: "max-world", time: 720,
-      name: { en: "Naija Max: Find the Flag", pcm: "Naija Max: Find Di Flag" },
+      name: { en: "Meridian Max: Find the Flag", pcm: "Meridian Max: Find Di Flag" },
       blurb: { en: "The big world: find the hidden flag and hold it for 15 s.", pcm: "The big world: find the flag wey dem hide, hold am 15 seconds." },
       respawn: { on: true, delay: 8 },
       modules: { zone: MAX_ZONE, items: { table: "ffa-core", density: 0.5 }, vehicles: { count: [4, 6], kinds: ["danfo", "keke", "tokunbo"] }, airfall: AIRFALL, melee: MELEE, flags: { count: 1, spots: "stash", claimHold: 15, hints: [120, 240, 360, 480] } },

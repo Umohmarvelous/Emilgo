@@ -274,6 +274,7 @@ export class FfaMode implements GameMode {
     this.combat = guns || m.module("survival") ? new CombatHud() : null;
     if (this.gunsView) h.scene.add(this.gunsView.group);
     this.worldSound = new WorldSound(h.sound, h.spec.tier === 0 ? 6 : 12);
+    this.worldSound.theme = m.module("survival") ? "dead" : "ffa";
     this.worldSound.setEmitters(emittersOf(world.layout));
     this.scenery = new Scenery(world.layout);
     h.scene.add(this.scenery.group);
@@ -607,7 +608,7 @@ export class FfaMode implements GameMode {
         break;
       }
       case "car":
-        if (m.phase === "play") h.hud.pushFeed(t("A danfo has come"), "info");
+        if (m.phase === "play") h.hud.pushFeed(t("A van has arrived"), "info");
         break;
       case "claw":
       case "hazard":
@@ -840,7 +841,7 @@ export class FfaMode implements GameMode {
       if (nx >= 0 && nx <= HARMATTAN.siren && this.sirenAt !== hm.storms.findIndex((s) => s.at - m.elapsed === nx)) {
         this.sirenAt = hm.storms.findIndex((s) => s.at - m.elapsed === nx);
         h.sound.siren();
-        h.hud.pushFeed(t("Harmattan! A sandstorm is coming"), "info");
+        h.hud.pushFeed(t("Sandstorm incoming!"), "info");
       }
       if (storm && !this.inStorm) this.ms.prints.wipe();
       this.inStorm = !!storm;

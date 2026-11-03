@@ -14,3 +14,11 @@
 
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
+
+/music/*
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=604800
+
+/lib/*
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=2592000

@@ -11,7 +11,13 @@ import type { Hit, Song } from "./songs";
 
 export type RadioId = "highlife" | "afrobeats" | "fuji";
 export const RADIO_IDS: readonly RadioId[] = ["highlife", "afrobeats", "fuji"];
-export const RADIO_NAME: Record<RadioId, string> = { highlife: "Highlife", afrobeats: "Afrobeats", fuji: "Fuji" };
+/**
+ * v4 rework: the stations play downloaded CC0 tracks (music.ts), under names of
+ * their own (the ids stay: they're saved and sent). The loops below are kept for
+ * the record but no longer played.
+ */
+export const RADIO_NAME: Record<RadioId, string> = { highlife: "Pulse FM", afrobeats: "Night Drive", fuji: "Low Orbit" };
+export const RADIO_TRACK: Record<RadioId, import("./music").Track> = { highlife: "rush", afrobeats: "lobby", fuji: "explore" };
 
 const every = (step: number, length: number, kind: Hit["kind"], from = 0): Hit[] => {
   const out: Hit[] = [];

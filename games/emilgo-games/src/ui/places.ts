@@ -19,7 +19,7 @@ export const PLACE_ART: readonly PlaceArt[] = [
   { id: "harbour", name: "Harbour Yard", line: "Container canyons · cranes · the water", url: harbourUrl },
   { id: "forest", name: "Ironwood Forest", line: "Pines thick round a ranger tower", url: forestUrl },
   { id: "dunes", name: "Dune Sea", line: "Ridges to run over · a plane down", url: dunesUrl },
-  { id: "city", name: "Naija City", line: "The market, the bus park, the rooftops", url: cityUrl },
+  { id: "city", name: "Meridian City", line: "The arcade, the transit hub, the rooftops", url: cityUrl },
 ];
 
 /** Weeks since 5 Jan 2026 (a Monday): the same week everywhere. */
