@@ -183,8 +183,7 @@ function facade(k: PrefabKit, cx: number, cz: number, w: number, d: number, floo
         const lit = o.night && r.chance(o.lit ?? 0.3);
         flat(FRAME, 1.35, 1.35, t, y, 0.02, "main");
         flat(lit ? "#ffd890" : WINDOW, 1.15, 1.15, t, y, 0.04, "main", lit);
-        // Burglar bars on the ground floor.
-        if (o.bars && f === 0) for (const b of [-0.3, 0.3]) flat("#2a2a2a", 0.05, 1.15, t + b, y, 0.06, "detail");
+        // (v4 rework: no burglar bars.)
       }
     }
   };
@@ -195,14 +194,27 @@ function facade(k: PrefabKit, cx: number, cz: number, w: number, d: number, floo
   if (o.shopFront) {
     const units = o.shopFront;
     const uw = w / units;
+    // v4 rework: glass shop windows in dark frames (no roller shutters), a door in each, a sign band over them.
+    const zf = cz + d / 2;
     for (let i = 0; i < units; i++) {
       const x = cx - w / 2 + uw * (i + 0.5);
-      const shut = r.pick(["#7c8288", "#5d7f9a", "#9a5d4a", "#6f8a5a"]);
-      k.put(part(QUAD, shut, { p: [x, 1.25, cz + d / 2 + 0.04], s: [uw - 0.5, 2.4, 1] }), "main", 0);
-      k.put(part(QUAD, "#4a4e52", { p: [x, 1.25, cz + d / 2 + 0.05], s: [uw - 0.5, 0.05, 1] }), "detail", 0);
+      const lit = !!o.night && r.chance(0.7);
+      k.put(part(QUAD, "#2a2d30", { p: [x, 1.35, zf + 0.03], s: [uw - 0.3, 2.6, 1] }), "main", 0);
+      const glass = (gx: number, gw: number) => {
+        if (lit) k.put(part(QUAD, "#f4e2b8", { p: [gx, 1.35, zf + 0.05], s: [gw, 2.3, 1] }), "glow", 0);
+        else k.put(part(QUAD, r.pick(["#34424c", "#2e3a44", "#3a4650"]), { p: [gx, 1.35, zf + 0.05], s: [gw, 2.3, 1] }), "main", 0);
+      };
+      const dw = 1.0;
+      const gw = (uw - 0.6 - dw - 0.1) / 2;
+      glass(x - dw / 2 - 0.05 - gw / 2, gw);
+      glass(x + dw / 2 + 0.05 + gw / 2, gw);
+      k.put(part(QUAD, DOOR, { p: [x, 1.1, zf + 0.06], s: [dw, 2.2, 1] }), "main", 0);
+      k.put(part(QUAD, "#9aa4aa", { p: [x, 1.3, zf + 0.07], s: [dw - 0.25, 1.5, 1] }), "detail", 0);
+      // The sign: a plain panel in the shop's colour (no words, no brand).
+      k.put(part(QUAD, r.pick(["#e8e6e0", "#1f2a36", "#2f4a3a", "#5a1e22", "#d8d2c4"]), { p: [x, 3.0, zf + 0.05], s: [uw - 0.6, 0.55, 1] }), "main", 0);
     }
-    // The awning along the front.
-    k.box(r.pick(["#2f6f8f", "#8f2f2f", "#2f8f4f", "#c9a227"]), [w, 0.08, 1.4], [cx, 2.85, cz + d / 2 + 0.7], "main", [0.2, 0, 0]);
+    // A slim charcoal canopy along the front.
+    k.box(r.pick(["#2b2f33", "#1f2a36", "#3a3e42"]), [w, 0.1, 1.0], [cx, 2.7, zf + 0.5], "main", [0.08, 0, 0]);
   }
 }
 
@@ -233,13 +245,14 @@ function byMaterial(wall: string) {
     q.surface === "metal" ? { color: METAL } : q.surface === "wood" ? { tex: "wood" as TexKind, color: "#a07850", tile: 2 } : q.surface === "sand" ? { color: EARTH } : { tex: "plaster" as TexKind, color: wall };
 }
 
-/** A street pole with a lamp head, wires implied. */
+/** A steel street light (v4 rework: no wooden poles or wires): a tapered column, an arm, an LED head. */
 function pole(k: PrefabKit, night: boolean): void {
-  k.cyl("#6a5440", 0.13, 9, [0, 4.5, 0], "mass", { sides: 6 });
-  k.box("#5a4a3a", [1.6, 0.1, 0.1], [0, 8.3, 0], "main");
-  k.box("#2f3438", [0.5, 0.1, 0.28], [0, 7.4, 0.55], "main");
-  if (night) k.glow("#fff2c0", [0.36, 0.05, 0.22], [0, 7.33, 0.55]);
-  k.lamps.push([0, 7.2, 0.55]);
+  k.cyl("#5c6166", 0.14, 0.6, [0, 0.3, 0], "mass", { sides: 10 });
+  k.cyl("#62676c", 0.09, 7.6, [0, 4.2, 0], "mass", { sides: 10 });
+  k.box("#62676c", [0.08, 0.08, 1.7], [0, 7.95, 0.8], "main", [0.12, 0, 0]);
+  k.box("#3a3e42", [0.34, 0.1, 0.7], [0, 7.8, 1.55], "main");
+  if (night) k.glow("#f4f6ff", [0.26, 0.04, 0.56], [0, 7.74, 1.55]);
+  k.lamps.push([0, 7.6, 1.55]);
 }
 
 /** A city panel van (the minibus's place, v4 rework): a long box, a windscreen, wheels. */
@@ -270,8 +283,13 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
       solidPart(k, ps[0], { tex: "plaster", color: wall });
       facade(k, 0, bz, q.w, q.d, 1, q.h, { night, bars: true });
       pitched(k, 0, bz, q.w, q.d, q.h, q.roof === "zinc" ? ZINC[q.wall % 4] : TILES);
-      allParts(k, ps.slice(1), () => ({ tex: "concrete", color: "#cfc6b4", tile: 2 }));
-      if (q.fence) k.box("#2a3a4a", [2.3, 1.7, 0.08], [0, 0.85, (q.d + 3) / 2 - 0.1], "main"); // the gate
+      // v4 rework: a brick garden wall with a stone coping (no compound wall), a black iron gate.
+      allParts(k, ps.slice(1), () => ({ tex: "brick", color: "#b89a88", tile: 2 }));
+      for (const q2 of ps.slice(1)) if (q2.kind !== "ramp" && q2.y1 > 0.5) k.box("#cfcac0", [q2.hx * 2 + 0.08, 0.08, q2.hz * 2 + 0.08], [q2.x, q2.y1 + 0.04, q2.z], "detail", q2.rot ? [0, q2.rot, 0] : undefined);
+      if (q.fence) {
+        for (let i = 0; i < 9; i++) k.box("#1c1e20", [0.04, 1.6, 0.04], [-1.0 + i * 0.25, 0.8, (q.d + 3) / 2 - 0.1], "main"); // the gate
+        k.box("#1c1e20", [2.3, 0.06, 0.06], [0, 1.55, (q.d + 3) / 2 - 0.1], "main");
+      }
       break;
     }
     case "storey": {
@@ -284,10 +302,16 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
       // A band between floors.
       for (let f = 1; f < q.floors; f++) k.box("#d8d0c0", [q.w + 0.12, 0.22, q.d + 0.12], [bx, f * q.fh, 0], "main");
       k.box("#cfc6b4", [q.w + 0.2, 0.2, q.d + 0.2], [bx, h, 0], "main");
-      allParts(k, ps.slice(1), (s) => (s.surface === "metal" ? null : { color: "#bdb4a2" }));
+      // v4 rework: the outside stair in black steel (a fire escape), the parapet in the wall's own render.
+      allParts(k, ps.slice(1), (s) => (s.surface === "metal" ? null : s.kind === "ramp" ? { color: "#2c3034" } : { tex: "plaster", color: wall }));
       if (q.tank) {
-        k.box("#7a7d80", [1.6, 0.3, 1.6], [bx - q.w / 4, h + 0.15, -q.d / 4], "main");
-        k.cyl("#1d2124", 0.68, 1.9, [bx - q.w / 4, h + 1.25, -q.d / 4], "main", { sides: 10 });
+        // A rooftop air-handling unit where the water tank stood (the same solid).
+        const ax = bx - q.w / 4;
+        const az = -q.d / 4;
+        k.box("#9a9ea2", [1.4, 1.5, 1.4], [ax, h + 0.75, az], "main");
+        k.box("#6a6e72", [1.44, 0.08, 1.44], [ax, h + 1.52, az], "detail");
+        k.cyl("#2a2d30", 0.5, 0.05, [ax, h + 1.56, az], "detail", { sides: 10 });
+        k.box("#7a7e82", [0.18, 0.18, 1.2], [ax + 0.4, h + 0.3, az + 1.2], "detail");
       }
       break;
     }
@@ -323,7 +347,7 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
       // each room; the doors are drawn by the mode (they open and shut).
       const C = COURTYARD;
       const roof = ps.filter((q) => q.y0 >= C.roof - 0.01);
-      allParts(k, ps.filter((q) => q.y0 < C.roof - 0.01), (q) => ({ tex: "plaster", color: q.y0 > 1 ? "#d9c9a8" : "#e6d8b8" }));
+      allParts(k, ps.filter((q) => q.y0 < C.roof - 0.01), (q) => ({ tex: "plaster", color: q.y0 > 1 ? "#dcdad4" : "#ecebe6" }));
       allParts(k, roof, () => ({ tex: "zinc", color: ZINC[1] }));
       const z0 = -(C.long * 4) / 2;
       const FURNISH = ["#7a5a3a", "#8d6e63", "#a1887f", "#6d4c41"];
@@ -343,9 +367,8 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
           else k.box(FURNISH[n % FURNISH.length], [1.1, 0.06, 1.6], [xc + sx * 0.8, 0.03, zc], "detail");
         }
       }
-      // The yard: a washing line, a bench.
-      k.box("#dedede", [0.02, 0.02, C.d - 8], [0, 2.2, 0], "detail");
-      k.box("#8d6e63", [0.45, 0.45, 2.2], [0, 0.22, -C.d / 2 + 2], "detail");
+      // The yard: a bench (no washing line).
+      k.box("#5a5f63", [0.45, 0.45, 2.2], [0, 0.22, -C.d / 2 + 2], "detail");
       break;
     }
     case "compound": {
@@ -362,14 +385,14 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
           k.box(DOOR, [0.9, 2.0, 0.08], [x - 0.6, 1.0, z], "main");
           k.box(WINDOW, [0.8, 0.8, 0.08], [x + 0.7, 1.6, z], "main");
         }
-        pitched(k, 0, side * (q.d / 2 - 2.6), q.w - 0.6, 4.6, 3.2, ZINC[(q.wall + 1) % 4]);
+        pitched(k, 0, side * (q.d / 2 - 2.6), q.w - 0.6, 4.6, 3.2, TILES);
       }
-      allParts(k, ps.slice(2), () => ({ tex: "concrete", color: "#c8bea8", tile: 2 }));
-      // Washing lines across the yard.
+      // v4 rework: townhouses round a mews (brick yard walls, planters; no washing lines).
+      allParts(k, ps.slice(2), () => ({ tex: "brick", color: "#b89a88", tile: 2 }));
       for (let i = 0; i < 3; i++) {
         const x = -q.w / 3 + i * (q.w / 3);
-        k.box("#dedede", [0.02, 0.02, q.d - 10], [x, 2.2, 0], "detail");
-        for (let j = 0; j < 3; j++) k.box(r.pick(["#c0392b", "#2980b9", "#f1c40f", "#27ae60", "#ecf0f1"]), [0.5, 0.6, 0.03], [x, 1.85, -2 + j * 1.8], "detail", [0, Math.PI / 2, 0]);
+        k.box("#8a8680", [1.2, 0.5, 1.2], [x, 0.25, 0], "detail");
+        k.bush([x, 0.5, 0], 0.55, "#4a6a30");
       }
       break;
     }
@@ -407,7 +430,7 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
     case "school": {
       solidPart(k, ps[0], { tex: "brick", color: "#d8d2c8", tile: 4 });
       facade(k, 0, -9, 36, 8, 1, 3.8, { night });
-      pitched(k, 0, -9, 36, 8, 3.8, ZINC[0]);
+      pitched(k, 0, -9, 36, 8, 3.8, TILES);
       // The flagpole and the flag.
       k.cyl("#c8c8c8", 0.06, 9, [-16, 4.5, 11], "main", { sides: 6 });
       // The school's own flag (no country's): navy with a white band.
@@ -468,16 +491,20 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
       break;
     }
     case "viewing": {
-      solidPart(k, ps[0], { tex: "plaster", color: "#3a6a9a" });
-      pitched(k, 0, -1, 14, 10, 4.2, ZINC[2]);
+      // v4 rework: a brick sports bar with a flat roof (the viewing centre's place).
+      solidPart(k, ps[0], { tex: "brick", color: "#c8b8a8", tile: 3 });
+      k.box("#3a3e42", [14.3, 0.5, 10.3], [0, 4.45, -1], "main");
       k.box(DOOR, [1.6, 2.4, 0.1], [0, 1.2, 4.05], "main");
       // The painted board over the door: a ball and a screen, no words.
       k.box("#f2f2f2", [6, 1.4, 0.1], [0, 3.4, 4.08], "main");
       k.ball("#1a1a1a", 0.4, [-1.8, 3.4, 4.2], "detail");
       k.box("#2a6ad8", [2.2, 1.0, 0.06], [1.2, 3.4, 4.15], "detail");
-      solidPart(k, ps[1], { color: METAL }); // the generator
-      // Benches outside.
-      for (const x of [-4, 4]) k.box(WOOD, [3, 0.45, 0.5], [x, 0.22, 5.2], "main");
+      solidPart(k, ps[1], { color: "#8a8e92" }); // the condenser
+      // Tables outside.
+      for (const x of [-4, 4]) {
+        k.box("#2a2d30", [1.2, 0.05, 0.8], [x, 0.75, 5.2], "main");
+        k.box("#2a2d30", [0.08, 0.75, 0.08], [x, 0.37, 5.2], "detail");
+      }
       break;
     }
     case "buspark": {
@@ -500,13 +527,19 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
       for (let i = 0; i < 36; i++) {
         const q = ps[i];
         // A table the size of its solid, two poles and a sheet over it, goods on top.
-        solidPart(k, q, { tex: "wood", color: "#9a7048", tile: 1.5 });
-        for (const x of [-1.5, 1.5]) k.box("#5a4a3a", [0.08, 1.4, 0.08], [q.x + x, 1.7, q.z - 1.2], "main");
-        k.box(r.pick(["#c0392b", "#2980b9", "#f39c12", "#27ae60", "#8e44ad", "#d35400"]), [3.5, 0.05, 3.0], [q.x, 2.35, q.z], "main", [0.12, 0, 0]);
-        for (let j = 0; j < 3; j++) k.box(r.pick(["#e74c3c", "#f1c40f", "#27ae60", "#e67e22", "#f5f0e0"]), [0.8, 0.22, 0.8], [q.x - 1 + j, 1.11, q.z], "detail");
+        // v4 rework: a farmers' market: a trestle under a white gazebo, crates of produce.
+        solidPart(k, q, { color: "#e8e6e0" });
+        for (const x of [-1.6, 1.6]) for (const z of [-1.4, 1.4]) k.box("#9aa0a4", [0.06, 2.4, 0.06], [q.x + x, 1.2, q.z + z], "detail");
+        const cg = new ConeGeometry(1, 1, 4);
+        cg.rotateY(Math.PI / 4);
+        k.put(partOf(cg, r.pick(["#f2f2ee", "#ecece8", "#e2e6ea"]), [q.x, 2.75, q.z], [2.5, 0.7, 2.2]), "main", 0);
+        for (let j = 0; j < 3; j++) {
+          k.box("#9a7a58", [0.8, 0.22, 0.6], [q.x - 1 + j, 1.11, q.z], "detail");
+          k.box(r.pick(["#b8402e", "#d8a020", "#5a8a30", "#c86a20", "#7a3a5a"]), [0.7, 0.08, 0.5], [q.x - 1 + j, 1.24, q.z], "detail");
+        }
       }
       allParts(k, ps.slice(36, 40), () => ({ color: "#6a6e72" }));
-      solidPart(k, ps[40], { tex: "zinc", color: "#9a8a78", tile: 2 });
+      solidPart(k, ps[40], { tex: "zinc", color: "#a8acb0", tile: 2 });
       for (let i = 41; i < ps.length; i++) {
         solidPart(k, ps[i], { tex: "wood", color: "#a07850", tile: 2 });
         for (let j = 0; j < 5; j++) k.ball(r.pick(["#e67e22", "#f1c40f", "#c0392b", "#27ae60"]), 0.22, [ps[i].x - 1.2 + j * 0.6, 1.05, ps[i].z], "detail");
@@ -515,8 +548,8 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
       for (let i = 0; i < 8; i++) {
         const x = -16 + (i % 4) * 10.5;
         const z = i < 4 ? -20 : 20;
-        k.cyl("#5a4a3a", 0.05, 2.6, [x, 1.3, z], "detail", { sides: 6 });
-        k.cone(r.pick(["#c0392b", "#f39c12", "#2980b9", "#27ae60"]), 1.8, 0.7, [x, 2.75, z], "main", undefined, 6);
+        k.cyl("#9aa0a4", 0.05, 2.6, [x, 1.3, z], "detail", { sides: 6 });
+        k.cone(r.pick(["#f0efe8", "#2b2f33", "#e8e6e0"]), 1.8, 0.5, [x, 2.75, z], "main", undefined, 10);
       }
       break;
     }
@@ -524,11 +557,11 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
       solidPart(k, ps[0], { color: "#2a2a2a" }); // the grill
       k.glow("#ff6a20", [2.2, 0.06, 1.4], [-2.2, 1.03, -1.2]);
       for (let i = 0; i < 8; i++) k.box("#6a3a1a", [0.06, 0.06, 1.3], [-3.2 + i * 0.28, 1.08, -1.2], "detail");
-      solidPart(k, ps[1], { tex: "zinc", color: "#9a8a78", tile: 2 });
-      allParts(k, ps.slice(2), () => ({ color: WOOD, level: "main" }));
-      // A shade of zinc on poles over the benches.
-      for (const [x, z] of [[-4, 3.2], [4, 3.2], [-4, 0.6], [4, 0.6]]) k.cyl("#5a4a3a", 0.05, 2.5, [x, 1.25, z], "detail", { sides: 6 });
-      k.box("#8a6a52", [9, 0.06, 3.4], [0, 2.5, 1.9], "main", [0.08, 0, 0]);
+      // v4 rework: a street-food grill under a canvas canopy on steel poles, steel benches.
+      solidPart(k, ps[1], { tex: "zinc", color: "#a8acb0", tile: 2 });
+      allParts(k, ps.slice(2), () => ({ color: "#4a4e52", level: "main" }));
+      for (const [x, z] of [[-4, 3.2], [4, 3.2], [-4, 0.6], [4, 0.6]]) k.cyl("#9aa0a4", 0.05, 2.5, [x, 1.25, z], "detail", { sides: 6 });
+      k.box("#2b2f33", [9, 0.06, 3.4], [0, 2.5, 1.9], "main", [0.08, 0, 0]);
       break;
     }
     case "uncompleted": {
@@ -548,8 +581,9 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
       break;
     }
     case "generator": {
-      solidPart(k, ps[0], { color: r.pick(["#5a6068", "#3a3e42", "#2a2a2a"]) });
-      k.box("#2a2a2a", [0.08, 0.5, 0.08], [0.4, 1.1, 0.2], "detail");
+      // v4 rework: a street utility cabinet (the generator's place).
+      solidPart(k, ps[0], { color: r.pick(["#4f5d52", "#6b7075", "#5a6068"]) });
+      for (let i = 0; i < 4; i++) k.box("#3a3e42", [0.5, 0.03, 0.02], [0, 0.4 + i * 0.12, ps[0].hz + 0.01], "detail");
       break;
     }
     case "pole":
@@ -677,7 +711,7 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
     }
     case "mechanic": {
       allParts(k, ps.slice(0, 4), () => ({ color: "#4a4e52" }));
-      solidPart(k, ps[4], { tex: "zinc", color: "#8a7a68", tile: 2 });
+      solidPart(k, ps[4], { tex: "zinc", color: "#8a8e92", tile: 2 });
       // Cars on blocks, a bonnet up, tyres in a pile, a spray of oil.
       k.box("#3a5a8a", [1.8, 0.7, 4.2], [-3.5, 0.75, 3.5], "mass");
       k.box("#3a5a8a", [1.6, 0.5, 2.2], [-3.5, 1.35, 3.3], "main");
@@ -688,17 +722,16 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
       break;
     }
     case "barber": {
-      solidPart(k, ps[0], { tex: "wood", color: "#a07850", tile: 1.5 });
-      k.box("#e8e8e8", [2.6, 0.08, 1.2], [0, 2.7, 1.0], "main");
-      // The painted board of haircuts: faces, no words.
-      k.box("#f2f2f2", [2.4, 1.0, 0.06], [0, 2.0, 0.63], "main");
-      for (let i = 0; i < 3; i++) k.ball("#3a2a1a", 0.22, [-0.7 + i * 0.7, 2.05, 0.68], "detail");
-      k.box("#c0392b", [0.5, 0.95, 0.5], [0.6, 0.48, 1.4], "main"); // the chair
+      // v4 rework: a green steel newsstand (the roadside barber's place).
+      solidPart(k, ps[0], { color: "#2f4a3a" });
+      k.box("#24382c", [2.6, 0.08, 1.2], [0, 2.7, 1.0], "main");
+      k.box("#e8e6e0", [2.4, 0.5, 0.06], [0, 2.35, 0.63], "main");
+      for (let i = 0; i < 4; i++) k.box(r.pick(["#c8c4b8", "#a8b4c0", "#d8c8a8", "#b8a8a8"]), [0.42, 0.56, 0.03], [-0.75 + i * 0.5, 1.4, 0.65], "detail");
       break;
     }
     case "carpenter": {
-      allParts(k, ps.slice(0, 4), () => ({ color: "#6a4a30" }));
-      solidPart(k, ps[4], { tex: "zinc", color: "#8a7a68", tile: 2 });
+      allParts(k, ps.slice(0, 4), () => ({ color: "#4a4e52" }));
+      solidPart(k, ps[4], { tex: "zinc", color: "#8a8e92", tile: 2 });
       solidPart(k, ps[5], { tex: "wood", color: "#b08860", tile: 1 });
       for (let i = 0; i < 6; i++) k.box("#c8a070", [0.3, 0.05, 2.4], [2 + (i % 3) * 0.35, 0.03 + Math.floor(i / 3) * 0.05, -1], "detail");
       break;
@@ -724,10 +757,13 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
       }
       break;
     case "genalley":
-      allParts(k, ps.slice(0, 2), () => ({ tex: "plaster", color: "#b8ad98", tile: 2 }));
-      for (let i = 2; i < ps.length; i++) solidPart(k, ps[i], { color: r.pick(["#5a6068", "#3a3e42", "#2a2a2a"]) });
-      // Cables overhead.
-      for (let z = -10; z <= 10; z += 3.3) k.box("#1a1a1a", [4.6, 0.03, 0.03], [0, 3.1 - (z % 2 ? 0.3 : 0), z], "detail");
+      // v4 rework: a back alley: brick walls, wheelie bins and dumpsters (no generators, no cables).
+      allParts(k, ps.slice(0, 2), () => ({ tex: "brick", color: "#a89080", tile: 2 }));
+      for (let i = 2; i < ps.length; i++) {
+        const q = ps[i];
+        solidPart(k, q, { color: r.pick(["#2f4a3a", "#3a3e42", "#2a3a4a"]) });
+        k.box("#24272a", [q.hx * 2 + 0.08, 0.08, q.hz * 2 + 0.08], [q.x, q.y1 + 0.04, q.z], "detail", q.rot ? [0, q.rot, 0] : undefined);
+      }
       break;
     case "plaza":
       solidPart(k, ps[0], { tex: "concrete", color: "#c8c0b0", tile: 1.5 });
@@ -735,7 +771,9 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
       allParts(k, ps.slice(1), () => ({ color: WOOD, level: "main" }));
       break;
     case "wall":
-      allParts(k, ps, () => ({ tex: "concrete", color: "#c8bea8", tile: 2 }));
+      // v4 rework: brick with a coping (no compound wall).
+      allParts(k, ps, () => ({ tex: "brick", color: "#b89a88", tile: 2 }));
+      for (const q of ps) if (q.kind !== "ramp" && q.y1 > 0.5) k.box("#cfcac0", [q.hx * 2 + 0.08, 0.08, q.hz * 2 + 0.08], [q.x, q.y1 + 0.04, q.z], "detail", q.rot ? [0, q.rot, 0] : undefined);
       break;
     // ── v4 Phase 7: the big world's places (low-poly, coloured per vertex, merged per cell) ──
     case "pine": {

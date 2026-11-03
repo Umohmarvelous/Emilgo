@@ -885,8 +885,8 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }, lib: W
       gk.scratch = chunks[i];
       if (s.kind === "pit") {
         // The floor of a gutter or the river bed.
-        gk.box(s.water !== undefined && s.hx > 2 ? "#5a4a34" : "#5a5854", [s.hx * 2, 0.1, s.hz * 2], [s.x, s.y1 - 0.05, s.z], "mass", r);
-        if (s.water !== undefined && s.hx <= 2) gk.box("#3a3a2a", [s.hx * 2 - 0.02, 0.02, s.hz * 2], [s.x, (s.water ?? s.y1) - 0.01, s.z], "main", r);
+        gk.box(s.water !== undefined && s.hx > 2 ? "#5a4a34" : "#6a6a66", [s.hx * 2, 0.1, s.hz * 2], [s.x, s.y1 - 0.05, s.z], "mass", r);
+        if (s.water !== undefined && s.hx <= 2) gk.box("#2e3438", [s.hx * 2 - 0.02, 0.02, s.hz * 2], [s.x, (s.water ?? s.y1) - 0.01, s.z], "main", r);
       } else if (s.y0 === -0.25) {
         gk.box("#8a8680", [s.hx * 2, 0.27, s.hz * 2], [s.x, -0.115, s.z], "main", r); // a slab
       } else if (s.y0 < 0) {
@@ -907,8 +907,9 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }, lib: W
         const x = r.x0 + (r.x1 - r.x0) * t;
         const z = r.z0 + (r.z1 - r.z0) * t;
         gk.scratch = chunks[cellIndex(x, z)];
-        gk.box("#d8d4c8", [r.median, 0.3, seg], [x, 0.15, z], "mass", [0, rot, 0]);
-        for (let b = 0; b < seg; b += 2) gk.box(b % 4 ? "#e8c040" : "#1a1a1a", [r.median + 0.02, 0.06, 1], [x + Math.sin(rot) * (b - seg / 2 + 0.5), 0.27, z + Math.cos(rot) * (b - seg / 2 + 0.5)], "detail", [0, rot, 0]);
+        // A plain concrete kerb with a grass strip on top (v4 rework: no painted stripes).
+        gk.box("#c4c2bc", [r.median, 0.3, seg], [x, 0.15, z], "mass", [0, rot, 0]);
+        gk.box("#56683e", [r.median - 0.3, 0.04, seg], [x, 0.31, z], "main", [0, rot, 0]);
       }
     }
   }
@@ -925,14 +926,19 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }, lib: W
         for (let p = -10; p <= 10; p += 5) ek.box("#a89e8c", alongX ? [0.5, EDGE.h + 0.25, EDGE.t + 0.2] : [EDGE.t + 0.2, EDGE.h + 0.25, 0.5], [x + (alongX ? p : 0), (EDGE.h + 0.25) / 2, z + (alongX ? 0 : p)], "main");
       }
     }
-    // Beyond: the same red earth to the haze, and a ragged line of bush trees.
+    // Beyond: fields to the haze (v4 rework: no red earth), and a ragged line of trees.
+    // Four strips round the wall, none under the city: the drains and the river show their own floors.
     const fk = new PrefabKit(13);
     fk.scratch = emptyChunk();
-    const out = new PlaneGeometry(H * 2 + 1400, H * 2 + 1400, 1, 1);
-    out.rotateX(-Math.PI / 2);
-    out.translate(0, -0.03, 0);
-    fk.put(out.toNonIndexed(), "mass", 0);
-    paintOne(out, fk.scratch.mass[fk.scratch.mass.length - 1], "#9a7450");
+    const F = 700;
+    for (const [w, d, x, z] of [[H * 2 + F * 2, F, 0, H + F / 2], [H * 2 + F * 2, F, 0, -H - F / 2], [F, H * 2, H + F / 2, 0], [F, H * 2, -H - F / 2, 0]]) {
+      const out = new PlaneGeometry(w, d, 1, 1);
+      out.rotateX(-Math.PI / 2);
+      out.translate(x, -0.03, z);
+      fk.put(out.toNonIndexed(), "mass", 0);
+      paintOne(out, fk.scratch.mass[fk.scratch.mass.length - 1], "#6c7052");
+      out.dispose();
+    }
     const rr = mulberry(19);
     for (let i = 0; i < 220; i++) {
       const a = rr() * Math.PI * 2;

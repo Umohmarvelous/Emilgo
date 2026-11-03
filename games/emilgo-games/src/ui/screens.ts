@@ -361,12 +361,10 @@ export class Screens {
   /**
    * v4 Lobby A's own parts: the next drop's name over its picture; the
    * loadout in HUD A's Field Kit style (sidearm, primary, melee, Dead
-   * Streets' weapon, the armour path); your squad's four slots (an empty
+   * Streets' weapon, the suit: black, no armour, v4 rework); your squad's four slots (an empty
    * one invites); this week's rotation.
    */
   private lobbyA(s: LobbyState): string {
-    const tiers = ["T0", "T1", "T2", "T3", "T4"];
-    const from = [0, 25, 60, 100, 140];
     const lo = s.loadout;
     const card = (slot: string, name: string, rar: string, col: string) => `<div class="fk-card" style="--c:${col}"><span class="s">${esc(t(slot)).toUpperCase()} · <b>${esc(t(rar)).toUpperCase()}</b></span><span class="n">${esc(t(name)).toUpperCase()}</span></div>`;
     const squad = s.squad ?? [];
@@ -382,8 +380,7 @@ export class Screens {
         ${card("Primary", "Loot: rifle, SMG, shotgun", "Up to Mythic", "#ffb020")}
         ${card("Melee", "Close quarters", "Backup", "#3a9bff")}
         ${card("Dead Streets", lo.dead, "Run weapon", "#ff5a4a")}
-        <span class="h">${esc(t("Armour path"))} · ${esc(t(lo.kit))}</span>
-        <div class="tiers">${tiers.map((x, i) => `<i class="${lo.armour >= from[i] ? "on" : ""}">${x}</i>`).join("")}</div>
+        ${card("Suit", "Black, gloves, boots", "No armour worn", "#8a8f94")}
       </div>` : ""}
       <div class="lb-squad">${slots}</div>
       ${s.rotation?.length ? `<button class="lb-rot" data-act="mode" aria-label="${esc(t("Change mode"))}"><span class="h">${esc(t("Rotation · this week"))}</span><span class="row">${s.rotation.map((r) => `<span class="th${r.on ? " on" : ""}" style="background-image:url(${r.url})"><b>${esc(t(r.name))}</b></span>`).join("")}</span><span class="pick">${icon("swap", "", 12)}<b>${esc(t(s.rotation.find((r) => r.on)?.name ?? s.ffa ?? "Dead Streets")).toUpperCase()}</b></span></button>` : ""}`;
