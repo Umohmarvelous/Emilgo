@@ -42,6 +42,8 @@ import { gunStats, type GunsModule } from "../game/modules/guns";
 import { CombatHud } from "../ui/combat";
 import { FieldKit, leftLine, type ZombieBar } from "../ui/fieldkit";
 import { armourTier, KITS } from "../world/human/gear";
+import { WorldSound } from "../audio/world";
+import { emittersOf, Scenery } from "../world/scenery";
 import { GunsView } from "../world/gunsView";
 import { getLang, t } from "../ui/i18n";
 import { PING_LINES } from "../ui/quickchat";
@@ -132,6 +134,7 @@ function runResult(sv: SurvivalModule, trace: number[]): NonNullable<ModeResult[
 }
 
 const _bar = new Vector3();
+const _fwd = new Vector3();
 
 /** The winning-streak glow on someone's clothes. */
 const STREAK_GLOW = 0x5a3c00;
@@ -176,6 +179,10 @@ export class FfaMode implements GameMode {
   private zMax = new Float32Array(0);
   private zHitAt = new Float32Array(0);
   private readonly zBars: ZombieBar[] = [];
+  /** v4 Phase 8: the places' sounds and the score; the turbines' rotors. */
+  private readonly worldSound: WorldSound;
+  private readonly scenery: Scenery;
+  private actionAt = -99;
   private readonly focus = new Vector3();
   private readonly marks: MapMark[] = [];
   private readonly looks: Look[];
@@ -265,6 +272,10 @@ export class FfaMode implements GameMode {
     this.gunsView = guns ? new GunsView({ crowd: h.crowd, sound: h.sound, tier: h.spec.tier, me: me.index, blood: h.settings.blood }) : null;
     this.combat = guns || m.module("survival") ? new CombatHud() : null;
     if (this.gunsView) h.scene.add(this.gunsView.group);
+    this.worldSound = new WorldSound(h.sound, h.spec.tier === 0 ? 6 : 12);
+    this.worldSound.setEmitters(emittersOf(world.layout));
+    this.scenery = new Scenery(world.layout);
+    h.scene.add(this.scenery.group);
     this.dead = m.module("survival") ? new DeadView({ crowd: h.crowd, hud: h.hud, sound: h.sound, me: me.index, layer: h.ui, tier: h.spec.tier, blood: h.settings.blood }) : null;
     if (this.dead) {
       h.scene.add(this.dead.group);
@@ -594,9 +605,13 @@ export class FfaMode implements GameMode {
         break;
       case "claw":
       case "hazard":
-        if (("tg" in e ? e.tg : e.id) === me.id) this.fk.hurt();
+        if (("tg" in e ? e.tg : e.id) === me.id) {
+          this.fk.hurt();
+          this.actionAt = m.elapsed;
+        }
         break;
       case "shot":
+        if (e.id === me.id) this.actionAt = m.elapsed;
         // Dead Streets: your shot on a zombie, marked like Free For All's.
         if (e.id === me.id && e.tg) {
           this.combat?.hitMark(e.head, false);
@@ -608,6 +623,7 @@ export class FfaMode implements GameMode {
         break;
       // ── Guns (v4) ──
       case "fire":
+        if (Math.hypot(e.x - me.x, e.z - me.z) < 30) this.actionAt = m.elapsed;
         if (e.id === me.id) {
           const K = GUNS.kinds[GUN_KINDS[e.g] ?? "pistol"];
           const ads = h.rig.ads;
@@ -616,6 +632,7 @@ export class FfaMode implements GameMode {
         }
         break;
       case "dmg":
+        if (e.by === me.id || e.tg === me.id) this.actionAt = m.elapsed;
         if (e.by === me.id && e.tg !== me.id) {
           const dead = e.hp <= 0;
           this.combat?.hitMark(e.head, dead);
@@ -799,6 +816,7 @@ export class FfaMode implements GameMode {
     const deadPin = this.dead?.update(dt, m, cam, this.marks).pin ?? null;
     if (this.gunsView) this.gunFrame(dt, m, me);
     this.fieldFrame(m, me);
+    this.soundFrame(dt, m, me);
     const goal = flagGoal ?? deadPin ?? this.modes6.update(dt, m, this.marks).pin;
     // The Harmattan: the siren, then the dust; footprints gone; headlights on (or in a power cut).
     const hm = m.module<HarmattanModule>("harmattan");
@@ -860,6 +878,21 @@ export class FfaMode implements GameMode {
       this.dimLook.saturation = LOOKS.naija.saturation * (1 - 0.35 * this.dimmed);
       h.draw(this.dimLook);
     } else h.draw(LOOKS.naija);
+  }
+
+  /** The places' sounds where the camera is, and the score's state: low health, the final circle, a fight, or exploring. */
+  private soundFrame(dt: number, m: Match, me: Contestant): void {
+    const h = this.host;
+    this.scenery.update(dt);
+    const cam = h.camera;
+    cam.getWorldDirection(_fwd);
+    this.worldSound.update(dt, cam.position, _fwd);
+    const g = m.module<GunsModule>("guns");
+    const sv = m.module<SurvivalModule>("survival");
+    const hp = sv ? sv.hp / SURVIVAL.you.hp : g ? g.hp[me.index] / GUNS.hp : 1;
+    const fight = m.elapsed - this.actionAt < 8;
+    const final = !!this.play.state?.zone?.final;
+    this.worldSound.setMusic(this.over || m.phase !== "play" || me.status !== "alive" || this.inCar >= 0 ? "off" : hp < 0.3 ? "low" : final ? "final" : fight ? "combat" : "explore");
   }
 
   /** HUD A, each frame: the watch, the plates, the edges; Dead Streets' centre arc and the zombies' bars. */
@@ -1078,6 +1111,9 @@ export class FfaMode implements GameMode {
     }
     this.combat?.root.remove();
     this.fk.dispose();
+    this.worldSound.dispose();
+    h.scene.remove(this.scenery.group);
+    this.scenery.dispose();
     for (let i = 0; i < this.src.match.contestants.length; i++) h.crowd.setGear(i, null);
     h.hud.setFieldKit(false);
     h.rig.adsWant = 0;

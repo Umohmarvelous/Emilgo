@@ -65,6 +65,10 @@ hidden and untouched).
 | More billboards | The city's 13 boards keep their ids; 14 more on the big world's roads, places and plazas ("mx-…"), on the end of the list. |
 | Assets: only the vital | The game stays code-drawn (nothing heavy ships: the script and two 250 KB body scans). `tools/assets/pipeline.mjs` fetches a short vital list (`vital.json`: CC0 rocks, a barrel, a military crate, a jerrycan, a dead trunk, a stump), welds and dedups, makes three LODs (meshopt simplify), meshopt-compresses, halves textures to WebP per LOD, checks a 600 KB budget per model (27 MB of sources → 2.4 MB), uploads to R2 with `R2_BUCKET` (the owner's). `src/assets/cdn.ts` loads them from `VITE_ASSET_CDN` (an LRU under 120/200/350 MB by tier); with a CDN, the scanned crate and drum replace the low-poly ones (Medium and up). Without one (offline, the app, Lagos Life) nothing changes. |
 | Fab and Sketchfab | `tools/assets/sketchfab.mjs` (needs `SKETCHFAB_TOKEN`; only CC0 and CC-BY, CC-BY written to CREDITS.md) and `tools/assets/fab.mjs` (Fab has no download API: the owner exports glTF; needs `FAB_LICENCE`); both land in `tools/assets/in/` for the pipeline. They refuse without the owner's token or licence. |
+| Sound: what ships | **Everything still synthesised in code** (no download weight): ffmpeg isn't on this Mac and Kenney's site refuses scripted downloads, so no recorded samples were fetched. The sample layer is ready: `tools/assets/sounds.json` + `sounds.mjs` (CC0 only: Kenney packs downloaded by hand into `tools/assets/in/sfx/`, Freesound CC0 with the owner's `FREESOUND_TOKEN`; never BBC Sound Effects) encode to Opus 48 kbps for the CDN, and `src/audio/samples.ts` lets a listed sample take over its synthesised sound (guns, the blast, the world's loops). |
+| Spatial emitters | Turbines (a whoosh each blade pass), the clubs (bass through the walls, the full mix within 26 m), generators, the refinery's flares, the harbour's water and gulls, birds in the forest, frogs in the swamp, the Arena's crowd: loops made in code, low-passed with distance, through panners (inverse distance). The nearest 6 (Low) or 12 play, chosen four times a second, faded in and out. Taken from the layout, so Naija World's generators sound too. |
+| Music states | A pad in a minor walk (explore, 84 bpm) → a pulse under it for 8 s after a shot, a hit or a claw near you (combat, 104) → faster with a riser in the final circle (124) → low-passed under 30 health; off in a car (the radio), when out, and at the end (the win and lose stings are the Sound's). Changes at the next bar. |
+| The turbines turn | One instanced draw for every rotor (hub and three 21 m blades), a turn every 3.3 s. |
 | "1 million users at once" | One server process can't hold that. The build makes each room server stateless between matches and adds a room directory so many machines share the load. Tested here at **10,000 simulated players** (the owner's number); the 1M path is described in README (machines × rooms), not tested. |
 
 ## Phases (built back to back, no waiting; each tested, committed, pushed, the test site republished)
@@ -153,3 +157,12 @@ Not done in Phase 6: a flagship phone's numbers.
 | Builds | typecheck · server · EMILGO embed |
 
 Not done in Phase 7: the owner's R2 bucket and `VITE_ASSET_CDN` (the pipeline is ready); Fab and Sketchfab accounts; a low-end phone's build time for the big world.
+
+### Phase 8: Sound (done 3 Nov 2026)
+
+| Check | Result |
+|---|---|
+| In headless Chrome | The big world at Windmere Ridge: three turbine voices sounding, the music on "explore", 84 emitters in the world; at Neon Row six club voices; the rotors turning. No console errors. |
+| Builds | typecheck · EMILGO embed |
+
+Not done in Phase 8: recorded samples (ffmpeg and the CC0 files: the owner's machine, see the decision row); listening on a real phone (headless Chrome can't hear).

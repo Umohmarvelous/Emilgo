@@ -1,0 +1,18 @@
+{
+  "note": "The sample layer's list (v4 Phase 8). CC0 only. Kenney packs are downloaded by hand from kenney.nl (their site refuses scripts) into tools/assets/in/sfx/; Freesound CC0 sounds need the owner's FREESOUND_TOKEN. Never BBC Sound Effects (not for commercial use). Names match what the game asks for (src/audio/samples.ts).",
+  "sounds": {
+    "gun-pistol": { "freesound": 0, "kenney": "" },
+    "gun-rifle": { "freesound": 0, "kenney": "" },
+    "gun-smg": { "freesound": 0, "kenney": "" },
+    "gun-shotgun": { "freesound": 0, "kenney": "" },
+    "reload": { "kenney": "Impact Sounds/footstep_concrete_000.ogg" },
+    "hit": { "kenney": "Interface Sounds/click_002.ogg" },
+    "explosion": { "freesound": 0 },
+    "loop-turbine": { "freesound": 0 },
+    "loop-club": { "freesound": 0 },
+    "loop-gulls": { "freesound": 0 },
+    "loop-birds": { "freesound": 0 },
+    "loop-frogs": { "freesound": 0 },
+    "loop-crowd": { "freesound": 0 }
+  }
+}

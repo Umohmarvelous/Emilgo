@@ -12,6 +12,7 @@
 // Notes are scheduled a little ahead of time (a look-ahead window), so a cut
 // silences only what was already queued.
 
+import { loadSamples, sampleBuffer } from "./samples";
 import type { Surface } from "../maps/registry";
 import { RADIO, type RadioId } from "./radio";
 import type { Hit, Song, SungNote, VoiceKind } from "./songs";
@@ -92,6 +93,11 @@ export class Sound {
     return !!this.ctx;
   }
 
+  /** The engine's context and buses (v4: the world's emitters and the music states plug in here), or null before the first tap. */
+  get graph(): { ctx: Ctx; sfx: GainNode; music: GainNode } | null {
+    return this.ctx && this.sfx && this.music ? { ctx: this.ctx, sfx: this.sfx, music: this.music } : null;
+  }
+
   /**
    * Build the audio engine ahead of time, SILENT. Browsers create a context made
    * before any tap in the "suspended" state: nothing can play until unlock()
@@ -134,6 +140,8 @@ export class Sound {
     comp.threshold.value = -14;
     comp.ratio.value = 4;
     this.master.connect(comp).connect(this.ctx.destination);
+    // v4: the sample layer, from the asset CDN if there is one.
+    loadSamples(this.ctx);
     this.music = this.ctx.createGain();
     this.music.gain.value = 0.55 * this.levels.music;
     this.music.connect(this.master);
@@ -810,6 +818,7 @@ export class Sound {
   /** A shot: a crack and a body by gun; far off, only the low thump; yours is fullest. */
   gunshot(kind: "pistol" | "rifle" | "smg" | "shotgun", near: number, mine: boolean): void {
     if (near <= 0.03 || this.busy(mine ? VOICE_CAP : VOICE_CAP - 8)) return;
+    if (this.sample(`gun-${kind}`, (mine ? 1 : 0.75) * near)) return;
     const t = this.now;
     const g = (mine ? 1 : 0.75) * near;
     const far = 1 - near;
@@ -872,8 +881,23 @@ export class Sound {
     this.tone(180, t + 0.05, 0.08, { type: "sine", gain: 0.12, to: 120 });
   }
 
+  /** A recorded sound from the sample layer (samples.ts), if it's there: true when it played. */
+  private sample(name: string, gain: number): boolean {
+    const ctx = this.ctx;
+    const buf = sampleBuffer(name);
+    if (!ctx || !buf || !this.sfx) return false;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const g = ctx.createGain();
+    g.gain.value = gain;
+    src.connect(g).connect(this.sfx);
+    src.start();
+    return true;
+  }
+
   /** A car blowing up: a deep boom, a roar of noise, debris after. */
   explosion(near: number): void {
+    if (this.sample("explosion", 0.9 * near)) return;
     const t = this.now;
     this.tone(60, t, 1.2, { type: "sine", gain: 0.6 * near, to: 25 });
     this.noise(t, 1.4, { gain: 0.45 * near, freq: 500, type: "lowpass" });
