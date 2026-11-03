@@ -75,6 +75,9 @@ hidden and untouched).
 | The pre-match screen | The drop's picture behind you, "Dropping into NAIJA CITY" (Dead Streets: "Tonight · SPOOKY WORLD" on its night street), the mode card squared off in Field Kit style with what you carry in (Spawn with: Pistol · Loot: rifle, SMG, shotgun; Dead Streets: your run weapon, the torch), the squad cards in Field Kit style, the route sign as before. |
 | Victory and defeat | A cinematic over the winner's circle first: letterbox bars, the mode, **VICTORY** (gold, a light sweep) or **DEFEAT** (bone white, a red floor), your line (place, your measure; Dead Streets' run line), its sting (victory: a boom, a rising wash, a held major chord; defeat: a boom, a falling minor line over a drone). After 2.9 s (or a tap) it fades and the results card rises under it, the lobby countdown as before. The circle's three stand in their operator kits; a Dead Streets run's circle is you alone. Reduced motion: no animation, 0.9 s. |
 | "1 million users at once" | One server process can't hold that. The build makes each room server stateless between matches and adds a room directory so many machines share the load. Tested here at **10,000 simulated players** (the owner's number); the 1M path is described in README (machines × rooms), not tested. |
+| The room directory | Nodes beat to it every 2 s; it keeps no data. Quick play → the node with the most room (a node whose ticks run over 12 ms counts as busy); a code's first letter is its node's shard; a Lagos Life match → the same node for both players by rendezvous hashing. Deploys drain: idle sockets closed with 1012, matches finished, then exit. |
+| The 10,000 test | 10,000 sockets through the directory, **10% in live matches, 90% in the menus** (`--menu 0.9`): a laptop can't run 10,000 players in matches at once and still measure anything, and most of a live crowd is in menus at any moment. Per-node match capacity is measured separately (1,000 players on one node) and the sizing is worked out from it. |
+| No start stalls | Each Free For All world's walk grid is built when the server starts (1 s on Naija Max, which the first match used to pay mid-tick), and one Free For All match starts per step. |
 
 ## Phases (built back to back, no waiting; each tested, committed, pushed, the test site republished)
 
@@ -180,3 +183,17 @@ Not done in Phase 8: recorded samples (ffmpeg and the CC0 files: the owner's mac
 | Builds | typecheck · EMILGO embed |
 
 Not done in Phase 9: hearing the stings on a phone (headless Chrome can't hear).
+
+### Phase 10: Scale and performance (done 3 Nov 2026)
+
+| Check | Result |
+|---|---|
+| The directory (`dirtest`) | 14 checks: quick play to the emptiest node; a burst of 2,000 spread; nobody past a cap; a code to the node its letter names (none live: not found); a Lagos Life match on the same node every time, matches spread, only a gone node's matches move; long ticks passed over; a draining node gets no quick play but keeps its codes; a silent node gone; a live node's letter can't be taken. |
+| **10,000 clients** (directory + 4 nodes on this Mac, 3 load processes, 120 s) | **10,000/10,000 connected, 0 failed**; ~1,000 in 63 live Find the Flag and Royale rooms, the rest in the menus; 1.0 GB over the 4 nodes. With 4 × cap 2,000 the directory told the 1,712 over the cap `full`, as it should. |
+| One node, 1,000 Free For All players | 1,000/1,000; tick p50 1–5 ms; 5.6 KB/s to each phone. Before the fix: a 1.6 s stall when the first Royale started (its walk grid), now gone. |
+| One room offline (`stepbench`) | 24-player Royale: p50 0.2 ms, p99 1.7 ms, flat for 5 minutes (nothing grows); a match's setup 17–45 ms. |
+| Frame rate, CPU 4× (844×390, real GPU) | Four main-thread wastes fixed: a material shared between instanced meshes with and without instance colours (its program re-picked every draw); 4,000 static world matrices recomputed every frame; additive see-through glows drawn back-then-front with a program re-pick each pass; a layout forced every frame by the zombie bars and gun HUD. Royale Low 48 → **60**, Medium 24 → **40**; Find the Flag Low 54–60 (best run), Medium 39–42; Dead Streets Low 27 → **39**, Medium 21–27. The Mac was busy throughout (load average 8–53 from other apps), so runs varied by up to ±20 fps. |
+| Regression | dirtest, guns, max, shared, ffa (offline and 12 phones online), match (the staked Flag Duel), rules, world, space, survival, extras, cars, content, rank, shop, social, balls: all pass (shop and social need `BALL_HAUNT=1` on the test server, as HANDOFF says). |
+| Builds | typecheck (client and server) · server · EMILGO embed |
+
+Not done in Phase 10: a run on real server machines (the sizing in README §8 is worked out from this Mac); Dead Streets Medium and Find the Flag Medium are still under Phase 5 and 7's numbers on a busy Mac, and the HUD and sound each cost a few fps at 4× throttle (an A/B: hiding the HUD and suspending sound together took Dead Streets Low from 16 to 31 in one noisy run). A real low-end phone's numbers.

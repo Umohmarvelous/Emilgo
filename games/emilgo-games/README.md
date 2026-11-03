@@ -392,15 +392,63 @@ the Docker image. Do those before submitting.
 
 ## 8. Scaling notes
 
-The client scales by itself — each phone draws only its own round. The server:
+The client scales by itself: each phone draws only its own match. The server
+scales by **nodes × rooms** behind a **room directory** (v4 Phase 10).
 
-- A round is tiny; one process hosts thousands of players. Add processes behind
-a load balancer that keeps a WebSocket on one instance.
-- With several processes: one shared `TICKET_SECRET`, and the purchases store
-moved from SQLite to a shared database (implement `OwnershipStore` in
-`server/src/store.ts` on Postgres; nothing else changes).
+### How it fits together
+
+- **Nodes** are ordinary game servers (`server/dist/index.mjs`). Each holds its own
+  rooms and is stateless between matches. Each beats to the directory every 2 s
+  (players, rooms, tick time, memory, draining).
+- **The directory** (`server/dist/directory.mjs`, or `/dir/*` on any node) holds
+  no data, only the last beats. A phone asks it before connecting:
+  quick play goes to the node with the most room; a room or party code goes to its node
+  (the code's first letter is the node's shard); a Lagos Life match id goes to
+  the same node for both players (rendezvous hashing). When every node is full
+  the directory answers 503 `full`, and the phone falls back to its build's one
+  server address (keep that pointed at a node with headroom).
+- **Deploys** drain: on SIGTERM a node stops taking players, closes idle sockets
+  with 1012 (the phone asks the directory again and moves), finishes its matches,
+  then exits (15 min at most).
+- With several nodes: one shared `TICKET_SECRET`, and the purchases store moved
+  from SQLite to a shared database (implement `OwnershipStore` in
+  `server/src/store.ts` on Postgres). A Lagos Life webhook can land on any node:
+  it is only a nudge, so that is safe once the store is shared.
+
+| Env (node) | |
+|---|---|
+| `DIRECTORY` | the directory's https address |
+| `DIR_SECRET` | shared by the directory and every node (beats are refused without it) |
+| `NODE_URL` | this node's public `wss://` address |
+| `SHARD` | one letter from `NET.codeAlphabet`, different on every node |
+| `NODE_CAP` | players it should hold (default 2000) |
+| `WARM_WORLDS=0` | skip building the worlds and walk grids at start (tests only) |
+
+The game is built with `VITE_GAMES_DIRECTORY=https://…`. Without it, it uses the
+one server, as before.
+
+### Measured (3 Nov 2026, this Mac: 4-core i5 1.4 GHz, 8 GB)
+
+| Test | Result |
+|---|---|
+| One room's rules, offline (`stepbench`) | 24-player Royale on Naija Max: step p50 0.2 ms, p99 1.7 ms, flat over 5 minutes. Setting up a match: 17–45 ms warm. |
+| One node, 1,000 Free For All players (Find the Flag + Royale) | 1,000/1,000 connected; tick p50 1–5 ms; 5.6 KB/s to each phone. Socket writes are about 20% of the node's CPU, the rules about 30%. |
+| **10,000 clients through the directory** (4 nodes, cap 3,000; 3 load processes) | **10,000/10,000 connected, 0 failed.** ~1,000 in live matches (63 rooms), 9,000 in the menus; 1.0 GB of memory over the 4 nodes. |
+| The same with 4 × cap 2,000 | 8,288 connected, 1,712 told `full` by the directory: the cap works. |
+
+The load processes, the nodes and the browser all shared four cores (load average
+up to 118), so the tick times above are the laptop's, not a server's. On it, ticks
+reached 13–17 ms p50 with only ~250 players in matches on each node.
+
+### Sizing
+
+- **10,000 players, all in matches**: 6–8 nodes on dedicated vCPUs (about 1,500
+  Free For All players each, keeping ticks well under the 16.7 ms step).
+- **1,000,000 players**: ~600 such nodes behind one directory (a beat is ~200 bytes
+  every 2 s: about 60 KB/s at 600 nodes). The directory is a pure function of
+  the last beats, so it can run as several copies. Not tested at that size.
 - Lagos Life API calls stay low: sessions are verified once per match or claim,
-and online outfits use signed tickets instead of an API call per connection.
+  and online outfits use signed tickets instead of an API call per connection.
 - Serve the game from a CDN (Cloudflare Pages): millions of opens cost nothing
-at the origin.
+  at the origin.
 

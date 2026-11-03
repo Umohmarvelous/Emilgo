@@ -1,5 +1,14 @@
 # EMILGO Games: session handoff
 
+> **3 Nov 2026: v4 "Max Mode" is done.** The owner's answers of 2 Nov
+> ([SPEC-V4-ORIGINAL.md](SPEC-V4-ORIGINAL.md)) became [SPEC-V4.md](SPEC-V4.md):
+> 10 phases (look control, guns, HUD A Field Kit, operators and armour, zombies,
+> Max graphics, Naija Max the 2 km world, sound, screens, scale and
+> performance), **all built, tested, committed and pushed without waiting for
+> approval**, as the owner asked. Ball Haunt stays hidden. What each phase
+> built and measured is in SPEC-V4 "Status"; what is still the owner's (keys,
+> R2, real servers, real phones) is in each phase's "Not done" line.
+>
 > **28 Oct 2026: v3 has begun.** The owner approved [SPEC-V3.md](SPEC-V3.md):
 > Dead Streets (solo zombie survival), Free For All (12 humans, melee, 10
 > modes, vehicles) and a hidden Ball Haunt, on one rank ladder kept on the
@@ -26,16 +35,17 @@
 
 Read these in order:
 1. This file.
-2. [SPEC-V3.md](SPEC-V3.md): the owner's answers, Decisions, the 11 phases and Status (v3 wins over everything below). The brief word for word: [SPEC-V3-ORIGINAL.md](SPEC-V3-ORIGINAL.md).
-3. [SPEC-V2.md](SPEC-V2.md) (Ball Haunt's rules; SPEC-V3's Phase 11 decisions change the doll, the song and the lasers):
+2. [SPEC-V4.md](SPEC-V4.md): v4's answers, Decisions and Status (v4 wins over v3 where they differ).
+3. [SPEC-V3.md](SPEC-V3.md): the owner's answers, Decisions, the 11 phases and Status (v3 wins over everything below). The brief word for word: [SPEC-V3-ORIGINAL.md](SPEC-V3-ORIGINAL.md).
+4. [SPEC-V2.md](SPEC-V2.md) (Ball Haunt's rules; SPEC-V3's Phase 11 decisions change the doll, the song and the lasers):
    - the owner's answers, the Decisions table and the 8 phases;
    - the **Status** section for what each finished phase built.
-4. [SPEC-ORIGINAL.md](SPEC-ORIGINAL.md): the owner's own full spec (§1–§11), word for word. Every `§` in this file and in SPEC-V2 points into it. Where it disagrees with SPEC-V2's Answers and Decisions, SPEC-V2 wins.
-5. [README.md](README.md):
+5. [SPEC-ORIGINAL.md](SPEC-ORIGINAL.md): the owner's own full spec (§1–§11), word for word. Every `§` in this file and in SPEC-V2 points into it. Where it disagrees with SPEC-V2's Answers and Decisions, SPEC-V2 wins.
+6. [README.md](README.md):
    - §1, the Lagos Life rules the game must keep;
    - §4, the architecture;
    - §5, how to run it and test it.
-6. [UPGRADE.md](UPGRADE.md) only for history. Where it disagrees with SPEC-V2, SPEC-V2 wins.
+7. [UPGRADE.md](UPGRADE.md) only for history. Where it disagrees with SPEC-V2, SPEC-V2 wins.
 
 ## How the owner works (follow these)
 
@@ -174,6 +184,26 @@ Where things are:
 - Shadow stand-ins: `graphics/shadowOnly.ts`; `Human.castShadows`.
 - The ground solver lying down skins its points by all four weights
   (`Body.contactsAll`, stride 20).
+
+## v4: where things are (scale, Phase 10)
+
+- The room directory: `server/src/directory.ts` (the `Directory`, its `/dir/*` routes,
+  the nodes' beat), `server/src/dirMain.ts` (standalone, built to
+  `server/dist/directory.mjs`). Nodes join with `DIRECTORY`, `DIR_SECRET`, `NODE_URL`,
+  `SHARD`, `NODE_CAP` (README §8). The phone: `src/net/client.ts` asks it first
+  (`VITE_GAMES_DIRECTORY`, or `?dir=` in dev) and moves on a code from another node or 1012.
+- On this Mac: `node server/scripts/cluster.mjs 4` (directory :8800, nodes :8801…,
+  logs in /tmp/emilgo-cluster; `NODE_CAP=3000` for 10,000), then
+  `node server/dist/loadtest.mjs --clients 10000 --seconds 120 --dir http://localhost:8800 --ffa find-the-flag,max-royale --menu 0.9 --procs 3`.
+  Stop it with `kill -INT <cluster pid>`, never `pkill -f` with a pattern (it can kill your shell).
+- One room's cost offline: `node server/dist/stepbench.mjs max-royale 24 300`.
+- A node logs `slow step N ms: worst room …` (at most every 10 s) when a step runs long.
+- Frame rate: `CPU_RATE=4 GPU=1 VIEW=844x390 node dev/cdp.mjs http://localhost:5173/ <out> <script.json>`
+  with a script that starts a mode and samples `requestAnimationFrame` (SPEC-V4 Phase 7 and 10).
+  Read `uptime` first: at a load average over ~10 the numbers swing by ±20 fps.
+- three.js traps found in Phase 10 (each re-picks a program every draw): one material on
+  instanced meshes with and without instance colours; a transparent `DoubleSide`
+  material without `forceSinglePass`; and reading `clientWidth` every frame forces a layout.
 
 ## v3 Phase 1: where things are
 
