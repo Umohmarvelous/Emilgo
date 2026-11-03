@@ -56,6 +56,7 @@ export class HarmattanModule implements RuleModule {
 
   /** The wind on a body on foot this step (the server's and the phone's prediction alike). */
   drift(m: Match, c: Contestant, dt: number): void {
+    if (HARMATTAN.wind <= 0) return;
     const s = this.now(m);
     if (!s || c.status !== "alive" || m.seated(c)) return;
     c.x += s.wx * HARMATTAN.wind * dt;

@@ -92,6 +92,45 @@ hidden and untouched).
 9. **Screens.** Welcome A, lobby A, the pre-match screen, victory and defeat.
 10. **Scale and performance.** The room directory, the 10,000-player load test, frame rate on throttled CPUs, the whole regression suite, docs and the handoff.
 
+## Rework (3 Nov 2026)
+
+The owner's rework brief is in [SPEC-V4-ORIGINAL.md](SPEC-V4-ORIGINAL.md)
+(last section). It wins over everything above where they differ. Built back to
+back without waiting, each phase tested, committed, pushed, the test site
+republished (the 2 Nov standing order, repeated).
+
+### The cross-check: the briefs against what v4 shipped
+
+| Brief | What v4 shipped | Verdict |
+|---|---|---|
+| P1 operators: kevlar/fabric/metal PBR with dirt and wear | Canvas camo on the hoodie scan, box boots, a plate carrier | **Redo** (rework: a black suit, no armour, gloves, boots, new body) |
+| P1 zombies: emerge, lunge, attack "cinematic and fluid" | Procedural keys | **Improve** (CC0 mocap zombie walk, idle, scratch) |
+| P1 reload animations | A procedural dip | **Redo** (mocap reload) |
+| P2 "forget the Nigerian layouts, go global" | Naija World's city kept exactly, in the middle of Naija Max | **Redo** (rework: every world replaced) |
+| P2 1,000+ CC0 assets (Poly Haven, ambientCG, Kenney…) | Code-drawn; six "vital" models only behind a CDN that isn't set up, so nobody sees them | **Redo**: the CC0 textures, skies and models ship with the site |
+| P2 PBR + normal maps on all assets, SSR on wet ground and glass, volumetric fog | Code textures; env-map shine; god rays on Max | **Redo** (real PBR sets; Max: wet-ground reflections, height fog) |
+| P2 sound effects from sources online, gamey background music | Everything synthesised | **Redo** (CC0 music and SFX downloaded) |
+| P3 every HUD and end screen | Field Kit in matches; lobby, welcome, pre-match, ends | **Extend**: every screen in Field Kit (the rework) |
+| Answers 1–11 | Built | Kept; 6 (CDN) also served from the site itself so the assets show without R2 |
+| Rework: no push "when the dew comes" | The Harmattan's wind drifts you 0.9 m/s | **Fix** (no push; the storm is haze only) |
+| Rework: aims when firing | Fires from the hip pose | **Fix** |
+| Rework: controls bottom centre, boxes, arrangeable | Round buttons in clusters | **Redo** |
+
+### Rework phases
+
+| # | Phase | Status |
+|---|---|---|
+| R1 | Fixes: no storm push, aim when firing | **Done 3 Nov.** The sandstorm's wind is 0 (haze only; extrastest checks nobody moves). The "no aim" was a bug: the aim's chest lean reused a scratch quaternion that `turnWorld` overwrote, so any pitch spun the chest 180° and the body faced the camera while firing; now it faces the crosshair. |
+| R2 | The operator: a new CC0 body (Quaternius mannequin) on the game's skeleton, black suit, gloves, boots, balaclava, no armour or camo; three-joint fingers; LODs | |
+| R3 | Moves: CC0 mocap (Quaternius Universal Animation Library 1+2) retargeted: idle, walk, jog, sprint, jump, crouch, roll, hits, deaths, pistol aim/shoot/reload, torch; rifle and pistol grips with hand IK; live fingers and wrists; zombies' mocap walk | |
+| R4 | The asset library: CC0 PBR texture sets and HDR skies (Poly Haven, ambientCG) and models, compressed per tier, served with the site, streamed | |
+| R5 | The worlds replaced: a new global city for Free For All, the big world's middle, Dead Streets' night city; new vehicles; new names | |
+| R6 | Controls: COD-style boxes along the bottom centre (circles only for fire, aim and the sticks); a layout editor | |
+| R7 | Every screen in Field Kit style | |
+| R8 | Sound: downloaded CC0 music (no strings) and SFX | |
+| R9 | The cross-check pass: every line of every brief, with pictures | |
+| R10 | Performance, regression, the 10,000 test, docs, the site | |
+
 ## Status
 
 ### Phase 1: Look control (done 2 Nov 2026)

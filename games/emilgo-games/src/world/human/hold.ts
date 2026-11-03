@@ -49,6 +49,8 @@ const _want = new Vector3();
 const _q = new Quaternion();
 const _qw = new Quaternion();
 const _qp = new Quaternion();
+/** The lean's own scratch: turnWorld writes _qw, so passing _qw in turned the chest by its own world rotation (the body spun round to face the camera when firing). */
+const _lean = new Quaternion();
 const _fwd = new Vector3();
 const _left = new Vector3();
 const _up = new Vector3(0, 1, 0);
@@ -149,8 +151,8 @@ export function applyHold(h: Holder, hold: Hold): void {
   const pitch = Math.max(-0.9, Math.min(0.9, hold.pitch));
   // Aiming, the chest and head lean with the pitch (the arms come with them).
   if (hold.mode === 1 && Math.abs(pitch) > 0.01) {
-    turnWorld(h.bone("chest"), _qw.setFromAxisAngle(_left, pitch * 0.55));
-    turnWorld(h.bone("neck"), _qw.setFromAxisAngle(_left, pitch * 0.25));
+    turnWorld(h.bone("chest"), _lean.setFromAxisAngle(_left, pitch * 0.55));
+    turnWorld(h.bone("neck"), _lean.setFromAxisAngle(_left, pitch * 0.25));
   }
   h.bone("upperArmR").getWorldPosition(_sh);
   h.bone("upperArmL").getWorldPosition(_shL);

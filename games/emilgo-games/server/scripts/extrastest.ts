@@ -647,7 +647,7 @@ console.log("the Harmattan:");
   runFor(m, 3);
   const st = hm.storms[0];
   const moved = (a.x - YX) * st.wx + (a.z - YZ) * st.wz;
-  check(!!hm.now(m) && moved > HARMATTAN.wind * 1.5 && moved < HARMATTAN.wind * 2.5, `in the storm, standing still: blown ${moved.toFixed(1)} m downwind in 2 s`);
+  check(!!hm.now(m) && moved < 0.01, `in the storm, standing still: not pushed (${moved.toFixed(2)} m in 2 s; the rework: haze only)`);
   const duel = new Match({ seed: 72, world: matchWorldOf(layout, space, "naija-world:market"), settings: settingsOf(def("flag-duel")), contestants: [{ id: "a", name: "A", bot: false }, { id: "b", name: "B", bot: false }] });
   check((duel.module<HarmattanModule>("harmattan")?.storms.length ?? 0) === 0, "none in the staked duel (part of the city)");
 }

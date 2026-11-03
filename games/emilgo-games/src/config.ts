@@ -580,8 +580,12 @@ export const HARMATTAN = {
   siren: 3,
   /** Seen this far in it (m). */
   see: 25,
-  /** The wind's push on everyone on foot, m/s. */
-  wind: 0.9,
+  /**
+   * The wind's push on everyone on foot, m/s. 0 since the v4 rework (the
+   * owner: "why does my 3d model move backward when the dust comes"): the
+   * storm is haze, sound and lost footprints only; nobody is pushed.
+   */
+  wind: 0,
   /** None in the first or the last of a match (s). */
   margin: 75,
 } as const;
