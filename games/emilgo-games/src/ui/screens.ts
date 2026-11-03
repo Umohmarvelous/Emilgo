@@ -532,7 +532,7 @@ export class Screens {
        <div class="grid">${tiles}</div>
        <div class="label" style="margin:14px 0 8px">Emote wheel</div>
        <div class="grid" style="grid-template-columns:repeat(4,1fr)">${slots}</div>
-       ${!packOwned ? `<div class="status" style="margin-top:12px">${icon("lock", "", 14)} Zanku, Shaku Shaku and Odogwu come with the Owambe emote pack${canBuy ? ` · ${naira(PRODUCT_BY_ID.emotes_owambe.price)} in the Store` : " (inside Lagos Life)"}.</div>` : ""}`,
+       ${!packOwned ? `<div class="status" style="margin-top:12px">${icon("lock", "", 14)} Wobble, Shuffle and Hero come with the Party emote pack${canBuy ? ` · ${naira(PRODUCT_BY_ID.emotes_owambe.price)} in the Store` : " (inside Lagos Life)"}.</div>` : ""}`,
     );
   }
 

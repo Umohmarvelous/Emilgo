@@ -69,11 +69,11 @@ function itemWhat(k: ItemId): string {
 }
 
 const EFFECT_NAME: Record<string, { item: ItemId; label: string }> = {
-  speed: { item: "kola", label: "Kola Rush" },
+  speed: { item: "kola", label: "Adrenaline Shot" },
   shield: { item: "zone-shield", label: "Zone Shield" },
-  bait: { item: "zanku", label: "Zanku Bait" },
-  shaku: { item: "shaku", label: "Shaku Shield" },
-  pose: { item: "odogwu", label: "Odogwu Pose" },
+  bait: { item: "zanku", label: "Wobble Bait" },
+  shaku: { item: "shaku", label: "Shuffle Shield" },
+  pose: { item: "odogwu", label: "Hero Pose" },
 };
 
 export class PlayHud {

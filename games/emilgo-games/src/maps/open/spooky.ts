@@ -314,8 +314,8 @@ function groundOf(roads: Road[], x: number, z: number): GroundKind {
 
 const NAMES = [
   "", "Tree climb", "Rooftop gap", "Collapsed overpass", "Zombie pool", "Looping tunnels", "Live power line", "Burning oil tank", "Collapsing building",
-  "Barricaded door", "Danfo-wreck pile", "Market-stall maze", "Rope bridge", "Flooded drain", "Water-tank ladder", "Generator gate", "Bell tower",
-  "Barbed wire", "Container maze", "Okada ramp", "Swinging zinc", "Floor collapse", "Gateman's gate", "Pitch-black room", "Thorn hedge",
+  "Barricaded door", "Van-wreck pile", "Market-stall maze", "Rope bridge", "Flooded drain", "Water-tank ladder", "Generator gate", "Bell tower",
+  "Barbed wire", "Container maze", "Scooter ramp", "Swinging sheets", "Floor collapse", "Guard's gate", "Pitch-black room", "Thorn hedge",
   "Flooded underpass", "Narrow ledge", "Train carriage", "Scaffold climb", "Fake shortcut", "Mirrored alleys",
 ];
 

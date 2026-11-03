@@ -63,34 +63,34 @@ const def = (id: ItemId, en: string, pcm: string, what: string, whatPcm: string,
 });
 
 export const ITEM_DEFS: Record<ItemId, ItemDef> = {
-  kola: def("kola", "Kola Rush", "Kola Rush", "+15% speed for 10 s", "+15% speed for 10 seconds", { kind: "speed", mult: 1.15, s: 10 }),
-  zobo: def("zobo", "Zobo Flask", "Zobo Bottle", "Takes 40% off your exposure", "E go remove 40% from your exposure", { kind: "exposure", take: 0.4 }),
+  kola: def("kola", "Adrenaline Shot", "Adrenaline Shot", "+15% speed for 10 s", "+15% speed for 10 seconds", { kind: "speed", mult: 1.15, s: 10 }),
+  zobo: def("zobo", "Field Flask", "Field Bottle", "Takes 40% off your exposure", "E go remove 40% from your exposure", { kind: "exposure", take: 0.4 }),
   "big-bag": def("big-bag", "Big Bag", "Big Bag", "+2 backpack slots", "+2 space for your bag", { kind: "slots", add: 2 }),
   "zone-shield": def("zone-shield", "Zone Shield", "Zone Shield", "The sky can't see you for 30 s", "Sky no fit see you for 30 seconds", { kind: "shield", s: 30 }, true),
   // Melee's (Phase 4).
-  "pepper-soup": def("pepper-soup", "Pepper Soup", "Pepper Soup", "+20% knockback for 15 s", "+20% push for 15 seconds", { kind: "pepper", s: 15 }, false, "melee"),
-  "iron-wrapper": def("iron-wrapper", "Iron Wrapper", "Iron Wrapper", "Brace without slowing for 10 s", "Brace and no slow down for 10 seconds", { kind: "iron", s: 10 }, false, "melee"),
-  slipper: def("slipper", "Flying Slipper", "Flying Slipper", "A thrown stun", "Throw am, e go stun", { kind: "throw", back: false }, false, "melee"),
-  "golden-slipper": def("golden-slipper", "Golden Slipper", "Golden Slipper", "A thrown stun that comes back", "Throw am, e go stun, e go come back", { kind: "throw", back: true }, true, "melee"),
+  "pepper-soup": def("pepper-soup", "Hot Ration", "Hot Ration", "+20% knockback for 15 s", "+20% push for 15 seconds", { kind: "pepper", s: 15 }, false, "melee"),
+  "iron-wrapper": def("iron-wrapper", "Iron Guard", "Iron Guard", "Brace without slowing for 10 s", "Brace and no slow down for 10 seconds", { kind: "iron", s: 10 }, false, "melee"),
+  slipper: def("slipper", "Throwing Boot", "Throwing Boot", "A thrown stun", "Throw am, e go stun", { kind: "throw", back: false }, false, "melee"),
+  "golden-slipper": def("golden-slipper", "Golden Boot", "Golden Boot", "A thrown stun that comes back", "Throw am, e go stun, e go come back", { kind: "throw", back: true }, true, "melee"),
   // The FFA extras (Phase 6), vehicles (Phase 5).
   // The FFA extras (Phase 6: modules/gadgets.ts).
-  "smoke-pot": { ...def("smoke-pot", "Harmattan Smoke Pot", "Harmattan Smoke Pot", "A cloud nobody sees through, 12 s", "Smoke wey nobody fit see inside, 12 seconds", { kind: "gadget" }), counter: { en: "Walk out of the cloud", pcm: "Waka comot from the smoke" } },
+  "smoke-pot": { ...def("smoke-pot", "Smoke Canister", "Smoke Canister", "A cloud nobody sees through, 12 s", "Smoke wey nobody fit see inside, 12 seconds", { kind: "gadget" }), counter: { en: "Walk out of the cloud", pcm: "Waka comot from the smoke" } },
   "banana-peel": { ...def("banana-peel", "Banana Peel", "Banana Peel", "Dropped behind you: trips whoever runs over it", "Drop am for your back: who run pass am go fall", { kind: "gadget" }, false, "melee"), counter: { en: "Walk or crouch past it, or jump it", pcm: "Waka slow or bend pass am, or jump am" } },
-  "pepper-powder": { ...def("pepper-powder", "Pepper Powder", "Pepper Powder", "A sneeze stagger in a cone in front", "E go make dem sneeze shake for your front", { kind: "gadget" }, false, "melee"), counter: { en: "Brace, or stay behind them", pcm: "Brace, or stay for their back" } },
+  "pepper-powder": { ...def("pepper-powder", "Pepper Spray", "Pepper Spray", "A sneeze stagger in a cone in front", "E go make dem sneeze shake for your front", { kind: "gadget" }, false, "melee"), counter: { en: "Brace, or stay behind them", pcm: "Brace, or stay for their back" } },
   megaphone: { ...def("megaphone", "Megaphone", "Megaphone", "A push wave all round, after a slow wind-up", "Push wave for everywhere, e dey take time", { kind: "gadget" }, false, "melee"), counter: { en: "Hit them while it winds up", pcm: "Hit dem before e ready" } },
   "decoy-flag": { ...def("decoy-flag", "Decoy Flag", "Fake Flag", "A flag that isn't: whoever grabs it is stunned", "Flag wey no be flag: who carry am go hang", { kind: "gadget" }, false, "flags"), counter: { en: "A decoy isn't on the compass", pcm: "Fake flag no dey for compass" } },
-  "talking-drum": { ...def("talking-drum", "Talking Drum", "Talking Drum", "Shows the nearest rival for 5 s", "E go show the person wey near pass for 5 seconds", { kind: "gadget" }), counter: { en: "Hide in smoke, or drive fast", pcm: "Hide for smoke, or drive fast" } },
-  "aso-ebi": { ...def("aso-ebi", "Aso-ebi Disguise", "Aso-ebi Disguise", "Wear a rival squad's colour for 20 s", "Wear another squad colour for 20 seconds", { kind: "gadget" }), counter: { en: "It ends the moment you attack", pcm: "E go end once you attack" } },
+  "talking-drum": { ...def("talking-drum", "Pulse Scanner", "Pulse Scanner", "Shows the nearest rival for 5 s", "E go show the person wey near pass for 5 seconds", { kind: "gadget" }), counter: { en: "Hide in smoke, or drive fast", pcm: "Hide for smoke, or drive fast" } },
+  "aso-ebi": { ...def("aso-ebi", "Squad Disguise", "Squad Disguise", "Wear a rival squad's colour for 20 s", "Wear another squad colour for 20 seconds", { kind: "gadget" }), counter: { en: "It ends the moment you attack", pcm: "E go end once you attack" } },
   // Power-emote cards (§10.2): a dance with an effect, never free.
-  zanku: { ...def("zanku", "Zanku Bait", "Zanku Bait", "Dance: rivals near who watch you wobble 20% more for 3 s; you can't move", "Dance: who dey look you go shake 20% more for 3 seconds; you no fit waka", { kind: "gadget" }, false, "melee"), counter: { en: "Don't look: turn away, or hit them from behind", pcm: "No look am: turn your back, or hit am from back" } },
-  shaku: { ...def("shaku", "Shaku Shield", "Shaku Shield", "2 s nobody can knock you back, then 2 s slow", "2 seconds nobody fit push you, then 2 seconds slow", { kind: "gadget" }, false, "melee"), counter: { en: "Wait it out, then hit them while they're slow", pcm: "Wait make e finish, then hit dem as dem slow" } },
-  odogwu: { ...def("odogwu", "Odogwu Pose", "Odogwu Pose", "At an objective: +10% for your squad for 4 s; you're rooted", "For objective: +10% for your squad for 4 seconds; you no fit move", { kind: "gadget" }, false, "melee"), counter: { en: "A posing body can't move: push them off it", pcm: "Person wey dey pose no fit move: push am comot" } },
+  zanku: { ...def("zanku", "Wobble Bait", "Wobble Bait", "Dance: rivals near who watch you wobble 20% more for 3 s; you can't move", "Dance: who dey look you go shake 20% more for 3 seconds; you no fit waka", { kind: "gadget" }, false, "melee"), counter: { en: "Don't look: turn away, or hit them from behind", pcm: "No look am: turn your back, or hit am from back" } },
+  shaku: { ...def("shaku", "Shuffle Shield", "Shuffle Shield", "2 s nobody can knock you back, then 2 s slow", "2 seconds nobody fit push you, then 2 seconds slow", { kind: "gadget" }, false, "melee"), counter: { en: "Wait it out, then hit them while they're slow", pcm: "Wait make e finish, then hit dem as dem slow" } },
+  odogwu: { ...def("odogwu", "Hero Pose", "Hero Pose", "At an objective: +10% for your squad for 4 s; you're rooted", "For objective: +10% for your squad for 4 seconds; you no fit move", { kind: "gadget" }, false, "melee"), counter: { en: "A posing body can't move: push them off it", pcm: "Person wey dey pose no fit move: push am comot" } },
   breakdance: { ...def("breakdance", "Breakdance Sweep", "Breakdance Sweep", "Trips everyone round you; you're Dazed after", "E go trip everybody round you; you go hang after", { kind: "gadget" }, false, "melee"), counter: { en: "Jump it, brace, or stand back and hit them after", pcm: "Jump am, brace, or stand far then hit dem after" } },
   // Dead Streets' (Phase 7: modules/survival.ts).
   bandage: def("bandage", "Bandage", "Bandage", "+25 health", "+25 health", { kind: "survival" }, false, "survival"),
   medkit: def("medkit", "First-aid Kit", "First-aid Box", "+60 health", "+60 health", { kind: "survival" }, false, "survival"),
   ammo: def("ammo", "Ammo Box", "Bullet Box", "+12 rounds", "+12 bullets", { kind: "survival" }, false, "survival"),
-  armour: def("armour", "Armour Vest", "Armour Vest", "+50 armour: takes half of every hit", "+50 armour: e go take half of every hit", { kind: "survival" }, false, "survival"),
+  armour: def("armour", "Armour Plates", "Armour Plates", "+50 armour: takes half of every hit", "+50 armour: e go take half of every hit", { kind: "survival" }, false, "survival"),
   battery: def("battery", "Battery", "Battery", "Fills your torch", "E go full your torch", { kind: "survival" }, false, "survival"),
   nv: def("nv", "Night Vision", "Night Vision", "See in the dark for 60 s", "See for dark for 60 seconds", { kind: "survival" }, false, "survival"),
   // Vehicles' (Phase 5).
