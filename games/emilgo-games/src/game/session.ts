@@ -64,7 +64,12 @@ import { Hud, type MapMark } from "../ui/hud";
 import { QuickChat } from "../ui/quickchat";
 import { Scoreboard } from "../ui/scoreboard";
 import type { TerrainShot } from "../ui/minimap";
-import { Screens, honourTitle, naira, payoutOf, type FfaResultView, type LobbyTab, type OnlineAvailability, type PlayMode, type ResultInfo } from "../ui/screens";
+import { Screens, honourTitle, naira, payoutOf, type FfaResultView, type LobbyState, type LobbyTab, type OnlineAvailability, type PlayMode, type ResultInfo } from "../ui/screens";
+import { artForMap, nextDrop } from "../ui/places";
+import { KITS } from "../world/human/gear";
+
+/** Dead Streets' run weapons, as the lobby's loadout names them. */
+const RUN_WEAPON_NAME: Record<string, string> = { pistol: "Pistol", dane: "Dane gun", pestle: "Thunder Pestle", flame: "Gen-Set Torch" };
 import { ReplayOverlay } from "../ui/replay";
 import { Bubbles, ChatPanel, EmoteWheel } from "../ui/social";
 import { CameraRig } from "../world/camera";
@@ -682,8 +687,25 @@ export class Game {
       mode: this.playMode,
       badge: this.settings.badge && !!this.shop?.owned.has("badge_gold"),
       ffa: this.settings.game === "ffa" || !FEATURES.ballHaunt ? (this.ffaPick()?.name.en ?? "Free For All") : null,
+      ...this.lobbyA(),
     });
     this.stage.setFraming("center");
+  }
+
+  /** v4 Lobby A's parts: the next drop (also full-bleed behind you), this week's rotation, your squad, your loadout. */
+  private lobbyA(): Pick<LobbyState, "drop" | "rotation" | "squad" | "loadout"> {
+    const drop = nextDrop();
+    this.stage.setBackdrop(drop.url);
+    this.stage.setOperator(KITS[this.myLook().hoodie % KITS.length]);
+    const pick = this.ffaPick();
+    const rotation = this.content.manifest.rotation
+      .map((id) => this.content.manifest.modes.find((d) => d.id === id))
+      .filter((d): d is NonNullable<typeof d> => !!d)
+      .map((d) => ({ name: d.name.en, url: artForMap(d.map).url, on: d.id === pick?.id }));
+    const me = this.seatId ?? this.net?.id ?? "";
+    const squad = this.party ? this.party.members.map((m) => ({ name: m.name, me: m.id === me })) : [{ name: this.host.player.name || "You", me: true }];
+    const kit = KITS[this.myLook().hoodie % KITS.length];
+    return { drop, rotation, squad, loadout: { kit: kit.id[0].toUpperCase() + kit.id.slice(1), armour: 0, dead: RUN_WEAPON_NAME[this.settings.runWeapon] ?? "Pistol" } };
   }
 
   /** Back to the lobby screen without leaving the stage (closing a panel). */
@@ -2148,6 +2170,16 @@ export class Game {
     this.stage.setDummy(false);
     this.stage.setLook(this.myLook(), this.settings.lobbyPose);
     this.stage.setFraming("center");
+    // v4: the drop's picture full-bleed behind you (Dead Streets keeps its night street).
+    const art = kind === "run" ? null : artForMap(def.map);
+    this.stage.setBackdrop(art?.url ?? null);
+    const mods = def.modules as Record<string, unknown>;
+    const guns = kind === "ffa" && (!!mods.guns || (!!mods.melee && !mods.tag && !mods.blackout));
+    const kit: [string, string, string][] = kind === "run"
+      ? [["Run weapon", RUN_WEAPON_NAME[this.settings.runWeapon] ?? "Pistol", "#ff5a4a"], ["Torch", "Battery: full", "#ffb020"]]
+      : guns
+        ? [["Spawn with", "Pistol", "#b9bcc2"], ["Loot", "Rifle · SMG · shotgun", "#ffb020"]]
+        : [["Hands", "Gidigbo", "#3a9bff"], ["Loot", "Items", "#ffb020"]];
     const me = { name: this.host.player.name || "You", rank: rankOf(this.rankXp).name, squad: 0, me: true };
     this.screens.matchLoading({
       kind,
@@ -2156,6 +2188,8 @@ export class Game {
       time: def.time,
       map: kind === "run" ? "Spooky World" : def.map.includes(":") ? "Naija World · the market" : "Naija World",
       players: players?.length ? players.map((p) => (p.me ? { ...p, rank: me.rank } : p)) : [me],
+      drop: art?.name ?? "Spooky World",
+      kit,
       ...(kind === "run" ? { best: this.settings.runBest, ...(this.settings.runDaily ? { daily: new Date().toISOString().slice(0, 10) } : {}), top: this.dailyTop } : {}),
     });
   }
@@ -3695,7 +3729,8 @@ export class Game {
   private onFfaEnd(r: ModeResult): void {
     const online: FfaResultView["online"] = r.online ? (this.vPlaying ? "match" : this.room?.kind === "private" ? "private" : "quick") : null;
     const me = r.standings.find((x) => x.me);
-    const top = r.standings.slice(0, 3);
+    // A Dead Streets run's circle is you alone (the others were the dead).
+    const top = r.run ? r.standings.filter((x) => x.me) : r.standings.slice(0, 3);
     const fmt = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
     this.ffaRes = {
       mode: r.def.name.en,
@@ -3761,10 +3796,13 @@ export class Game {
     this.hud.show(false);
     this.view = "lobby";
     this.stage.setMode("podium");
-    this.stage.setPodium(top.map((x) => x.look));
+    this.stage.setPodium(top.map((x) => x.look), top.map((x) => KITS[x.look.hoodie % KITS.length]));
     this.stage.interactive = false;
     this.flow.reset("post");
     this.returnAt = online === null || online === "quick" ? performance.now() + RETURN_AFTER * 1000 : 0;
+    // v4: the cinematic's sting (the win/lose cue at the match's end was the short one).
+    if (this.ffaRes.won) this.sound.victory();
+    else this.sound.defeat();
     this.screens.ffaResults(
       this.ffaRes,
       top.map((x) => ({ name: x.name, line: r.measure ? `${fmt(x.objective)}` : x.won ? "Won" : "", me: x.me })),

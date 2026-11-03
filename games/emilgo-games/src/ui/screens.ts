@@ -164,6 +164,11 @@ export interface LobbyState {
   badge: boolean;
   /** Free For All's mode on the card (its name), or null for Ball Haunt. */
   ffa: string | null;
+  /** v4 Lobby A: the week's next drop (full-bleed behind), this week's rotation, your squad, your loadout. */
+  drop?: { name: string; line: string };
+  rotation?: { name: string; url: string; on: boolean }[];
+  squad?: { name: string; me: boolean }[];
+  loadout?: { kit: string; armour: number; dead: string };
 }
 
 type Action = (name: string, el: HTMLElement, ev: Event) => void;
@@ -339,16 +344,49 @@ export class Screens {
 
       <div class="lb-name glass"><span data-name></span>${s.badge ? `<span class="badge-star">${icon("star", "", 12)}</span>` : ""}</div>
       ${this.modeCard(s)}
+      ${this.lobbyA(s)}
       <div class="lb-bar glass-fill">
         <button class="act" data-act="loadout">${icon("loadout")}<span>Loadout</span></button>
         <button class="act" data-act="customize">${icon("customize")}<span>Customize</span></button>
         <button class="act" data-act="emotes">${icon("emote")}<span>Emotes</span></button>
         <button class="act" data-act="invite" ${s.online !== "ready" ? "disabled" : ""}>${icon("invite")}<span>Invite</span></button>
-        <button class="act play" data-act="start">${icon("play", "ico-pulse")}<span>Play</span></button>
-      </div>`,
+      </div>
+      <button class="lb-play" data-act="start" aria-label="Play">PLAY</button>`,
       "lobby",
     );
+    node.classList.add("lobby-a");
     this.setPlayer(node, host);
+  }
+
+  /**
+   * v4 Lobby A's own parts: the next drop's name over its picture; the
+   * loadout in HUD A's Field Kit style (sidearm, primary, melee, Dead
+   * Streets' weapon, the armour path); your squad's four slots (an empty
+   * one invites); this week's rotation.
+   */
+  private lobbyA(s: LobbyState): string {
+    const tiers = ["T0", "T1", "T2", "T3", "T4"];
+    const from = [0, 25, 60, 100, 140];
+    const lo = s.loadout;
+    const card = (slot: string, name: string, rar: string, col: string) => `<div class="fk-card" style="--c:${col}"><span class="s">${esc(t(slot)).toUpperCase()} · <b>${esc(t(rar)).toUpperCase()}</b></span><span class="n">${esc(t(name)).toUpperCase()}</span></div>`;
+    const squad = s.squad ?? [];
+    const slots = Array.from({ length: 4 }, (_, i) => {
+      const m = squad[i];
+      if (m) return `<div class="sq${m.me ? " me" : ""}"><span class="ini">${esc(m.name.trim().charAt(0).toUpperCase() || "?")}</span><span class="nm">${esc(m.name)}</span></div>`;
+      return `<button class="sq empty" data-act="invite" ${s.online !== "ready" ? "disabled" : ""} aria-label="Invite"><span class="ini">+</span><span class="nm">${esc(t("Invite"))}</span></button>`;
+    }).join("");
+    return `${s.drop ? `<div class="lb-drop"><span class="k">${esc(t("Next drop"))}</span><b>${esc(t(s.drop.name)).toUpperCase()}</b><span class="l">${esc(t(s.drop.line))}</span></div>` : ""}
+      ${lo ? `<div class="lb-kit">
+        <span class="h">${esc(t("Loadout"))}</span>
+        ${card("Sidearm", "Pistol", "Common", "#b9bcc2")}
+        ${card("Primary", "Loot: rifle, SMG, shotgun", "Up to Mythic", "#ffb020")}
+        ${card("Melee", "Gidigbo", "Backup", "#3a9bff")}
+        ${card("Dead Streets", lo.dead, "Run weapon", "#ff5a4a")}
+        <span class="h">${esc(t("Armour path"))} · ${esc(t(lo.kit))}</span>
+        <div class="tiers">${tiers.map((x, i) => `<i class="${lo.armour >= from[i] ? "on" : ""}">${x}</i>`).join("")}</div>
+      </div>` : ""}
+      <div class="lb-squad">${slots}</div>
+      ${s.rotation?.length ? `<button class="lb-rot" data-act="mode" aria-label="${esc(t("Change mode"))}"><span class="h">${esc(t("Rotation · this week"))}</span><span class="row">${s.rotation.map((r) => `<span class="th${r.on ? " on" : ""}" style="background-image:url(${r.url})"><b>${esc(t(r.name))}</b></span>`).join("")}</span><span class="pick">${icon("swap", "", 12)}<b>${esc(t(s.rotation.find((r) => r.on)?.name ?? s.ffa ?? "Dead Streets")).toUpperCase()}</b></span></button>` : ""}`;
   }
 
   private modeCard(s: LobbyState): string {
@@ -884,12 +922,16 @@ export class Screens {
       .map((x) => {
         // Honour (§10.12): commend one player you just played with.
         const commend = r.online && !x.me ? `<button class="mini commend" data-act="commend" data-id="${esc(x.id)}" aria-label="Commend ${esc(x.name)}" ${r.commended ? "disabled" : ""}>${icon("respect", "", 13)}</button>` : "";
-        return `<tr class="${x.me ? "me" : ""}"><td class="num">${x.place}</td><td>${esc(x.name)}${x.me ? " · You" : ""} ${commend}</td><td class="num">${r.measure ? (Number.isInteger(x.objective) ? x.objective : x.objective.toFixed(1)) : ""}</td></tr>`;
+        return `<tr class="${x.me ? "me" : ""}"><td class="num">${x.place}</td><td>${esc(x.name)}${x.me && x.name !== "You" ? " · You" : ""} ${commend}</td><td class="num">${r.measure ? (Number.isInteger(x.objective) ? x.objective : x.objective.toFixed(1)) : ""}</td></tr>`;
       })
       .join("");
+    // v4: the cinematic first (letterbox, the word, the line), then the card under it. A tap skips it.
+    const mineRow = r.rows.find((x) => x.me);
+    const line = r.runLine ?? [r.place > 0 && (r.won || r.place > 1) ? `${ordinal(r.place)} ${t("of")} ${r.sides}` : t("Time up"), r.measure && mineRow && mineRow.objective > 0 ? `${Number.isInteger(mineRow.objective) ? mineRow.objective : mineRow.objective.toFixed(1)} ${t(r.measure)}` : ""].filter(Boolean).join(" · ");
+    const cine = `<div class="cine ${r.won ? "win" : "lose"}" data-cine><i class="lb t"></i><i class="lb b"></i><div class="ct"><span class="k">${esc(t(r.mode)).toUpperCase()}</span><b>${esc(t(r.won ? "Victory" : "Defeat")).toUpperCase()}</b><span class="p">${esc(line)}</span></div></div>`;
     this.mount(
       "results",
-      `<div class="pm-head"><span class="h">${esc(r.mode)}</span><span class="sub ${r.won ? "win" : "lose"}">${head}</span></div>
+      `${cine}<div class="pm-head"><span class="h">${esc(r.mode)}</span><span class="sub ${r.won ? "win" : "lose"}">${head}</span></div>
        <div class="pm-return glass" data-return>${returnIn > 0 ? `Returning to lobby in <span class="num">${returnIn}</span>` : ""}</div>
        <div class="pm-plates">${plates
          .map((p, i) => `<div class="plate glass" data-plate="${i}" style="left:-999px"><span class="pl">${i + 1}</span><span class="pn"><b>${esc(p.name)}${p.me ? " · You" : ""}</b><small class="num">${esc(p.line)}</small></span></div>`)
@@ -911,6 +953,16 @@ export class Screens {
          </div>
        </div>`,
     );
+    const cineEl = this.root.querySelector<HTMLElement>("[data-cine]");
+    if (cineEl) {
+      this.root.firstElementChild?.classList.add("cined");
+      const done = () => {
+        cineEl.classList.add("gone");
+        this.root.firstElementChild?.classList.remove("cined");
+      };
+      cineEl.addEventListener("pointerdown", done, { once: true });
+      setTimeout(done, matchMedia("(prefers-reduced-motion: reduce)").matches ? 900 : 2900);
+    }
     const heat = this.root.querySelector<HTMLCanvasElement>("canvas[data-heat]");
     if (heat && r.trail) this.drawHeat(heat, r.trail);
     const rm = this.root.querySelector<HTMLCanvasElement>("canvas[data-runmap]");
@@ -1213,7 +1265,7 @@ export class Screens {
    * world builds. A Pidgin radio line. Free For All in Harmattan gold, Dead
    * Streets red-black with lightning behind.
    */
-  matchLoading(s: { kind: "ffa" | "run"; mode: string; goal: string; time: number; map: string; players: { name: string; rank: string; squad: number; me: boolean }[]; best?: number; daily?: string; top?: number[] }): void {
+  matchLoading(s: { kind: "ffa" | "run"; mode: string; goal: string; time: number; map: string; players: { name: string; rank: string; squad: number; me: boolean }[]; best?: number; daily?: string; top?: number[]; drop?: string; kit?: [string, string, string][] }): void {
     const lines = s.kind === "run"
       ? ["Oya, the Mast dey wait. No waste time o!", "Dem talk say churches and mosques safe. Remember am.", "Torch battery na life. No play with am.", "If you hear drum, run go find cover!"]
       : ["Oya, the flag dey hide for market side o!", "Zone don dey close. Shine your eye!", "Danfo dey road. No stand for front!", "Na who sharp pass go win today o!"];
@@ -1226,11 +1278,15 @@ export class Screens {
          ${s.daily ? `<span class="small">${esc(t("Daily Run"))}: <b>${esc(s.daily)}</b></span>` : ""}
          ${s.top?.length ? `<span class="small">${esc(t("Today's best"))}: ${s.top.slice(0, 3).map((x, i) => `${i + 1}. <b class="num">${fmtTime(x)}</b>`).join(" · ")}</span>` : ""}`
       : "";
+    // v4: the drop's name big over its picture (the stage behind), and what you carry in, Field Kit cards.
+    const drop = s.drop ? `<div class="ld-drop"><span class="k">${esc(t(s.kind === "run" ? "Tonight" : "Dropping into"))}</span><b>${esc(t(s.drop)).toUpperCase()}</b></div>` : "";
+    const kit = s.kit?.length ? `<div class="ld-kit">${s.kit.map(([slot, name, col]) => `<div class="fk-card" style="--c:${col}"><span class="s">${esc(t(slot)).toUpperCase()}</span><span class="n">${esc(t(name)).toUpperCase()}</span></div>`).join("")}</div>` : "";
     this.mount(
       "room",
-      `<div class="loadscreen ${s.kind}">
+      `<div class="loadscreen ${s.kind}${s.drop ? " v4" : ""}">
+        ${drop}
         <div class="ld-people">${cards}</div>
-        <div class="ld-map glass"><span class="label">${esc(s.map)}</span><b class="ld-mode">${esc(s.mode)}</b><span class="small">${esc(s.goal)}</span><span class="small">${Math.round(s.time / 60)} min</span>${extra}<span class="ld-radio">“${esc(line)}”</span><button class="btn secondary ld-cancel" data-act="leave-room">Cancel</button></div>
+        <div class="ld-map glass"><span class="label">${esc(s.map)}</span><b class="ld-mode">${esc(s.mode)}</b><span class="small">${esc(s.goal)}</span><span class="small">${Math.round(s.time / 60)} min</span>${extra}${kit}<span class="ld-radio">“${esc(line)}”</span><button class="btn secondary ld-cancel" data-act="leave-room">Cancel</button></div>
         <div class="ld-sign"><span class="ld-route">${["Building world", "Spawning items", s.kind === "run" ? "Waking the dead" : "Syncing players"].map((x, i) => `<i class="stop" style="animation-delay:${i * 1.1}s"></i><span>${esc(t(x))}</span>`).join("")}</span></div>
       </div>`,
     );

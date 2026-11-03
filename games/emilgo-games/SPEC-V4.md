@@ -69,6 +69,11 @@ hidden and untouched).
 | Spatial emitters | Turbines (a whoosh each blade pass), the clubs (bass through the walls, the full mix within 26 m), generators, the refinery's flares, the harbour's water and gulls, birds in the forest, frogs in the swamp, the Arena's crowd: loops made in code, low-passed with distance, through panners (inverse distance). The nearest 6 (Low) or 12 play, chosen four times a second, faded in and out. Taken from the layout, so Naija World's generators sound too. |
 | Music states | A pad in a minor walk (explore, 84 bpm) → a pulse under it for 8 s after a shot, a hit or a claw near you (combat, 104) → faster with a riser in the final circle (124) → low-passed under 30 health; off in a car (the radio), when out, and at the end (the win and lose stings are the Sound's). Changes at the next bar. |
 | The turbines turn | One instanced draw for every rotor (hub and three 21 m blades), a turn every 3.3 s. |
+| Welcome A's background | Lobby B's full-bleed place: a shot of **this week's next drop** from the game (Harbour Yard, Ironwood Forest, Dune Sea, Naija City: one each week, 45 KB of WebP in all), its name top right ("Next drop"). The logo, the tag line, the two game chips, the amber bar and "v4 · Max Mode" are A's. |
+| Lobby A | A's layout with B's next drop full-bleed behind you (the place's picture in the stage, the street set gone), its name big top left; **you in your operator kit** (by your colours, as in the match); the loadout as Field Kit cards (sidearm, primary loot to Mythic, melee, Dead Streets' run weapon, the armour path T0–T4); **your squad's four slots** (an empty one invites); **this week's rotation** as picture tiles, tapping them changes the mode (landscape: it replaces the mode card; portrait keeps the card); the store and friends cards give way (the tabs have them). |
+| PLAY | READY's look (the green bar, the 3 px press, a slow beat) with **PLAY** written on it. |
+| The pre-match screen | The drop's picture behind you, "Dropping into NAIJA CITY" (Dead Streets: "Tonight · SPOOKY WORLD" on its night street), the mode card squared off in Field Kit style with what you carry in (Spawn with: Pistol · Loot: rifle, SMG, shotgun; Dead Streets: your run weapon, the torch), the squad cards in Field Kit style, the route sign as before. |
+| Victory and defeat | A cinematic over the winner's circle first: letterbox bars, the mode, **VICTORY** (gold, a light sweep) or **DEFEAT** (bone white, a red floor), your line (place, your measure; Dead Streets' run line), its sting (victory: a boom, a rising wash, a held major chord; defeat: a boom, a falling minor line over a drone). After 2.9 s (or a tap) it fades and the results card rises under it, the lobby countdown as before. The circle's three stand in their operator kits; a Dead Streets run's circle is you alone. Reduced motion: no animation, 0.9 s. |
 | "1 million users at once" | One server process can't hold that. The build makes each room server stateless between matches and adds a room directory so many machines share the load. Tested here at **10,000 simulated players** (the owner's number); the 1M path is described in README (machines × rooms), not tested. |
 
 ## Phases (built back to back, no waiting; each tested, committed, pushed, the test site republished)
@@ -166,3 +171,12 @@ Not done in Phase 7: the owner's R2 bucket and `VITE_ASSET_CDN` (the pipeline is
 | Builds | typecheck · EMILGO embed |
 
 Not done in Phase 8: recorded samples (ffmpeg and the CC0 files: the owner's machine, see the decision row); listening on a real phone (headless Chrome can't hear).
+
+### Phase 9: Screens (done 3 Nov 2026)
+
+| Check | Result |
+|---|---|
+| In headless Chrome (844×390 and 390×844) | Welcome A over the next drop's picture; Lobby A (the drop, the operator, the Field Kit loadout, the squad's slots, the rotation, PLAY) with nothing overlapping in either orientation; the pre-match screen for Find the Flag and Dead Streets; Victory and Defeat cinematics, then the results. No console errors (the one refused connection is the absent store server). |
+| Builds | typecheck · EMILGO embed |
+
+Not done in Phase 9: hearing the stings on a phone (headless Chrome can't hear).

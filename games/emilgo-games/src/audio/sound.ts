@@ -1120,6 +1120,26 @@ export class Sound {
     [hz(64), hz(62), hz(60)].forEach((f, i) => this.tone(f, t + i * 0.22, 0.4, { type: "triangle", gain: 0.16 }));
   }
 
+  /** v4 victory's sting under the cinematic: a boom, a rising wash, a held major chord. */
+  victory(): void {
+    const t = this.now;
+    this.tone(62, t, 0.7, { type: "sine", gain: 0.32, to: 38 });
+    this.noise(t, 0.5, { gain: 0.08, freq: 260, type: "lowpass" });
+    this.noise(t + 0.05, 0.4, { gain: 0.035, freq: 2400, type: "bandpass" });
+    [hz(60), hz(64), hz(67)].forEach((f, i) => this.tone(f, t + 0.3 + i * 0.09, 0.35, { type: "square", gain: 0.035 }));
+    for (const f of [hz(48), hz(60), hz(64), hz(67), hz(72)]) this.tone(f, t + 0.62, 1.6, { type: "triangle", gain: 0.09, attack: 0.06 });
+    this.tone(hz(84), t + 0.62, 1.2, { type: "sine", gain: 0.04, attack: 0.2 });
+  }
+
+  /** v4 defeat's sting: a boom, a falling minor line over a low drone. */
+  defeat(): void {
+    const t = this.now;
+    this.tone(55, t, 0.9, { type: "sine", gain: 0.3, to: 32 });
+    this.noise(t, 0.6, { gain: 0.07, freq: 180, type: "lowpass" });
+    [hz(63), hz(62), hz(58)].forEach((f, i) => this.tone(f, t + 0.35 + i * 0.32, 0.5, { type: "triangle", gain: 0.12 }));
+    for (const f of [hz(39), hz(46), hz(51)]) this.tone(f, t + 0.35, 2.0, { type: "triangle", gain: 0.07, attack: 0.3 });
+  }
+
   ui(): void {
     const t = this.now;
     this.tone(880, t, 0.05, { type: "sine", gain: 0.08 });

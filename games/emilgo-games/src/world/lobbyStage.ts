@@ -16,6 +16,7 @@
 // winner's circle: top three on numbered plinths under spotlights).
 
 import { gradeLights, type GradeLook } from "../graphics/grade";
+import type { Kit } from "./human/gear";
 import { toGame } from "../ui/rotate";
 import {
   AdditiveBlending,
@@ -51,6 +52,8 @@ import {
   Vector3,
   WebGLRenderTarget,
   type WebGLRenderer,
+  TextureLoader,
+  SRGBColorSpace,
 } from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 
@@ -289,6 +292,7 @@ export class LobbyStage {
     const old = this.me;
     this.me = new Human(look, tier, { featured: true, seed: 3, lit: this.spec.pbr ? "standard" : "lambert" });
     this.me.castShadows(this.spec.shadows);
+    if (this.operatorKit) this.me.setGear(this.operatorKit, 0);
     this.me.setPose(pose);
     if (old) {
       // Keep the pose timing so a change of clothes doesn't jolt.
@@ -407,11 +411,13 @@ export class LobbyStage {
   }
 
   /** The winner's circle: up to three people, first in the middle. */
-  setPodium(looks: Look[]): void {
+  /** The winner's circle; v4: in their operator kits, as they played (kits[i], or as they are). */
+  setPodium(looks: Look[], kits: (Kit | null)[] = []): void {
     for (const h of this.podium) h.dispose();
     this.podium = looks.slice(0, 3).map((l, i) => {
       const h = new Human(l, i === 0 ? this.spec.tier : (Math.max(0, this.spec.tier - 1) as 0 | 1), { featured: i === 0, seed: 11 + i, lit: this.spec.pbr ? "standard" : "lambert" });
       h.castShadows(this.spec.shadows);
+      if (kits[i]) h.setGear(kits[i]!, 0);
       h.setPose(i === 0 ? "hero" : i === 1 ? "arms" : "hip");
       if (i === 0) h.finish();
       this.podiumSet.add(h.mesh);
@@ -575,10 +581,67 @@ export class LobbyStage {
     if (this.camPos.distanceToSquared(this.lastCam) > 0.0004) this.backDirty = true;
   }
 
+  /** v4: you in the lobby as the operator (your kit), or as you are. */
+  setOperator(kit: Kit | null): void {
+    this.operatorKit = kit;
+    this.me?.setGear(kit, 0);
+  }
+  private operatorKit: Kit | null = null;
+
+  /**
+   * v4 Lobby A: the week's next drop full-bleed behind you (a shot of the
+   * place from the game), instead of the street set; null brings the street back.
+   */
+  setBackdrop(url: string | null): void {
+    if (url === this.dropUrl) return;
+    this.dropUrl = url;
+    this.dropTex?.dispose();
+    this.dropTex = null;
+    this.near.visible = !url;
+    if (!url) return;
+    new TextureLoader().load(url, (t) => {
+      if (this.dropUrl !== url) return t.dispose();
+      t.colorSpace = SRGBColorSpace;
+      this.dropTex = t;
+    });
+  }
+  private dropUrl: string | null = null;
+  private dropTex: Texture | null = null;
+  private coverMat: ShaderMaterial | null = null;
+
+  /** The backdrop picture, covering the screen (cropped, never stretched), a touch darker at the edges. */
+  private drawCover(r: WebGLRenderer): void {
+    if (!this.coverMat) {
+      this.coverMat = new ShaderMaterial({
+        uniforms: { tex: { value: null }, uScale: { value: new Vector2(1, 1) } },
+        vertexShader: "varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }",
+        fragmentShader: "uniform sampler2D tex; uniform vec2 uScale; varying vec2 vUv; void main() { vec2 uv = (vUv - 0.5) * uScale + 0.5; vec3 c = texture2D(tex, uv).rgb; float v = smoothstep(1.1, 0.35, length((vUv - 0.5) * vec2(1.3, 1.0))); gl_FragColor = vec4(c * (0.55 + 0.45 * v), 1.0); }",
+        depthTest: false,
+        depthWrite: false,
+      });
+    }
+    const img = this.dropTex!.image as { width: number; height: number };
+    const screen = this.size.x / Math.max(1, this.size.y);
+    const pic = img.width / Math.max(1, img.height);
+    this.coverMat.uniforms.tex.value = this.dropTex;
+    (this.coverMat.uniforms.uScale.value as Vector2).set(screen < pic ? screen / pic : 1, screen < pic ? 1 : pic / screen);
+    this.quad.material = this.coverMat;
+    r.render(this.quadScene, this.ortho);
+  }
+
   /** Draw the lobby. */
   render(): void {
     const r = this.renderer;
     r.getDrawingBufferSize(this.size);
+    if (this.mode === "lobby" && this.dropTex) {
+      r.autoClear = false;
+      r.clear();
+      this.drawCover(r);
+      r.clearDepth();
+      r.render(this.scene, this.camera);
+      r.autoClear = true;
+      return;
+    }
     if (this.mode === "podium") {
       // The winner's circle is its own dark stage: no backdrop.
       r.setClearColor(0x07080a);

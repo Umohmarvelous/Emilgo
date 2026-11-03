@@ -22,15 +22,24 @@
         transition: opacity 0.45s;
       }
       #boot.done { opacity: 0; pointer-events: none; }
-      #boot .art { position: absolute; inset: 0; background: center 35% / cover no-repeat; opacity: 0; transition: opacity 0.6s; }
-      #boot .art.in { opacity: 1; }
-      #boot .shade { position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0,0,0,.85) 0%, rgba(0,0,0,0) 40%), linear-gradient(180deg, rgba(0,0,0,.5) 0%, rgba(0,0,0,0) 30%); }
-      #boot .logo { position: absolute; left: 50%; top: 24%; transform: translate(-50%, -50%); text-align: center; line-height: 1; }
-      #boot .logo svg { width: min(420px, 78vw); height: auto; filter: drop-shadow(0 0 18px rgba(0, 168, 101, 0.55)) drop-shadow(0 2px 6px rgba(0,0,0,.8)); }
-      #boot .bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255,255,255,.12); }
-      #boot .bar i { display: block; height: 100%; width: 8%; background: #008751; box-shadow: 0 0 10px #00a865; transition: width 0.3s; }
-      #boot .txt { position: absolute; left: 16px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); letter-spacing: 0.08em; text-transform: uppercase; font-size: 10px; opacity: 0.85; }
-      #boot .ver { position: absolute; right: 16px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); font-size: 10px; opacity: 0.5; }
+      /* v4 Welcome A: this week's place full-bleed (the game's own shot), the wordmark on the left, two modes, a thin amber bar. */
+      #boot .art { position: absolute; inset: 0; background: center 40% / cover no-repeat; opacity: 0; transform: scale(1.06); transition: opacity 0.8s, transform 6s ease-out; filter: brightness(0.9); }
+      #boot .art.in { opacity: 1; transform: scale(1); }
+      #boot .shade { position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0,0,0,.9) 0%, rgba(0,0,0,0) 45%), linear-gradient(90deg, rgba(0,0,0,.75) 0%, rgba(0,0,0,0) 55%); }
+      #boot .logo { position: absolute; left: calc(34px + env(safe-area-inset-left, 0px)); top: 26%; line-height: 1; animation: bootrise 0.8s ease-out both; }
+      #boot .logo .e { font: 800 12px Montserrat, "Arial Black", sans-serif; letter-spacing: 0.5em; color: #f5a623; }
+      #boot .logo .g { font: 900 min(52px, 12vw) Montserrat, "Arial Black", Impact, sans-serif; letter-spacing: 0.02em; text-shadow: 0 3px 0 rgba(0,0,0,.5); }
+      #boot .logo .tag { font: 600 10px system-ui, sans-serif; letter-spacing: 0.14em; opacity: 0.85; margin-top: 8px; }
+      #boot .logo .chips { display: flex; gap: 6px; margin-top: 14px; }
+      #boot .logo .chips span { font: 800 8px system-ui, sans-serif; letter-spacing: 0.08em; padding: 4px 8px; border: 1px solid rgba(255,255,255,.55); }
+      #boot .logo .chips span.ds { border-color: #ff5a4a; color: #ff8a7a; }
+      #boot .drop { position: absolute; right: calc(34px + env(safe-area-inset-right, 0px)); top: 22px; text-align: right; font: 800 10px system-ui, sans-serif; letter-spacing: 0.3em; color: #ffb53a; text-shadow: 0 1px 4px #000, 0 0 2px #000; }
+      #boot .drop b { display: block; font: 900 18px Montserrat, "Arial Black", sans-serif; letter-spacing: 0.02em; color: #fff; margin-top: 3px; }
+      #boot .bar { position: absolute; left: calc(34px + env(safe-area-inset-left, 0px)); right: calc(34px + env(safe-area-inset-right, 0px)); bottom: calc(22px + env(safe-area-inset-bottom, 0px)); height: 2px; background: rgba(255,255,255,.15); }
+      #boot .bar i { display: block; height: 100%; width: 8%; background: #f5a623; box-shadow: 0 0 10px #f5a623; transition: width 0.3s; }
+      #boot .txt { position: absolute; left: calc(34px + env(safe-area-inset-left, 0px)); bottom: calc(30px + env(safe-area-inset-bottom, 0px)); letter-spacing: 0.3em; text-transform: uppercase; font: 800 9px system-ui, sans-serif; opacity: 0.9; }
+      #boot .ver { position: absolute; right: calc(34px + env(safe-area-inset-right, 0px)); bottom: calc(30px + env(safe-area-inset-bottom, 0px)); font: 600 8px system-ui, sans-serif; letter-spacing: 0.12em; opacity: 0.6; text-transform: uppercase; }
+      @keyframes bootrise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
       .boot-fail { position: absolute; left: 50%; top: 62%; transform: translateX(-50%); max-width: 300px; text-align: center; }
       .boot-fail b { font-size: 14px; }
       .boot-fail p { opacity: 0.85; line-height: 1.4; }
@@ -41,15 +50,15 @@
       <div class="art" id="boot-art"></div>
       <div class="shade"></div>
       <div class="logo" aria-label="EMILGO Games">
-        <svg viewBox="0 0 420 110" aria-hidden="true">
-          <text x="210" y="62" text-anchor="middle" font-family="Montserrat, 'Arial Black', Impact, sans-serif" font-weight="800" font-size="64" letter-spacing="6" fill="#ffffff">EMILGO</text>
-          <rect x="128" y="80" width="164" height="2" fill="#008751"/>
-          <text x="210" y="104" text-anchor="middle" font-family="Montserrat, 'Arial Black', sans-serif" font-weight="700" font-size="16" letter-spacing="14" fill="#ffffff">GAMES</text>
-        </svg>
+        <div class="e">EMILGO</div>
+        <div class="g">GAMES</div>
+        <div class="tag">SURVIVE THE NIGHT · OWN THE STREETS</div>
+        <div class="chips"><span>FREE FOR ALL</span><span class="ds">DEAD STREETS</span></div>
       </div>
+      <div class="drop" id="boot-drop"></div>
       <div class="bar"><i id="boot-fill"></i></div>
       <div class="txt" id="boot-text">Loading Lagos...</div>
-      <div class="ver">Red Light, Green Light</div>
+      <div class="ver">v4 · Max Mode</div>
     </div>
     <canvas id="scene"></canvas>
     <div id="ui"></div>

@@ -7,7 +7,7 @@
 import "./ui/styles.css";
 
 import { loadFonts } from "./ui/fonts";
-import welcomeUrl from "./ui/welcome.webp?url";
+import { nextDrop } from "./ui/places";
 
 import { Game } from "./game/session";
 import { loadScans } from "./world/human";
@@ -44,12 +44,16 @@ function showArt(): void {
   // the picture would arrive after the lobby and take bandwidth from it.
   const conn = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
   if (performance.now() > 2000 || conn?.saveData) return;
+  // v4 Welcome A: this week's place, full-bleed (lobby B's background), named top right.
+  const drop = nextDrop();
+  const tag = document.getElementById("boot-drop");
+  if (tag) tag.innerHTML = `NEXT DROP<b>${drop.name.toUpperCase()}</b>`;
   const img = new Image();
   img.onload = () => {
     art.style.backgroundImage = `url(${img.src})`;
     art.classList.add("in");
   };
-  img.src = welcomeUrl;
+  img.src = drop.url;
 }
 
 function fail(title: string, message: string): void {
