@@ -18,7 +18,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { NodeIO } from "@gltf-transform/core";
+import { NodeIO, getBounds } from "@gltf-transform/core";
 import { ALL_EXTENSIONS } from "@gltf-transform/extensions";
 import { dedup, prune, weld, simplify, meshopt, resample } from "@gltf-transform/functions";
 import { MeshoptEncoder, MeshoptSimplifier } from "meshoptimizer";
@@ -29,31 +29,46 @@ const IN = join(here, "in");
 const OUT = join(here, "out");
 const cmd = process.argv[2];
 
+/** A fetch that tries again (a slow line times out now and then). */
+async function grab(url, tries = 5) {
+  for (let k = 0; ; k++) {
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(120000) });
+      if (!r.ok) throw new Error(`${r.status}`);
+      return r;
+    } catch (e) {
+      if (k >= tries - 1) throw e;
+      await new Promise((res) => setTimeout(res, 2000 * (k + 1)));
+    }
+  }
+}
+
 async function fetchAll() {
   mkdirSync(IN, { recursive: true });
   for (const m of vital.models) {
     if (m.source !== "polyhaven") continue;
     const dir = join(IN, m.id);
     if (existsSync(join(dir, `${m.id}.gltf`))) continue;
-    const res = await fetch(`https://api.polyhaven.com/files/${m.id}`);
-    if (!res.ok) {
-      console.log(`skip ${m.id}: ${res.status}`);
-      continue;
+    try {
+      const files = await (await grab(`https://api.polyhaven.com/files/${m.id}`)).json();
+      const g = files?.gltf?.["1k"]?.gltf;
+      if (!g) {
+        console.log(`skip ${m.id}: no 1k glTF`);
+        continue;
+      }
+      mkdirSync(dir, { recursive: true });
+      // The buffers and textures first, the .gltf last: a model whose .gltf is there is whole.
+      for (const [rel, inc] of Object.entries(g.include ?? {})) {
+        const p = join(dir, rel);
+        if (existsSync(p)) continue;
+        mkdirSync(dirname(p), { recursive: true });
+        writeFileSync(p, Buffer.from(await (await grab(inc.url)).arrayBuffer()));
+      }
+      writeFileSync(join(dir, `${m.id}.gltf`), Buffer.from(await (await grab(g.url)).arrayBuffer()));
+      console.log(`fetched ${m.id}`);
+    } catch (e) {
+      console.log(`skip ${m.id}: ${e.message}`);
     }
-    const files = await res.json();
-    const g = files?.gltf?.["1k"]?.gltf;
-    if (!g) {
-      console.log(`skip ${m.id}: no 1k glTF`);
-      continue;
-    }
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, `${m.id}.gltf`), Buffer.from(await (await fetch(g.url)).arrayBuffer()));
-    for (const [rel, inc] of Object.entries(g.include ?? {})) {
-      const p = join(dir, rel);
-      mkdirSync(dirname(p), { recursive: true });
-      writeFileSync(p, Buffer.from(await (await fetch(inc.url)).arrayBuffer()));
-    }
-    console.log(`fetched ${m.id}`);
   }
 }
 
@@ -75,8 +90,14 @@ async function buildAll() {
       continue;
     }
     const lods = [];
+    // The model's size (metres, the source's scale): the game's solid for it comes from this.
+    let size = null;
     for (let k = 0; k < m.lods.length; k++) {
       const doc = await io.read(src);
+      if (k === 0) {
+        const b = getBounds(doc.getRoot().getDefaultScene() ?? doc.getRoot().listScenes()[0]);
+        size = [0, 1, 2].map((i) => Math.round((b.max[i] - b.min[i]) * 1000) / 1000);
+      }
       await doc.transform(dedup(), weld(), prune(), resample(), simplify({ simplifier: MeshoptSimplifier, ratio: m.lods[k], error: (m.error ?? 0.002) * (k + 1) }), meshopt({ encoder: MeshoptEncoder, level: "high" }));
       // Textures: halved per LOD (the far ones need little).
       const sharp = await import("sharp").catch(() => null);
@@ -97,7 +118,7 @@ async function buildAll() {
     }
     const total = lods.reduce((a, l) => a + l.kb, 0);
     if (total > vital.budgetKB) over++;
-    manifest.models[m.id] = { use: m.use, lods, total, license: "CC0", source: m.source };
+    manifest.models[m.id] = { use: m.use, lods, total, license: "CC0", source: m.source, size, ...(m.loc ? { loc: m.loc, solid: !!m.solid } : {}) };
     console.log(`${total > vital.budgetKB ? "OVER" : "ok  "} ${m.id}: ${lods.map((l) => `${l.kb} KB`).join(" / ")}`);
   }
   writeFileSync(join(OUT, "manifest.json"), JSON.stringify(manifest, null, 2));

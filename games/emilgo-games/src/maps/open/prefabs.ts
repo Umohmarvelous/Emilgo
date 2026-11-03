@@ -7,6 +7,7 @@
 // is the middle of its footprint on the ground. A placement turns it by `rot`
 // (three's rotateY) and moves it to (x, z).
 
+import { PROPS, type PropDef } from "./propTable";
 import type { Surface } from "../registry";
 import type { Solid } from "../../game/core/space";
 
@@ -56,6 +57,11 @@ export interface Part {
 
 const box = (x: number, z: number, w: number, d: number, y0: number, y1: number, surface: Surface = "concrete"): Part => ({ x, z, hx: w / 2, hz: d / 2, y0, y1, surface });
 
+/** A prop placement's table row (its variant's low byte). */
+export function propOf(v: number): PropDef {
+  return PROPS[(v & 255) % PROPS.length];
+}
+
 // ── Each prefab's numbers ─────────────────────────────────────────────────────
 
 export interface HouseP { w: number; d: number; h: number; roof: "zinc" | "tiles"; wall: number; fence: boolean }
@@ -75,7 +81,9 @@ export type PrefabId =
   | "mechanic" | "barber" | "carpenter" | "carriage" | "okada" | "genalley" | "plaza" | "wall" | "billboard"
   // v4 Phase 7: the big world's places (maps/open/max.ts).
   | "pine" | "rock" | "cabin" | "rangertower" | "turbine" | "containers" | "crane" | "warehouse" | "tank" | "flarestack"
-  | "pipes" | "hangar" | "ctower" | "planewreck" | "dune" | "mangrove" | "stilt" | "club" | "stand" | "glasstower";
+  | "pipes" | "hangar" | "ctower" | "planewreck" | "dune" | "mangrove" | "stilt" | "club" | "stand" | "glasstower"
+  // v4 rework R9: a CC0 model from the props' table (v & 255 is its index in PROPS).
+  | "prop";
 
 export function houseP(v: number): HouseP {
   const r = vrand(v);
@@ -157,6 +165,7 @@ export function footprint(id: PrefabId, v: number): [number, number] {
     case "wall": return [10, 0.3];
     case "pine": return [2.4, 2.4];
     case "rock": { const s = 1.2 + (v % 7) * 0.4; return [s * 2, s * 1.6]; }
+    case "prop": { const q = propOf(v); return [q.w, q.d]; }
     case "cabin": return [7, 6];
     case "rangertower": return [5, 5];
     case "turbine": return [6, 6];
@@ -498,6 +507,11 @@ export function parts(id: PrefabId, v: number): Part[] {
     case "pine":
       out.push(box(0, 0, 0.5, 0.5, 0, 8, "wood"));
       break;
+    case "prop": {
+      const q = propOf(v);
+      if (q.solid) out.push(box(0, 0, q.w, q.d, 0, q.h, "metal"));
+      break;
+    }
     case "rock": {
       const s = 1.2 + (v % 7) * 0.4;
       out.push(box(0, 0, s * 1.7, s * 1.3, 0, s * 0.9, "concrete"));

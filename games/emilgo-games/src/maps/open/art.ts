@@ -12,7 +12,7 @@ import { BoxGeometry, BufferGeometry, ConeGeometry, CylinderGeometry, Matrix4, O
 
 import { Kit, type Chunk, type Level, type TexKind } from "../kit";
 import { merge, part, type V3 } from "../../world/geo";
-import { BOARD_DEPTH, BOARD_SIZE, COURTYARD, compoundP, houseP, hutP, mudP, officeP, parts, shopsP, storeyP, type Part, type Placement } from "./prefabs";
+import { BOARD_DEPTH, BOARD_SIZE, COURTYARD, compoundP, houseP, hutP, mudP, officeP, parts, propOf, shopsP, storeyP, type Part, type Placement } from "./prefabs";
 
 /** The atlas's tiles, in order (4 × 2). */
 export const TEX_KINDS: TexKind[] = ["plaster", "concrete", "brick", "wood", "mud", "zinc", "glass", "thatch"];
@@ -58,6 +58,8 @@ export class PrefabKit extends Kit {
   scratch: OpenChunk = emptyChunk();
   /** Prefabs another draw stands in for (the scanned boulders, build.ts): their own look is skipped. */
   skip: ReadonlySet<string> = new Set();
+  /** The props (by table index) whose CC0 model is drawn instead (build.ts): the rest get a plain box for their solid. */
+  props: ReadonlySet<number> = new Set();
   readonly localLamps: V3[] = [];
 
   override chunkAt(): Chunk {
@@ -771,6 +773,13 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
       k.tree([0, 0.55, 0], 5, ["#3a6a2a", "#4a7a30"]);
       allParts(k, ps.slice(1), () => ({ color: WOOD, level: "main" }));
       break;
+    case "prop": {
+      // Its model draws it (Medium and up, with the library); without, what stops you shows as a plain crate.
+      if (k.props.has(v & 255)) break;
+      const q = propOf(v);
+      if (q.solid) k.box("#6a6e72", [q.w, q.h, q.d], [0, q.h / 2, 0], "mass");
+      break;
+    }
     case "wall":
       // v4 rework: brick with a coping (no compound wall).
       allParts(k, ps, () => ({ tex: "brick", color: "#b89a88", tile: 2 }));

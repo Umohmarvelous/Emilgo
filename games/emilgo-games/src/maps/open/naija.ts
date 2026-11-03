@@ -14,6 +14,7 @@ import type { Solid } from "../../game/core/space";
 import type { Surface } from "../registry";
 import { placeBoards, type BoardSlot, type BoardWish } from "./billboards";
 import { footprint, solidsOf, type Placement, type PrefabId } from "./prefabs";
+import { PROPS } from "./propTable";
 
 export type GroundKind = "asphalt" | "laterite" | "paving" | "grass" | "earth" | "sand";
 
@@ -528,6 +529,27 @@ export function buildNaijaWorld(seed = 1957): OpenLayout {
 
   // ── The billboards: last, on ground nothing else wanted (their solids go on the end) ──
   const boards = placeBoards("nw", BOARD_WISHES, 0, HALF, taken, placements, solids, spawns);
+
+  // ── Props (v4 rework R9): the CC0 street furniture in town (bins, crates, benches, planters,
+  // air units, cabinets, bags, a covered car), each with room round it so no way is shut; last, so nothing
+  // before them moves (the starts, the boards) ──
+  const cityProps = PROPS.flatMap((q, i) => (q.built && q.at.includes("city") ? [i] : []));
+  for (let i = 0, n = 0; cityProps.length && i < 2400 && n < 240; i++) {
+    const x = rng.range(-HALF + 8, HALF - 8);
+    const z = rng.range(-HALF + 8, HALF - 8);
+    const idx = cityProps[Math.floor(rng.next() * cityProps.length)];
+    const rot = rng.range(0, 6.28);
+    const v = ((nextV() << 8) | idx) >>> 0;
+    if (districtOf(x, z) === "village") continue;
+    const q = PROPS[idx];
+    // Free with 2.5 m all round (so it never closes a gap between buildings); takes only its own.
+    if (!taken.free(rectOf(x, z, q.w + 5, q.d + 5, rot))) continue;
+    if (spawns.some(([sx, sz]) => Math.hypot(sx - x, sz - z) < 3 + Math.max(q.w, q.d))) continue;
+    if (place("prop", x, z, rot, v)) {
+      solidsOf(placements[placements.length - 1], solids);
+      n++;
+    }
+  }
 
   return {
     id: "naija-world",

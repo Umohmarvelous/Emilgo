@@ -8,6 +8,7 @@
 // Draw calls stay flat however big the city: about three per visible cell,
 // plus the ground, the water and the sky.
 
+import { PROPS } from "./propTable";
 import {
   BufferGeometry,
   Color,
@@ -170,6 +171,8 @@ export interface WorldLibrary {
   ground: ({ a: HTMLImageElement; n: HTMLImageElement | null } | null)[];
   /** The scanned CC0 rocks (Poly Haven, the pipeline's) for the "rock" prefab, Medium and up: mossy on grass, bare granite on sand. */
   rocks: { grass: CdnModel | null; sand: CdnModel | null };
+  /** The CC0 props this layout places (by table index), Medium and up: each drawn as its model, instanced per cell. */
+  props: Map<number, CdnModel>;
   /** The HDR sky (Poly Haven, CC0): its picture, its light, and the colour at its horizon (the haze matches it). */
   sky: { bg: Texture; env: DataTexture | null; horizon: Color; sun: Vector3 } | null;
 }
@@ -223,7 +226,7 @@ function horizonOf(tex: Texture): Color {
 }
 
 /** Fetch what a world of this tier draws with (null: the library isn't there). */
-export async function loadWorldLibrary(spec: TierSpec, night: boolean): Promise<WorldLibrary | null> {
+export async function loadWorldLibrary(spec: TierSpec, night: boolean, L?: OpenLayout): Promise<WorldLibrary | null> {
   const size = texSize(spec.tier);
   const get = async (n: TexName | null) => {
     if (!n) return null;
@@ -237,15 +240,21 @@ export async function loadWorldLibrary(spec: TierSpec, night: boolean): Promise<
   const key = night ? "night" : "day";
   const rockLod = spec.tier >= 2 ? 1 : 2;
   const rockOf = (use: string) => (spec.tier >= 1 ? modelFor(use, rockLod, spec.tier).catch(() => null) : Promise.resolve(null));
-  const [walls, ground, sk, grassRock, sandRock] = await Promise.all([
+  // The props this layout uses (v4 rework R9), each the model's far LOD on Medium, the middle on High.
+  const used = spec.tier >= 1 && L ? [...new Set(L.placements.filter((p) => p.prefab === "prop").map((p) => p.v & 255))] : [];
+  const propModels = Promise.all(used.map((i) => (PROPS[i] ? modelFor("prop", rockLod, spec.tier, PROPS[i].id).catch(() => null) : Promise.resolve(null))));
+  const [walls, ground, sk, grassRock, sandRock, pm] = await Promise.all([
     Promise.all(WALL_LIB[key].map(get)),
     Promise.all(GROUND_LIB[key].map(get)),
     librarySky(SKY_OF[key], spec.pbr),
     rockOf("rocks"),
     rockOf("rock"),
+    propModels,
   ]);
   if (!ground.some(Boolean) && !walls.some(Boolean)) return null;
-  return { walls, ground, rocks: { grass: grassRock, sand: sandRock }, sky: sk.bg ? { bg: sk.bg, env: sk.env, horizon: horizonOf(sk.bg), sun: sunOf(sk.bg) } : null };
+  const props = new Map<number, CdnModel>();
+  used.forEach((idx, j) => pm[j]?.meshes.length && props.set(idx, pm[j]!));
+  return { walls, ground, rocks: { grass: grassRock, sand: sandRock }, props, sky: sk.bg ? { bg: sk.bg, env: sk.env, horizon: horizonOf(sk.bg), sun: sunOf(sk.bg) } : null };
 }
 
 /**
@@ -746,7 +755,7 @@ export function buildOpenWorld(L: OpenLayout, spec: TierSpec, opts: { night?: bo
  */
 export async function buildOpenWorldIdle(L: OpenLayout, spec: TierSpec, opts: { night?: boolean } = {}, slice = 8): Promise<OpenWorld> {
   // The library's textures first (v4 rework R4); without them the game's own.
-  const lib = await loadWorldLibrary(spec, !!opts.night).catch(() => null);
+  const lib = await loadWorldLibrary(spec, !!opts.night, L).catch(() => null);
   const g = steps(L, spec, opts, lib);
   for (;;) {
     const t = performance.now();
@@ -855,11 +864,16 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }, lib: W
   const rockSet = lib && (lib.rocks.grass || lib.rocks.sand) ? lib.rocks : null;
   if (rockSet) kit.skip = new Set(["rock"]);
   const rocksIn: Placement[][] = [];
+  // The props with a model: drawn instanced below, not by the kit.
+  const propSet = lib && lib.props.size ? lib.props : null;
+  if (propSet) kit.props = new Set(propSet.keys());
+  const propsIn: Placement[][] = [];
   let drawn0 = 0;
   for (const p of L.placements) {
     // Small batches: the big landmarks take a few ms each.
     if (++drawn0 % 6 === 0) yield;
     if (rockSet && p.prefab === "rock") (rocksIn[cellIndex(p.x, p.z)] ??= []).push(p);
+    if (propSet && p.prefab === "prop" && propSet.has(p.v & 255)) (propsIn[cellIndex(p.x, p.z)] ??= []).push(p);
     const { chunk } = kit.draw(p, night);
     const c = chunks[cellIndex(p.x, p.z)];
     c.mass.push(...chunk.mass);
@@ -1077,6 +1091,33 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }, lib: W
         cell.objects.push(im);
         cell.casters.push(im);
         group.add(im);
+      }
+    }
+    // The cell's props: one instanced draw per model mesh, each turned as placed (its solid is the table's box).
+    const pr = propsIn[i];
+    if (propSet && pr?.length) {
+      const byIdx = new Map<number, Placement[]>();
+      for (const p of pr) {
+        const e = byIdx.get(p.v & 255) ?? [];
+        e.push(p);
+        byIdx.set(p.v & 255, e);
+      }
+      for (const [idx, ps] of byIdx) {
+        const m = propSet.get(idx)!;
+        for (const { geometry, material } of m.meshes) {
+          const im = new InstancedMesh(geometry, material, ps.length);
+          _sc.set(1, 1, 1);
+          ps.forEach((p, j) => {
+            _q.setFromAxisAngle(_up, p.rot);
+            _at.set(p.x, 0, p.z);
+            im.setMatrixAt(j, _m4.compose(_at, _q, _sc));
+          });
+          im.computeBoundingSphere();
+          im.receiveShadow = spec.shadows;
+          cell.objects.push(im);
+          cell.casters.push(im);
+          group.add(im);
+        }
       }
     }
     cells.push(cell);

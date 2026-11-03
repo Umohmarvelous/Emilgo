@@ -72,6 +72,794 @@
         0.15,
         0.05
       ]
+    },
+    {
+      "id": "metal_trash_can",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "city",
+        "harbour"
+      ],
+      "solid": true,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "wooden_crate_01",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "city",
+        "harbour",
+        "airfield"
+      ],
+      "solid": true,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "wooden_crate_02",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "city",
+        "harbour",
+        "refinery"
+      ],
+      "solid": true,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "barrel_03",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "city",
+        "harbour",
+        "refinery"
+      ],
+      "solid": true,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "planter_box_01",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "city",
+        "neon"
+      ],
+      "solid": true,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "planter_box_02",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "city",
+        "neon"
+      ],
+      "solid": true,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "wooden_picnic_table",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "city",
+        "ironwood",
+        "windmere"
+      ],
+      "solid": true,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "painted_wooden_bench",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "city",
+        "arena",
+        "neon"
+      ],
+      "solid": true,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "exterior_aircon_unit",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "city",
+        "refinery",
+        "neon"
+      ],
+      "solid": true,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "utility_box_01",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "city",
+        "refinery",
+        "airfield"
+      ],
+      "solid": true,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "utility_box_02",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "city",
+        "harbour"
+      ],
+      "solid": true,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "WetFloorSign_01",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "city",
+        "neon"
+      ],
+      "solid": false,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "trashbag",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "city",
+        "neon",
+        "harbour"
+      ],
+      "solid": false,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "cardboard_box_01",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "city",
+        "harbour"
+      ],
+      "solid": false,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "water_manhole_cover",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "city"
+      ],
+      "solid": false,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "potted_plant_04",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "city",
+        "neon"
+      ],
+      "solid": false,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "wooden_military_crate",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "harbour",
+        "airfield"
+      ],
+      "solid": true,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "plastic_crate_02",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "harbour"
+      ],
+      "solid": true,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "propane_tank",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "harbour",
+        "refinery"
+      ],
+      "solid": true,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "ocean_buoy",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "harbour",
+        "mangrove"
+      ],
+      "solid": true,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "wine_barrel_01",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "harbour"
+      ],
+      "solid": true,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "small_lpg_tank",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "refinery",
+        "harbour"
+      ],
+      "solid": true,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "metal_tool_chest",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "harbour",
+        "airfield"
+      ],
+      "solid": true,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "plastic_jerrycan",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "harbour",
+        "dunes"
+      ],
+      "solid": false,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "industrial_storage_cart",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "harbour",
+        "refinery"
+      ],
+      "solid": true,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "Barrel_02",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "mangrove",
+        "refinery"
+      ],
+      "solid": true,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "old_tyre",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "refinery",
+        "airfield",
+        "dunes"
+      ],
+      "solid": false,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "portable_generator",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "refinery",
+        "airfield"
+      ],
+      "solid": true,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "power_box_01",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "refinery",
+        "airfield"
+      ],
+      "solid": true,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "cement_bag",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "refinery"
+      ],
+      "solid": false,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "hand_truck",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "refinery",
+        "airfield"
+      ],
+      "solid": true,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "rusted_wheel_rim_01",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "refinery",
+        "dunes"
+      ],
+      "solid": false,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "korean_fire_extinguisher_01",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "refinery",
+        "airfield"
+      ],
+      "solid": false,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "worn_metal_rack",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "refinery"
+      ],
+      "solid": true,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "steel_frame_shelves_01",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "refinery"
+      ],
+      "solid": true,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "covered_car",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "airfield",
+        "city"
+      ],
+      "solid": true,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "fern_02",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "ironwood",
+        "mangrove"
+      ],
+      "solid": false,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "shrub_03",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "ironwood",
+        "windmere",
+        "city"
+      ],
+      "solid": false,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "shrub_sorrel_01",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "ironwood",
+        "mangrove"
+      ],
+      "solid": false,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "weed_plant_02",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "windmere",
+        "dunes",
+        "mangrove"
+      ],
+      "solid": false,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "moon_rock_02",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "dunes",
+        "windmere"
+      ],
+      "solid": true,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "rock_09",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "ironwood",
+        "windmere"
+      ],
+      "solid": true,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "stone_fire_pit",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "ironwood",
+        "dunes"
+      ],
+      "solid": false,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "outdoor_table_chair_set_01",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "ironwood",
+        "neon"
+      ],
+      "solid": true,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "compost_bags",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "ironwood",
+        "windmere"
+      ],
+      "solid": false,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "dead_quiver_branch_01",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "dunes"
+      ],
+      "solid": false,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "dry_branches_medium_01",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "dunes",
+        "mangrove",
+        "airfield"
+      ],
+      "solid": false,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "lateral_sea_marker",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "mangrove",
+        "harbour"
+      ],
+      "solid": true,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
+    },
+    {
+      "id": "bar_chair_round_01",
+      "source": "polyhaven",
+      "use": "prop",
+      "loc": [
+        "neon"
+      ],
+      "solid": true,
+      "lods": [
+        0.5,
+        0.2,
+        0.08
+      ],
+      "error": 0.004
     }
   ]
 }

@@ -21,6 +21,7 @@ import type { Solid } from "../../game/core/space";
 import { placeBoards, type BoardWish } from "./billboards";
 import { buildNaijaWorld, EDGE, type Area, type GroundKind, type Landmark, type OpenLayout, type River, type Road } from "./naija";
 import { footprint, solidsOf, type Placement, type PrefabId } from "./prefabs";
+import { PROPS } from "./propTable";
 
 export const MAX_HALF = 1000;
 const CITY = 200;
@@ -226,6 +227,23 @@ export function buildMaxWorld(seed = 1957): OpenLayout {
   for (let s = 0; s < 4; s++) {
     const a = (s * Math.PI) / 2;
     place("stand", P.arena.x + Math.sin(a) * 52, P.arena.z + Math.cos(a) * 52, a + Math.PI, nextV(), 0.2);
+  }
+  // ── Props (v4 rework R9): the CC0 models for each place (crates, drums and buoys on the quay,
+  // generators and racks in the refinery, ferns and camp tables in the forest...), room round each ──
+  for (const pl of PLACES) {
+    const mine = PROPS.flatMap((q, i) => (q.built && q.at.includes(pl.id) ? [i] : []));
+    const want = Math.round(pl.r * 0.45);
+    for (let k = 0, put = 0; mine.length && k < want * 6 && put < want; k++) {
+      const a = rng.range(0, Math.PI * 2);
+      const d = pl.r * Math.sqrt(rng.range(0.02, 1));
+      const x = pl.x + Math.cos(a) * d;
+      const z = pl.z + Math.sin(a) * d;
+      const idx = mine[Math.floor(rng.next() * mine.length)];
+      const rot = rng.range(0, Math.PI * 2);
+      const q = PROPS[idx];
+      if (!taken.free(rectOf(x, z, q.w + 4, q.d + 4, rot))) continue;
+      if (place("prop", x, z, rot, ((nextV() << 8) | idx) >>> 0)) put++;
+    }
   }
   // ── The savanna between: trees, bushes and rocks, thinly ──
   for (let k = 0; k < 900; k++) {

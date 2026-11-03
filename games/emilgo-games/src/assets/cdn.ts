@@ -17,6 +17,8 @@ export interface CdnModel {
   bytes: number;
   /** Each mesh on its own, set on its own origin (centred, standing on y = 0): a set's variants (rock_moss_set_01). */
   parts: BufferGeometry[];
+  /** The whole model as it was made, mesh by mesh with its own material, centred and standing on y = 0 (a prop). */
+  meshes: { geometry: BufferGeometry; material: Material }[];
 }
 
 interface Manifest {
@@ -77,6 +79,7 @@ async function load(url: string, tier: Tier): Promise<CdnModel | null> {
     loader.setMeshoptDecoder(MeshoptDecoder);
     const gltf = await loader.loadAsync(url);
     const geos: BufferGeometry[] = [];
+    const mats: Material[] = [];
     let material: Material | null = null;
     gltf.scene.updateMatrixWorld(true);
     gltf.scene.traverse((o) => {
@@ -101,7 +104,8 @@ async function load(url: string, tier: Tier): Promise<CdnModel | null> {
       }
       g.applyMatrix4(mesh.matrixWorld);
       geos.push(g);
-      material ??= Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+      mats.push(Array.isArray(mesh.material) ? mesh.material[0] : mesh.material);
+      material ??= mats[mats.length - 1];
     });
     if (!geos.length || !material) return null;
     const parts = geos.map((g) => {
@@ -113,8 +117,16 @@ async function load(url: string, tier: Tier): Promise<CdnModel | null> {
       p.computeBoundingSphere();
       return p;
     });
-    const geometry = geos.length === 1 ? geos[0] : mergeGeometries(geos, false);
+    const geometry = geos.length === 1 ? geos[0].clone() : mergeGeometries(geos, false);
     if (!geometry) return null;
+    // The whole model, centred on its footprint and standing on y = 0 (the merge above copied, so these move alone).
+    geometry.computeBoundingBox();
+    const wb = geometry.boundingBox!;
+    const meshes = geos.map((g, i) => {
+      g.translate(-(wb.min.x + wb.max.x) / 2, -wb.min.y, -(wb.min.z + wb.max.z) / 2);
+      g.computeBoundingSphere();
+      return { geometry: g, material: mats[i] };
+    });
     const size = (geometry.attributes.position.count * 32) / 1e6 + 1;
     bytes += size;
     // Over the tier's budget: forget the least recently used (their next use loads again).
@@ -126,9 +138,10 @@ async function load(url: string, tier: Tier): Promise<CdnModel | null> {
         bytes -= was.bytes;
         was.geometry.dispose();
         for (const g of was.parts) g.dispose();
+        for (const m of was.meshes) m.geometry.dispose();
       }
     }
-    return { geometry, material, bytes: size, parts };
+    return { geometry, material, bytes: size, parts, meshes };
   } catch {
     return null;
   }
