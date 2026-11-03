@@ -87,6 +87,9 @@ async function load(url: string, tier: Tier): Promise<CdnModel | null> {
       if (!mesh.isMesh) return;
       const g = mesh.geometry.clone();
       for (const k of Object.keys(g.attributes)) if (!["position", "normal", "uv"].includes(k)) g.deleteAttribute(k);
+      // No morph targets (a prop drawn instanced has no influences: three.js would read undefined).
+      g.morphAttributes = {};
+      g.morphTargetsRelative = false;
       // The pipeline quantizes (KHR_mesh_quantization: int16 positions, int8 normals, uint16 UVs): to
       // float first, or the node's scale would clip the positions and the meshes wouldn't merge.
       for (const k of Object.keys(g.attributes)) {
