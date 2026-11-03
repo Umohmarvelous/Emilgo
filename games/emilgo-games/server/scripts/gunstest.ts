@@ -267,7 +267,9 @@ console.log("things that break:");
   const ev: MatchEvent[] = [];
   for (let k = 0; k < 6 && !crate.broken; k++) shoot(m, a, crate.x, crate.h + 0.45, crate.z, ev);
   check(crate.broken && ev.some((e) => e.type === "brk" && e.b === crate.index) && g.pickups.length === n0 + 1, "a crate shot to pieces gives loot");
-  const drum = g.breakables.find((b) => b.kind === "drum")!;
+  // A drum with open ground round it (the city's props can stand between a drum and the spots below).
+  const open = (b: { x: number; z: number; h: number }) => m.world.space.lineClear(b.x, b.z, b.x - 1.8, b.z + 0.5, b.h + 0.5) && m.world.space.lineClear(b.x + 9, b.z, b.x, b.z, b.h + 0.5);
+  const drum = g.breakables.find((b) => b.kind === "drum" && open(b))!;
   put(m, "p0", drum.x + 9, drum.z);
   const near = put(m, "p1", drum.x - 1.8, drum.z + 0.5);
   g.hp[near.index] = 100;

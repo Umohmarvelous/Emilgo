@@ -845,21 +845,6 @@
         0.08
       ],
       "error": 0.004
-    },
-    {
-      "id": "bar_chair_round_01",
-      "source": "polyhaven",
-      "use": "prop",
-      "loc": [
-        "neon"
-      ],
-      "solid": true,
-      "lods": [
-        0.5,
-        0.2,
-        0.08
-      ],
-      "error": 0.004
     }
   ]
 }
