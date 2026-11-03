@@ -10,7 +10,7 @@ import { loadFonts } from "./ui/fonts";
 import { nextDrop } from "./ui/places";
 
 import { Game } from "./game/session";
-import { loadScans } from "./world/human";
+import { loadOperators, loadScans } from "./world/human";
 import { detectHost } from "./platform";
 import { loadSettings } from "./settings";
 
@@ -87,6 +87,8 @@ async function boot(): Promise<void> {
   // The people: started first, needed before the lobby is built. If it fails
   // everyone is drawn as the generated people instead.
   const scans = loadScans().catch((e) => console.warn("scanned people unavailable", e));
+  // The operators' bodies and moves (v4 rework): in the background; Free For All waits on them (session.ts).
+  loadOperators().catch((e) => console.warn("operators unavailable", e));
   loadFonts();
   showArt();
   progress(0.25, "Loading Lagos...");

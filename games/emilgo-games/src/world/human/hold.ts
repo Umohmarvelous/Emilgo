@@ -22,11 +22,21 @@ export interface Hold {
   readonly local: Matrix4;
   /** Set once the hold has been worked out at least once. */
   ready: boolean;
+  /**
+   * A torch too (Dead Streets, v4 rework): with a pistol it's in the left hand
+   * under the gun (the wrists back to back, both pointing where you aim); with a
+   * long gun it rides under the barrel. Written here: where it is (as `local`).
+   */
+  torch: boolean;
+  readonly torchLocal: Matrix4;
 }
 
-export function newHold(kind: GunKind): Hold {
-  return { kind, pitch: 0, mode: 0, local: new Matrix4(), ready: false };
+export function newHold(kind: GunKind, torch = false): Hold {
+  return { kind, pitch: 0, mode: 0, local: new Matrix4(), ready: false, torch, torchLocal: new Matrix4() };
 }
+
+/** The torch's lens in torch space (+z out of it): its light leaves here. */
+export const TORCH_LENS: [number, number, number] = [0, 0, 0.17];
 
 /** The wrists' targets on each gun (gun space). */
 const GRIPS: Record<GunKind, { r: [number, number, number]; l: [number, number, number] }> = {
@@ -73,6 +83,9 @@ const _rT = new Vector3();
 const _rP = new Vector3();
 const _lT = new Vector3();
 const _lP = new Vector3();
+const _tp = new Vector3();
+const _tq = new Quaternion();
+const _tm = new Matrix4();
 
 /** Turn `bone` so its child points at `to` (world). */
 function aimBone(bone: Bone, child: Bone, to: Vector3): void {
@@ -184,11 +197,21 @@ export function applyHold(h: Holder, hold: Hold): void {
   _rT.set(G.r[0], G.r[1], G.r[2]).applyMatrix4(_gun);
   _rP.copy(_sh).addScaledVector(_left, -0.35).addScaledVector(_up, -0.5).addScaledVector(_fwd, -0.15);
   reach(h, "R", _rT, _rP);
-  _lT.set(G.l[0], G.l[1], G.l[2]).applyMatrix4(_gun);
+  // The torch with a pistol: the left fist under the right wrist (Harries), the torch along the gun.
+  if (hold.torch && pistol) _lT.set(0.0, -0.075, -0.045).applyMatrix4(_gun);
+  else _lT.set(G.l[0], G.l[1], G.l[2]).applyMatrix4(_gun);
   _lP.copy(_shL).addScaledVector(_left, pistol ? 0.25 : 0.45).addScaledVector(_up, -0.6).addScaledVector(_fwd, 0.1);
   reach(h, "L", _lT, _lP);
   grip(h, "R", 1);
-  grip(h, "L", 0.9);
+  grip(h, "L", hold.torch && pistol ? 1 : 0.9);
+  if (hold.torch) {
+    // In the left fist (pistol), or under the barrel (a long gun): pointing along the gun.
+    _tq.setFromRotationMatrix(_gun.clone().scale(_S.set(1 / s, 1 / s, 1 / s)));
+    if (pistol) h.bone("handL").getWorldPosition(_tp).addScaledVector(_dir, 0.02 * s).addScaledVector(_up, -0.03 * s);
+    else _tp.set(0.0, -0.045, 0.5).applyMatrix4(_gun);
+    _tm.compose(_tp, _tq, _S.set(s, s, s));
+    hold.torchLocal.multiplyMatrices(_inv.copy(mesh.matrixWorld).invert(), _tm);
+  }
   // Where the gun is, relative to the body (the body moves on between poses).
   _inv.copy(mesh.matrixWorld).invert();
   hold.local.multiplyMatrices(_inv, _gun);

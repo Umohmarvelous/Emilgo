@@ -44,12 +44,15 @@ import { rot } from "./rot";
 import { normalMapFor } from "./normals";
 import { loadScanLevel, onScanLevel, scanReady, scanStamp } from "./scanbody";
 import { OUTFIT_BY_ID, paintKey, scanPaintKey, shapeKey, type Look } from "./wardrobe";
+import { onOperatorsReady, operatorBody, operatorsReady } from "./op";
+import { suitMaterial } from "./suit";
 
 export type { Look } from "./wardrobe";
 export type { ActionId, EmoteId, PoseId } from "./animator";
 export type { Detail, Tier } from "./mesh";
 export { nearDetail } from "./mesh";
 export { loadScans } from "./scanbody";
+export { loadOperators } from "./op";
 
 // ── Caches ────────────────────────────────────────────────────────────────────
 
@@ -87,6 +90,18 @@ function bodyFor(look: Look, level: Detail): Body {
       bodies.get(first)!.geometry.dispose();
       bodies.delete(first);
     }
+  }
+  return b;
+}
+
+/** The operator's body (op.ts) at a level, with its ground hull: one per body and level. */
+function opBodyFor(look: Look, level: Detail): Body {
+  const key = `${level}|op|${look.body}`;
+  let b = bodies.get(key);
+  if (!b) {
+    const built = operatorBody(look.body, level);
+    b = { ...built, contacts: hullOf(built, MAIN_BONES, DIRS), contactsAll: hullOf(built, BONES.length, DIRS_DOWN, true) };
+    bodies.set(key, b);
   }
   return b;
 }
@@ -214,6 +229,9 @@ const people = new Set<Human>();
 onScanLevel(() => {
   for (const h of people) h.refreshShape();
 });
+onOperatorsReady(() => {
+  for (const h of people) h.upgradeToOp();
+});
 
 /** Fetch, in the background, the scanned detail levels this graphics tier draws (Low needs only what boot loaded). */
 export function ensureScanLevels(tier: Tier): void {
@@ -267,8 +285,12 @@ export class Human {
   /** The detail level this body was last posed at, lying still (−1: not lying still). */
   private restedAt = -1;
   private readonly tex: CanvasTexture;
-  private readonly hipsRest: Vector3;
-  private readonly rootRest: Vector3;
+  private hipsRest: Vector3;
+  private rootRest: Vector3;
+  /** Wearing the operator's body (the black suit, v4 rework) instead of the scan. */
+  private op = false;
+  private opMat: Material | null = null;
+  private baseMat: Material | null = null;
   /** Bone matrices in the mesh's own space (scratch: the ground solver, the skin). */
   private readonly local: Matrix4[] = Array.from({ length: BONES.length }, () => new Matrix4());
   /** Off the ground on purpose (the referee says it is jumping). */
@@ -351,7 +373,9 @@ export class Human {
     const o = OUTFIT_BY_ID[look.outfit];
     this.anim.narrow = !scanned && o.bottom.kind === "skirt" && (o.bottom.flare ?? 0) < 0.1;
     if (scanned) this.anim.curlBias = 0.35;
+    this.scanned = scanned;
   }
+  private scanned = false;
 
   get triangles(): number {
     return this.trianglesAt(this.level);
@@ -367,6 +391,8 @@ export class Human {
     if (kind === this.zkind && (kind === null || (this.mesh.material as Material).userData.rotted === `rot:${blood}`)) return;
     this.zkind = kind;
     this.anim.undead = !!kind;
+    // The zombies walk on the mocap clips too (the CC0 zombie idle and walk).
+    this.anim.mocap = this.op || !!kind;
     rot(this.mesh.material as Material, !!kind, this.body.rest, blood);
     this.showGeometry();
   }
@@ -376,8 +402,62 @@ export class Human {
     const same = this.gear && kit && this.gear.kit.id === kit.id && this.gear.tier === tier;
     if (same || (!kit && !this.gear)) return;
     this.gear = kit ? { kit, tier } : null;
-    dress(this.mesh.material as Material, kit, this.body.rest);
+    // v4 rework: the operator is its own body in a black suit (no armour, no camo);
+    // the old dress (the scan re-coloured) only if the operators' files failed.
+    this.applyOp(!!kit && operatorsReady());
+    if (!this.op) dress(this.mesh.material as Material, kit, this.body.rest);
     this.showGeometry();
+  }
+
+  /** The operators' files arrived after this body was dressed: put the operator's body on now. */
+  upgradeToOp(): void {
+    if (!this.gear || this.op || this.zkind) return;
+    dress(this.mesh.material as Material, null, this.body.rest);
+    this.applyOp(true);
+    this.showGeometry();
+  }
+
+  private applyOp(wantOp: boolean): void {
+    if (wantOp !== this.op) {
+      this.op = wantOp;
+      this.body = this.bodyAt(this.level);
+      this.rebone();
+      if (wantOp) {
+        this.baseMat ??= this.mesh.material as Material;
+        this.opMat ??= suitMaterial(this.look, this.tier, this.body.rest);
+        this.mesh.material = this.opMat;
+      } else if (this.baseMat) this.mesh.material = this.baseMat;
+      this.anim.mocap = wantOp || !!this.zkind;
+      this.anim.curlBias = wantOp ? 0 : this.scanned ? 0.35 : 0;
+      if (this.shadow) this.castShadows(true);
+    }
+  }
+
+  /** The body at a level: the operator's while dressed as one, else the look's own. */
+  private bodyAt(level: Detail): Body {
+    return this.op ? opBodyFor(this.look, level) : bodyFor(this.look, level);
+  }
+
+  /** Put the bones where this body's rest joints are (a body swap), and rebind. */
+  private rebone(): void {
+    const rest = this.body.rest;
+    const sk = this.mesh.skeleton;
+    BONES.forEach((name, i) => {
+      const parent = PARENT[name];
+      const p = rest[name];
+      const b = this.bones[i];
+      if (parent) {
+        const pp = rest[parent];
+        b.position.set(p.x - pp.x, p.y - pp.y, p.z - pp.z);
+      } else b.position.set(p.x, p.y, p.z);
+      b.quaternion.identity();
+      b.updateMatrix();
+      sk.boneInverses[i].makeTranslation(-p.x, -p.y, -p.z);
+    });
+    this.hipsRest = this.bones[BONES.indexOf("hips")].position.clone();
+    this.rootRest = this.bones[0].position.clone();
+    this.restedAt = -1;
+    this.skinDirty = true;
   }
 
   get gearTier(): number {
@@ -386,6 +466,7 @@ export class Human {
 
   /** The geometry for the body at this level: dressed with the gear, or bare. */
   private geometryFor(b: Body, level: Detail): BufferGeometry {
+    if (this.op) return b.geometry;
     if (this.zkind) return zombieGeometry(b.geometry, b.rest, this.zkind, level);
     return this.gear ? dressedGeometry(b.geometry, b.rest, this.gear.tier, level, this.gear.kit) : b.geometry;
   }
@@ -403,13 +484,15 @@ export class Human {
 
   /** Triangles this person would cost at a detail level (builds it if needed, cached). */
   trianglesAt(level: Detail): number {
-    const b = bodyFor(this.look, level);
+    const b = this.bodyAt(level);
+    if (this.op) return b.triangles;
     if (!this.gear && !this.zkind) return b.triangles;
     return (this.geometryFor(b, level).index?.count ?? 0) / 3;
   }
 
   /** A better scanned level arrived: same bones, finer geometry. */
   refreshShape(): void {
+    if (this.op) return;
     const b = bodyFor(this.look, this.level);
     if (b === this.body) return;
     this.body = b;
@@ -435,7 +518,7 @@ export class Human {
       if (this.standIn) this.standIn.visible = false;
       return;
     }
-    const low = bodyFor(this.look, 1);
+    const low = this.bodyAt(1);
     if (!this.standIn) {
       const s = shadowOnly(new SkinnedMesh(low.geometry));
       s.castShadow = true;
@@ -453,7 +536,7 @@ export class Human {
   setDetail(level: Detail): void {
     if (level === this.level) return;
     this.level = level;
-    this.body = bodyFor(this.look, level);
+    this.body = this.bodyAt(level);
     this.mesh.geometry = this.geometryFor(this.body, level);
     if (this.shadow) this.castShadows(true);
   }
@@ -461,6 +544,19 @@ export class Human {
   /** Bone by name (camera eye, effects). */
   /** The gun held (v4 guns), or null: applied after each pose. */
   hold: Hold | null = null;
+  /** A torch in the hand when nothing else is (Dead Streets). */
+  torch = false;
+
+  /** A shot just went off from this body's gun (the kick plays). */
+  shot(): void {
+    this.anim.shotT = 0;
+  }
+
+  /** A reload of `seconds` begins (the hands do it). */
+  reload(seconds: number): void {
+    this.anim.reloadT = 0;
+    this.anim.reloadLen = Math.max(0.4, seconds);
+  }
 
   bone(name: BoneName): Bone {
     return this.bones[BONES.indexOf(name)];
@@ -550,8 +646,19 @@ export class Human {
   }
 
   /** Advance and pose. `speed` m/s on the ground; `stance` 0..2; `air` 0..1 (1: jumping); `slide` 0/1. */
-  update(dt: number, speed: number, stance = 0, air = 0, slide = 0): void {
+  update(dt: number, speed: number, stance = 0, air = 0, slide = 0, moveYaw = 0): void {
     const a = this.anim;
+    a.moveYaw = moveYaw;
+    // What the hands hold (v4 rework): the mocap's upper body follows it.
+    const hd = this.hold;
+    if (hd) {
+      a.weapon = hd.kind === "pistol" ? 1 : 2;
+      a.aimWant = hd.mode === 1 ? 1 : 0;
+      a.aimPitch = hd.pitch;
+    } else {
+      a.weapon = this.torch ? 3 : 0;
+      a.aimWant = 0;
+    }
     // Down and still: the pose can't change any more, so it isn't worked out again
     // (twenty bodies on the field cost nothing). A new detail level re-poses once.
     if (a.dead > REST_AT && this.restedAt === this.level) {
@@ -720,6 +827,8 @@ export class Human {
     people.delete(this);
     releaseTexture(this.tex);
     (this.mesh.material as Material).dispose();
+    this.opMat?.dispose();
+    this.baseMat?.dispose();
     this.mesh.skeleton.dispose();
     this.mesh.removeFromParent();
   }

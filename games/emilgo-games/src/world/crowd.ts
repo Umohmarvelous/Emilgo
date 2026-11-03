@@ -358,7 +358,9 @@ export class Crowd {
       this.animDt[i] = (fresh ? 0 : this.animDt[i]) + dt * k;
       const stride = i === this.featured || h.detail === this.nearLevel || k !== 1 || (h.anim.dead >= 0 && h.anim.dead < FALL_TIME + 0.2) ? 1 : ANIM_STRIDE[this.tier];
       if (fresh || (this.frameNo + i) % stride === 0) {
-        h.update(this.animDt[i], speed, c.stance ?? 0, (c.y ?? 0) > 0.03 ? 1 : 0, c.slide > 0 ? 1 : 0);
+        // Which way it moves against where it faces (the mocap's strafe and backpedal).
+        const mv = speed > 0.3 ? Math.atan2(c.vx, c.vz) - c.heading : 0;
+        h.update(this.animDt[i], speed, c.stance ?? 0, (c.y ?? 0) > 0.03 ? 1 : 0, c.slide > 0 ? 1 : 0, Math.atan2(Math.sin(mv), Math.cos(mv)));
         this.animDt[i] = 0;
       }
 

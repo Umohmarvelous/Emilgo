@@ -29,6 +29,7 @@ import { EMOTE_SECONDS, type EmoteId } from "../../social/emotes";
 import { FALL_TIME, fallOf, fallProgress, ragdollPose, type FallKind } from "./ragdoll";
 import { clip, mirror, mirrorKey, play, playAdd, setScratch, type Clip, type Key, type V3 } from "./keys";
 import { BONES, BONE_INDEX, LID_CLOSE, type BoneName } from "./skeleton";
+import { mocapPose, stepMocap } from "./mocapPose";
 
 export type { EmoteId } from "../../social/emotes";
 export type PoseId = "relaxed" | "hip" | "hair" | "hero" | "arms";
@@ -64,12 +65,15 @@ export class Pose {
   /** Finger curl per hand, 0 open … 1 fist. */
   curlL = 0.25;
   curlR = 0.25;
+  /** The fingers are posed already (mocap): the curl leaves them unless something closes the hands. */
+  fingers = false;
 
   clear(): void {
     this.rot.fill(0);
     this.hipsY = this.hipsZ = this.hipsX = 0;
     this.rootY = this.lift = this.tilt = this.tiltYaw = 0;
     this.curlL = this.curlR = 0.25;
+    this.fingers = false;
   }
   set(b: BoneName, x: number, y = 0, z = 0): void {
     const i = BONE_INDEX[b] * 3;
@@ -172,11 +176,44 @@ export interface AnimState {
   seed: number;
   /** A zombie (v4 Phase 5): the arms reach ahead, the chest hunches, the head lolls, the gait drags. */
   undead: boolean;
+  /** v4 rework: the base pose from the CC0 mocap clips (mocapPose.ts), and its clocks. */
+  mocap: boolean;
+  mSpeed: number;
+  mPhase: number;
+  mAir: boolean;
+  mAirT: number;
+  mLandT: number;
+  /** Which way the body moves relative to where it faces (radians; 0 ahead). */
+  moveYaw: number;
+  /** In the hands: 0 nothing, 1 a pistol, 2 a long gun, 3 a torch. */
+  weapon: 0 | 1 | 2 | 3;
+  /** Aiming (0 … 1, eased toward aimWant) and the aim's pitch (+ down). */
+  aimWant: number;
+  aimW: number;
+  aimPitch: number;
+  /** Seconds since the last shot; into a reload (−1: none) and its length. */
+  shotT: number;
+  reloadT: number;
+  reloadLen: number;
 }
 
 export function newAnimState(seed: number): AnimState {
   return {
     undead: false,
+    mocap: false,
+    mSpeed: 0,
+    mPhase: seed % 1,
+    mAir: false,
+    mAirT: 9,
+    mLandT: 9,
+    moveYaw: 0,
+    weapon: 0,
+    aimWant: 0,
+    aimW: 0,
+    aimPitch: 0,
+    shotT: 9,
+    reloadT: -1,
+    reloadLen: 1,
     time: seed * 3.7,
     phase: seed * 1.7,
     amp: 0,
@@ -236,6 +273,7 @@ export function stepGait(a: AnimState, speed: number, dt: number): void {
   }
   if (a.hitT > 0) a.hitT = Math.max(0, a.hitT - dt);
   if (a.talk > 0) a.talk = Math.max(0, a.talk - dt);
+  if (a.mocap) stepMocap(a, speed, dt);
   a.carryW += ((a.carry ? 1 : 0) - a.carryW) * (1 - Math.exp(-dt * 10));
   const tuck = a.carry ? Math.max(0, Math.min(1, (speed - 1.2) / 2.3)) : 0;
   a.carryTuck += (tuck - a.carryTuck) * (1 - Math.exp(-dt * 6));
@@ -269,11 +307,14 @@ export function computePose(a: AnimState, out: Pose): void {
     return;
   }
 
+  const crouch = Math.min(1, a.stance);
+  // v4 rework: operators and zombies stand on the mocap clips; everyone else (and a prone crawl) on the gait curves.
+  const mocap = a.mocap && mocapPose(a, out);
+  if (!mocap) {
   // ── Legs and body: locomotion with stance ──
   const amp = a.amp * (1 - a.air);
   const run = a.run;
   const spr = a.sprint;
-  const crouch = Math.min(1, a.stance);
   const prone = Math.max(0, a.stance - 1);
   const narrow = a.narrow ? 0.6 : 1;
 
@@ -404,6 +445,7 @@ export function computePose(a: AnimState, out: Pose): void {
     out.set("foreArmL", lerp(out.get("foreArmL", 0), -1.2, prone));
     out.set("foreArmR", lerp(out.get("foreArmR", 0), -1.2, prone));
   }
+  }
 
   // ── Finished: arms up, a little bounce ──
   if (a.done >= 0) {
@@ -454,7 +496,7 @@ export function computePose(a: AnimState, out: Pose): void {
   }
 
   // ── Sliding: low, leaning back, the front leg out, the back one folded ──
-  if (a.slide > 0.01) {
+  if (a.slide > 0.01 && !mocap) {
     const w = a.slide;
     out.hipsY = lerp(out.hipsY, -0.42, w);
     out.set("thighL", lerp(out.get("thighL", 0), -1.25, w), 0, out.get("thighL", 2));
@@ -490,7 +532,7 @@ export function computePose(a: AnimState, out: Pose): void {
 
   // ── Sitting in a car: hips down onto the seat, thighs forward, shins down;
   // the driver's hands on the wheel, a passenger's in the lap ──
-  if (a.sit > 0.01) {
+  if (a.sit > 0.01 && !mocap) {
     const w = a.sit;
     for (const [b, v] of SIT) towards(out, b, v, w);
     for (const [b, v] of a.steer ? WHEEL : LAP) towards(out, b, v, w);
@@ -500,7 +542,7 @@ export function computePose(a: AnimState, out: Pose): void {
   }
 
   // ── A zombie: arms out ahead (each its own height, twitching), the chest hunched, the head lolling ──
-  if (a.undead) {
+  if (a.undead && !mocap) {
     const s = a.seed;
     const tw = Math.sin(t * 7.3 + s) * 0.06 + Math.sin(t * 2.1 + s * 3) * 0.04;
     out.set("upperArmL", -1.25 + 0.18 * Math.sin(s * 1.7) + tw, 0, 0.12);
@@ -527,9 +569,11 @@ export function computePose(a: AnimState, out: Pose): void {
     out.curlL = out.curlR = lerp(out.curlL, 0.08, open);
   }
 
-  // Fingers follow the curl.
-  curl(out, "L", out.curlL, a.curlBias);
-  curl(out, "R", out.curlR, a.curlBias);
+  // Fingers follow the curl (mocap hands keep their own, unless something closes them).
+  if (!out.fingers || a.action || a.carryW > 0.01 || a.done >= 0 || a.emote || a.pose) {
+    curl(out, "L", out.curlL, a.curlBias);
+    curl(out, "R", out.curlR, a.curlBias);
+  }
   faceRig(a, out);
 }
 
@@ -938,6 +982,7 @@ function curl(out: Pose, L: "L" | "R", k: number, bias = 0): void {
   ] as const) {
     out.set(`${n}1${L}` as BoneName, 0, 0, s * base * f * 0.85);
     out.set(`${n}2${L}` as BoneName, 0, 0, s * base * f * 0.9);
+    out.set(`${n}3${L}` as BoneName, 0, 0, s * base * f * 0.6);
   }
   out.set(`thumb1${L}` as BoneName, (-0.2 - k * 0.3) * (1 - bias), 0, s * 0.2 * k);
   out.set(`thumb2${L}` as BoneName, (-0.1 - k * 0.4) * (1 - bias * 0.5), 0, s * 0.3 * k);

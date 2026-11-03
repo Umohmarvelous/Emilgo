@@ -3,14 +3,15 @@
 // Players are the scanned people; &gen=1 shows the generated ones instead (the fallback).
 import { KITS } from "../src/world/human/gear";
 import { ACESFilmicToneMapping, AmbientLight, Color, DirectionalLight, HemisphereLight, Mesh, MeshStandardMaterial, PerspectiveCamera, PlaneGeometry, Scene, SRGBColorSpace, WebGLRenderer } from "three";
-import { Human, loadScans, type Tier } from "../src/world/human";
+import { Human, loadOperators, loadScans, type Tier } from "../src/world/human";
+import { newHold } from "../src/world/human/hold";
 import { loadScanLevel } from "../src/world/human/scanbody";
 import { FREE_OUTFITS, HAIRS, OUTFITS, cleanLook, uniformLook, type Look } from "../src/world/human/wardrobe";
 
 const q = new URLSearchParams(location.search);
 if (!q.get("gen")) {
   await loadScans();
-  await Promise.all([loadScanLevel(2), loadScanLevel(3)]);
+  await Promise.all([loadScanLevel(2), loadScanLevel(3), loadOperators()]);
 }
 if (q.get("uvdebug")) (globalThis as { __uvDebug?: boolean }).__uvDebug = true;
 const tier = Number(q.get("tier") ?? 1) as Tier;
@@ -78,6 +79,15 @@ looks.forEach((l, i) => {
   // v4: the operator's gear (?gear=ladder: tiers 0–4 across; ?gear=0..4 for all; ?kit=0..2).
   const gq = q.get("gear");
   if (gq !== null) h.setGear(KITS[Number(q.get("kit") ?? i) % KITS.length], gq === "ladder" ? i % 5 : Number(gq));
+  // v4 rework: a gun in the hands (?hold=pistol|rifle|smg|shotgun&mode=0 low|1 aim|2 sprint&pitch=r); ?torch=1.
+  const hq = q.get("hold");
+  if (hq) {
+    const hd = newHold(hq as never);
+    hd.mode = Number(q.get("mode") ?? 1) as 0 | 1 | 2;
+    hd.pitch = Number(q.get("pitch") ?? 0);
+    h.hold = hd;
+  }
+  if (q.get("torch")) h.torch = true;
   // v4: zombies (?zombie=all: the eight kinds across; ?zombie=<kind>; &blood=1).
   const zq = q.get("zombie");
   if (zq !== null) {

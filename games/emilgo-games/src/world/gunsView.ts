@@ -71,7 +71,7 @@ function glow(g: BufferGeometry): BufferGeometry {
   return g;
 }
 
-function gunGeometry(k: GunKind): BufferGeometry {
+export function gunGeometry(k: GunKind): BufferGeometry {
   const B = (w: number, h: number, d: number, color: number, p: [number, number, number], r: [number, number, number] = [0, 0, 0]) => part(new BoxGeometry(w, h, d), color, { p, r });
   const C = (r: number, len: number, color: number, p: [number, number, number], seg = 6) => part(new CylinderGeometry(r, r, len, seg), color, { p, r: [Math.PI / 2, 0, 0] });
   switch (k) {
@@ -164,7 +164,7 @@ function drumGeometry(): BufferGeometry {
 }
 
 /** Vertex colours, lit; a colour over 1 glows (the rarity strips). */
-function gunMaterial(tier: Tier): Material {
+export function gunMaterial(tier: Tier): Material {
   const m = tier === 0 ? new MeshLambertMaterial({ vertexColors: true }) : new MeshStandardMaterial({ vertexColors: true, metalness: 0.55, roughness: 0.42 });
   m.onBeforeCompile = (sh) => {
     sh.fragmentShader = sh.fragmentShader.replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\n#ifdef USE_COLOR\n totalEmissiveRadiance += max(vColor.rgb - 1.0, vec3(0.0)) * 0.6;\n#endif");

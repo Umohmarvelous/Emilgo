@@ -623,8 +623,11 @@ export class FfaMode implements GameMode {
         if (e.by === me.id) this.combat?.hitMark(e.head, true);
         break;
       // ── Guns (v4) ──
-      case "fire":
+      case "fire": {
         if (Math.hypot(e.x - me.x, e.z - me.z) < 30) this.actionAt = m.elapsed;
+        // The shooter's arms kick (the mocap's shot), anyone in view.
+        const sh = m.get(e.id);
+        if (sh) h.crowd.human(sh.index)?.shot();
         if (e.id === me.id) {
           const K = GUNS.kinds[GUN_KINDS[e.g] ?? "pistol"];
           const ads = h.rig.ads;
@@ -632,6 +635,7 @@ export class FfaMode implements GameMode {
           h.rig.kick(K.pellets > 1 ? 0.25 : 0.06);
         }
         break;
+      }
       case "dmg":
         if (e.by === me.id || e.tg === me.id) this.actionAt = m.elapsed;
         if (e.by === me.id && e.tg !== me.id) {
@@ -664,6 +668,10 @@ export class FfaMode implements GameMode {
         break;
       }
       case "reload":
+        if (e.how === "start") {
+          const rc = m.get(e.id);
+          if (rc) h.crowd.human(rc.index)?.reload(Math.max(0.4, e.at - m.elapsed));
+        }
         if (e.id === me.id && e.how === "start") {
           const g = m.module<GunsModule>("guns");
           const kind = GUN_KINDS[g?.gun[me.index][e.s] ?? 0] ?? "pistol";

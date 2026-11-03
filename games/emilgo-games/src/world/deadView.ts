@@ -31,7 +31,7 @@ import {
   Mesh,
   MeshBasicMaterial,
   SpotLight,
-  type Vector3,
+  Vector3,
 } from "three";
 
 import type { Sound } from "../audio/sound";
@@ -49,6 +49,10 @@ import type { Hud, ItemPin } from "../ui/hud";
 import { getLang, t } from "../ui/i18n";
 import type { MapMark } from "../ui/minimap";
 import type { Crowd } from "./crowd";
+import { gunGeometry, gunMaterial } from "./gunsView";
+import { newHold, TORCH_LENS, type Hold } from "./human/hold";
+import { merge, part } from "./geo";
+import type { GunKind } from "../config";
 
 // v4: the rot shader (human/rot.ts) gives the skin and clothes; a kind's tint only shifts it.
 const ZOMBIE_TINT = 0xdce4d4;
@@ -111,9 +115,63 @@ export class DeadView {
   /** Birds on the roofs (§3.4 #15): where each flock sits, and when it took off (−1: sitting). */
   private flocks: { x: number; z: number; up: number }[] = [];
   private bellAt = 20;
+  /** What you hold (v4 rework): the run's gun and a torch, posed by hold.ts; when you last fired. */
+  private hold: Hold | null = null;
+  private gunMesh: Mesh | null = null;
+  private torchMesh: Mesh | null = null;
+  private firedAt = -9;
   /** Your best run's ghost (§3.4 #12), raced: its trace and its body. */
   private ghost: number[] | null = null;
   private ghostMesh: Mesh | null = null;
+
+  /** The runner's gun and torch in the hands (the light leaves the torch's lens). */
+  private holdGear(m: Match, weapon: string): void {
+    const me = m.contestants[this.o.me];
+    const h = this.o.crowd.human(this.o.me);
+    const alive = me.status === "alive" && !!h;
+    const kind: GunKind | null = weapon === "dane" ? "shotgun" : weapon === "flame" ? "rifle" : weapon === "pistol" ? "pistol" : null;
+    if (!this.torchMesh) {
+      this.torchMesh = new Mesh(torchGeometry(), gunMaterial(this.o.tier));
+      this.torchMesh.matrixAutoUpdate = false;
+      this.group.add(this.torchMesh);
+    }
+    if (kind && (!this.gunMesh || this.hold?.kind !== kind)) {
+      if (this.gunMesh) this.group.remove(this.gunMesh);
+      this.gunMesh = new Mesh(gunGeometry(kind), gunMaterial(this.o.tier));
+      this.gunMesh.matrixAutoUpdate = false;
+      this.group.add(this.gunMesh);
+      this.hold = newHold(kind, true);
+    }
+    if (!alive || !h) {
+      if (h) h.hold = null;
+      this.torchMesh.visible = false;
+      if (this.gunMesh) this.gunMesh.visible = false;
+      return;
+    }
+    if (kind && this.hold) {
+      // Up and aimed for a moment after a shot; across the chest at a sprint; low and ready otherwise.
+      this.hold.mode = this.time - this.firedAt < 1.4 ? 1 : me.sprinting ? 2 : 0;
+      h.hold = this.hold;
+      h.torch = false;
+      if (!this.hold.ready) return;
+      this.gunMesh!.visible = true;
+      this.gunMesh!.matrix.multiplyMatrices(h.mesh.matrixWorld, this.hold.local);
+      this.torchMesh.matrix.multiplyMatrices(h.mesh.matrixWorld, this.hold.torchLocal);
+    } else {
+      // A melee weapon: the torch alone, in the right hand (the mocap's torch carry).
+      h.hold = null;
+      h.torch = true;
+      if (this.gunMesh) this.gunMesh.visible = false;
+      h.mesh.updateWorldMatrix(true, false);
+      this.torchMesh.matrix.copy(h.bone("handR").matrixWorld);
+    }
+    this.torchMesh.visible = true;
+    // The light leaves the lens, along the torch.
+    const lens = _lens.set(TORCH_LENS[0], TORCH_LENS[1], TORCH_LENS[2]).applyMatrix4(this.torchMesh.matrix);
+    const ahead = _ahead.set(TORCH_LENS[0], TORCH_LENS[1], TORCH_LENS[2] + 8).applyMatrix4(this.torchMesh.matrix);
+    this.torch.position.copy(lens);
+    this.torch.target.position.copy(ahead);
+  }
 
   constructor(o: DeadViewOptions) {
     this.o = o;
@@ -170,6 +228,7 @@ export class DeadView {
     const s = this.o.sound;
     const me = m.contestants[this.o.me];
     for (const e of list) {
+      if (e.type === "shot" && "id" in e && e.id === me.id) this.firedAt = this.time;
       switch (e.type) {
         case "zrise": {
           const z = m.get(e.id);
@@ -298,11 +357,12 @@ export class DeadView {
         this.o.crowd.setHidden(i, asleep);
       }
     }
-    // The torch: from your chest, where you face; dimmer as the battery goes.
+    // The torch: in your hands (v4 rework: held, under the gun), where you aim; dimmer as the battery goes.
     const hd = me.heading;
     const y = me.h + me.y + 1.35;
     this.torch.position.set(me.x + Math.sin(hd) * 0.3, y, me.z + Math.cos(hd) * 0.3);
     this.torch.target.position.set(me.x + Math.sin(hd) * 8, me.h + 0.4, me.z + Math.cos(hd) * 8);
+    this.holdGear(m, sv?.weapon ?? "pistol");
     const power = me.status === "alive" && sv.torch > 0 ? 0.35 + 0.65 * Math.min(1, sv.torch / 30) : 0;
     // A weak battery flickers.
     const flick = sv.torch < 15 && Math.sin(this.time * 31) > 0.7 ? 0.4 : 1;
@@ -461,4 +521,18 @@ export class DeadView {
       (this.ghostMesh.material as MeshBasicMaterial).dispose();
     }
   }
+}
+
+const _lens = new Vector3();
+const _ahead = new Vector3();
+
+/** A tactical torch along +z: a knurled body, a wider head, a bright lens (a colour over 1 glows). */
+function torchGeometry() {
+  const C = (r0: number, r1: number, len: number, color: number, z: number) => part(new CylinderGeometry(r1, r0, len, 10), color, { p: [0, 0, z], r: [Math.PI / 2, 0, 0] });
+  return merge([
+    C(0.014, 0.014, 0.12, 0x1b1c1e, 0.06),
+    C(0.0145, 0.0145, 0.01, 0x2c2e31, 0.03),
+    C(0.016, 0.021, 0.04, 0x232427, 0.14),
+    part(new CylinderGeometry(0.019, 0.019, 0.004, 12), 0xfff6d8, { p: [0, 0, 0.162], r: [Math.PI / 2, 0, 0] }, 2.2),
+  ]);
 }

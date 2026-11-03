@@ -33,6 +33,12 @@ export const BONES = [
   "thumb1R", "thumb2R", "index1R", "index2R", "middle1R", "middle2R", "ring1R", "ring2R", "pinky1R", "pinky2R",
   // Face (the scanned people): the jaw, the eyeballs, the upper lids. Rest is open and looking ahead.
   "jaw", "eyeL", "eyeR", "lidL", "lidR",
+  // v4 rework: the fingers' third joints and the toes (the operators' bodies and
+  // their mocap move them; other bodies carry no weight on them). On the end, so
+  // every parent still comes before its children.
+  "thumb3L", "index3L", "middle3L", "ring3L", "pinky3L",
+  "thumb3R", "index3R", "middle3R", "ring3R", "pinky3R",
+  "toeL", "toeR",
 ] as const;
 
 export type BoneName = (typeof BONES)[number];
@@ -67,7 +73,34 @@ export const PARENT: Record<BoneName, BoneName | null> = {
   thumb1R: "handR", thumb2R: "thumb1R", index1R: "handR", index2R: "index1R", middle1R: "handR", middle2R: "middle1R",
   ring1R: "handR", ring2R: "ring1R", pinky1R: "handR", pinky2R: "pinky1R",
   jaw: "head", eyeL: "head", eyeR: "head", lidL: "head", lidR: "head",
+  thumb3L: "thumb2L", index3L: "index2L", middle3L: "middle2L", ring3L: "ring2L", pinky3L: "pinky2L",
+  thumb3R: "thumb2R", index3R: "index2R", middle3R: "middle2R", ring3R: "ring2R", pinky3R: "pinky2R",
+  toeL: "footL", toeR: "footR",
 };
+
+const DIGITS = ["thumb", "index", "middle", "ring", "pinky"] as const;
+
+/**
+ * The third finger joints and the toes for a body that only places the first
+ * two (generated and scanned bodies): on along each finger, and the ball of
+ * each foot. `force` redoes them after the fingers moved (scanbody.ts).
+ */
+export function fillExtraBones(out: Record<BoneName, V3>, force = false): void {
+  for (const L of ["L", "R"] as const) {
+    for (const d of DIGITS) {
+      const k3 = `${d}3${L}` as BoneName;
+      if (out[k3] && !force) continue;
+      const a = out[`${d}1${L}` as BoneName];
+      const b = out[`${d}2${L}` as BoneName];
+      out[k3] = { x: b.x + (b.x - a.x) * 0.7, y: b.y + (b.y - a.y) * 0.7, z: b.z + (b.z - a.z) * 0.7 };
+    }
+    const toe = `toe${L}` as BoneName;
+    if (!out[toe] || force) {
+      const f = out[`foot${L}` as BoneName];
+      out[toe] = { x: f.x, y: Math.max(0.02, f.y - 0.06), z: f.z + 0.13 };
+    }
+  }
+}
 
 /** A torso ring: height, half-width, front depth, back depth. */
 export type Ring = [y: number, rx: number, rzF: number, rzB: number];
@@ -225,6 +258,7 @@ export function restPositions(p: Proportions): Record<BoneName, V3> {
     out[`shin${L}`] = v(hip.x * 0.92, hip.y - p.thigh, 0.004);
     out[`foot${L}`] = v(hip.x * 0.88, p.ankleY, -0.01);
   }
+  fillExtraBones(out);
   return out;
 }
 

@@ -21,7 +21,7 @@
 import { Vector3 } from "three";
 
 import { Builder, LEVELS, blob, crs, smooth, sweep, type BuiltBody, type Detail, type TierSpec, type Weights } from "./mesh";
-import { LID_CLOSE, PROPORTIONS, restPositions, type BoneName, type Proportions, type V3 } from "./skeleton";
+import { LID_CLOSE, PROPORTIONS, fillExtraBones, restPositions, type BoneName, type Proportions, type V3 } from "./skeleton";
 import type { Body, Look } from "./wardrobe";
 import baseM from "./scan/scan-m-base.bin?url";
 import baseF from "./scan/scan-f-base.bin?url";
@@ -507,6 +507,7 @@ function build(body: Body, level: Detail): BuiltBody {
     const hand = rest[(name.endsWith("L") ? "handL" : "handR") as BoneName];
     rest[name as BoneName] = { x: hand.x + off[0], y: hand.y + off[1], z: hand.z + off[2] };
   }
+  fillExtraBones(rest, true);
   const T = LEVELS[level];
   const f = fitFor(p, body);
   const { B, H, L } = shapesFor(body, scan.body!, p, rest.neck.z);
