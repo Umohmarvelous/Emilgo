@@ -527,12 +527,9 @@ export function buildNaijaWorld(seed = 1957): OpenLayout {
     spawns.push([x, z]);
   }
 
-  // ── The billboards: last, on ground nothing else wanted (their solids go on the end) ──
-  const boards = placeBoards("nw", BOARD_WISHES, 0, HALF, taken, placements, solids, spawns);
-
   // ── Props (v4 rework R9): the CC0 street furniture in town (bins, crates, benches, planters,
-  // air units, cabinets, bags, a covered car), each with room round it so no way is shut; last, so nothing
-  // before them moves (the starts, the boards) ──
+  // air units, cabinets, bags, a covered car), each with room round it so no way is shut; after the starts, so
+  // they don't move; before the boards, whose solids stay on the end ──
   const cityProps = PROPS.flatMap((q, i) => (q.built && q.at.includes("city") ? [i] : []));
   for (let i = 0, n = 0; cityProps.length && i < 2400 && n < 240; i++) {
     const x = rng.range(-HALF + 8, HALF - 8);
@@ -550,6 +547,9 @@ export function buildNaijaWorld(seed = 1957): OpenLayout {
       n++;
     }
   }
+
+  // ── The billboards: last, on ground nothing else wanted (their solids go on the end) ──
+  const boards = placeBoards("nw", BOARD_WISHES, 0, HALF, taken, placements, solids, spawns);
 
   return {
     id: "naija-world",
