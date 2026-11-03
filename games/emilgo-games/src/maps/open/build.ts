@@ -240,8 +240,9 @@ export async function loadWorldLibrary(spec: TierSpec, night: boolean, L?: OpenL
   const key = night ? "night" : "day";
   const rockLod = spec.tier >= 2 ? 1 : 2;
   const rockOf = (use: string) => (spec.tier >= 1 ? modelFor(use, rockLod, spec.tier).catch(() => null) : Promise.resolve(null));
-  // The props this layout uses (v4 rework R9), each the model's far LOD on Medium, the middle on High.
-  const used = spec.tier >= 1 && L ? [...new Set(L.placements.filter((p) => p.prefab === "prop").map((p) => p.v & 255))] : [];
+  // The props this layout uses (v4 rework R9), High and Max only (their draws cost Medium its 30 fps floor
+  // on a slow phone; Medium draws each solid one as a plain crate in the cell's own mesh): the middle LOD.
+  const used = spec.tier >= 2 && L ? [...new Set(L.placements.filter((p) => p.prefab === "prop").map((p) => p.v & 255))] : [];
   const propModels = Promise.all(used.map((i) => (PROPS[i] ? modelFor("prop", rockLod, spec.tier, PROPS[i].id).catch(() => null) : Promise.resolve(null))));
   const [walls, ground, sk, grassRock, sandRock, pm] = await Promise.all([
     Promise.all(WALL_LIB[key].map(get)),

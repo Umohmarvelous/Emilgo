@@ -410,12 +410,12 @@ export class Kit {
   tree(p: V3, h = 8, colors = ["#2e7d32", "#388e3c", "#33691e"], trunk = "#5d4037"): void {
     const r = this.rng;
     this.cyl(trunk, 0.32 * (h / 8), h * 0.6, [p[0], h * 0.3, p[2]], "mass", { sides: 6, top: 0.65 });
-    // v4 rework: a fuller, rounder crown (more clumps round a centre, smooth on High; two limbs).
-    const n = this.tier === 0 ? 3 + r.int(0, 2) : this.tier === 1 ? 6 : 8;
+    // v4 rework: a fuller, rounder crown (four clumps on Medium; eight smooth ones and two limbs on High).
+    const n = this.tier === 0 ? 3 + r.int(0, 2) : this.tier === 1 ? 4 : 8;
     // An upright crown (taller than wide): never the flat umbrella of a savanna tree.
     const cy = h * 0.66;
     const R = h * 0.13;
-    for (let i = 0; i < 2 && this.tier > 0; i++) {
+    for (let i = 0; i < 2 && this.tier > 1; i++) {
       const a = r.range(0, Math.PI * 2);
       this.put(part(CYL6, trunk, { p: [p[0] + Math.cos(a) * h * 0.05, h * 0.52, p[2] + Math.sin(a) * h * 0.05], r: [-Math.sin(a) * 0.5, 0, Math.cos(a) * 0.5], s: [0.1 * (h / 8), h * 0.22, 0.1 * (h / 8)] }), "main", p[2]);
     }
