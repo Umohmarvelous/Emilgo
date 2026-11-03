@@ -22,6 +22,9 @@
 // split across them). --dir http://localhost:8800 asks the room directory
 // where each client goes (many server processes); --procs N spreads the clients
 // over N load processes (one Node process can't drive 10,000 sockets alone).
+// --menu 0.8 keeps that share in the menus (connected, answering pings, in no
+// room): most of a live crowd at any moment, and the only way one laptop holds
+// 10,000 sockets with the rest really playing.
 //
 //   node server/scripts/cluster.mjs 6        (a directory + 6 nodes on this machine)
 //   node server/dist/loadtest.mjs --clients 10000 --seconds 180 --dir http://localhost:8800 --ffa find-the-flag,max-royale --procs 4
@@ -46,6 +49,8 @@ const FFA_MODES = FFA.split(",").filter(Boolean);
 const SHARE = FFA ? Number(args.get("share") ?? 1) : 0;
 const DIR = args.get("dir") ?? "";
 const PROCS = Math.max(1, Number(args.get("procs") ?? 1));
+/** The share of clients in the menus (connected, answering pings, not in a room): most of a live crowd at any moment. */
+const MENU = Number(args.get("menu") ?? 0);
 const WORKER = args.has("worker") ? Number(args.get("worker")) : -1;
 
 const stats = {
@@ -83,6 +88,7 @@ async function whereTo(): Promise<string> {
 }
 
 function bot(n: number): void {
+  if (MENU && (n % 100) / 100 >= 1 - MENU) return void menuBot(n);
   if (FFA && (n % 100) / 100 < SHARE) return void ffaBot(n);
   const ws = new WebSocket(URL_);
   let me = -1;
@@ -111,7 +117,9 @@ function bot(n: number): void {
     stats.connected++;
     send({ t: "hello", v: NET.protocol, name: `Load ${n}` });
   });
-  ws.on("error", () => stats.failed++);
+  ws.on("error", (e) => {
+    if (++stats.failed <= 3) console.log(`connect error: ${e.message}`);
+  });
   ws.on("message", (data) => {
     const raw = data.toString();
     stats.bytesIn += raw.length;
@@ -189,6 +197,26 @@ function bot(n: number): void {
   }
 }
 
+/** A client in the menus: connected (through the directory), says hello, answers pings, plays nothing. */
+async function menuBot(n: number): Promise<void> {
+  const ws = new WebSocket(await whereTo(), { perMessageDeflate: false });
+  const send = (o: object) => ws.readyState === 1 && ws.send(JSON.stringify(o));
+  ws.on("open", () => {
+    stats.connected++;
+    send({ t: "hello", v: NET.protocol, name: `Menu ${n}` });
+  });
+  ws.on("error", (e) => {
+    if (++stats.failed <= 3) console.log(`connect error: ${e.message}`);
+  });
+  ws.on("message", (data) => {
+    const raw = data.toString();
+    stats.bytesIn += raw.length;
+    stats.msgsIn++;
+    const m = JSON.parse(raw) as ServerMsg;
+    if (m.t === "ping") send({ t: "pong", s: m.s });
+  });
+}
+
 /** A Free For All client: the public queue, then wandering, sprinting, swinging, searching and shooting until the match ends. */
 async function ffaBot(n: number): Promise<void> {
   const mode = FFA_MODES[n % FFA_MODES.length];
@@ -207,7 +235,9 @@ async function ffaBot(n: number): Promise<void> {
     stats.connected++;
     send({ t: "hello", v: NET.protocol, name: `Load ${n}` });
   });
-  ws.on("error", () => stats.failed++);
+  ws.on("error", (e) => {
+    if (++stats.failed <= 3) console.log(`connect error: ${e.message}`);
+  });
   ws.on("message", (data) => {
     const raw = data.toString();
     stats.bytesIn += raw.length;
@@ -304,13 +334,14 @@ type Stats = typeof stats;
 
 /** A worker's share of the clients (indices k, k + PROCS, …), its counters to the parent every 2 s. */
 async function worker(k: number): Promise<void> {
+  // Counters from the first second (the ramp takes a while at 10,000).
+  const report = () => process.send?.({ ...stats, snapGapMs: stats.snapGapMs.slice(-4000), ffaGapMs: stats.ffaGapMs.slice(-4000) });
+  setInterval(report, 2000);
   let i = 0;
   for (let n = k; n < CLIENTS; n += PROCS) {
     bot(n);
     if (++i % Math.max(1, Math.round(50 / PROCS)) === 0) await new Promise((r) => setTimeout(r, 100));
   }
-  const report = () => process.send?.({ ...stats, snapGapMs: stats.snapGapMs.slice(-4000), ffaGapMs: stats.ffaGapMs.slice(-4000) });
-  setInterval(report, 2000);
 }
 
 function merge(parts: Stats[]): Stats {

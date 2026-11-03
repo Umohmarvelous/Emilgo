@@ -78,6 +78,13 @@ for (let k = 0; k < secs * 60 && !g.over; k++) {
   if (ms > 8) slow.push({ t: k / 60, ms, mods: [...stepMods].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([m, v]) => `${m} ${v.toFixed(1)}`).join(", ") });
   if (ms > (worst.get("step") ?? 0)) worst.set("step", ms);
 }
+// Over time: a step's cost per 30 s of the match (a cost that grows is a leak in the rules).
+const win: string[] = [];
+for (let a = 0; a < times.length; a += 1800) {
+  const w = times.slice(a, a + 1800).sort((x, y) => x - y);
+  win.push(`${(a / 60).toFixed(0)}s ${w[Math.floor(w.length / 2)].toFixed(2)}`);
+}
+console.log(`p50 by 30 s: ${win.join(" · ")}`);
 const s = [...times].sort((a, b) => a - b);
 const p = (q: number) => s[Math.min(s.length - 1, Math.floor(s.length * q))].toFixed(2);
 console.log(`${times.length} steps (${(times.length / 60).toFixed(0)} s, over: ${g.over}) · p50 ${p(0.5)} ms · p99 ${p(0.99)} ms · max ${s[s.length - 1].toFixed(1)} ms · total ${(times.reduce((a, b) => a + b, 0) / 1000).toFixed(2)} s`);
