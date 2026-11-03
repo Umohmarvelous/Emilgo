@@ -250,7 +250,7 @@ export class FfaView {
     }
     this.flagMesh = instanced(flagGeometry(), new MeshLambertMaterial({ vertexColors: true, side: DoubleSide }), MAX_FLAGS);
     const glow = (frag: string) => {
-      const mat = new ShaderMaterial({ uniforms: { time: { value: 0 } }, vertexShader: RING_VERT, fragmentShader: frag, blending: AdditiveBlending, transparent: true, depthWrite: false, side: DoubleSide });
+      const mat = new ShaderMaterial({ uniforms: { time: { value: 0 } }, vertexShader: RING_VERT, fragmentShader: frag, blending: AdditiveBlending, transparent: true, depthWrite: false, side: DoubleSide, forceSinglePass: true });
       this.glowMats.push(mat);
       return mat;
     };

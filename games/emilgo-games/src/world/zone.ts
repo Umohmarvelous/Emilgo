@@ -96,6 +96,8 @@ export class ZoneWall {
       transparent: true,
       depthWrite: false,
       side: DoubleSide,
+      // Additive: no back-then-front passes (three.js would re-pick the program for each, every frame).
+      forceSinglePass: true,
     });
     this.mesh = new Mesh(geo, this.mat);
     this.mesh.frustumCulled = false;

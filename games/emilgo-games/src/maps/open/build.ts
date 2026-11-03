@@ -734,6 +734,16 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }): Gener
   }
   // Scratch geometries are merged copies now.
   for (const ch of chunks) for (const list of [ch.mass, ch.main, ch.detail, ch.foliage, ch.glow, ch.atlas, ch.far]) for (const g of list) g.dispose();
+  // v4: the world stands still (only the sky and the sun follow the camera): its matrices are worked out once, not
+  // every frame (4,000+ objects on Naija Max: an eighth of a slow phone's frame).
+  group.updateMatrixWorld(true);
+  for (const c of group.children) {
+    if (c === sky.group || c === sun || c === sun.target || c === hemi) continue;
+    c.traverse((o) => {
+      o.matrixAutoUpdate = false;
+      o.matrixWorldAutoUpdate = false;
+    });
+  }
 
   const t0 = performance.now();
   const pvs = yield* bakePvs(L, n, tops, view);

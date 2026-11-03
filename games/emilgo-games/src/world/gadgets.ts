@@ -131,9 +131,9 @@ export class GadgetView {
     this.smoke = make(new IcosahedronGeometry(1, 1), new MeshLambertMaterial({ color: 0xd8d2c6, transparent: true, opacity: 0.9 }), PUFFS_PER_CLOUD * MAX_CLOUDS);
     this.peels = make(peelGeometry(), new MeshLambertMaterial({ vertexColors: true }), MAX_PEELS);
     this.decoys = make(decoyGeometry(), new MeshLambertMaterial({ vertexColors: true, side: DoubleSide }), MAX_DECOYS);
-    this.rings = make(new RingGeometry(0.9, 1, 40, 1).rotateX(-Math.PI / 2), new MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, blending: AdditiveBlending, depthWrite: false, side: DoubleSide }), MAX_RINGS, true);
+    this.rings = make(new RingGeometry(0.9, 1, 40, 1).rotateX(-Math.PI / 2), new MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, blending: AdditiveBlending, depthWrite: false, side: DoubleSide, forceSinglePass: true }), MAX_RINGS, true);
     this.bursts = make(new IcosahedronGeometry(1, 0), new MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7, depthWrite: false }), MAX_BURSTS, true);
-    this.column = make(new CylinderGeometry(0.35, 0.35, 1, 10, 1, true).translate(0, 0.5, 0), new MeshBasicMaterial({ color: 0xff3a2a, transparent: true, opacity: 0.45, blending: AdditiveBlending, depthWrite: false, side: DoubleSide }), 4);
+    this.column = make(new CylinderGeometry(0.35, 0.35, 1, 10, 1, true).translate(0, 0.5, 0), new MeshBasicMaterial({ color: 0xff3a2a, transparent: true, opacity: 0.45, blending: AdditiveBlending, depthWrite: false, side: DoubleSide, forceSinglePass: true }), 4);
   }
 
   events(list: readonly MatchEvent[], m: Match, cam: Vector3): void {

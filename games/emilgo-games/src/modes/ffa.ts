@@ -47,6 +47,7 @@ import { emittersOf, Scenery } from "../world/scenery";
 import { GunsView } from "../world/gunsView";
 import { getLang, t } from "../ui/i18n";
 import { PING_LINES } from "../ui/quickchat";
+import { gameSize } from "../ui/rotate";
 import { PlayHud } from "../ui/play";
 import { accentOf } from "../world/crowd";
 import { displacement, FfaView, PLAY_SCORE, PROP_NAME } from "../world/ffa";
@@ -970,8 +971,8 @@ export class FfaMode implements GameMode {
       this.zMax = new Float32Array(n);
       this.zHitAt = new Float32Array(n).fill(-99);
     }
-    const W = h.ui.clientWidth;
-    const H = h.ui.clientHeight;
+    // The game's size without asking the page for its layout (that forces one, every frame, after the HUD's writes).
+    const { w: W, h: H } = gameSize();
     const cam = h.camera;
     this.zBars.length = 0;
     const list: [number, ZombieBar][] = [];
@@ -1036,7 +1037,7 @@ export class FfaMode implements GameMode {
     const moving = Math.hypot(me.vx, me.vz) > 0.6;
     const spread = (c.ads ? K.ads : K.hip) * (me.stance === 1 ? 0.8 : me.stance === 2 ? 0.6 : 1) + (moving ? K.move : 0) + (me.y > 0.05 ? K.move * 2 : 0) + g.bloom[i];
     const halfFov = ((h.camera.fov / 2) * Math.PI) / 180;
-    const gap = (Math.tan(spread) / Math.tan(halfFov)) * (h.ui.clientHeight / 2);
+    const gap = (Math.tan(spread) / Math.tan(halfFov)) * (gameSize().h / 2);
     const ra = g.reloadAt[i];
     cb.update({
       hp: g.hp[i],

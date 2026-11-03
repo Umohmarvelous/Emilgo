@@ -126,7 +126,7 @@ export class DeadView {
       this.torch.shadow.camera.far = 26;
     }
     this.group.add(this.torch, this.torch.target, this.flash);
-    this.cone = new Mesh(new ConeGeometry(Math.tan(0.42) * 9, 9, 18, 1, true).translate(0, -4.5, 0).rotateX(-Math.PI / 2), new MeshBasicMaterial({ color: 0xfff1d0, transparent: true, opacity: 0.06, blending: AdditiveBlending, depthWrite: false, side: DoubleSide }));
+    this.cone = new Mesh(new ConeGeometry(Math.tan(0.42) * 9, 9, 18, 1, true).translate(0, -4.5, 0).rotateX(-Math.PI / 2), new MeshBasicMaterial({ color: 0xfff1d0, transparent: true, opacity: 0.06, blending: AdditiveBlending, depthWrite: false, side: DoubleSide, forceSinglePass: true }));
     this.group.add(this.cone);
     // Sparks, flares and the things to pick up: one instanced draw of glowing bits.
     this.bits = new InstancedMesh(new IcosahedronGeometry(0.18, 0), new MeshBasicMaterial({ color: 0xffb347, transparent: true, opacity: 0.9, blending: AdditiveBlending, depthWrite: false }), 64);

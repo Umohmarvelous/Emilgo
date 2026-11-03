@@ -197,16 +197,16 @@ export class ModesView {
       return mesh;
     };
     this.charms = make(charmGeometry(), new MeshLambertMaterial({ vertexColors: true, emissive: new Color(0x3a2a00) }), MAX_CHARMS);
-    this.columns = make(new CylinderGeometry(0.5, 0.5, 1, 12, 1, true).translate(0, 0.5, 0), new MeshBasicMaterial({ color: 0x3ee08a, transparent: true, opacity: 0.28, blending: AdditiveBlending, depthWrite: false, side: DoubleSide }), MAX_CHARMS);
+    this.columns = make(new CylinderGeometry(0.5, 0.5, 1, 12, 1, true).translate(0, 0.5, 0), new MeshBasicMaterial({ color: 0x3ee08a, transparent: true, opacity: 0.28, blending: AdditiveBlending, depthWrite: false, side: DoubleSide, forceSinglePass: true }), MAX_CHARMS);
     // A lamp's light: a cone 1 m long pointing down +z from its tip (scaled to the reach).
     const cone = new ConeGeometry(Math.tan(BLACKOUT.cone), 1, 16, 1, true).translate(0, -0.5, 0).rotateX(-Math.PI / 2);
-    this.lamps = make(cone, new MeshBasicMaterial({ color: 0xffd9a0, transparent: true, opacity: 0.16, blending: AdditiveBlending, depthWrite: false, side: DoubleSide }), 16);
+    this.lamps = make(cone, new MeshBasicMaterial({ color: 0xffd9a0, transparent: true, opacity: 0.16, blending: AdditiveBlending, depthWrite: false, side: DoubleSide, forceSinglePass: true }), 16);
     this.glows = make(new IcosahedronGeometry(0.09, 1), new MeshBasicMaterial({ color: 0xfff1c8 }), 16);
     this.posts = make(stationGeometry(), new MeshLambertMaterial({ vertexColors: true }), ECONOMY.stations);
     this.posts.setColorAt(0, new Color(1, 1, 1));
     this.boxes = make(boxGeometry(), new MeshLambertMaterial({ vertexColors: true }), ECONOMY.banks);
     this.sacks = make(new IcosahedronGeometry(0.22, 0), new MeshLambertMaterial({ color: 0xffc23a, emissive: new Color(0x4a3200) }), 24);
-    this.drop = make(new CylinderGeometry(1, 1, 1, 24, 1, true).translate(0, 0.5, 0), new MeshBasicMaterial({ color: 0xffd36a, transparent: true, opacity: 0.35, blending: AdditiveBlending, depthWrite: false, side: DoubleSide }), 1);
+    this.drop = make(new CylinderGeometry(1, 1, 1, 24, 1, true).translate(0, 0.5, 0), new MeshBasicMaterial({ color: 0xffd36a, transparent: true, opacity: 0.35, blending: AdditiveBlending, depthWrite: false, side: DoubleSide, forceSinglePass: true }), 1);
     this.kola = make(kolaGeometry(), new MeshLambertMaterial({ vertexColors: true }), 24);
     this.bench = make(benchGeometry(), new MeshLambertMaterial({ vertexColors: true }), 1);
     // A door: 1 m wide (scaled to the doorway), hinged at its left edge.

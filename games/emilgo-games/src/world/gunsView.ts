@@ -313,7 +313,8 @@ export class GunsView {
     this.guns = GUN_KINDS.map((k) => this.inst(gunGeometry(k), mat, 40, true));
     const lit = o.tier === 0 ? new MeshLambertMaterial({ vertexColors: true }) : new MeshStandardMaterial({ vertexColors: true, metalness: 0.1, roughness: 0.8 });
     this.ammo = this.inst(ammoGeometry(), lit, 48);
-    this.plates = this.inst(plateGeometry(), mat, 48);
+    // Its own material: the guns' carries instance colours, and one material on both kinds of mesh makes three.js re-pick its program every draw.
+    this.plates = this.inst(plateGeometry(), gunMaterial(o.tier), 48);
     this.crates = this.inst(crateGeometry(), lit, 80);
     this.drums = this.inst(drumGeometry(), o.tier === 0 ? lit : new MeshStandardMaterial({ vertexColors: true, metalness: 0.5, roughness: 0.45 }), 40);
     const pillar = new PlaneGeometry(0.7, 2.6);

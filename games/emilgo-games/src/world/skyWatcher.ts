@@ -48,7 +48,7 @@ function glow(): CanvasTexture {
 }
 
 const mat = (color: number, extra: Partial<MeshBasicMaterial> = {}) =>
-  new MeshBasicMaterial({ color, transparent: true, opacity: 0, depthWrite: false, depthTest: false, fog: false, side: DoubleSide, ...extra });
+  new MeshBasicMaterial({ color, transparent: true, opacity: 0, depthWrite: false, depthTest: false, fog: false, side: DoubleSide, forceSinglePass: true, ...extra });
 
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
