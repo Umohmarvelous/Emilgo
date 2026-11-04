@@ -1,10 +1,15 @@
 node_modules
 dist
 dist-emilgo
+dist-web
 server/dist
-.env
-*.env
-.env.*
+**/.env
+**/*.env
+**/.env.*
 data
 listing
-.DS_Store
+**/.DS_Store
+# Not part of any build, and 600 MB on a slow line.
+tools
+dev
+concepts

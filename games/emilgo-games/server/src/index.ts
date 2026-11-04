@@ -53,6 +53,8 @@
 // Billboards (SPEC-V3 §8; ads.ts): SUPABASE_URL, SUPABASE_ANON_KEY and GAME_ADS_KEY.
 // Without them every board shows EMILGO Games' own (house) boards.
 //   TICKET_SECRET         32+ chars; signs ownership tickets. Required when running several processes
+//
+//   SITE_DIR              a web build of the game to serve at / (site.ts). Unset = no pages, as on the docker-compose server
 
 import { randomBytes, randomInt } from "node:crypto";
 import { createServer, type IncomingMessage } from "node:http";
@@ -69,6 +71,7 @@ import { Identity, SqliteProfiles, utcDay, type ProfileStore } from "./profiles"
 import { Room } from "./room";
 import { matchXp, runXp } from "../../src/rank/xp";
 import { RunBoard, verifyRun } from "./runs";
+import { loadSite } from "./site";
 import { dailySeed } from "../../src/game/modules/survival";
 import { rankOf } from "../../src/rank/ladder";
 import { divisionIndex } from "../../src/content/validate";
@@ -258,6 +261,9 @@ const reports: Report[] = [];
 
 // ── HTTP ──────────────────────────────────────────────────────────────────────
 
+const site = process.env.SITE_DIR ? loadSite(process.env.SITE_DIR) : null;
+if (process.env.SITE_DIR && !site) console.warn(`SITE_DIR ${process.env.SITE_DIR} has no index.html: serving no pages`);
+
 const http = createServer((req, res) => {
   if (req.url?.startsWith("/ads/v1/")) {
     adsRoute(req, res, new URL(req.url, "http://local"));
@@ -316,6 +322,7 @@ const http = createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" }).end(JSON.stringify(body));
     return;
   }
+  if (site?.(req, res)) return;
   res.writeHead(404).end();
 });
 
