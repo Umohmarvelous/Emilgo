@@ -10,7 +10,7 @@
 import { Vector3 } from "three";
 
 import { RADIO_IDS, RADIO_NAME, type RadioId } from "../audio/radio";
-import { GUN_KINDS, GUNS, HARMATTAN, SURVIVAL, VEHICLES } from "../config";
+import { GUN_KINDS, GUNS, HARMATTAN, MOVE, SURVIVAL, VEHICLES } from "../config";
 import { ITEM_DEFS } from "../content/items";
 import { type ModeDef } from "../content/modes";
 import { Rng } from "../core/rng";
@@ -143,6 +143,9 @@ const STREAK_GLOW = 0x5a3c00;
 /** A squad ping stays on the map this long (s). */
 const PING_SHOW = 8;
 
+/** How far off you can hear someone walking, metres. */
+const STEP_RANGE = 38;
+
 export class FfaMode implements GameMode {
   over = false;
   private src: Source;
@@ -174,6 +177,8 @@ export class FfaMode implements GameMode {
   private readonly combat: CombatHud | null;
   private dryAt = 0;
   private autoTick = 0;
+  private stepAt = new Float32Array(0);
+  private wasAir = false;
   private autoWas = false;
   /** HUD A (v4 Phase 3): the watch, the plates, the edges, the zombies' bars. */
   private readonly fk = new FieldKit();
@@ -946,12 +951,55 @@ export class FfaMode implements GameMode {
     const cam = h.camera;
     cam.getWorldDirection(_fwd);
     this.worldSound.update(dt, cam.position, _fwd);
+    this.feet(dt, m, me);
     const g = m.module<GunsModule>("guns");
     const sv = m.module<SurvivalModule>("survival");
     const hp = sv ? sv.hp / SURVIVAL.you.hp : g ? g.hp[me.index] / GUNS.hp : 1;
     const fight = m.elapsed - this.actionAt < 8;
     const final = !!this.play.state?.zone?.final;
-    this.worldSound.setMusic(this.over || m.phase !== "play" || me.status !== "alive" || this.inCar >= 0 ? "off" : hp < 0.3 ? "low" : final ? "final" : fight ? "combat" : "explore");
+    // v5: the score carries on while you wait to respawn (it stopped and restarted: part of "the music keeps skipping").
+    this.worldSound.setMusic(this.over || m.phase !== "play" || this.inCar >= 0 ? "off" : hp < 0.3 ? "low" : final ? "final" : fight ? "combat" : "explore");
+  }
+
+  /**
+   * v5: footsteps. Yours, and everyone else's within earshot, panned to where
+   * they are and quieter the further off (crouching is near silent), so you can
+   * hear who is coming; your jump and your landing.
+   */
+  private feet(dt: number, m: Match, me: Contestant): void {
+    const h = this.host;
+    if (this.stepAt.length !== m.contestants.length) this.stepAt = new Float32Array(m.contestants.length);
+    const air = me.status === "alive" && me.y > 0.05;
+    if (air && !this.wasAir && me.vy > 0) h.sound.jump();
+    else if (!air && this.wasAir && me.status === "alive") h.sound.land();
+    this.wasAir = air;
+    if (m.phase !== "play" || this.over) return;
+    const cam = h.camera;
+    cam.getWorldDirection(_fwd);
+    const rx = -_fwd.z;
+    const rz = _fwd.x;
+    const rl = Math.hypot(rx, rz) || 1;
+    for (const c of m.contestants) {
+      if (c.status !== "alive" || c.y > 0.02 || m.seated(c)) continue;
+      const sp = Math.hypot(c.vx, c.vz);
+      if (sp < 0.8) continue;
+      const i = c.index;
+      this.stepAt[i] -= dt;
+      if (this.stepAt[i] > 0) continue;
+      this.stepAt[i] = sp > MOVE.run + 0.5 ? 0.24 : sp > 3 ? 0.3 : 0.44;
+      const pace = Math.min(1, sp / MOVE.sprint);
+      const surface = m.world.space.surfaceAt(c.x, c.z, c.h + c.y) ?? "concrete";
+      if (c === me) {
+        h.sound.step(surface, pace);
+        continue;
+      }
+      const dx = c.x - me.x;
+      const dz = c.z - me.z;
+      const d = Math.hypot(dx, dz);
+      if (d > STEP_RANGE) continue;
+      const k = 1 - d / STEP_RANGE;
+      h.sound.stepNear(surface, pace, k * k * (c.stance > 0 ? 0.25 : sp < 3 ? 0.55 : 1), d > 0.5 ? ((dx * rx + dz * rz) / (d * rl)) * 0.85 : 0);
+    }
   }
 
   /** HUD A, each frame: the watch, the plates, the edges; Dead Streets' centre arc and the zombies' bars. */

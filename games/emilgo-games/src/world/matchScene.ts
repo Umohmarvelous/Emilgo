@@ -129,7 +129,7 @@ export class MatchScene {
           }
           break;
         case "use":
-          if (e.id === me.id) this.o.sound?.useItem(e.kind === "zobo" || e.kind === "kola");
+          if (e.id === me.id) this.o.sound?.useItem(e.kind);
           break;
         case "full":
           if (e.id === me.id) {

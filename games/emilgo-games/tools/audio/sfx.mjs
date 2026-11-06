@@ -24,6 +24,11 @@ mkdirSync(OUT, { recursive: true });
 
 /** The sources: [local file, URL, page]. */
 const SRC = {
+  // v5: the owner asked for a new gunshot. CC0 ("None needed"), real shots with a little room on them.
+  magnum: ["22 Magnum.wav", "https://opengameart.org/sites/default/files/22%20Magnum.wav", "https://opengameart.org/content/gunshots"],
+  pistol22: ["22 Pistol.wav", "https://opengameart.org/sites/default/files/22%20Pistol.wav", "https://opengameart.org/content/gunshots"],
+  powder: ["Black Powder.wav", "https://opengameart.org/sites/default/files/Black%20Powder.wav", "https://opengameart.org/content/gunshots"],
+  unknown: ["Unkown.wav", "https://opengameart.org/sites/default/files/Unkown.wav", "https://opengameart.org/content/gunshots"],
   range: ["sounds.zip", "https://opengameart.org/sites/default/files/sounds.zip", "https://opengameart.org/content/gunshot-sounds"],
   bangs: ["25-CC0-bang-sfx.zip", "https://opengameart.org/sites/default/files/25-CC0-bang-sfx.zip", "https://opengameart.org/content/25-cc0-bang-firework-sfx"],
   reload: ["reload.wav", "https://opengameart.org/sites/default/files/reload.wav", "https://opengameart.org/content/handgun-reload-sound-effect"],
@@ -197,14 +202,15 @@ const put = (name, a, src, kbps) => {
   console.log(name.padEnd(14), `${(a.d.length / a.rate).toFixed(2)} s`, `${(b.length / 1024).toFixed(0)} KB`);
 };
 
-// Guns: the CZ pistol, the SKS (rifle; its tighter cut for the SMG), the shotgun.
-const cz = await L(P("sounds/sounds/cz.wav"));
-const sks = await L(P("sounds/sounds/sks.wav"));
-const shotty = await L(P("sounds/sounds/shotty.wav"));
-put("gun-pistol", cut(cz, onset(cz), 0.75), SRC.range[2], 96);
-put("gun-rifle", cut(sks, onset(sks), 0.95), SRC.range[2], 96);
-put("gun-smg", cut(sks, onset(sks, 1), 0.42, 0.5), SRC.range[2], 96);
-put("gun-shotgun", cut(shotty, onset(shotty), 1.1), SRC.range[2], 96);
+// Guns (v5): a new set. The first shot of each file, its echo faded early.
+const mag = await L(P("22 Magnum.wav"));
+const p22 = await L(P("22 Pistol.wav"));
+const pow = await L(P("Black Powder.wav"));
+const unk = await L(P("Unkown.wav"));
+put("gun-pistol", cut(mag, onset(mag), 0.6, 0.6), SRC.magnum[2], 96);
+put("gun-rifle", cut(unk, onset(unk), 0.7, 0.6), SRC.unknown[2], 96);
+put("gun-smg", cut(p22, onset(p22), 0.32, 0.6), SRC.pistol22[2], 96);
+put("gun-shotgun", cut(pow, onset(pow), 1.0, 0.6), SRC.powder[2], 96);
 // The reloads, the blast.
 const rl = await L(P("reload.wav"));
 put("reload", cut(rl, 0, Math.min(2.2, rl.d.length / rl.rate), 0.15), SRC.reload[2], 80);

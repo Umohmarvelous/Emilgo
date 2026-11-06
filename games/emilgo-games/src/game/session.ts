@@ -2172,6 +2172,7 @@ export class Game {
   /** The match loading screen (Brief 1) while the world builds: you on the stage, the cards, the map card, the route sign. */
   private showLoading(kind: "ffa" | "run", def: ModeDef, players?: { name: string; rank: string; squad: number; me: boolean }[]): void {
     void this.adFeed(kind === "run" ? "spooky-world" : "naija-world");
+    this.sound.score.play("menu");
     this.view = "lobby";
     this.stage.setMode("lobby");
     this.stage.setDummy(false);

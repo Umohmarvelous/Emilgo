@@ -1,13 +1,14 @@
-// The game's music (v4 rework R8; the owner: "do not create the music yourself
-// but go online and search for game music background from sources online and
-// use it, I do not want to hear a strings music again"). Every track is CC0
-// from OpenGameArt, chosen electronic, drum and bass, or dark ambient (no
-// orchestra, no strings, no chiptune). This fetches each, decodes it (WASM),
-// trims silence, evens the loudness, fades the ends, and encodes MP3 (96 kb/s
-// stereo; the stings 128) into assets-site/music/, which the site serves (and
-// the EMILGO app's copy streams from it).
+// The game's music (v5; the owner: "download non-copyrighted interesting 8bit
+// background musics for the lobby, the game environment screen, the victory
+// screen"). Every track is CC0 chiptune from OpenGameArt. This fetches each,
+// decodes it (WASM), evens the loudness, folds it to mono 22 kHz (fine for 8-bit,
+// and a phone decodes the whole track up front so it can never skip) and encodes
+// MP3 into assets-site/music/, which the site serves (and the EMILGO app's copy
+// streams from it).
 //
 //   node tools/audio/music.mjs            (downloads into tools/audio/in/, cached)
+//
+// The jingles come from NES Shooter Music's WAV.zip: unzip it into tools/audio/in/nes/ first.
 
 import { MPEGDecoder } from "mpg123-decoder";
 import { OggVorbisDecoder } from "@wasm-audio-decoders/ogg-vorbis";
@@ -22,20 +23,24 @@ const OUT = join(here, "../../assets-site/music");
 mkdirSync(IN, { recursive: true });
 mkdirSync(OUT, { recursive: true });
 
-/** [game name, file URL, page, artist, title, licence, seconds to keep (0: all), start offset s] */
+const ACTION = "https://opengameart.org/content/5-chiptunes-action";
+const ADV = "https://opengameart.org/content/4-chiptunes-adventure";
+const NES = "https://opengameart.org/content/nes-shooter-music-5-tracks-3-jingles";
+const F = "https://opengameart.org/sites/default/files";
+const JJ = "Juhani Junkala";
+const CC0 = "CC0";
+/** [game name, file URL or nes/ file, page, artist, title, licence, seconds to keep (0: all), start offset s] */
 export const TRACKS = [
-  ["lobby", "https://opengameart.org/sites/default/files/specular_city_1.mp3", "https://opengameart.org/content/specular-city", "Vitalezzz", "Specular City", "CC0", 0, 0],
-  ["explore", "https://opengameart.org/sites/default/files/orbital_graveyard_0.mp3", "https://opengameart.org/content/orbital-graveyard", "Vitalezzz", "Orbital Graveyard", "CC0", 0, 0],
-  ["combat", "https://opengameart.org/sites/default/files/hunter-class_lifeform_1.mp3", "https://opengameart.org/content/hunter-class-lifeform", "Vitalezzz", "Hunter-class Lifeform", "CC0", 0, 0],
-  ["final", "https://opengameart.org/sites/default/files/Final-Hour-isaiah658_0.mp3", "https://opengameart.org/content/final-hour", "isaiah658", "Final Hour", "CC0", 0, 0],
-  ["rush", "https://opengameart.org/sites/default/files/virtual_rush_2.mp3", "https://opengameart.org/content/virtual-rush", "Vitalezzz", "Virtual Rush", "CC0", 0, 0],
-  ["dead", "https://opengameart.org/sites/default/files/EmptyCity.ogg", "https://opengameart.org/content/emptycity-background-music", "(OpenGameArt)", "EmptyCity", "CC0", 0, 0],
-  ["deadFight", "https://opengameart.org/sites/default/files/Factory.ogg", "https://opengameart.org/content/factory-ambiance", "(OpenGameArt)", "Factory", "CC0", 0, 0],
-];
-/** Stings cut from the tracks: [name, from track, start s, length s]. */
-const STINGS = [
-  ["victory", "rush", 20, 9],
-  ["defeat", "dead", 4, 9],
+  ["lobby", `${F}/level3.mp3`, ACTION, JJ, "Level 3", CC0, 0, 0],
+  ["menu", `${F}/Juhani%20Junkala%20%5BChiptune%20Adventures%5D%204.%20Stage%20Select.ogg`, ADV, JJ, "Stage Select", CC0, 0, 0],
+  ["explore", `${F}/level1.mp3`, ACTION, JJ, "Level 1", CC0, 0, 0],
+  ["explore2", `${F}/level2.mp3`, ACTION, JJ, "Level 2", CC0, 0, 0],
+  ["rush", `${F}/Juhani%20Junkala%20%5BChiptune%20Adventures%5D%201.%20Stage%201.ogg`, ADV, JJ, "Stage 1", CC0, 0, 0],
+  ["final", `${F}/Juhani%20Junkala%20%5BChiptune%20Adventures%5D%203.%20Boss%20Fight.ogg`, ADV, JJ, "Boss Fight", CC0, 0, 0],
+  ["dead", `${F}/Juhani%20Junkala%20%5BChiptune%20Adventures%5D%202.%20Stage%202.ogg`, ADV, JJ, "Stage 2", CC0, 0, 0],
+  ["ending", `${F}/ending.mp3`, ACTION, JJ, "Ending", CC0, 0, 0],
+  ["victory", "nes/Win Jingle.wav", NES, "SketchyLogic", "Win Jingle", CC0, 0, 0],
+  ["defeat", "nes/BossIntro.wav", NES, "SketchyLogic", "Boss Intro", CC0, 0, 0],
 ];
 
 async function fetchTo(url, file) {
@@ -54,7 +59,34 @@ async function fetchTo(url, file) {
   throw new Error(`could not fetch ${url}`);
 }
 
+function decodeWav(buf) {
+  // PCM only: find the fmt and data chunks.
+  let o = 12;
+  let ch = 2, rate = 44100, bits = 16, data = null;
+  while (o + 8 <= buf.length) {
+    const id = buf.toString("latin1", o, o + 4);
+    const len = buf.readUInt32LE(o + 4);
+    if (id === "fmt ") {
+      ch = buf.readUInt16LE(o + 10);
+      rate = buf.readUInt32LE(o + 12);
+      bits = buf.readUInt16LE(o + 22);
+    } else if (id === "data") data = buf.subarray(o + 8, o + 8 + len);
+    o += 8 + len + (len & 1);
+  }
+  const bytes = bits / 8;
+  const n = Math.floor(data.length / (bytes * ch));
+  const out = [new Float32Array(n), new Float32Array(n)];
+  for (let i = 0; i < n; i++) {
+    for (let c = 0; c < 2; c++) {
+      const at = i * ch * bytes + Math.min(c, ch - 1) * bytes;
+      out[c][i] = bits === 16 ? data.readInt16LE(at) / 32768 : bits === 8 ? (data[at] - 128) / 128 : data.readInt32LE(at) / 2147483648;
+    }
+  }
+  return { rate, ch: out };
+}
+
 async function decode(buf, url) {
+  if (url.endsWith(".wav")) return decodeWav(buf);
   const dec = url.endsWith(".ogg") ? new OggVorbisDecoder() : new MPEGDecoder();
   await dec.ready;
   const out = url.endsWith(".ogg") ? await dec.decodeFile(new Uint8Array(buf)) : dec.decode(new Uint8Array(buf));
@@ -96,19 +128,30 @@ function shape(a, from = 0, len = 0, fadeIn = 0.04, fadeOut = 1.5) {
   return { rate: a.rate, ch: [L, R] };
 }
 
+/** Fold to mono and bring down to 22,050 Hz (linear; chiptune's edge survives it well enough at this rate). */
+function mono22(a) {
+  const R = 22050;
+  const step = a.rate / R;
+  const n = Math.floor(a.ch[0].length / step);
+  const out = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const f = i * step;
+    const k = Math.floor(f);
+    const u = f - k;
+    const m = (j) => (a.ch[0][j] + a.ch[1][j]) / 2;
+    out[i] = m(k) * (1 - u) + m(Math.min(a.ch[0].length - 1, k + 1)) * u;
+  }
+  return { rate: R, data: out };
+}
+
 function encode(a, kbps) {
-  const enc = new Mp3Encoder(2, a.rate, kbps);
-  const toI16 = (f) => {
-    const o = new Int16Array(f.length);
-    for (let i = 0; i < f.length; i++) o[i] = Math.max(-32768, Math.min(32767, Math.round(f[i] * 32767)));
-    return o;
-  };
-  const L = toI16(a.ch[0]);
-  const R = toI16(a.ch[1]);
+  const enc = new Mp3Encoder(1, a.rate, kbps);
+  const o = new Int16Array(a.data.length);
+  for (let i = 0; i < o.length; i++) o[i] = Math.max(-32768, Math.min(32767, Math.round(a.data[i] * 32767)));
   const parts = [];
   const B = 1152 * 64;
-  for (let i = 0; i < L.length; i += B) {
-    const m = enc.encodeBuffer(L.subarray(i, i + B), R.subarray(i, i + B));
+  for (let i = 0; i < o.length; i += B) {
+    const m = enc.encodeBuffer(o.subarray(i, i + B));
     if (m.length) parts.push(Buffer.from(m));
   }
   const f = enc.flush();
@@ -116,29 +159,21 @@ function encode(a, kbps) {
   return Buffer.concat(parts);
 }
 
-const credits = ["EMILGO Games: the music. Every track is CC0 (public domain) from OpenGameArt.org; no credit is required, given here anyway.", ""];
-const decoded = {};
+const credits = ["EMILGO Games: the music. Every track is CC0 (public domain) from OpenGameArt.org; no credit is required, it is listed for the record.", ""];
 const list = [];
 for (const [name, url, page, artist, title, lic, keep, from] of TRACKS) {
-  const src = join(IN, url.split("/").pop());
-  const buf = await fetchTo(url, src);
+  const local = url.startsWith("nes/");
+  const src = join(IN, local ? url : decodeURIComponent(url.split("/").pop()));
+  const buf = local ? readFileSync(src) : await fetchTo(url, src);
   const a = await decode(buf, url);
-  decoded[name] = a;
-  const s = shape(a, from, keep, 0.04, 2.5);
-  const mp3 = encode(s, 96);
+  // No fade at the ends: the player overlaps a loop's ends itself.
+  const s = mono22(shape(a, from, keep, 0.01, 0.02));
+  const mp3 = encode(s, 56);
   writeFileSync(join(OUT, `${name}.mp3`), mp3);
-  const secs = s.ch[0].length / s.rate;
+  const secs = s.data.length / s.rate;
   list.push({ name, title, artist, page, licence: lic, seconds: Math.round(secs), bytes: mp3.length });
   credits.push(`${name}.mp3  "${title}" by ${artist}, ${lic}. ${page}`);
   console.log(name.padEnd(10), title.padEnd(24), `${secs.toFixed(0)} s`, `${(mp3.length / 1024).toFixed(0)} KB`);
-}
-for (const [name, from, at, len] of STINGS) {
-  const s = shape(decoded[from], at, len, 0.02, 2.2);
-  const mp3 = encode(s, 128);
-  writeFileSync(join(OUT, `${name}.mp3`), mp3);
-  list.push({ name, title: `${from} (excerpt)`, seconds: len, bytes: mp3.length });
-  credits.push(`${name}.mp3  an excerpt of ${from}.mp3`);
-  console.log(name.padEnd(10), `excerpt of ${from}`, `${(mp3.length / 1024).toFixed(0)} KB`);
 }
 writeFileSync(join(OUT, "CREDITS.txt"), credits.join("\n") + "\n");
 writeFileSync(join(OUT, "music.json"), JSON.stringify({ tracks: list }, null, 1));

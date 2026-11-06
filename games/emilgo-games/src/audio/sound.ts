@@ -722,37 +722,73 @@ export class Sound {
    * a puddle a wet slap, planks a hollow knock. `pace` 0 walk … 1 sprint: harder and brighter.
    * Steps are the first sounds dropped when too many are playing.
    */
-  step(surface: Surface = "concrete", pace = 0.5): void {
+  step(surface: Surface = "concrete", pace = 0.5, bus?: AudioNode): void {
     if (this.busy(VOICE_CAP - 6)) return;
     const t = this.now;
     const k = 0.75 + 0.5 * pace;
     const v = 0.92 + Math.random() * 0.16; // no two steps alike
     switch (surface) {
       case "sand":
-        this.noise(t, 0.07 * v, { gain: 0.045 * k, freq: 2400 * v, type: "bandpass" });
-        this.noise(t, 0.04, { gain: 0.03 * k, freq: 500, type: "lowpass" });
+        this.noise(t, 0.07 * v, { gain: 0.045 * k, freq: 2400 * v, type: "bandpass", bus });
+        this.noise(t, 0.04, { gain: 0.03 * k, freq: 500, type: "lowpass", bus });
         break;
       case "grass":
-        this.noise(t, 0.09 * v, { gain: 0.04 * k, freq: 3800 * v, type: "highpass" });
-        this.noise(t + 0.01, 0.05, { gain: 0.028 * k, freq: 700, type: "lowpass" });
+        this.noise(t, 0.09 * v, { gain: 0.04 * k, freq: 3800 * v, type: "highpass", bus });
+        this.noise(t + 0.01, 0.05, { gain: 0.028 * k, freq: 700, type: "lowpass", bus });
         break;
       case "metal":
-        this.tone(320 * v, t, 0.12, { type: "triangle", gain: 0.07 * k, to: 260 });
-        this.tone(1240 * v, t, 0.06, { type: "sine", gain: 0.025 * k });
-        this.noise(t, 0.02, { gain: 0.04 * k, freq: 1800, type: "bandpass" });
+        this.tone(320 * v, t, 0.12, { type: "triangle", gain: 0.07 * k, to: 260, bus });
+        this.tone(1240 * v, t, 0.06, { type: "sine", gain: 0.025 * k, bus });
+        this.noise(t, 0.02, { gain: 0.04 * k, freq: 1800, type: "bandpass", bus });
         break;
       case "wood":
-        this.tone(210 * v, t, 0.07, { type: "triangle", gain: 0.06 * k, to: 150 });
-        this.noise(t, 0.03, { gain: 0.035 * k, freq: 900 * v, type: "bandpass" });
+        this.tone(210 * v, t, 0.07, { type: "triangle", gain: 0.06 * k, to: 150, bus });
+        this.noise(t, 0.03, { gain: 0.035 * k, freq: 900 * v, type: "bandpass", bus });
         break;
       case "puddle":
-        this.noise(t, 0.08 * v, { gain: 0.06 * k, freq: 1500 * v, type: "bandpass" });
-        this.tone(900 * v, t + 0.015, 0.05, { type: "sine", gain: 0.02 * k, to: 1400 });
+        this.noise(t, 0.08 * v, { gain: 0.06 * k, freq: 1500 * v, type: "bandpass", bus });
+        this.tone(900 * v, t + 0.015, 0.05, { type: "sine", gain: 0.02 * k, to: 1400, bus });
         break;
       default:
-        this.noise(t, 0.03 * v, { gain: 0.06 * k, freq: 1100 * v, type: "lowpass" });
-        this.tone(120 * v, t, 0.04, { type: "sine", gain: 0.035 * k, to: 70 });
+        this.noise(t, 0.03 * v, { gain: 0.06 * k, freq: 1100 * v, type: "lowpass", bus });
+        this.tone(120 * v, t, 0.04, { type: "sine", gain: 0.035 * k, to: 70, bus });
     }
+  }
+
+  /**
+   * v5: somebody else's footstep, so you can hear who is coming: `near` 1 at your
+   * side down to 0 far off, `pan` −1 left … 1 right.
+   */
+  stepNear(surface: Surface, pace: number, near: number, pan: number): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.sfx || near <= 0.01 || this.busy(VOICE_CAP - 10)) return;
+    const g = ctx.createGain();
+    g.gain.value = near * 1.6;
+    const p = ctx.createStereoPanner();
+    p.pan.value = pan;
+    g.connect(p).connect(this.sfx);
+    this.step(surface, pace, g);
+    setTimeout(() => {
+      g.disconnect();
+      p.disconnect();
+    }, 400);
+  }
+
+  /** v5: your jump: a short effort from the chest, in a woman's register, and the push off the ground. */
+  jump(): void {
+    const t = this.now;
+    this.tone(310, t, 0.15, { type: "sawtooth", gain: 0.022, to: 235, attack: 0.012 });
+    this.tone(620, t, 0.11, { type: "sine", gain: 0.02, to: 470, attack: 0.012 });
+    this.noise(t, 0.13, { gain: 0.035, freq: 1300, type: "bandpass" });
+    this.noise(t, 0.04, { gain: 0.03, freq: 500, type: "lowpass" });
+  }
+
+  /** v5: landing: boots on the ground and a breath out. */
+  land(): void {
+    const t = this.now;
+    this.tone(95, t, 0.09, { type: "sine", gain: 0.1, to: 60 });
+    this.noise(t, 0.05, { gain: 0.07, freq: 900, type: "lowpass" });
+    this.noise(t + 0.04, 0.12, { gain: 0.018, freq: 1500, type: "bandpass" });
   }
 
   /** A swing: a whoosh, and if it landed, the hit — a thud (fist), a crack (slap), a shove (push). */
@@ -1012,13 +1048,50 @@ export class Sound {
     this.noise(t, 0.12, { gain: 0.05, freq: 2400, type: "bandpass" });
   }
 
-  /** Used: a gulp for a drink, a quick zip for anything else. */
-  useItem(drink: boolean): void {
+  /** v5: each item used has its own sound. */
+  useItem(kind: string): void {
     const t = this.now;
-    if (drink) {
-      this.tone(260, t, 0.12, { type: "sine", gain: 0.16, to: 140 });
-      this.tone(240, t + 0.18, 0.12, { type: "sine", gain: 0.13, to: 130 });
-    } else this.noise(t, 0.16, { gain: 0.08, freq: 3200, type: "bandpass" });
+    switch (kind) {
+      case "kola": // An injector: click, hiss, the rush.
+        this.noise(t, 0.02, { gain: 0.1, freq: 3000, type: "bandpass" });
+        this.noise(t + 0.03, 0.28, { gain: 0.08, freq: 5200, type: "highpass" });
+        this.tone(220, t + 0.1, 0.4, { type: "sine", gain: 0.06, to: 660 });
+        break;
+      case "zobo": // A flask: two gulps.
+        this.tone(260, t, 0.12, { type: "sine", gain: 0.16, to: 140 });
+        this.tone(240, t + 0.2, 0.12, { type: "sine", gain: 0.14, to: 130 });
+        break;
+      case "big-bag": // A long zip.
+        for (let k = 0; k < 7; k++) this.noise(t + k * 0.035, 0.03, { gain: 0.07, freq: 3400 + k * 300, type: "bandpass" });
+        break;
+      case "smoke-pot": // The pin, then the hiss of the canister.
+        this.tone(1900, t, 0.04, { type: "triangle", gain: 0.07 });
+        this.noise(t + 0.08, 1.1, { gain: 0.12, freq: 2600, type: "highpass" });
+        break;
+      case "talking-drum": // A scanner's sweep.
+        this.tone(700, t, 0.16, { type: "sine", gain: 0.09, to: 1500 });
+        this.tone(1500, t + 0.2, 0.09, { type: "sine", gain: 0.08 });
+        break;
+      case "aso-ebi": // Cloth pulled on.
+        this.noise(t, 0.22, { gain: 0.09, freq: 1700, type: "bandpass" });
+        break;
+      case "decoy-flag": // A flag shaken out.
+        for (let k = 0; k < 4; k++) this.noise(t + k * 0.07, 0.06, { gain: 0.07, freq: 1100, type: "bandpass" });
+        break;
+      case "zone-shield": // A shield coming up.
+        this.tone(180, t, 0.45, { type: "triangle", gain: 0.09, to: 720 });
+        break;
+      case "jerrycan": // Fuel poured.
+        this.noise(t, 0.5, { gain: 0.08, freq: 900, type: "bandpass" });
+        break;
+      case "danfo-key": // A key fob's two chirps.
+        this.tone(2100, t, 0.06, { type: "square", gain: 0.04 });
+        this.tone(2100, t + 0.11, 0.06, { type: "square", gain: 0.04 });
+        break;
+      default:
+        this.noise(t, 0.09, { gain: 0.06, freq: 2100, type: "bandpass" });
+        this.tone(520, t, 0.08, { type: "triangle", gain: 0.06, to: 780 });
+    }
   }
 
   /** The backpack's full: a dull knock. */
@@ -1137,7 +1210,7 @@ export class Sound {
     const t = this.now;
     this.tone(62, t, 0.7, { type: "sine", gain: 0.32, to: 38 });
     this.noise(t, 0.5, { gain: 0.08, freq: 260, type: "lowpass" });
-    this.score.sting("victory");
+    this.score.sting("victory", "ending");
   }
 
   /** Defeat's sting: a boom, then a dark cut of a downloaded track. */

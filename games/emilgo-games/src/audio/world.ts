@@ -257,8 +257,9 @@ export class WorldSound {
     this.wantState = s;
   }
 
-  /** Dead Streets plays its own two tracks; Free For All the others. */
+  /** Dead Streets plays its own track; Free For All one of three, picked per match. */
   theme: "ffa" | "dead" = "ffa";
+  private readonly matchTrack = (["explore", "explore2", "rush"] as const)[Math.floor(Math.random() * 3)];
 
   /** v4 rework: the state picks a downloaded track (music.ts); "low" muffles the one on. */
   private musicTick(): void {
@@ -267,12 +268,13 @@ export class WorldSound {
     this.state = this.wantState;
     const sc = this.sound.score;
     const dead = this.theme === "dead";
-    const calm = dead ? "dead" : "explore";
+    // v5: one track the whole match. A shot no longer swaps the song (the owner: "the music keeps skipping"); only the final circle does.
+    const calm = dead ? "dead" : this.matchTrack;
     const s = this.state;
     if (s === "off") {
       // The car radio has the score in a car; otherwise silence until the next state.
       if (!this.sound.radioPlaying) sc.play(null);
-    } else sc.play(s === "final" ? (dead ? "deadFight" : "final") : s === "combat" ? (dead ? "deadFight" : "combat") : s === "low" ? (sc.playing ?? calm) : calm);
+    } else sc.play(s === "final" && !dead ? "final" : calm);
     sc.setLow(s === "low");
   }
 
