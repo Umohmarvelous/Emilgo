@@ -32,7 +32,7 @@ import type { RoomsModule } from "../game/modules/rooms";
 import type { TagModule } from "../game/modules/tag";
 import type { VehiclesModule } from "../game/modules/vehicles";
 import type { NetClient } from "./client";
-import { CAR_STRIDE, decodeEvent, MATCH_PHASES, MSNAP_STRIDE, unpackMeter, type FfaStart, type MatchSnap, type MatchSync, type WireEvent } from "./matchWire";
+import { CAR_STRIDE, decodeEvent, inflateSnap, MATCH_PHASES, MSNAP_STRIDE, unpackMeter, type FfaStart, type MatchSnap, type MatchSync, type WireEvent } from "./matchWire";
 import { unpackFlags, type ServerMsg, type StartInfo } from "./protocol";
 
 const SNAP_KEEP = 24;
@@ -333,7 +333,10 @@ export class OnlineMatch {
     }
   }
 
+  private carsLast: number[] | undefined;
   private onSnap(s: MatchSnap, sync: boolean): void {
+    inflateSnap(s, this.carsLast);
+    this.carsLast = s.v;
     const m = this.match;
     this.snaps.push(s);
     if (this.snaps.length > SNAP_KEEP) this.snaps.shift();

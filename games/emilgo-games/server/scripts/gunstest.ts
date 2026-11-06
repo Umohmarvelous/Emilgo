@@ -16,7 +16,7 @@ import { gunStats, type GunsModule } from "../../src/game/modules/guns";
 import type { VehiclesModule } from "../../src/game/modules/vehicles";
 import { matchWorldOf } from "../../src/maps/open/matchWorld";
 import { buildNaijaWorld, SURFACE_OF } from "../../src/maps/open/naija";
-import { decodeEvent, encodeEvent } from "../../src/net/matchWire";
+import { decodeEvent, encodeEvent, inflateSnap, packInts, packSnap, unpackInts, type MatchSnap } from "../../src/net/matchWire";
 
 let failures = 0;
 function check(ok: boolean, label: string): void {
@@ -347,6 +347,19 @@ console.log("the phone's copy (mirror):");
   ph.elapsed = srv.elapsed;
   check(pg.gun[a.index][1] === sg.gun[a.index][1] && pg.rarity[a.index][1] === sg.rarity[a.index][1] && pg.pickups[p.index].taken, "the copy knows your new gun and that it was taken");
   check(Math.abs(pg.hp[b.index] - sg.hp[b.index]) < 0.11 && pg.mag[a.index][1] === sg.mag[a.index][1], `the copy has their health (${pg.hp[b.index]}) and your magazine (${pg.mag[a.index][1]})`);
+}
+
+// v5: the packed snapshot gives back exactly what went in, at the big world's edges.
+{
+  const widths = [3, 3, 2, 2, 2, 2, 1];
+  const nums = [100000, -100000, 314, -314, 16383, 16383, 7, -1, 1, -32768, 32767, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+  check(JSON.stringify(unpackInts(packInts(nums, widths), widths)) === JSON.stringify(nums), "packed numbers come back the same");
+  const base = { t: "msnap", s: 1, ph: 2, el: 3, st: "aa", p: [1, -2, 3, -4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 1] } as MatchSnap;
+  const cars = [1000, -2000, 5, 6, 7, 8];
+  const a = inflateSnap(JSON.parse(JSON.stringify(packSnap({ ...base, v: cars }, true))), undefined);
+  check(JSON.stringify(a.p) === JSON.stringify(base.p) && JSON.stringify(a.v) === JSON.stringify(cars), "a snapshot through the wire is the same");
+  const b = inflateSnap(JSON.parse(JSON.stringify(packSnap({ ...base, v: cars }, false))), cars);
+  check(b.v === cars, "cars left out: the phone keeps the last it had");
 }
 
 console.log(failures ? `\n${failures} FAILED` : "\nall passed");

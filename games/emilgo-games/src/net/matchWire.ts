@@ -38,6 +38,83 @@ export interface FfaStart {
   mu?: Mutator;
 }
 
+// v5: bodies and cars go as packed bytes in base64 (pb, vb), not lists of numbers.
+// A 24-player snapshot on the big world fell from about 1,200 bytes to about 500.
+// x, z 3 bytes; heading, height, flags, meter 2; hand 1.
+const BODY_BYTES = [3, 3, 2, 2, 2, 2, 1];
+// x, z 3 bytes; heading, speed, fuel, damage 2.
+const CAR_BYTES = [3, 3, 2, 2, 2, 2];
+const B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+const B64_AT = new Uint8Array(128);
+for (let i = 0; i < 64; i++) B64_AT[B64.charCodeAt(i)] = i;
+
+/** Numbers (each fits its width, two's complement) as base64. */
+export function packInts(list: readonly number[], widths: readonly number[]): string {
+  const stride = widths.length;
+  let size = 0;
+  for (const w of widths) size += w;
+  const bytes = new Uint8Array((list.length / stride) * size);
+  let o = 0;
+  for (let i = 0; i < list.length; i++) {
+    const v = list[i];
+    for (let w = widths[i % stride] - 1; w >= 0; w--) bytes[o++] = (v >> (w * 8)) & 255;
+  }
+  let out = "";
+  for (let i = 0; i < bytes.length; i += 3) {
+    const n = (bytes[i] << 16) | ((bytes[i + 1] ?? 0) << 8) | (bytes[i + 2] ?? 0);
+    out += B64[n >> 18] + B64[(n >> 12) & 63] + (i + 1 < bytes.length ? B64[(n >> 6) & 63] : "") + (i + 2 < bytes.length ? B64[n & 63] : "");
+  }
+  return out;
+}
+
+export function unpackInts(text: string, widths: readonly number[]): number[] {
+  const size = Math.floor((text.length * 3) / 4);
+  const bytes = new Uint8Array(size);
+  let bits = 0;
+  let acc = 0;
+  let o = 0;
+  for (let i = 0; i < text.length; i++) {
+    acc = ((acc << 6) | B64_AT[text.charCodeAt(i) & 127]) & 0xffffff;
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      bytes[o++] = (acc >> bits) & 255;
+    }
+  }
+  const out: number[] = [];
+  let at = 0;
+  let k = 0;
+  while (at < size) {
+    const w = widths[k++ % widths.length];
+    let v = 0;
+    for (let b = 0; b < w; b++) v = v * 256 + bytes[at++];
+    // Back from two's complement (every wire number fits below the top bit).
+    const top = 2 ** (w * 8 - 1);
+    out.push(v >= top ? v - top * 2 : v);
+  }
+  return out;
+}
+
+/** The server's numbers to the wire: `carsAlso` false leaves the cars out (they haven't changed; the phone keeps the last). */
+export function packSnap(s: MatchSnap, carsAlso: boolean): MatchSnap {
+  const { p, v, ...rest } = s;
+  return { ...rest, pb: packInts(p, BODY_BYTES), ...(v && carsAlso ? { vb: packInts(v, CAR_BYTES) } : {}) } as unknown as MatchSnap;
+}
+
+/** The wire's bytes back to numbers, in place (a snapshot already in numbers is left as it is). `lastCars`: the newest cars this phone has. */
+export function inflateSnap(s: MatchSnap, lastCars: number[] | undefined): MatchSnap {
+  const w = s as MatchSnap & { pb?: string; vb?: string };
+  if (typeof w.pb === "string") {
+    w.p = unpackInts(w.pb, BODY_BYTES);
+    delete w.pb;
+  }
+  if (typeof w.vb === "string") {
+    w.v = unpackInts(w.vb, CAR_BYTES);
+    delete w.vb;
+  } else if (!w.v && lastCars) w.v = lastCars;
+  return s;
+}
+
 export interface MatchSnap {
   t: "msnap";
   /** Server time, ms. */

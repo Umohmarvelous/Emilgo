@@ -25,7 +25,7 @@ import type { FlagsModule } from "../../src/game/modules/flags";
 import { doorPoint } from "../../src/game/modules/drive";
 import type { ItemsModule } from "../../src/game/modules/items";
 import type { VehiclesModule } from "../../src/game/modules/vehicles";
-import { CAR_STRIDE, decodeEvent, MATCH_PHASES, MSNAP_STRIDE, type MatchSnap, type MatchSync, type WireEvent } from "../../src/net/matchWire";
+import { CAR_STRIDE, decodeEvent, inflateSnap, MATCH_PHASES, MSNAP_STRIDE, type MatchSnap, type MatchSync, type WireEvent } from "../../src/net/matchWire";
 import type { ServerMsg, StartInfo } from "../../src/net/protocol";
 import { worldFor } from "../src/ffa";
 
@@ -192,7 +192,10 @@ export class Phone {
     m.drain();
   }
 
+  private carsLast: number[] | undefined;
   private snap(s: MatchSnap): void {
+    inflateSnap(s, this.carsLast);
+    this.carsLast = s.v;
     const m = this.match;
     if (!m) return;
     this.snaps++;

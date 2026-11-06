@@ -131,13 +131,20 @@ export class Space {
   near(x: number, z: number, r: number, out: number[] = []): number[] {
     out.length = 0;
     const t = ++this.tick;
-    const a = this.cellOf(x - r, z - r);
-    const b = this.cellOf(x + r, z + r);
-    for (let row = a[1]; row <= b[1]; row++) {
-      for (let q = a[0]; q <= b[0]; q++) {
-        for (const i of this.cells[row * this.cols + q]) {
-          if (this.stamp[i] === t) continue;
-          this.stamp[i] = t;
+    // No arrays made here: the hottest function in a match (every step, every body, every shot).
+    const { x0, z0 } = this.bounds;
+    const qa = Math.min(this.cols - 1, Math.max(0, Math.floor((x - r - x0) / GRID)));
+    const qb = Math.min(this.cols - 1, Math.max(0, Math.floor((x + r - x0) / GRID)));
+    const ra = Math.min(this.rows - 1, Math.max(0, Math.floor((z - r - z0) / GRID)));
+    const rb = Math.min(this.rows - 1, Math.max(0, Math.floor((z + r - z0) / GRID)));
+    const stamp = this.stamp;
+    for (let row = ra; row <= rb; row++) {
+      for (let q = qa; q <= qb; q++) {
+        const cell = this.cells[row * this.cols + q];
+        for (let k = 0; k < cell.length; k++) {
+          const i = cell[k];
+          if (stamp[i] === t) continue;
+          stamp[i] = t;
           out.push(i);
         }
       }

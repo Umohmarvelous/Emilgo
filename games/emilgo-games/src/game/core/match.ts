@@ -703,9 +703,7 @@ export class Match {
     return c.status === "alive" || (c.status === "finished" && !!this.world.course);
   }
 
-  private readonly sepCells = new Map<number, number[]>();
   /** The buckets filled last step: only these are emptied (the map keeps every cell ever visited otherwise). */
-  private readonly sepUsed: number[][] = [];
   private readonly sepPushed: boolean[] = [];
 
   /**
@@ -716,51 +714,33 @@ export class Match {
   private separate(): void {
     const list = this.contestants;
     const min = MOVE.radius * 2;
-    const cells = this.sepCells;
-    for (const b of this.sepUsed) b.length = 0;
-    this.sepUsed.length = 0;
-    // A long match wanders over thousands of cells: start the map afresh now and then.
-    if (cells.size > 4096) cells.clear();
-    const key = (q: number, r: number) => (q + 2048) * 4096 + (r + 2048);
-    for (const c of list) {
-      if (!this.moves(c) || this.seats[c.index] >= 0) continue;
-      const k = key(Math.floor(c.x), Math.floor(c.z));
-      let b = cells.get(k);
-      if (!b) cells.set(k, (b = []));
-      if (!b.length) this.sepUsed.push(b);
-      b.push(c.index);
-    }
+    // v5: a room is at most a few dozen bodies: comparing them pair by pair is cheaper than a grid.
+    const n = list.length;
     const pushed = this.sepPushed;
-    pushed.length = list.length;
+    pushed.length = n;
     pushed.fill(false);
-    for (const a of list) {
-      if (!this.moves(a) || this.seats[a.index] >= 0) continue;
-      const q = Math.floor(a.x);
-      const r = Math.floor(a.z);
-      for (let dq = -1; dq <= 1; dq++) {
-        for (let dr = -1; dr <= 1; dr++) {
-          const bucket = cells.get(key(q + dq, r + dr));
-          if (!bucket) continue;
-          for (const j of bucket) {
-            if (j <= a.index) continue;
-            const b = list[j];
-            if (Math.abs(a.h + a.y - (b.h + b.y)) > 1.4) continue;
-            const dx = b.x - a.x;
-            const dz = b.z - a.z;
-            const d2 = dx * dx + dz * dz;
-            if (d2 >= min * min || d2 < 1e-8) continue;
-            const d = Math.sqrt(d2);
-            const push = (min - d) / 2;
-            a.x -= (dx / d) * push;
-            a.z -= (dz / d) * push;
-            b.x += (dx / d) * push;
-            b.z += (dz / d) * push;
-            pushed[a.index] = pushed[j] = true;
-          }
-        }
+    for (let i = 0; i < n; i++) {
+      const a = list[i];
+      if (!this.moves(a) || this.seats[i] >= 0) continue;
+      for (let j = i + 1; j < n; j++) {
+        const b = list[j];
+        const dx = b.x - a.x;
+        if (dx >= min || dx <= -min) continue;
+        const dz = b.z - a.z;
+        if (dz >= min || dz <= -min) continue;
+        if (!this.moves(b) || this.seats[j] >= 0) continue;
+        if (Math.abs(a.h + a.y - (b.h + b.y)) > 1.4) continue;
+        const d2 = dx * dx + dz * dz;
+        if (d2 >= min * min || d2 < 1e-8) continue;
+        const d = Math.sqrt(d2);
+        const push = (min - d) / 2;
+        a.x -= (dx / d) * push;
+        a.z -= (dz / d) * push;
+        b.x += (dx / d) * push;
+        b.z += (dz / d) * push;
+        pushed[i] = pushed[j] = true;
       }
     }
-    // A bump never puts anyone inside a wall.
     const walls = this.world.course?.walls;
     for (const c of list) {
       if (!pushed[c.index]) continue;

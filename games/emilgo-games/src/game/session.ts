@@ -2801,6 +2801,7 @@ export class Game {
   }
 
   private pendingRatio = 0;
+  private readonly sizeNow = new Vector2();
 
   private renderOnce(): void {
     if (this.view === "lobby") {
@@ -4042,7 +4043,9 @@ export class Game {
 
   private resize(): void {
     const { w, h } = gameSize();
-    this.renderer.setSize(w, h, false);
+    // Setting a canvas's size clears it, even to the size it has: only when it really changed (a phone's address bar fires this a lot).
+    const sz = this.renderer.getSize(this.sizeNow);
+    if (sz.x !== w || sz.y !== h) this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     // The brief's 65° is a landscape lens; a portrait phone needs a wider one
     // to see the street (horizontal view kept near the landscape one).
