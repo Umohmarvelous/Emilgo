@@ -239,37 +239,46 @@ they move arms, never feet, so emoting while she watches is safe.
 
 ## Showing and hiding a mode
 
-Open `src/config.ts` and find `FEATURES` near the top:
+There are two kill switches. Use the live one when something is wrong right now.
 
-```ts
-export const FEATURES = {
-  ballHaunt: false,
-  freeForAll: true,   // Free For All
-  deadStreets: true,  // Dead Streets
-};
-```
+### The live switch: no rebuild, every phone hears at once
 
-To hide a game, change its `true` to `false`. To bring it back, change it to
-`true`. Example, hiding Dead Streets:
-
-```ts
-  deadStreets: false,
-```
-
-Then rebuild and publish:
+From `games/emilgo-games`, with the `ADMIN_TOKEN` you gave `fly secrets set`:
 
 ```bash
-npm run game:embed                        # from the repo root: the EMILGO app's copy
-games/emilgo-games/scripts/deploy-site.sh # the website
-cd games/emilgo-games && fly deploy       # the game server, so it refuses the hidden game too
+node scripts/modes.mjs list
+ADMIN_TOKEN=... node scripts/modes.mjs off hustle lights-out   # those modes
+ADMIN_TOKEN=... node scripts/modes.mjs off survival            # a whole game: ffa, survival, rlgl
+ADMIN_TOKEN=... node scripts/modes.mjs on hustle
+ADMIN_TOKEN=... node scripts/modes.mjs clear                   # everything back on
 ```
 
-What a hidden game loses: its card in the lobby and on the Play screen, its
-line in the loadout, and its matches on the server. Saved scores and ranks are
-kept. A player who last picked it lands on a game that's still on.
+It lasts across server restarts. Matches already running play out; a staked
+Lagos Life match that has started is always allowed to finish, because the
+players' stakes are held. With several nodes, run it once per node
+(`SERVER=https://...`).
 
-Leave at least one game on. The game has no screen for this on purpose: only
-someone with the code can change it.
+### The code switch: for good, needs a rebuild
+
+Open `src/config.ts`. `MODE_SWITCH` has one line per mode; `FEATURES` has one
+line per game. Change `true` to `false`:
+
+```ts
+export const MODE_SWITCH = {
+  ffa: {
+    "find-the-flag": true,
+    hustle: false,        // hidden
+    ...
+```
+
+Then `npm run game:embed` from the repo root (the EMILGO app's copy),
+`games/emilgo-games/scripts/deploy-site.sh` (the website) and `fly deploy` (the
+server).
+
+Either way, a hidden mode loses its place in the lobby, the Play screen, the
+queue, private rooms and practice, and the server refuses it. Saved scores and
+ranks stay. A player who last picked it lands on a mode that's still on. Leave
+at least one mode on.
 
 ## 5. Running it
 

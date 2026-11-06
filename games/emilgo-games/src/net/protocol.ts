@@ -227,7 +227,9 @@ export type EventMsg =
   | { t: "ev"; k: "hl"; i: number; kind: number; at: number; sc: number };
 
 export type ServerMsg =
-  | { t: "welcome"; id: string; token: string; s: number; name: string; on?: number; pl?: number }
+  | { t: "welcome"; id: string; token: string; s: number; name: string; on?: number; pl?: number; off?: string[] }
+  /** The live kill switch changed: what's off now (mode ids, or a whole game). */
+  | { t: "modes"; off: string[] }
   /** How many people are on the server (on) and in a round (pl), now and then. */
   | { t: "stats"; on: number; pl: number }
   | { t: "room"; room: RoomInfo }

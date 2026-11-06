@@ -7,8 +7,9 @@
 
 import { generateKeyPairSync } from "node:crypto";
 
-import { catalog } from "../../src/content/catalog";
 import { openSigned } from "../../src/content/load";
+import { familyOn, MODE_SWITCH, setLiveOff } from "../../src/config";
+import { catalog, games } from "../../src/content/catalog";
 import { BUILTIN_MANIFEST, MODULE_IDS, type ModeDef } from "../../src/content/modes";
 import { checkManifest, modeErrors } from "../../src/content/validate";
 import { divisionStart } from "../../src/rank/ladder";
@@ -79,6 +80,20 @@ const tampered = { ...signed, body: signed.body.replace('"claimHold":10', '"clai
 check((await openSigned(tampered, pub)) === null, "one changed number: refused");
 const other = (generateKeyPairSync("ed25519").publicKey.export({ format: "der", type: "spki" }) as Buffer).subarray(-32).toString("base64");
 check((await openSigned(signed, other)) === null, "another key: refused");
+
+// The kill switch: every mode has a line; off is off, from every list.
+const allIds = new Set(Object.values(MODE_SWITCH).flatMap((f) => Object.keys(f)));
+check(BUILTIN_MANIFEST.modes.every((m) => allIds.has(m.id)), "the kill switch has a line for every mode");
+check([...allIds].every((id) => BUILTIN_MANIFEST.modes.some((m) => m.id === id)), "and no line for a mode that isn't there");
+const seen = () => catalog(BUILTIN_MANIFEST, { xp: 1e9 }).map((e) => e.def.id);
+setLiveOff(["hustle"]);
+check(!seen().includes("hustle") && seen().includes("find-the-flag"), "one mode off: gone, the rest stay");
+setLiveOff(["dead-streets"]);
+check(!familyOn("survival") && !games(BUILTIN_MANIFEST, { xp: 0 }).some((g) => g.id === "survival"), "a game's only mode off: the game is gone too");
+setLiveOff(["ffa"]);
+check(!familyOn("ffa") && !games(BUILTIN_MANIFEST, { xp: 0 }).some((g) => g.id === "ffa"), "a whole game off");
+setLiveOff([]);
+check(familyOn("ffa") && familyOn("survival") && seen().includes("hustle"), "all back on");
 
 console.log(failures ? `\n${failures} FAILED` : "\nall passed");
 process.exit(failures ? 1 : 0);

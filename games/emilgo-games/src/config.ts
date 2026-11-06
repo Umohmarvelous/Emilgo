@@ -42,9 +42,56 @@ export const FEATURES: { ballHaunt: boolean; freeForAll: boolean; deadStreets: b
   deadStreets: true,
 };
 
-/** Is this game family switched on? (Ball Haunt's rooms can also be opened by a test server: see lobby.ts.) */
+/**
+ * The kill switch: one line per mode. `false` hides that mode from every menu,
+ * the queue, private rooms and practice, and the server refuses it. To turn one
+ * off without a rebuild, use the live switch instead (scripts/modes.mjs): see
+ * README, "Showing and hiding a mode".
+ */
+export const MODE_SWITCH: Record<"ffa" | "survival" | "rlgl", Record<string, boolean>> = {
+  ffa: {
+    "find-the-flag": true,
+    "hold-the-flag": true,
+    "steal-reposition": true,
+    "squad-rally": true,
+    hustle: true,
+    scarcity: true,
+    "chase-reverse": true,
+    "compound-wars": true,
+    "riddles-elders": true,
+    "lights-out": true,
+    "max-royale": true,
+    "max-flag": true,
+    "flag-duel": true, // the staked Lagos Life match
+    "city-flag": true, // hidden: the network test's mode
+  },
+  survival: { "dead-streets": true },
+  rlgl: { "classic-run": true, "ball-haunting": true },
+};
+
+/** What the live switch has off now: mode ids, or a whole game ("ffa", "survival", "rlgl"). */
+let liveOff: ReadonlySet<string> = new Set();
+
+export function setLiveOff(list: readonly string[]): void {
+  liveOff = new Set(list);
+}
+
+export function liveOffList(): string[] {
+  return [...liveOff];
+}
+
+/** Is this mode on, by the code's switch and the live one? (Its game's switch is familyOn.) */
+export function modeOn(id: string): boolean {
+  if (liveOff.has(id)) return false;
+  for (const fam of Object.values(MODE_SWITCH)) if (fam[id] === false) return false;
+  return true;
+}
+
+/** Is this game family switched on? At least one of its public modes has to be on too. (Ball Haunt's rooms can also be opened by a test server: see lobby.ts.) */
 export function familyOn(f: "ffa" | "survival" | "rlgl"): boolean {
-  return f === "ffa" ? FEATURES.freeForAll : f === "survival" ? FEATURES.deadStreets : FEATURES.ballHaunt;
+  if (liveOff.has(f)) return false;
+  if (!(f === "ffa" ? FEATURES.freeForAll : f === "survival" ? FEATURES.deadStreets : FEATURES.ballHaunt)) return false;
+  return Object.keys(MODE_SWITCH[f]).some((id) => id !== "flag-duel" && id !== "city-flag" && modeOn(id));
 }
 
 // ── Modes and distances (SPEC-V2 §2.1) ───────────────────────────────────────
@@ -816,7 +863,8 @@ export const NET = {
    */
   // 15 (v4): guns: the aim (y, p) and the gun buttons (w) in "in", and the guns events.
   // 16 (v5): the zone's grace, the flags in the open, the launch modes on the big world: an older server can't referee them.
-  protocol: 16,
+  // 17 (v5): the live kill switch: welcome carries what's off, and "modes" when it changes.
+  protocol: 17,
   tickHz: 60,
   /** Server → client state broadcasts per second. */
   snapshotHz: 15,

@@ -58,7 +58,7 @@ html, body {
 /* The game turned 90° on screen (§6.5, ui/rotate.ts sets the swapped size in px). */
 html.rot90 { --vw1: 1vh; --vh1: 1vw; }
 html.rot90 #scene, html.rot90 #ui { inset: auto; top: 0; left: 0; transform-origin: 0 0; transform: rotate(90deg) translateY(-100%); }
-.rotate-hint { position: absolute; left: 50%; top: calc(var(--safe-t) + 64px); transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; font: 700 11px var(--head); letter-spacing: 0.06em; text-transform: uppercase; opacity: 0; pointer-events: none; transition: opacity 0.5s; z-index: 70; }
+.rotate-hint { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 10px; padding: 12px 20px; border-radius: 999px; white-space: nowrap; font: 700 13px var(--head); letter-spacing: 0.06em; text-transform: uppercase; opacity: 0; pointer-events: none; transition: opacity 0.5s; z-index: 70; }
 .rotate-hint.visible { opacity: 1; pointer-events: auto; }
 .rot-anim { animation: rot-tilt 1.6s ease-in-out infinite; transform-origin: 50% 50%; }
 @keyframes rot-tilt { 0%, 20% { transform: rotate(0deg); } 55%, 80% { transform: rotate(90deg); } 100% { transform: rotate(0deg); } }

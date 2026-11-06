@@ -25,7 +25,7 @@ import { shrinkPicture } from "../ui/avatars";
 import { ACESFilmicToneMapping, BackSide, Mesh, OrthographicCamera, PCFShadowMap, PCFSoftShadowMap, PMREMGenerator, SRGBColorSpace, ShaderMaterial, SphereGeometry, type Texture, WebGLRenderTarget, PerspectiveCamera, Scene, Vector2, Vector3, WebGLRenderer } from "three";
 
 import { Sound } from "../audio/sound";
-import { ATTACK, BALLS, DISTANCES, FEATURES, familyOn, FINAL, FLOW, MODES, MOVE, NET, PRACTICE, RULES, courseFor, scoreFor, walkoutLength, type AttackKind, type Course, type Distance, type Mode, type Stance } from "../config";
+import { ATTACK, BALLS, DISTANCES, FEATURES, familyOn, modeOn, setLiveOff, FINAL, FLOW, MODES, MOVE, NET, PRACTICE, RULES, courseFor, scoreFor, walkoutLength, type AttackKind, type Course, type Distance, type Mode, type Stance } from "../config";
 import type { SongId } from "../audio/songs";
 import { Loop } from "../core/loop";
 import { QualityGovernor } from "../core/quality";
@@ -350,6 +350,12 @@ export class Game {
     ui: HTMLElement,
   ) {
     this.uiRoot = ui;
+    // The live kill switch's last word, for a phone that starts offline.
+    try {
+      setLiveOff(JSON.parse(host.load("modes-off") ?? "[]"));
+    } catch {
+      /* nothing saved */
+    }
     this.renderer = new WebGLRenderer({ canvas, antialias: false, alpha: false, stencil: false, powerPreference: "high-performance" });
     this.renderer.toneMapping = ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
@@ -459,6 +465,8 @@ export class Game {
     this.chat.canFriend = (seat, name) => (this.mode === "online" || !!this.room) && seat !== this.seatId && !this.settings.friends.some((f) => f.name === name);
     this.board.onPick = (seat, name) => this.chat.moderate(seat, name);
     this.rotator = new Rotator(ui, canvas, () => this.resize());
+    // Over the lobby or a match, never over a menu it could hide or block.
+    this.rotator.canShow = () => !this.screens.name || this.screens.name === "lobby";
     this.rotator.onTap = () => {
       this.settings.rotate = !this.settings.rotate;
       saveSettings(this.host, this.settings);
@@ -708,6 +716,7 @@ export class Game {
     this.stage.setOperator(KITS[this.myLook().hoodie % KITS.length]);
     const pick = this.ffaPick();
     const rotation = (familyOn("ffa") ? this.content.manifest.rotation : [])
+      .filter(modeOn)
       .map((id) => this.content.manifest.modes.find((d) => d.id === id))
       .filter((d): d is NonNullable<typeof d> => !!d)
       .map((d) => ({ name: d.name.en, url: artForMap(d.map).url, on: d.id === pick?.id }));
@@ -930,6 +939,14 @@ export class Game {
     this.net.send({ t: "prefs", bo: boostsToWire(this.boostsReady()), ds: this.settings.dataSaver, fr: this.settings.friendReqs });
   }
 
+  /** The live kill switch: remember what's off (a phone offline keeps the last word) and redraw a menu that's open. */
+  private applyModesOff(off: readonly string[]): void {
+    setLiveOff(off);
+    this.host.save("modes-off", JSON.stringify(off));
+    if (this.screens.name === "play") this.showPlay();
+    else if (this.screens.name === "lobby") this.showLobby();
+  }
+
   private showPlay(): void {
     this.frame("full");
     const list = games(this.content.manifest, { xp: this.rankXp });
@@ -958,7 +975,7 @@ export class Game {
       this.screens.playFfa({
         mode: this.playMode,
         online: this.onlineAvailability(),
-        lagosLife: !!this.host.matches,
+        lagosLife: !!this.host.matches && modeOn("flag-duel"),
         error: this.playError,
         connecting: this.connecting,
         games: list,
@@ -2024,7 +2041,11 @@ export class Game {
   private onServer(m: ServerMsg): void {
     if (this.friends.receive(m)) return;
     switch (m.t) {
+      case "modes":
+        this.applyModesOff(m.off);
+        break;
       case "welcome":
+        if (m.off) this.applyModesOff(m.off);
         if (this.net?.lostSeat) this.seatLost();
         this.sendIdentity();
         this.sendLook();
@@ -3539,6 +3560,7 @@ export class Game {
     const lang = this.settings.lang;
     const m = this.content.manifest;
     const modes = (m.rotation ?? [])
+      .filter(modeOn)
       .map((id) => m.modes.find((d) => d.id === id))
       .filter((d): d is ModeDef => !!d)
       .map((d) => ({ name: d.name[lang] ?? d.name.en, blurb: d.blurb[lang] ?? d.blurb.en }));

@@ -9,7 +9,10 @@
 //     and its vw/vh (the --vw1 / --vh1 tokens) follow the game, not the glass;
 //   - toGame() turns a touch's screen point into the game's own (controls).
 //
-// The prompt shows for a few seconds when the game starts in portrait, then fades.
+// The prompt (v5, the owner): in the middle of the screen, in the lobby and in a
+// match, up to five times, ten seconds apart, then it's gone. Turning the phone
+// or tapping it ends it at once. A menu open over the game holds it back: the
+// next showing waits, and no showing is used up.
 
 import { el } from "./dom";
 import { icon } from "./icons";
@@ -35,13 +38,18 @@ export function toGame(x: number, y: number): { x: number; y: number } {
   return { x: y, y: (window.innerWidth || 375) - x };
 }
 
-/** How long the prompt stays before it fades (§6.5 "only previews for a few seconds"). */
-const PROMPT_MS = 4500;
+/** One showing, the gap between two showings, and how many showings a run of the prompt has. */
+const SHOW_MS = 3500;
+const GAP_MS = 10_000;
+const TIMES = 5;
 
 export class Rotator {
   readonly button = el("button", "rotate-hint glass");
   onTap: () => void = () => {};
+  /** May the prompt show now? (Not over a menu.) */
+  canShow: () => boolean = () => true;
   private timer = 0;
+  private left = 0;
   private readonly media = new WeakMap<CSSMediaRule, string>();
 
   constructor(
@@ -57,20 +65,44 @@ export class Rotator {
       this.onTap();
     });
     ui.append(this.button);
-    window.addEventListener("resize", () => this.layout());
+    window.addEventListener("resize", () => {
+      this.layout();
+      if (gameSize().w >= gameSize().h) this.hide(); // turned to landscape: nothing left to ask
+    });
   }
 
-  /** Show the prompt if the game is in portrait (the start of the game, a round starting). */
+  /** Start the prompt's run (the game starting, a match starting), if the game is in portrait. */
   prompt(): void {
-    const { w, h } = gameSize();
-    if (w >= h) return;
-    this.button.classList.add("visible");
-    clearTimeout(this.timer);
-    this.timer = window.setTimeout(() => this.hide(), PROMPT_MS);
+    this.left = TIMES;
+    this.next();
   }
 
-  hide(): void {
+  private next(): void {
+    this.clear();
+    const { w, h } = gameSize();
+    if (w >= h) this.left = 0;
+    if (this.left <= 0) return;
+    if (!this.canShow()) {
+      this.timer = window.setTimeout(() => this.next(), GAP_MS);
+      return;
+    }
+    this.left--;
+    this.button.classList.add("visible");
+    this.timer = window.setTimeout(() => {
+      this.button.classList.remove("visible");
+      this.timer = window.setTimeout(() => this.next(), GAP_MS);
+    }, SHOW_MS);
+  }
+
+  private clear(): void {
+    clearTimeout(this.timer);
     this.button.classList.remove("visible");
+  }
+
+  /** End the run: no more showings. */
+  hide(): void {
+    this.left = 0;
+    this.clear();
   }
 
   set(on: boolean): void {

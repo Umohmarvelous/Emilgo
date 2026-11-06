@@ -60,7 +60,8 @@ import { randomBytes, randomInt } from "node:crypto";
 import { createServer, type IncomingMessage } from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
 
-import { FEATURES, NET } from "../../src/config";
+import { familyOn, liveOffList, NET } from "../../src/config";
+import { loadSwitches, saveSwitches } from "./switches";
 import { cleanName, ERROR_TEXT, parseClient, type ClientMsg, type ErrorCode } from "../../src/net/protocol";
 import { now } from "./clock";
 import { Lobby } from "./lobby";
@@ -108,6 +109,7 @@ const ORIGINS = (process.env.GAMES_ORIGINS ?? "")
 const vatarCfg = vatarConfigFromEnv(process.env);
 const vatar = vatarCfg ? new VatarApi(vatarCfg) : null;
 // Match events, without player ids or names: enough to operate, nothing to leak.
+loadSwitches();
 const lobby = new Lobby(vatar, (event, info) => console.log(`match ${event} ${JSON.stringify(info)}`), {
   ballHaunt: process.env.BALL_HAUNT === "1",
   xpOf: (peer) => (peer.profile ? (profiles.get(peer.profile)?.xp ?? 0) : 0),
@@ -284,6 +286,10 @@ const http = createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" }).end(JSON.stringify(reports));
     return;
   }
+  if (req.url === "/modes") {
+    switchRoute(req, res);
+    return;
+  }
   if (req.url === "/content/v1/manifest" && req.method === "GET") {
     if (!content.signed) return void res.writeHead(404).end();
     res
@@ -383,6 +389,36 @@ wss.on("connection", (socket: WebSocket, req: IncomingMessage) => {
   socket.on("error", () => socket.terminate());
 });
 
+/**
+ * The live kill switch. GET /modes: what's off (anyone). POST /modes { off: [...] }
+ * with the admin token: turn those off and everything else back on, say so to
+ * every phone. A match already running plays out; no new one starts.
+ */
+function switchRoute(req: IncomingMessage, res: import("node:http").ServerResponse): void {
+  const json = { "Content-Type": "application/json", "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" };
+  if (req.method === "GET") return void res.writeHead(200, json).end(JSON.stringify({ off: liveOffList() }));
+  if (req.method !== "POST") return void res.writeHead(405).end();
+  const token = process.env.ADMIN_TOKEN;
+  if (!token || token.length < 24 || String(req.headers.authorization ?? "") !== `Bearer ${token}`) return void res.writeHead(404).end();
+  let raw = "";
+  req.on("data", (c) => {
+    raw += c;
+    if (raw.length > 8192) req.destroy();
+  });
+  req.on("end", () => {
+    let off: string[] | null = null;
+    try {
+      off = saveSwitches(JSON.parse(raw)?.off);
+    } catch {
+      off = null;
+    }
+    if (!off) return void res.writeHead(400, json).end(JSON.stringify({ error: "off must be a list of mode ids or games" }));
+    for (const p of peers.values()) if (p.connected) p.send({ t: "modes", off });
+    console.log(`modes: off = ${off.join(", ") || "(none)"}`);
+    res.writeHead(200, json).end(JSON.stringify({ off }));
+  });
+}
+
 function hello(fresh: Peer, socket: WebSocket, msg: Extract<ClientMsg, { t: "hello" }>): Peer | null {
   if (msg.v !== NET.protocol) {
     fresh.send({ t: "err", code: "version", msg: ERROR_TEXT.version });
@@ -396,7 +432,7 @@ function hello(fresh: Peer, socket: WebSocket, msg: Extract<ClientMsg, { t: "hel
     const previous = old.socket;
     old.attach(socket);
     if (previous && previous !== socket) previous.close(4002, "replaced");
-    old.send({ t: "welcome", id: old.id, token: old.token, s: now(), name: old.name, ...counts() });
+    old.send({ t: "welcome", id: old.id, token: old.token, s: now(), name: old.name, off: liveOffList(), ...counts() });
     pingSoon(old);
     lobby.roomOf(old)?.rejoined(old);
     if (old.fid) presence.identify(old, old.fid, [...old.friendFids]);
@@ -407,7 +443,7 @@ function hello(fresh: Peer, socket: WebSocket, msg: Extract<ClientMsg, { t: "hel
   fresh.name = cleanName(msg.name, () => `Guest ${1000 + Math.floor(Math.random() * 9000)}`);
   peers.set(fresh.id, fresh);
   byToken.set(fresh.token, fresh);
-  fresh.send({ t: "welcome", id: fresh.id, token: fresh.token, s: now(), name: fresh.name, ...counts() });
+  fresh.send({ t: "welcome", id: fresh.id, token: fresh.token, s: now(), name: fresh.name, off: liveOffList(), ...counts() });
   pingSoon(fresh);
   return fresh;
 }
@@ -459,7 +495,7 @@ function handle(peer: Peer, msg: ClientMsg): void {
       room?.airfallVote(peer, msg.c);
       break;
     case "runstart": {
-      if (!FEATURES.deadStreets) return void peer.send({ t: "err", code: "mode_off", msg: ERROR_TEXT.mode_off });
+      if (!familyOn("survival")) return void peer.send({ t: "err", code: "mode_off", msg: ERROR_TEXT.mode_off });
       const id = randomBytes(6).toString("hex");
       // The Daily Run: one seed for everyone today, its own board.
       const daily = msg.daily ? utcDay() : null;
