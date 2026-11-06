@@ -31,10 +31,21 @@ export const DOLL_Z = -131;
  * menu, refused by the server (its tests run one with BALL_HAUNT=1), and its
  * eye in the sky is never made. Phase 11 rebuilt it (Mama gone, the song from
  * the sky, the shared sky laser); it stays hidden until this is switched on.
+ *
+ * v5: Free For All and Dead Streets each have a switch too. `false` takes that
+ * game out of every menu, the lobby and the server. How to use them: README,
+ * "Showing and hiding a mode". Leave at least one of the three on.
  */
-export const FEATURES = {
+export const FEATURES: { ballHaunt: boolean; freeForAll: boolean; deadStreets: boolean } = {
   ballHaunt: false,
-} as const;
+  freeForAll: true,
+  deadStreets: true,
+};
+
+/** Is this game family switched on? (Ball Haunt's rooms can also be opened by a test server: see lobby.ts.) */
+export function familyOn(f: "ffa" | "survival" | "rlgl"): boolean {
+  return f === "ffa" ? FEATURES.freeForAll : f === "survival" ? FEATURES.deadStreets : FEATURES.ballHaunt;
+}
 
 // ── Modes and distances (SPEC-V2 §2.1) ───────────────────────────────────────
 

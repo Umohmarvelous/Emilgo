@@ -379,7 +379,7 @@ export class Screens {
         ${card("Sidearm", "Pistol", "Common", "#b9bcc2")}
         ${card("Primary", "Loot: rifle, SMG, shotgun", "Up to Mythic", "#ffb020")}
         ${card("Melee", "Close quarters", "Backup", "#3a9bff")}
-        ${card("Dead Streets", lo.dead, "Run weapon", "#ff5a4a")}
+        ${lo.dead ? card("Dead Streets", lo.dead, "Run weapon", "#ff5a4a") : ""}
         ${card("Suit", "Black, gloves, boots", "No armour worn", "#8a8f94")}
       </div>` : ""}
       <div class="lb-squad">${slots}</div>
@@ -391,9 +391,9 @@ export class Screens {
       return `<button class="modecard glass" data-act="mode" aria-label="Change mode">
       <span class="thumb">${thumbSvg(NAIJA_THUMB)}</span>
       ${icon("swap", "", 18)}
-      <span class="txt art-t"><span class="label">Free For All</span>
+      <span class="txt art-t"><span class="label">${s.ffa === "Dead Streets" ? "Survival" : "Free For All"}</span>
       <b>${esc(s.ffa)}</b>
-      <span class="small">${t("Meridian City")}</span></span>
+      <span class="small">${t(s.ffa === "Dead Streets" ? "Spooky World" : "Meridian City")}</span></span>
     </button>`;
     }
     const map = mapOf(s.settings.map);

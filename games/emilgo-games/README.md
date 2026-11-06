@@ -237,6 +237,40 @@ and no quick-matching together), report (the reported player's last five lines
 are kept as evidence; moderators read them at `GET /reports`). Emotes any time —
 they move arms, never feet, so emoting while she watches is safe.
 
+## Showing and hiding a mode
+
+Open `src/config.ts` and find `FEATURES` near the top:
+
+```ts
+export const FEATURES = {
+  ballHaunt: false,
+  freeForAll: true,   // Free For All
+  deadStreets: true,  // Dead Streets
+};
+```
+
+To hide a game, change its `true` to `false`. To bring it back, change it to
+`true`. Example, hiding Dead Streets:
+
+```ts
+  deadStreets: false,
+```
+
+Then rebuild and publish:
+
+```bash
+npm run game:embed                        # from the repo root: the EMILGO app's copy
+games/emilgo-games/scripts/deploy-site.sh # the website
+cd games/emilgo-games && fly deploy       # the game server, so it refuses the hidden game too
+```
+
+What a hidden game loses: its card in the lobby and on the Play screen, its
+line in the loadout, and its matches on the server. Saved scores and ranks are
+kept. A player who last picked it lands on a game that's still on.
+
+Leave at least one game on. The game has no screen for this on purpose: only
+someone with the code can change it.
+
 ## 5. Running it
 
 ```bash

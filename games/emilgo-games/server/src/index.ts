@@ -60,7 +60,7 @@ import { randomBytes, randomInt } from "node:crypto";
 import { createServer, type IncomingMessage } from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
 
-import { NET } from "../../src/config";
+import { FEATURES, NET } from "../../src/config";
 import { cleanName, ERROR_TEXT, parseClient, type ClientMsg, type ErrorCode } from "../../src/net/protocol";
 import { now } from "./clock";
 import { Lobby } from "./lobby";
@@ -459,6 +459,7 @@ function handle(peer: Peer, msg: ClientMsg): void {
       room?.airfallVote(peer, msg.c);
       break;
     case "runstart": {
+      if (!FEATURES.deadStreets) return void peer.send({ t: "err", code: "mode_off", msg: ERROR_TEXT.mode_off });
       const id = randomBytes(6).toString("hex");
       // The Daily Run: one seed for everyone today, its own board.
       const daily = msg.daily ? utcDay() : null;

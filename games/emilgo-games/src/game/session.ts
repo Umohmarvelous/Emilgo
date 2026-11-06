@@ -24,7 +24,7 @@
 import { ACESFilmicToneMapping, BackSide, Mesh, OrthographicCamera, PCFShadowMap, PCFSoftShadowMap, PMREMGenerator, SRGBColorSpace, ShaderMaterial, SphereGeometry, type Texture, WebGLRenderTarget, PerspectiveCamera, Scene, Vector2, Vector3, WebGLRenderer } from "three";
 
 import { Sound } from "../audio/sound";
-import { ATTACK, BALLS, DISTANCES, FEATURES, FINAL, FLOW, MODES, MOVE, NET, PRACTICE, RULES, courseFor, scoreFor, walkoutLength, type AttackKind, type Course, type Distance, type Mode, type Stance } from "../config";
+import { ATTACK, BALLS, DISTANCES, FEATURES, familyOn, FINAL, FLOW, MODES, MOVE, NET, PRACTICE, RULES, courseFor, scoreFor, walkoutLength, type AttackKind, type Course, type Distance, type Mode, type Stance } from "../config";
 import type { SongId } from "../audio/songs";
 import { Loop } from "../core/loop";
 import { QualityGovernor } from "../core/quality";
@@ -689,7 +689,7 @@ export class Game {
       daily: daily.map((def, i) => ({ def, progress: this.settings.daily.progress[i] ?? 0 })),
       mode: this.playMode,
       badge: this.settings.badge && !!this.shop?.owned.has("badge_gold"),
-      ffa: this.settings.game === "ffa" || !FEATURES.ballHaunt ? (this.ffaPick()?.name.en ?? "Free For All") : null,
+      ffa: !familyOn("ffa") ? "Dead Streets" : this.settings.game === "ffa" || !FEATURES.ballHaunt ? (this.ffaPick()?.name.en ?? "Free For All") : null,
       ...this.lobbyA(),
     });
     this.stage.setFraming("center");
@@ -701,14 +701,14 @@ export class Game {
     this.stage.setBackdrop(drop.url);
     this.stage.setOperator(KITS[this.myLook().hoodie % KITS.length]);
     const pick = this.ffaPick();
-    const rotation = this.content.manifest.rotation
+    const rotation = (familyOn("ffa") ? this.content.manifest.rotation : [])
       .map((id) => this.content.manifest.modes.find((d) => d.id === id))
       .filter((d): d is NonNullable<typeof d> => !!d)
       .map((d) => ({ name: d.name.en, url: artForMap(d.map).url, on: d.id === pick?.id }));
     const me = this.seatId ?? this.net?.id ?? "";
     const squad = this.party ? this.party.members.map((m) => ({ name: m.name, me: m.id === me })) : [{ name: this.host.player.name || "You", me: true }];
     const kit = KITS[this.myLook().hoodie % KITS.length];
-    return { drop, rotation, squad, loadout: { kit: kit.id[0].toUpperCase() + kit.id.slice(1), armour: 0, dead: RUN_WEAPON_NAME[this.settings.runWeapon] ?? "Pistol" } };
+    return { drop, rotation, squad, loadout: { kit: kit.id[0].toUpperCase() + kit.id.slice(1), armour: 0, dead: !familyOn("survival") ? "" : RUN_WEAPON_NAME[this.settings.runWeapon] ?? "Pistol" } };
   }
 
   /** Back to the lobby screen without leaving the stage (closing a panel). */
@@ -910,8 +910,8 @@ export class Game {
   private showPlay(): void {
     this.frame("full");
     const list = games(this.content.manifest, { xp: this.rankXp });
-    // Ball Haunt hidden: Free For All is the only game on the strip that plays.
-    if (!list.some((g) => g.id === "rlgl") && this.settings.game === "rlgl") this.settings.game = "ffa";
+    // A game switched off in code (FEATURES) can't stay picked: the first one left takes over.
+    if (!list.some((g) => g.id === this.settings.game) && list[0]) this.settings.game = list[0].id;
     if (this.settings.game === "survival") {
       const k = rankOf(this.rankXp).k;
       const st = this.settings;
@@ -3084,7 +3084,7 @@ export class Game {
         this.go();
         break;
       case "pick-game":
-        this.settings.game = d.g === "rlgl" && FEATURES.ballHaunt ? "rlgl" : d.g === "survival" ? "survival" : "ffa";
+        this.settings.game = d.g === "rlgl" && FEATURES.ballHaunt ? "rlgl" : d.g === "survival" && familyOn("survival") ? "survival" : familyOn("ffa") ? "ffa" : "survival";
         saveSettings(this.host, this.settings);
         this.showPlay();
         break;
@@ -3855,7 +3855,9 @@ export class Game {
 
   /** START on the play screen. */
   private go(): void {
-    if (this.settings.game === "survival") return this.goRun();
+    // A saved pick of a game now switched off falls through to one that's on.
+    if (this.settings.game === "survival" && familyOn("survival")) return this.goRun();
+    if (!familyOn("ffa") && familyOn("survival")) return this.goRun();
     if (this.settings.game === "ffa" || !FEATURES.ballHaunt) return this.goFfa();
     switch (this.playMode) {
       case "solo":

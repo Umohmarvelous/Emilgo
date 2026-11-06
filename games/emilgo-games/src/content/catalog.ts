@@ -2,7 +2,7 @@
 // playable, locked behind a rank, coming (this build lacks a module), or not
 // shown at all (Ball Haunt while its switch is off).
 
-import { FEATURES } from "../config";
+import { familyOn, FEATURES } from "../config";
 import { divisionStart, rankOf } from "../rank/ladder";
 import { BUILT, type Family, type Manifest, type ModeDef } from "./modes";
 import { divisionIndex } from "./validate";
@@ -37,6 +37,7 @@ export function catalog(manifest: Manifest, o: CatalogOptions): ModeEntry[] {
   const out: ModeEntry[] = [];
   for (const def of manifest.modes) {
     if (def.family === "rlgl" && !on) continue;
+    if (def.family !== "rlgl" && !familyOn(def.family)) continue;
     if (def.tags?.includes("staked")) continue; // the staked duel has its own path (Lagos Life match)
     const need = divisionIndex(def.minRank);
     if (!buildable(def, o.built)) out.push({ def, state: "soon" });
