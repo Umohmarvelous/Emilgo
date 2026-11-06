@@ -1155,7 +1155,7 @@ export class LobbyStage {
     }
     P.add(new HemisphereLight(0x9fb0c8, 0x101014, 0.6));
     for (let i = 0; i < 3; i++) {
-      const s = new SpotLight(0xfff2dc, 60, 14, 0.42, 0.6, 1.6);
+      const s = new SpotLight(0xfff2dc, 24, 14, 0.42, 0.6, 1.6);
       s.position.set(xs[i], 7, 2.5);
       s.target.position.set(xs[i], heights[i], 0);
       s.castShadow = this.spec.shadows && i === 0;

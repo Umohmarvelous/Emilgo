@@ -1,5 +1,10 @@
 # EMILGO Games: session handoff
 
+> **6 Nov 2026: v5 is under way.** The owner's brief ([SPEC-V5-ORIGINAL.md](SPEC-V5-ORIGINAL.md))
+> is in build order in [SPEC-V5.md](SPEC-V5.md). **Tiers 1 and 2 are built. Tier 3 (Treasure Hunt,
+> growth items, one-thumb portrait, one click from X, body and face, voice, realism, tutorial, icon)
+> waits for the owner's go-ahead and answers to the questions there.**
+>
 > **3 Nov 2026: the v4 rework (R1–R10) is done**, from the owner's rework brief
 > (last section of [SPEC-V4-ORIGINAL.md](SPEC-V4-ORIGINAL.md)). Status and the
 > gaps that remain: SPEC-V4 "Rework". One step is the owner's: run
@@ -43,6 +48,7 @@
 Read these in order:
 
 1. This file.
+2. [SPEC-V5.md](SPEC-V5.md): v5's order, questions and Status (v5 wins over v4).
 2. [SPEC-V4.md](SPEC-V4.md): v4's answers, Decisions and Status (v4 wins over v3 where they differ).
 3. [SPEC-V3.md](SPEC-V3.md): the owner's answers, Decisions, the 11 phases and Status (v3 wins over everything below). The brief word for word: [SPEC-V3-ORIGINAL.md](SPEC-V3-ORIGINAL.md).
 4. [SPEC-V2.md](SPEC-V2.md) (Ball Haunt's rules; SPEC-V3's Phase 11 decisions change the doll, the song and the lasers):

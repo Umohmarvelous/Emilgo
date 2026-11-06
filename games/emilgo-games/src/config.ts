@@ -815,7 +815,8 @@ export const NET = {
    * sprint, the map, rich looks.)
    */
   // 15 (v4): guns: the aim (y, p) and the gun buttons (w) in "in", and the guns events.
-  protocol: 15,
+  // 16 (v5): the zone's grace, the flags in the open, the launch modes on the big world: an older server can't referee them.
+  protocol: 16,
   tickHz: 60,
   /** Server → client state broadcasts per second. */
   snapshotHz: 15,

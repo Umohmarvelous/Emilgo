@@ -127,7 +127,7 @@ export function suitMaterial(look: Look, tier: Tier, rest: Record<BoneName, V3>)
           else if (design == 4) m = step(0.98, y) * step(p.x, 0.0);            // Colour block: half the top
           else if (design == 5) m = step(0.72, abs(n.x)) * step(y, 1.42);      // Side stripes: down the arms and legs
           else if (design == 6) m = smoothstep(0.4, 0.62, vnoise(q * 7.0)) * 0.7; // Washed
-          else if (design == 7) m = step(0.56, vnoise(q * 6.0));               // Urban camo
+          else if (design == 7) m = step(0.54, vnoise(q * 11.0));              // Urban camo
           else if (design == 8) m = step(0.55, hash2(floor(q * 26.0)));        // Digital camo
           else if (design == 9) m = step(0.5, fract(p.y * 7.0 + vnoise(q * 5.0) * 1.3)); // Tiger stripe
           else if (design == 10) m = step(0.5, fract((q.x + q.y) * 80.0)) * 0.55; // Carbon weave

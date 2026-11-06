@@ -441,7 +441,8 @@ export class SkyLaser {
     f.s.visible = true;
     this.scorch.add(g.x, g.y, g.z, Math.random() * Math.PI * 2, 1.5, 1.5);
     const d = cam.distanceTo(g);
-    this.heat = Math.max(this.heat, d < 30 ? 1 - d / 30 : 0);
+    // v5: a short warm flash, not a whiteout.
+    this.heat = Math.max(this.heat, d < 25 ? (1 - d / 25) * 0.4 : 0);
   }
 
   dispose(): void {

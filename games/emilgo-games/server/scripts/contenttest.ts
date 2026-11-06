@@ -24,7 +24,7 @@ console.log("the built-in manifest:");
 const own = checkManifest(BUILTIN_MANIFEST)!;
 check(own.dropped.length === 0, `every mode is valid (${own.dropped.map((d) => `${d.id}: ${d.errors.join(", ")}`).join("; ") || "none dropped"})`);
 const ffa = BUILTIN_MANIFEST.modes.filter((m) => m.family === "ffa" && !m.tags?.includes("staked"));
-check(ffa.length === 12, "twelve Free For All modes (v4: the ten and Naija Max's two)");
+check(ffa.filter((m) => !m.tags?.includes("dev")).length === 12, "twelve Free For All modes (v4: the ten and Naija Max's two)");
 check(BUILTIN_MANIFEST.modes.some((m) => m.tags?.includes("staked") && m.players.max <= 4), "the staked duel: 2–4 seats");
 check(BUILTIN_MANIFEST.modes.some((m) => m.family === "survival"), "Dead Streets is there");
 check(own.manifest.rotation.length >= 3 && own.manifest.rotation.length <= 4, "a featured rotation of 3–4");

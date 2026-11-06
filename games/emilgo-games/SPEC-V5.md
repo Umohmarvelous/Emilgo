@@ -11,35 +11,35 @@ owner's go-ahead.** Nothing from "Suggestions" is built without a yes.
 
 | # | Item | Status |
 |---|---|---|
-| 1.1 | Dead Streets and Free For All each get an on/off switch in code, with written instructions | |
-| 1.2 | Old items out of the loot (Hot Ration, the "pepper" set, the street props) | |
-| 1.3 | Outside the safe zone: 3.5 minutes of grace, then health falls slowly | |
-| 1.4 | Sky laser: thin, realistic | |
-| 1.5 | Male body hidden: everyone is the female body | |
-| 1.6 | Lobby poses removed | |
-| 1.7 | Gutters removed from every world (the cause of "my character sinks") | |
-| 1.8 | Footprints removed | |
-| 1.9 | Auto-shoot on by default, manual in Settings | |
-| 1.10 | No gun in hand standing or running; it comes up to aim or fire | |
-| 1.11 | Health bar over every player and zombie while being shot | |
-| 1.12 | Screen blinking fixed | |
-| 1.13 | Music skipping fixed | |
-| 1.14 | Bag redesigned: small, real | |
-| 1.15 | Relics more eye-catching | |
-| 1.16 | More billboards | |
-| 1.17 | Death: COD-style falls | |
-| 1.18 | Avatar back, changeable in the lobby | |
+| 1.1 | Dead Streets and Free For All each get an on/off switch in code, with written instructions | Done. `FEATURES` in config.ts; README "Showing and hiding a mode" |
+| 1.2 | Old items out of the loot (Hot Ration, the "pepper" set, the street props) | Done. Out: Hot Ration, Iron Guard, Banana Peel, Pepper Spray, Megaphone, Throwing and Golden Boots, the four dance cards, the street props |
+| 1.3 | Outside the safe zone: 3.5 minutes of grace, then health falls slowly | Done. 210 s, then 3 health every 2 s; the laser takes the last of it |
+| 1.4 | Sky laser: thin, realistic | Done. A thread, not a pillar; starts 420 m up; smaller smoke and scorch |
+| 1.5 | Male body hidden: everyone is the female body | Done. The male file no longer loads (287 KB saved) |
+| 1.6 | Lobby poses removed | Done |
+| 1.7 | Gutters removed from every world (the cause of "my character sinks") | Done. Rivers, the harbour and Dead Streets' trench obstacles stay |
+| 1.8 | Footprints removed | Done |
+| 1.9 | Auto-shoot on by default, manual in Settings | Done. Settings → Controls → Auto-shoot |
+| 1.10 | No gun in hand standing or running; it comes up to aim or fire | Done. Zombie run: the torch alone until you fire |
+| 1.11 | Health bar over every player and zombie while being shot | Done. Players and zombies, while being shot (question 1) |
+| 1.12 | Screen blinking fixed | Done. Two causes fixed; needs your phone to confirm |
+| 1.13 | Music skipping fixed | Done. Needs your ears to confirm |
+| 1.14 | Bag redesigned: small, real | Done |
+| 1.15 | Relics more eye-catching | Done as "items on the ground": taller coloured shafts (question 8) |
+| 1.16 | More billboards | Done. 35 more, 52 on the big world beyond the city's 13 |
+| 1.17 | Death: COD-style falls | Done. Motion-captured fall, mirrored for half the bodies |
+| 1.18 | Avatar back, changeable in the lobby | Done. Tap the avatar in the lobby: 12 drawn, or a picture from your phone |
 
 ## Tier 2: one system reworked, no heavy automation
 
 | # | Item | Status |
 |---|---|---|
-| 2.1 | Victory and defeat screens reach the player every time | |
-| 2.2 | The big world is what you play: every public mode on it, the old city's wall gone, all places reachable | |
-| 2.3 | A real flag you can see in every flag mode; each mode's goal checked end to end | |
-| 2.4 | 8-bit CC0 music per screen; new gunshot | |
-| 2.5 | Sounds: pick up, use, jump, footsteps of others by distance | |
-| 2.6 | Customise bar redesigned: fair skin only, dark suit by default, colour and design really change the suit | |
+| 2.1 | Victory and defeat screens reach the player every time | Done. They worked, but matches rarely ended. Quitting now shows Defeat too |
+| 2.2 | The big world is what you play: every public mode on it, the old city's wall gone, all places reachable | Done. Nine of the eleven places exist; Glass District and Frostline were never built (3.7) |
+| 2.3 | A real flag you can see in every flag mode; each mode's goal checked end to end | Done for every public flag mode. The staked duel keeps its stash spots |
+| 2.4 | 8-bit CC0 music per screen; new gunshot | Done. Juhani Junkala and SketchyLogic, CC0 |
+| 2.5 | Sounds: pick up, use, jump, footsteps of others by distance | Done. Synthesised jump and item sounds; a recorded voice would come with 3.6 |
+| 2.6 | Customise bar redesigned: fair skin only, dark suit by default, colour and design really change the suit | Done |
 
 ## Tier 3: heavy, waits for the owner's go-ahead
 
@@ -61,9 +61,11 @@ owner's go-ahead.** Nothing from "Suggestions" is built without a yes.
 2. **Voice.** Chinese-accented English, or Mandarin? Recommended: English with a Mandarin accent, an adult woman's voice from an open-licence speech model. Names ("player X is eliminated") can't be recorded in advance, so the phone's own speech voice would read them, and it will differ from phone to phone.
 3. **Zone grace.** 3.5 minutes outside in a 9 minute match means nobody is pushed until late. Built: 3.5 minutes as asked. Recommended: 3.5 in the first circles, down to 1 in the last two.
 4. **Growth.** On 2 Nov the answer was "no giants". "Grown to the max" here: bigger body, or same size with heavier armour and a fiercer look? Recommended: same size.
-5. **Which old items.** Taken out so far: listed in Decisions. Say if any should stay.
+5. **Which old items.** Taken out: see 1.2. Kept: Adrenaline Shot, Field Flask, Big Bag, Smoke Canister, Decoy Flag, Pulse Scanner, Squad Disguise, Zone Shield, Fuel Jerrycan, Van Key. Say if any should stay or go.
 6. **The name.** "Kill Squad" is already a released game on Steam, so it could cause a trademark problem. Ideas to check: **Blackmask**, **Mask Squad**, **Last Upload**. Recommended: Blackmask.
 7. **The app to download.** The X prompt needs a store link. Which: EMILGO app, or a new app for this game?
+8. **"Relics".** Nothing in the game has that name. Built as the items on the ground. If you meant something else, say what.
+9. **The river.** A character still goes down into the city's river and the harbour's water. Keep them, or make them solid ground too?
 
 ## Suggestions (not built without a yes)
 
@@ -81,6 +83,14 @@ owner's go-ahead.** Nothing from "Suggestions" is built without a yes.
 
 | Topic | Decision |
 |---|---|
+| Zone in a mode on part of a world | The staked duel and Compound Wars keep the hard edge: their arena is the play area |
+| Zone in a car | A bullet can't reach you there, so no slow loss either: the laser comes 60 s after the grace, unless you're driving fast |
+| Matches on the big world | Still 12 players in most modes, 24 in the Royale and big Flag: the queue test and server sizing assume it. Worth raising once there are real players |
+| Network test | A hidden mode `city-flag` (tag `dev`, opened only by `BALL_HAUNT=1`) keeps the old small city and stash spots, so ffatest still plays a quick full match |
+| Protocol | 16. **`fly deploy` is needed** before the test site plays online again |
+| Old skin tones | Stay in the save data; the suit ignores them and draws fair skin |
+| Designs | The Nigerian-era names are now Geometric, Washed, Urban camo, Digital camo, Tiger stripe, Carbon weave, Gold trim, Titan; ids and rank locks unchanged, so nobody loses one |
+| Billboards on the big world | They show house boards. `mx-` boards aren't in the Supabase migration yet, so they can't be sold until a row is added for each |
 
 ## Toggling a mode
 
