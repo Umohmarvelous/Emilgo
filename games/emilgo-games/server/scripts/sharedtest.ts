@@ -172,7 +172,7 @@ console.log("the zone:");
   runTo(m, ph[0].start + ph[0].over + 1);
   check(Math.abs(zone.now.r - ph[0].r) < 1e-6, "closed: the circle is the phase's");
 
-  // Outside: the meter fills at rate × fill a second; full, the laser; ZONE.laser later, out.
+  // Outside: a long grace; then the laser; ZONE.laser later, out.
   let far = reach.open[0];
   let farD = 0;
   for (const k of reach.open) {
@@ -188,22 +188,27 @@ console.log("the zone:");
   const t1 = m.elapsed;
   const evs: MatchEvent[] = [];
   runTo(m, t1 + 4, evs, () => put(m, "p0", fx, fz));
-  const want = 4 * ph[0].rate * ZONE.fill;
-  check(Math.abs(zone.exposureOf(0) - want) < 0.01, `outside: the meter fills ${(ph[0].rate * ZONE.fill * 100).toFixed(0)}% a second (${(zone.exposureOf(0) * 100).toFixed(0)}% after 4 s)`);
+  // v5: a long grace first, then health falls slowly, and only the last of it brings the laser.
+  const want = 4 / ZONE.grace;
+  check(Math.abs(zone.exposureOf(0) - want) < 0.01, `outside: ${ZONE.grace} s of grace (${(zone.exposureOf(0) * 100).toFixed(1)}% after 4 s)`);
   m.setEffect(c, "shield", 2);
   const before = zone.exposureOf(0);
   runTo(m, t1 + 6, evs, () => put(m, "p0", fx, fz));
   check(Math.abs(zone.exposureOf(0) - before) < 0.01, "a Zone Shield: no exposure while it lasts");
-  const fullAt = t1 + 6 + (1 - zone.exposureOf(0)) / (ph[0].rate * ZONE.fill);
-  runTo(m, fullAt + 0.1, evs, () => put(m, "p0", fx, fz));
+  const fullAt = t1 + 6 + (1 - zone.exposureOf(0)) * ZONE.grace;
+  runTo(m, fullAt - 1, evs, () => put(m, "p0", fx, fz));
+  check(c.status === "alive" && !evs.some((e) => e.type === "laser" && e.id === "p0"), "nothing happens before the grace ends");
+  const bleed = m.module("guns") ? 0 : ZONE.bleed;
+  runTo(m, fullAt + bleed + 0.5, evs, () => put(m, "p0", fx, fz));
   const laser = evs.find((e) => e.type === "laser" && e.id === "p0");
-  check(!!laser && laser.type === "laser" && Math.abs(laser.hitAt - ZONE.laser - fullAt) < 0.05, `full: the sky laser comes down (at ${fullAt.toFixed(1)} s)`);
+  check(!!laser && laser.type === "laser", `the laser after the grace and the slow loss (at ${fullAt.toFixed(1)} + ${bleed} s)`);
   check(c.status === "alive" && zone.doomed(0), `it takes ${ZONE.laser} s to come down`);
-  runTo(m, fullAt + ZONE.laser + 0.1, evs, () => c.status === "alive" && put(m, "p0", fx, fz));
+  const hitAt = laser && laser.type === "laser" ? laser.hitAt : fullAt;
+  runTo(m, hitAt + 0.1, evs, () => c.status === "alive" && put(m, "p0", fx, fz));
   const out = evs.find((e) => e.type === "eliminated" && e.id === "p0");
   check(!!out && c.status === "eliminated" && c.cause === "zone", "then hits: out, by the zone");
   const back = evs.length;
-  runTo(m, fullAt + ZONE.laser + 6.2, evs);
+  runTo(m, hitAt + 6.2, evs);
   const re = evs.slice(back).find((e) => e.type === "respawn" && e.id === "p0");
   const safe = zone.safe();
   check(!!re && c.status === "alive" && Math.hypot(c.x - safe.x, c.z - safe.z) <= safe.r * 0.9 && zone.exposureOf(0) === 0, `back ${ftf.respawn.delay} s later, inside the zone, the meter empty`);
@@ -218,7 +223,7 @@ console.log("the zone:");
   const ic = reach.cell(ix, iz);
   const [sx, sz] = ic >= 0 && reach.ground[ic] ? [ix, iz] : reach.centre(reach.open.find((k) => Math.hypot(reach.centre(k)[0] - ix, reach.centre(k)[1] - iz) < 20)!);
   runTo(m2, m2.elapsed + 2, [], () => put(m2, "p1", sx, sz));
-  check(Math.abs(z2.exposureOf(1) - (e6 - 2 * ZONE.drain)) < 0.01, `inside: it drains ${(ZONE.drain * 100).toFixed(1)}% a second`);
+  check(Math.abs(z2.exposureOf(1) - (e6 - (2 * ZONE.forget) / ZONE.grace)) < 0.01, `inside: it empties in ${ZONE.grace / ZONE.forget} s`);
   const items = m2.module<ItemsModule>("items")!;
   items.packs[1][0] = "zobo";
   const ez = z2.exposureOf(1);

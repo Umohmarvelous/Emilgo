@@ -23,7 +23,7 @@ const SCHEMAS: Record<ModuleId, Record<string, Spec>> = {
   items: { table: ["str", /^[a-z0-9-]{1,32}$/], density: ["num", 0, 2] },
   airfall: { max: ["int", 0, 3], gap: ["tuple", [["num", 60, 600], ["num", 60, 600]]] },
   vehicles: { count: ["tuple", [["int", 0, 8], ["int", 0, 8]]], kinds: ["list", ["str", /^(danfo|keke|tokunbo)$/], 3] },
-  melee: { set: ["str", /^[a-z0-9-]{1,32}$/] },
+  melee: { set: ["str", /^[a-z0-9-]{1,32}$/], props: ["num", 0, 2] },
   flags: {
     count: ["int", 1, 6],
     spots: ["str", /^[a-z-]{1,24}$/],

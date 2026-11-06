@@ -314,8 +314,8 @@ console.log("melee (Gidigbo):");
   check(!ev.some((e) => e.type === "hit"), "squadmates can't hit each other");
 }
 {
-  // Street props: a chair in your hands, three hits and it breaks; a slipper thrown across the yard.
-  const m = newMatch(11, bare("find-the-flag"));
+  // Street props (off in the launch modes since v5; a mode can still ask for them): a chair in your hands, three hits and it breaks; a slipper thrown across the yard.
+  const m = newMatch(11, bare("find-the-flag", (s) => (s.modules.melee = { ...s.modules.melee, props: 1 })));
   runFor(m, 0.1);
   const mel = m.module<MeleeModule>("melee")!;
   check(mel.props.length >= MELEE.props.count * 0.8, `${mel.props.length} street props at the places (chairs, buckets, brooms, pestles, benches, slippers)`);

@@ -276,11 +276,22 @@ export const PRACTICE = {
 // ── Shared gameplay for the open worlds (SPEC-V3 §7, Phase 3) ────────────────
 
 /**
- * The zone (SPEC-V3 §7, §9). A mode's zone phases are [start s, radius m,
- * close over s, exposure rate]; the rate fills the meter at rate × `fill` a
- * second outside the circle, so 1.0 takes 10 s and 4 takes 2.5 s.
+ * The zone (SPEC-V3 §7, §9; v5). A mode's zone phases are [start s, radius m,
+ * close over s, rate]. In the open world (v5, the owner: "as in COD") you can
+ * stay outside the circle for `grace` seconds; then health falls `tick` every
+ * `every` s, and the sky laser finishes you at the last of it. A mode played
+ * on part of a world (the Flag Duel's market) keeps a hard edge: its rate fills
+ * the meter at rate × `fill` a second, so 1.0 takes 10 s and 4 takes 2.5 s.
  */
 export const ZONE = {
+  /** Seconds outside before it starts to hurt, and how fast back inside it forgets (grace ÷ this). */
+  grace: 210,
+  forget: 4,
+  /** Health lost per pulse once the grace is gone, and the seconds between pulses. */
+  tick: 3,
+  every: 2,
+  /** A mode without health (no guns): the laser comes this long after the grace. */
+  bleed: 60,
   /** The next circle shows this long before it starts closing, seconds. */
   warn: 30,
   fill: 0.1,

@@ -27,6 +27,8 @@ export interface PlayHudState {
   exposure: number;
   outside: boolean;
   doomed: boolean;
+  /** The open world's zone: seconds left before it starts to hurt. */
+  graceLeft?: number;
   pack: readonly (ItemId | null)[];
   /** What interact would do now (Free For All adds: search a stash spot, pick up a street prop, named in `label`). */
   target: { kind: "item" | "bag" | "crate" | "stash" | "prop" | "car" | "job"; item?: ItemId; left?: number; label?: string; progress: number } | null;
@@ -253,7 +255,7 @@ export class PlayHud {
     this.expo.classList.toggle("visible", showExpo && s.respawn === -2);
     this.expo.classList.toggle("hot", s.exposure > 0.7 || s.doomed);
     this.expoFill.style.transform = `scaleX(${Math.min(1, s.exposure).toFixed(3)})`;
-    const et = s.doomed ? t("The sky has seen you") : s.outside ? t("Outside the zone") : t("Back in the zone");
+    const et = s.doomed ? t("The sky has seen you") : !s.outside ? t("Back in the zone") : s.graceLeft === undefined ? t("Outside the zone") : s.graceLeft > 0 ? `${t("Outside the zone")} · ${fmtTime(s.graceLeft)}` : t("Outside the zone: losing health");
     if (this.expoText.textContent !== et) this.expoText.textContent = et;
     this.tint.style.opacity = s.respawn !== -2 ? "0" : s.outside ? (0.35 + 0.55 * s.exposure).toFixed(2) : (0.5 * s.exposure).toFixed(2);
     this.heat.style.opacity = s.heat.toFixed(2);

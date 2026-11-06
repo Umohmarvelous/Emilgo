@@ -5,6 +5,7 @@
 //
 //   node server/build-tools.mjs && node server/dist/cartest.mjs
 
+import { ZONE } from "../../src/config";
 import { VEHICLES, type VehicleKind } from "../../src/config";
 import { BUILTIN_MANIFEST } from "../../src/content/modes";
 import type { Contestant } from "../../src/game/core/body";
@@ -305,7 +306,10 @@ console.log("the sky:");
   check(zone.exposureOf(p1.index) > 0, `on foot outside: it builds (${zone.exposureOf(p1.index).toFixed(2)})`);
   // Stopped: it builds, the laser comes; away fast before it lands: it misses.
   m.setInput("p0", -1, 0);
-  const ev = runFor(m, 30, [], () => {
+  // v5: past the long grace and nearly past the wait in a car, at once.
+  zone.setExposure(p0.index, 1);
+  (zone as unknown as { over: Float64Array }).over[p0.index] = ZONE.bleed - 2;
+  const ev = runFor(m, 5, [], () => {
     if (zone.doomed(p0.index) && m.get("p0")!.inX < 0) m.setInput("p0", Math.sin(car.heading), Math.cos(car.heading));
   });
   const laser = ev.some((e) => e.type === "laser" && e.id === "p0");

@@ -10,6 +10,7 @@
 //           effects), the compass's item diamond, the zone on the map, the
 //           heartbeat outside the circle
 
+import { ZONE } from "../config";
 import { Group, type Vector3 } from "three";
 
 import { ITEM_DEFS } from "../content/items";
@@ -67,7 +68,8 @@ export class MatchScene {
     this.wall = new ZoneWall(o.view, o.tier === 0 ? 64 : 96);
     this.items = new ItemsView(o.tier);
     this.prints = new Footprints(o.ground);
-    this.group.add(this.laser.group, this.wall.mesh, this.items.group, this.prints.mesh);
+    // v5: no footprints (the owner: "remove foot prints that traces any player"). `prints` stays for its callers' wipes.
+    this.group.add(this.laser.group, this.wall.mesh, this.items.group);
     this.laser.setViewport(innerHeight);
     // Everyone alive wears their backpack.
     o.crowd.setPacks(true);
@@ -174,8 +176,6 @@ export class MatchScene {
     this.state.crates = air?.crates ?? [];
     this.items.update(dt, this.state, cam);
     this.laser.update(dt, cam);
-    if (alive) this.prints.follow(me, this.o.printsAt ? this.o.printsAt(me.x, me.z, me.h + me.y) : true);
-    this.prints.update(dt);
 
     // ── The zone on the HUD ──
     let zoneHud: PlayHudState["zone"] = null;
@@ -195,8 +195,8 @@ export class MatchScene {
     const exposure = zone ? zone.exposureOf(i) : 0;
     const doomed = zone ? zone.doomed(i) : false;
 
-    // The heartbeat outside: faster and harder as the meter fills.
-    if (alive && (outside || doomed) && exposure > 0) {
+    // The heartbeat outside: only near the end of the grace (minutes of it would wear on anyone), faster and harder as the meter fills.
+    if (alive && (outside || doomed) && exposure > (zone?.slow ? 0.85 : 0)) {
       this.beat -= dt;
       if (this.beat <= 0) {
         this.o.sound?.heartbeat(exposure);
@@ -232,6 +232,7 @@ export class MatchScene {
       exposure,
       outside,
       doomed,
+      ...(zone?.slow ? { graceLeft: (1 - exposure) * ZONE.grace } : {}),
       pack: items?.packs[i] ?? [],
       target,
       effects: m.effects(me),

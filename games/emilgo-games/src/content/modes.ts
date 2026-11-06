@@ -78,7 +78,8 @@ const ZONE_TIGHT = { phases: [[45, 150, 35, 1.5], [150, 80, 35, 2.5], [270, 35, 
 const ITEMS = { table: "ffa-core", density: 0.8 };
 const AIRFALL = { max: 3, gap: [180, 240] };
 const CARS = { count: [1, 2], kinds: ["danfo", "keke", "tokunbo"] };
-const MELEE = { set: "gidigbo" };
+// v5: `props: 0` no street props (plastic chairs, buckets, brooms, pestles, slippers): old looks, the owner asked them gone.
+const MELEE = { set: "gidigbo", props: 0 };
 const SOLO_OR_SQUAD = { min: 6, max: 12, squad: [1, 4] as [number, number] };
 const RANKED = { "zone.scale": 0.85, "items.density": 0.6 };
 

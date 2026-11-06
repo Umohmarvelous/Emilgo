@@ -114,8 +114,10 @@ console.log("the §10 items:");
   // Every one of them can be found now.
   const m = newMatch(1, settingsOf(def("find-the-flag")), 12);
   const kinds = new Set(m.module<ItemsModule>("items")!.items.map((it) => it.kind));
-  const extras: ItemId[] = ["smoke-pot", "banana-peel", "pepper-powder", "megaphone", "decoy-flag", "talking-drum", "aso-ebi"];
-  check(extras.every((k) => kinds.has(k)), `all seven are scattered (${extras.filter((k) => kinds.has(k)).length}/7 in one match)`);
+  const extras: ItemId[] = ["smoke-pot", "decoy-flag", "talking-drum", "aso-ebi"];
+  const gone: ItemId[] = ["pepper-soup", "iron-wrapper", "banana-peel", "pepper-powder", "megaphone", "slipper", "golden-slipper", "zanku", "shaku", "odogwu", "breakdance"];
+  check(extras.every((k) => kinds.has(k)), `all four are scattered (${extras.filter((k) => kinds.has(k)).length}/4 in one match)`);
+  check(gone.every((k) => !kinds.has(k)), "v5: the old items aren't");
 }
 {
   // The Smoke Pot: a cloud; the Talking Drum can't find you in it.

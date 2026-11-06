@@ -102,12 +102,11 @@ export const ITEM_DEFS: Record<ItemId, ItemDef> = {
 export type LootTable = readonly (readonly [ItemId, number])[];
 
 export const LOOT_TABLES: Record<string, LootTable> = {
-  "ffa-core": [
-    ["kola", 4], ["zobo", 4], ["big-bag", 1.5], ["pepper-soup", 3], ["iron-wrapper", 2], ["smoke-pot", 2], ["banana-peel", 3],
-    ["pepper-powder", 2], ["megaphone", 1], ["slipper", 3], ["decoy-flag", 1], ["talking-drum", 1.5], ["aso-ebi", 1],
-    ["zanku", 1], ["shaku", 1], ["odogwu", 1], ["breakdance", 0.8],
-  ],
-  airfall: [["golden-slipper", 1], ["zone-shield", 1], ["jerrycan", 1], ["danfo-key", 1]],
+  // v5: the old items are out of the loot (the owner: "remove old items like the pepper soup"): Hot Ration, Iron Guard,
+  // Banana Peel, Pepper Spray, Megaphone, the Throwing and Golden Boots and the four dance cards. Their rules stay
+  // in the code, unused (a mode could still name them in its own table).
+  "ffa-core": [["kola", 4], ["zobo", 4], ["big-bag", 1.5], ["smoke-pot", 2], ["decoy-flag", 1], ["talking-drum", 1.5], ["aso-ebi", 1]],
+  airfall: [["zone-shield", 1], ["jerrycan", 1], ["danfo-key", 1]],
   "ds-core": [["bandage", 5], ["medkit", 1.5], ["ammo", 6], ["armour", 1.2], ["battery", 3], ["nv", 0.8]],
 };
 

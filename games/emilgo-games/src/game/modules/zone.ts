@@ -1,6 +1,9 @@
-// The zone (SPEC-V3 §7, §9): a safe circle that closes in phase by phase.
-// Outside it your exposure meter fills, faster each phase; full, the sky laser
-// comes down on you. Back inside, the meter drains.
+// The zone (SPEC-V3 §7, §9; v5): a safe circle that closes in phase by phase.
+// In the open world you may stay outside for ZONE.grace seconds (the meter
+// fills over that time); then health falls slowly, and the sky laser takes the
+// last of it. Back inside, the meter empties. A mode on part of a world (the
+// Flag Duel's market) keeps a hard edge: the meter fills by the phase's rate
+// and the laser comes as soon as it's full.
 //
 // A mode's phases are [start s, radius m, close over s, rate]. Each circle
 // lies inside the one before, its centre on ground you can walk to, all from
@@ -13,8 +16,10 @@
 
 import { ZONE } from "../../config";
 import { ITEM_DEFS } from "../../content/items";
+import type { Contestant } from "../core/body";
 import type { Match } from "../core/match";
 import type { MatchEvent, RuleModule } from "../core/module";
+import type { GunsModule } from "./guns";
 import type { VehiclesModule } from "./vehicles";
 
 export interface Circle {
@@ -43,6 +48,9 @@ export class ZoneModule implements RuleModule {
   shown = 0;
   private exposure = new Float64Array(0);
   private doom = new Float64Array(0);
+  /** Seconds since the grace ran out, for the slow loss. */
+  private over = new Float64Array(0);
+  private tickAt = new Float64Array(0);
   /** A mode played on part of a world (the Flag Duel's market): its first circle. */
   private arena: Circle | null = null;
 
@@ -56,6 +64,8 @@ export class ZoneModule implements RuleModule {
     const n = m.contestants.length;
     this.exposure = new Float64Array(n);
     this.doom = new Float64Array(n).fill(-1);
+    this.over = new Float64Array(n);
+    this.tickAt = new Float64Array(n);
     const b = m.world.space.bounds;
     const half = Math.max(b.x1 - b.x0, b.z1 - b.z0) / 2;
     const cx = (b.x0 + b.x1) / 2;
@@ -120,15 +130,49 @@ export class ZoneModule implements RuleModule {
       const dx = c.x - this.now.x;
       const dz = c.z - this.now.z;
       const out = dx * dx + dz * dz > this.now.r * this.now.r;
-      if (out) {
-        // A Zone Shield: the sky can't see you (no exposure), but it doesn't heal you either.
-        if (m.effect(c, "shield") <= 0) this.exposure[i] = Math.min(1, this.exposure[i] + this.rate * ZONE.fill * dt);
-      } else this.exposure[i] = Math.max(0, this.exposure[i] - ZONE.drain * dt);
-      if (this.exposure[i] >= 1) {
-        this.doom[i] = t + ZONE.laser;
-        m.emit({ type: "laser", id: c.id, hitAt: this.doom[i] });
+      const shield = m.effect(c, "shield") > 0;
+      if (this.arena) {
+        // A hard edge.
+        if (out) {
+          // A Zone Shield: the sky can't see you (no exposure), but it doesn't heal you either.
+          if (!shield) this.exposure[i] = Math.min(1, this.exposure[i] + this.rate * ZONE.fill * dt);
+        } else this.exposure[i] = Math.max(0, this.exposure[i] - ZONE.drain * dt);
+        if (this.exposure[i] >= 1) this.callLaser(m, c, t);
+        continue;
       }
+      if (!out) {
+        this.exposure[i] = Math.max(0, this.exposure[i] - (ZONE.forget / ZONE.grace) * dt);
+        this.over[i] = 0;
+        continue;
+      }
+      if (shield) continue;
+      if (this.exposure[i] < 1) {
+        this.exposure[i] = Math.min(1, this.exposure[i] + dt / ZONE.grace);
+        continue;
+      }
+      // The grace is gone: slowly, then the laser.
+      this.over[i] += dt;
+      const guns = m.module<GunsModule>("guns");
+      // No health to lose (a mode without guns), or seated (a bullet can't reach you, nor can this): the laser after a while.
+      if (!guns || m.seated(c)) {
+        if (this.over[i] >= ZONE.bleed) this.callLaser(m, c, t);
+        continue;
+      }
+      if (t < this.tickAt[i]) continue;
+      this.tickAt[i] = t + ZONE.every;
+      if (guns.hp[i] + guns.armour[i] <= ZONE.tick) this.callLaser(m, c, t);
+      else guns.hurt(m, c, ZONE.tick, null, false, "zone");
     }
+  }
+
+  private callLaser(m: Match, c: Contestant, t: number): void {
+    this.doom[c.index] = t + ZONE.laser;
+    m.emit({ type: "laser", id: c.id, hitAt: this.doom[c.index] });
+  }
+
+  /** Is this the open world's slow zone (not a hard edge)? */
+  get slow(): boolean {
+    return !this.arena;
   }
 
   onEvent(m: Match, e: MatchEvent): void {
@@ -136,6 +180,7 @@ export class ZoneModule implements RuleModule {
       const c = m.get(e.id);
       if (!c) return;
       this.doom[c.index] = -1;
+      this.over[c.index] = 0;
       if (e.type === "respawn") this.exposure[c.index] = 0;
     } else if (e.type === "use") {
       const fx = ITEM_DEFS[e.kind].effect;
