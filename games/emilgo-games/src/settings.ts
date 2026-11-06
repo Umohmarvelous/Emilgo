@@ -63,6 +63,8 @@ export interface Settings {
   lookAccel: number;
   lookDead: number;
   fireAim: boolean;
+  /** v5: the gun fires by itself while the crosshair is on an enemy. Off: only FIRE fires. */
+  autoFire: boolean;
   /** The move stick: fixed in the corner (default) or wherever the thumb lands. */
   moveStick: "fixed" | "float";
   /** Desktop mouse: pointer lock (default) or a virtual look stick (SPEC-V3). */
@@ -185,6 +187,7 @@ export function defaults(host: Host): Settings {
     lookAccel: 1.4,
     lookDead: 3,
     fireAim: true,
+    autoFire: true,
     moveStick: "fixed",
     mouseLook: "lock",
     // Reduced sensitivity: 0.3 of the maximum (SPEC-V2 §4.2).

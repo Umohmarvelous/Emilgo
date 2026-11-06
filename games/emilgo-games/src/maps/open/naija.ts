@@ -433,44 +433,10 @@ export function buildNaijaWorld(seed = 1957): OpenLayout {
     if (place(rng.chance(0.4) ? "wreck" : rng.chance(0.5) ? "generator" : "kiosk", x, z, rng.range(0, 6.28))) n++;
   }
 
-  // ── Gutters along town roads, cut at every crossing road; slabs to cross them ──
+  // v5: no gutters (the owner: "why does my character sink": they were pits along the roads). The roads keep
+  // their `gutters` flag only so buildings stay set back where they stood.
   const gutters: Gutter[] = [];
   const slabs: Slab[] = [];
-  for (const r of ROADS) {
-    if (!r.gutters) continue;
-    const dx = r.x1 - r.x0;
-    const dz = r.z1 - r.z0;
-    const len = Math.hypot(dx, dz);
-    const ux = dx / len;
-    const uz = dz / len;
-    const rot = Math.atan2(ux, uz);
-    // Where other roads cross this one (distance along it, and their half width).
-    const cuts: [number, number][] = [];
-    for (const o of ROADS) {
-      if (o === r) continue;
-      const t = crossing(r, o);
-      if (t !== null) cuts.push([t * len, o.w / 2 + GUTTER.w + 1.2]);
-    }
-    cuts.sort((a, b) => a[0] - b[0]);
-    for (const side of [1, -1]) {
-      const off = side * (r.w / 2 + GUTTER.wall + GUTTER.w / 2);
-      const nx = uz;
-      const nz = -ux;
-      let from = 0;
-      const runs: [number, number][] = [];
-      for (const [t, hw] of cuts) {
-        if (t - hw > from + 2) runs.push([from, t - hw]);
-        from = Math.max(from, t + hw);
-      }
-      if (len - from > 2) runs.push([from, len]);
-      for (const [a, b] of runs) {
-        const mid = (a + b) / 2;
-        gutters.push({ x: r.x0 + ux * mid + nx * off, z: r.z0 + uz * mid + nz * off, len: b - a, rot });
-        // A slab to cross every 14 m or so.
-        for (let s = a + 7; s < b - 3; s += 14) slabs.push({ x: r.x0 + ux * s + nx * off, z: r.z0 + uz * s + nz * off, rot });
-      }
-    }
-  }
 
   // ── Everything solid ──
   const solids: Solid[] = [];
@@ -578,21 +544,6 @@ function nearRoadOnly(x: number, z: number, own: Road): boolean {
     if (Math.hypot(r.x0 + dx * t - x, r.z0 + dz * t - z) < r.w / 2 + 2.5) return false;
   }
   return true;
-}
-
-/** Where along road `a` (0…1) road `b` crosses it, or null. */
-function crossing(a: Road, b: Road): number | null {
-  const ax = a.x1 - a.x0;
-  const az = a.z1 - a.z0;
-  const bx = b.x1 - b.x0;
-  const bz = b.z1 - b.z0;
-  const den = ax * bz - az * bx;
-  if (Math.abs(den) < 1e-9) return null;
-  const t = ((b.x0 - a.x0) * bz - (b.z0 - a.z0) * bx) / den;
-  const u = ((b.x0 - a.x0) * az - (b.z0 - a.z0) * ax) / den;
-  const ext = 6 / Math.hypot(bx, bz);
-  if (t < 0 || t > 1 || u < -ext || u > 1 + ext) return null;
-  return t;
 }
 
 /** The ground underfoot where nothing stands. */

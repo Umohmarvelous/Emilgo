@@ -107,7 +107,7 @@ export class MatchScene {
           // The backpack drops as a loot bag (or empty, stays behind): it's off the back.
           this.o.crowd.setPack(c.index, false);
           if (c === me) {
-            this.o.hud.pushFeed(t("The sky laser got you"), "out");
+            if (e.cause === "zone") this.o.hud.pushFeed(t("The sky laser got you"), "out");
             this.o.play.openPack(false);
           }
           break;

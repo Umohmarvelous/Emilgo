@@ -29,7 +29,7 @@ import { EMOTE_SECONDS, type EmoteId } from "../../social/emotes";
 import { FALL_TIME, fallOf, fallProgress, ragdollPose, type FallKind } from "./ragdoll";
 import { clip, mirror, mirrorKey, play, playAdd, setScratch, type Clip, type Key, type V3 } from "./keys";
 import { BONES, BONE_INDEX, LID_CLOSE, type BoneName } from "./skeleton";
-import { mocapPose, stepMocap } from "./mocapPose";
+import { deathPose, mocapPose, stepMocap } from "./mocapPose";
 
 export type { EmoteId } from "../../social/emotes";
 export type PoseId = "relaxed" | "hip" | "hair" | "hero" | "arms";
@@ -300,7 +300,7 @@ export function computePose(a: AnimState, out: Pose): void {
   const t = a.time;
 
   if (a.dead >= 0) {
-    ragdollPose(a, out);
+    if (!a.mocap || !deathPose(a, out)) ragdollPose(a, out);
     curl(out, "L", out.curlL, a.curlBias);
     curl(out, "R", out.curlR, a.curlBias);
     faceRig(a, out);

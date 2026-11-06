@@ -382,9 +382,13 @@ export class Game {
     this.gradeVeil.className = "grade-veil";
     ui.prepend(this.gradeVeil);
 
+    // v5: a new size clears the canvas. Applied at the top of the next frame, never after a frame's drawing,
+    // or the browser shows the empty canvas for one frame: a blink.
     this.quality = new QualityGovernor((pr) => {
-      this.renderer.setPixelRatio(Math.min(pr, this.spec.maxPixelRatio));
-      this.resize();
+      if (!this.loop?.isRunning) {
+        this.renderer.setPixelRatio(Math.min(pr, this.spec.maxPixelRatio));
+        this.resize();
+      } else this.pendingRatio = pr;
     });
     this.quality.canApply = () => {
       const ph = this.round?.phase;
@@ -2240,6 +2244,11 @@ export class Game {
   // ── Frame ─────────────────────────────────────────────────────────────────
 
   private render(frameDt: number): void {
+    if (this.pendingRatio > 0) {
+      this.renderer.setPixelRatio(Math.min(this.pendingRatio, this.spec.maxPixelRatio));
+      this.pendingRatio = 0;
+      this.resize();
+    }
     const workStart = performance.now();
     this.renderer.info.reset();
     const { w, h } = gameSize();
@@ -2734,6 +2743,8 @@ export class Game {
     if (this.tut) return c.name;
     return c.bot ? `${c.name} · CPU` : c.id === this.meId ? "You" : c.name;
   }
+
+  private pendingRatio = 0;
 
   private renderOnce(): void {
     if (this.view === "lobby") {

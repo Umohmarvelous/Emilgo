@@ -148,9 +148,10 @@ export class DeadView {
       if (this.gunMesh) this.gunMesh.visible = false;
       return;
     }
-    if (kind && this.hold) {
-      // Up and aimed for a moment after a shot; across the chest at a sprint; low and ready otherwise.
-      this.hold.mode = this.time - this.firedAt < 1.4 ? 1 : me.sprinting ? 2 : 0;
+    // v5: the gun only comes out to shoot (the owner: none standing or running); otherwise the torch alone.
+    if (kind && this.hold && this.time - this.firedAt < 1.4) {
+      // Up and aimed for a moment after a shot.
+      this.hold.mode = 1;
       h.hold = this.hold;
       h.torch = false;
       if (!this.hold.ready) return;

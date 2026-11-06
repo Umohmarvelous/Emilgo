@@ -1,5 +1,5 @@
 // The operators (v4 rework R2/R3): the CC0 Quaternius mannequins (male and
-// female) as the bodies under the black tactical suit, and the CC0 Universal
+// female; only the female one is used since v5) as the bodies under the black tactical suit, and the CC0 Universal
 // Animation Library's clips, both baked onto the game's skeleton by
 // tools/anim/operator.mjs. Everyone in Free For All and the Dead Streets
 // runner wears this body; the clips play on any body (the zombies' scans too).
@@ -16,11 +16,15 @@ import { BONES, PROPORTIONS, type BoneName, type V3 } from "./skeleton";
 import type { Body } from "./wardrobe";
 import urlClips from "./op/op-clips.bin?url";
 
-/** The bodies' files: the EMILGO app's one-file copy carries the lite ones (levels 0–2; tools/anim/lite.mjs). */
-const bodyUrls = (): Promise<[string, string]> =>
-  __HOST_BUILD__ === "emilgo"
-    ? Promise.all([import("./op/op-m.lite.bin?url"), import("./op/op-f.lite.bin?url")]).then(([m, f]) => [m.default, f.default])
-    : Promise.all([import("./op/op-m.bin?url"), import("./op/op-f.bin?url")]).then(([m, f]) => [m.default, f.default]);
+/**
+ * v5: one body for every operator, the female one (the owner: "hide the male 3d
+ * model"), so the male body's file isn't even fetched. To bring it back: load
+ * op-m here too and use `body` in operatorBody.
+ *
+ * The body's file: the EMILGO app's one-file copy carries the lite one (levels 0–2; tools/anim/lite.mjs).
+ */
+const bodyUrl = (): Promise<string> =>
+  __HOST_BUILD__ === "emilgo" ? import("./op/op-f.lite.bin?url").then((f) => f.default) : import("./op/op-f.bin?url").then((f) => f.default);
 
 /** The suit's regions (operator.mjs R). */
 export const REGION = { suit: 0, seam: 1, glove: 2, boot: 3, head: 4, pad: 5, belt: 6, pocket: 7, band: 8, eye: 9, knuckle: 10, sole: 11 } as const;
@@ -112,12 +116,7 @@ let loading: Promise<void> | null = null;
 /** Both bodies and the clips. Safe to call more than once. */
 export function loadOperators(): Promise<void> {
   loading ??= Promise.all([
-    bodyUrls().then(([urlM, urlF]) =>
-      Promise.all([
-        fetchBin(urlM).then(({ head, buf, at }) => void (bodies.m = readBody(head, buf, at))),
-        fetchBin(urlF).then(({ head, buf, at }) => void (bodies.f = readBody(head, buf, at))),
-      ]),
-    ),
+    bodyUrl().then((url) => fetchBin(url).then(({ head, buf, at }) => void (bodies.f = readBody(head, buf, at)))),
     fetchBin(urlClips).then(({ head, buf, at }) => {
       KEEP = head.keep;
       KEEP.forEach((b, j) => (SLOT[b] = j));
@@ -149,8 +148,8 @@ export function operatorsReady(): boolean {
 }
 
 /** The operator's body at a detail level (cached), as a BuiltBody the Human can wear. */
-export function operatorBody(body: Body, want: Detail): BuiltBody {
-  const b = bodies[body]!;
+export function operatorBody(_body: Body, want: Detail): BuiltBody {
+  const b = bodies.f!;
   // The app's lite files stop at level 2.
   const level = Math.min(want, b.levels.length - 1) as Detail;
   let built = b.built[level];
@@ -194,7 +193,7 @@ export function operatorBody(body: Body, want: Detail): BuiltBody {
   g.setAttribute("skinWeight", new BufferAttribute(jw, 4, true));
   g.setIndex(new BufferAttribute(idx, 1));
   g.boundingSphere = new Sphere(new Vector3(0, 0.9, 0), 1.6);
-  built = { geometry: g, rest: b.rest, prop: PROPORTIONS[body], scale: 1, triangles: src.length / 3 };
+  built = { geometry: g, rest: b.rest, prop: PROPORTIONS.f, scale: 1, triangles: src.length / 3 };
   b.built[level] = built;
   return built;
 }

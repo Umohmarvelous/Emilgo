@@ -283,7 +283,9 @@ export class LobbyStage {
 
   // ── Who stands here ────────────────────────────────────────────────────────
 
-  setLook(look: Look, pose: PoseId): void {
+  /** v5: no lobby poses (the owner): whatever the caller asks, everyone just stands. */
+  setLook(look: Look, _pose: PoseId): void {
+    const pose: PoseId = "relaxed";
     const tier = this.spec.tier;
     if (this.me && JSON.stringify(this.me.look) === JSON.stringify(look) && this.me.tier === tier) {
       this.me.setPose(pose);
@@ -302,8 +304,8 @@ export class LobbyStage {
     this.scene.add(this.me.mesh);
   }
 
-  setPose(pose: PoseId): void {
-    this.me?.setPose(pose);
+  setPose(_pose: PoseId): void {
+    this.me?.setPose("relaxed");
   }
 
   /** Show or hide the practice dummy (the waiting screens). */
@@ -385,7 +387,7 @@ export class LobbyStage {
       }
       const h = new Human(p.look, Math.max(0, this.spec.tier - 1) as 0 | 1, { seed: next.length + 7, lit: this.spec.pbr ? "standard" : "lambert" });
       h.castShadows(this.spec.shadows);
-      h.setPose((["relaxed", "arms", "hip", "relaxed", "hero"] as const)[next.length % 5]);
+      h.setPose("relaxed");
       this.scene.add(h.mesh);
       next.push({ id: p.id, name: p.name, human: h });
     }
@@ -418,7 +420,7 @@ export class LobbyStage {
       const h = new Human(l, i === 0 ? this.spec.tier : (Math.max(0, this.spec.tier - 1) as 0 | 1), { featured: i === 0, seed: 11 + i, lit: this.spec.pbr ? "standard" : "lambert" });
       h.castShadows(this.spec.shadows);
       if (kits[i]) h.setGear(kits[i]!, 0);
-      h.setPose(i === 0 ? "hero" : i === 1 ? "arms" : "hip");
+      h.setPose("relaxed");
       if (i === 0) h.finish();
       this.podiumSet.add(h.mesh);
       return h;

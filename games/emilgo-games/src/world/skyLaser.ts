@@ -41,8 +41,8 @@ import type { Tier } from "../graphics/tiers";
 import { DecalPool } from "./decals";
 import { canvasTexture, glow, type Painter } from "./tex";
 
-/** How high the clouds are, metres: the column comes down from there. */
-const SKY = 110;
+/** How high the beam starts, metres: far enough that its top is lost in the sky. */
+const SKY = 420;
 const MAX = 6;
 const PUFFS = 36;
 /** Seconds the column stays after the hit, fading. */
@@ -71,7 +71,7 @@ varying vec3 vC;
 varying float vY;
 void main() {
   float f = pow(abs(dot(normalize(vN), normalize(vV))), power);
-  float low = 0.55 + 0.45 * (1.0 - vY);
+  float low = (0.55 + 0.45 * (1.0 - vY)) * (1.0 - smoothstep(0.55, 1.0, vY));
   gl_FragColor = vec4(vC * f * low, 1.0);
 }`;
 
@@ -171,8 +171,8 @@ export function beamAngles(key: string): { fromYaw: number; lean: number } {
   for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 16777619);
   const u = ((h >>> 0) % 10007) / 10007;
   const w = ((Math.imul(h, 2654435761) >>> 0) % 9973) / 9973;
-  // A quarter come straight down (the knees go); the rest slant up to ~26°.
-  return { fromYaw: u * Math.PI * 2, lean: w < 0.25 ? w * 0.4 : 0.12 + (w - 0.25) * 0.45 };
+  // v5: nearly straight down, from high up (a beam from orbit doesn't slant much): at most ~7°.
+  return { fromYaw: u * Math.PI * 2, lean: w < 0.25 ? w * 0.1 : 0.03 + (w - 0.25) * 0.12 };
 }
 
 export class SkyLaser {
@@ -343,23 +343,25 @@ export class SkyLaser {
       const flick = 0.9 + 0.1 * Math.sin(this.time * 60 + i);
       _q.setFromUnitVectors(_Y, s.up);
       const shown = len * down;
-      // The core: thin while it comes down, thick and blinding on the hit.
-      const rc = s.hit ? 0.35 + 0.5 * after : 0.12 + 0.08 * u;
+      // v5: thin like a real beam. Never under a pixel or so, however far you stand from it.
+      const minR = cam.distanceTo(s.ground) * 0.0012;
+      // The core: a thread while it comes down, a little fuller on the hit.
+      const rc = Math.max(minR, s.hit ? 0.08 + 0.1 * after : 0.025 + 0.02 * u);
       this.core.setMatrixAt(i, _m.compose(bottom, _q, _s.set(rc, shown, rc)));
-      this.core.setColorAt(i, _c.setRGB(1, 0.97, 0.92).multiplyScalar((s.hit ? 2.2 * after : 0.7 + 0.5 * u) * flick));
+      this.core.setColorAt(i, _c.setRGB(1, 0.96, 0.9).multiplyScalar((s.hit ? 2.4 * after : 0.9 + 0.6 * u) * flick));
       // The shell: from the first instant a faint shaft the whole way down (so
       // everyone, looking level, sees where it will land), brightening as the core comes.
-      const rs = s.hit ? 1.4 + 1.6 * (1 - after) : 0.9 + 0.3 * u;
+      const rs = Math.max(minR * 4, s.hit ? 0.3 + 0.35 * (1 - after) : 0.14 + 0.08 * u);
       _v.copy(s.ground);
       this.shell.setMatrixAt(i, _m.compose(s.hit ? bottom : _v, _q, _s.set(rs, s.hit ? shown : len, rs)));
-      this.shell.setColorAt(i, _c.setRGB(1, 0.78, 0.55).multiplyScalar((s.hit ? 0.9 * after : 0.18 + 0.42 * u * u) * flick));
+      this.shell.setColorAt(i, _c.setRGB(1, 0.72, 0.5).multiplyScalar((s.hit ? 0.7 * after : 0.1 + 0.3 * u * u) * flick));
       // The ring closes on where it will land, pulsing faster as it comes.
       if (!s.hit) {
-        const r = 7 - 5.6 * u;
+        const r = 2.2 - 1.7 * u;
         _q.identity();
         _v.set(s.ground.x, s.ground.y + 0.04, s.ground.z);
         this.ring.setMatrixAt(i, _m.compose(_v, _q, _s.set(r, 1, r)));
-        this.ring.setColorAt(i, _c.setRGB(1, 0.45, 0.2).multiplyScalar((1.3 + 1.2 * u) * (0.75 + 0.25 * Math.sin(this.time * (14 + 26 * u)))));
+        this.ring.setColorAt(i, _c.setRGB(1, 0.45, 0.2).multiplyScalar((0.8 + 0.9 * u) * (0.75 + 0.25 * Math.sin(this.time * (14 + 26 * u)))));
       } else this.ring.setMatrixAt(i, ZERO);
       if (s.hit && after <= 0) s.on = false;
     }
@@ -409,7 +411,7 @@ export class SkyLaser {
         f.s.visible = false;
         continue;
       }
-      const size = 3 + 9 * Math.min(1, f.t / 0.08);
+      const size = 1 + 3.2 * Math.min(1, f.t / 0.08);
       f.s.scale.set(size, size, 1);
       f.s.material.opacity = 1 - k;
     }
@@ -427,17 +429,17 @@ export class SkyLaser {
       p.age = 0;
       p.life = 1.6 + Math.random() * 1.4;
       const a = Math.random() * Math.PI * 2;
-      const sp = 1.5 + Math.random() * 4;
+      const sp = 0.6 + Math.random() * 1.8;
       p.p.set(g.x + Math.cos(a) * 0.3, g.y + 0.2 + Math.random() * 0.6, g.z + Math.sin(a) * 0.3);
       p.v.set(Math.cos(a) * sp, 1 + Math.random() * 2.5, Math.sin(a) * sp);
-      p.size = 1.2 + Math.random() * 1.6;
+      p.size = 0.45 + Math.random() * 0.7;
       if (++made >= PUFFS) break;
     }
     const f = this.flashes.find((x) => !Number.isFinite(x.t)) ?? this.flashes[0];
     f.t = 0;
     f.s.position.set(g.x, g.y + 1, g.z);
     f.s.visible = true;
-    this.scorch.add(g.x, g.y, g.z, Math.random() * Math.PI * 2, 3.2, 3.2);
+    this.scorch.add(g.x, g.y, g.z, Math.random() * Math.PI * 2, 1.5, 1.5);
     const d = cam.distanceTo(g);
     this.heat = Math.max(this.heat, d < 30 ? 1 - d / 30 : 0);
   }

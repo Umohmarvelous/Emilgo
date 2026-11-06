@@ -733,6 +733,7 @@ function pack(head, parts) {
 const CLIPS = [
   // [file, source name, game name, fps, loop]
   ["ual1", "Idle_Loop", "idle", 15, true],
+  ["ual1", "Death01", "death", 24, false],
   ["ual1", "Walk_Loop", "walk", 20, true],
   ["ual1", "Jog_Fwd_Loop", "jog", 24, true],
   ["ual1", "Sprint_Loop", "sprint", 24, true],

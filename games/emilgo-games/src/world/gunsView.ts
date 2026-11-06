@@ -474,7 +474,10 @@ export class GunsView {
       const slot = g.slot[i] ?? 0;
       const gi = g.gun[i]?.[slot] ?? -1;
       const near = Math.hypot(c.x - cam.x, c.z - cam.z) < HELD_VIEW[tier];
-      const show = gi >= 0 && c.status === "alive" && !m.seated(c) && near && c.act <= 0 && c.stun <= 0.2;
+      const mine0 = i === this.o.me;
+      // v5: no gun in the hands standing or running (the owner): it comes up to aim, fire or reload and goes away after.
+      const up = (mine0 && this.myAiming) || m.elapsed - g.aimedAt[i] < 1.2 || (g.reloadAt[i] ?? -1) >= 0;
+      const show = gi >= 0 && up && c.status === "alive" && !m.seated(c) && near && c.act <= 0 && c.stun <= 0.2;
       if (!show) {
         if (h.hold) h.hold = null;
         continue;

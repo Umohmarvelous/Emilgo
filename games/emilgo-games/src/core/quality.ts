@@ -22,6 +22,13 @@ export class QualityGovernor {
   private mode: QualityMode = "auto";
   /** Decisions in a row late at the lowest resolution. */
   private lateAtFloor = 0;
+  /**
+   * v5: the screen blinked because the scale climbed, proved too much, dropped,
+   * climbed again… every step re-makes the canvas. After a drop no climb for
+   * this many decisions (about 1.5 s each), doubling each time, so it settles.
+   */
+  private wait = 0;
+  private waitNext = 20;
 
   /** Struggling at the lowest resolution (three decisions running: a few seconds). */
   get struggling(): boolean {
@@ -72,10 +79,13 @@ export class QualityGovernor {
     // this phone (the session drops a tier between rounds, in Auto).
     if (avg > targetMs * 1.25 && this.idx === 0 && this.mode === "auto") this.lateAtFloor++;
     else if (avg <= targetMs * 1.1) this.lateAtFloor = 0;
+    if (this.wait > 0) this.wait--;
     if (avg > targetMs * 1.25 && this.idx > 0) {
       want = this.idx - 1;
       this.calm = 0;
-    } else if (avg <= targetMs * 1.1 && busy < targetMs * 0.45 && this.idx < this.maxIdx) {
+      this.wait = this.waitNext;
+      this.waitNext = Math.min(320, this.waitNext * 2);
+    } else if (this.wait <= 0 && avg <= targetMs * 1.1 && busy < targetMs * 0.45 && this.idx < this.maxIdx) {
       // Comfortably on time with room to spare, four windows running: one step up.
       if (++this.calm >= 4) {
         want = this.idx + 1;

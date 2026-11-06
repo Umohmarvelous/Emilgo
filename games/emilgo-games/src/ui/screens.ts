@@ -21,7 +21,6 @@ import { BOOSTS, BOOST_BY_ID, BOOST_ROUNDS, BOOST_SLOTS, type Boost, type BoostI
 import { PRODUCTS, PRODUCT_BY_ID } from "../shop/catalog";
 import type { FriendState } from "../social/friends";
 import { EMOTES, EMOTE_BY_ID, type EmoteId } from "../social/emotes";
-import { POSES } from "../world/human/animator";
 import { HOODIE_COLORS, HOODIE_DESIGNS, type HoodieDesign, type Look } from "../world/human/wardrobe";
 import { esc, fmtTime, ordinal } from "./dom";
 import { SPOOKY_ROUTE } from "../maps/open/route";
@@ -477,11 +476,7 @@ export class Screens {
     const lock = (product: string | undefined) => !!product && !owned.has(product);
     const price = (product: string | undefined, locked: boolean) => (product && locked ? `<span class="price num">${naira(PRODUCT_BY_ID[product].price)}</span>` : "");
     if (tab === "body") {
-      body = `<div class="label" style="margin-bottom:8px">Build</div>
-        <div class="grid">${(["m", "f"] as const)
-          .map((b) => `<button class="tile ${look.body === b ? "on" : ""}" data-act="look" data-key="body" data-val="${b}">${icon("body", "", 28)}<span class="t">${b === "m" ? "Build A" : "Build B"}</span></button>`)
-          .join("")}</div>
-        <div class="row-set" style="margin-top:12px"><span class="lbl"><b>Height</b><small>A little taller or shorter</small></span>
+      body = `<div class="row-set" style="margin-top:12px"><span class="lbl"><b>Height</b><small>A little taller or shorter</small></span>
           <input class="slider" type="range" min="95" max="105" step="1" value="${Math.round(look.height * 100)}" data-act="look-range" data-key="height" aria-label="Height" /></div>`;
     } else {
       const main = HOODIE_COLORS[look.hoodie]?.hex ?? HOODIE_COLORS[0].hex;
@@ -540,9 +535,7 @@ export class Screens {
     this.sheet(
       "loadout",
       "Loadout",
-      `<div class="label" style="margin-bottom:8px">Lobby pose</div>
-       <div class="grid">${POSES.map((p) => `<button class="tile ${s.lobbyPose === p.id ? "on" : ""}" data-act="pose" data-id="${p.id}">${icon("pose", "", 24)}<span class="t">${esc(p.label)}</span></button>`).join("")}</div>
-       <button class="md" style="margin: auto" data-act="emotes">${icon("wheel", "", 18)}<span class="grow" ><b>Edit the wheel</b><small>${s.wheel.map((id) => EMOTE_BY_ID[id].label).join(" · ")}</small></span>${icon("next", "", 16)}</button>
+      `<button class="md" style="margin: auto" data-act="emotes">${icon("wheel", "", 18)}<span class="grow" ><b>Edit the wheel</b><small>${s.wheel.map((id) => EMOTE_BY_ID[id].label).join(" · ")}</small></span>${icon("next", "", 16)}</button>
        <button class="md" style="margin: 8px auto 0" data-act="boosts">${icon("bolt", "", 18)}<span class="grow"><b>Boosts</b><small>${s.boostsOn.length ? s.boostsOn.map((id) => `${BOOST_BY_ID[id].name} (${s.boosts[id] ?? 0})`).join(" · ") : `None on · ${s.cp} CP`}</small></span>${icon("next", "", 16)}</button>`,
     );
   }
@@ -1103,6 +1096,7 @@ export class Screens {
         ${range("lookAccel", "Acceleration", "How much a quick flick turns on top. 0: the same for any speed")}
         <div class="row-set"><span class="lbl"><b>Dead zone</b><small>How far a finger moves before the camera turns, so a tap stays a tap</small></span><input class="slider" type="range" min="0" max="12" step="1" value="${s.lookDead}" data-act="range" data-key="lookDead" aria-label="Dead zone" /><span class="num pct" data-pct="lookDead">${s.lookDead} px</span></div>
         ${sw("lookDot", "Show touch point", "A faint circle under your look finger. Off: nothing drawn")}
+        ${sw("autoFire", "Auto-shoot", "Fires by itself when the crosshair is on an enemy. Off: you press FIRE")}
         ${sw("fireAim", "Aim while firing", "A drag that starts on the fire button also turns the camera")}
         ${sw("invertY", "Invert Y axis", "Drag up to look down")}
         <div class="row-set"><span class="lbl"><b>Move stick</b><small>Fixed: always in the corner. Floating: appears where your thumb lands</small></span>${seg("moveStick", s.moveStick, [["fixed", "Fixed"], ["float", "Floating"]])}</div>

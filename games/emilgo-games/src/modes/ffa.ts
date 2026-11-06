@@ -173,6 +173,8 @@ export class FfaMode implements GameMode {
   private readonly gunsView: GunsView | null;
   private readonly combat: CombatHud | null;
   private dryAt = 0;
+  private autoTick = 0;
+  private autoWas = false;
   /** HUD A (v4 Phase 3): the watch, the plates, the edges, the zombies' bars. */
   private readonly fk = new FieldKit();
   /** Dead Streets: each zombie's health when last seen, its most, and when it was last hurt (seconds of play). */
@@ -483,6 +485,43 @@ export class FfaMode implements GameMode {
     this.host.hud.pushFeed(`${c === this.src.me ? t("You") : c.name}: ${what}`, k === 3 ? "out" : "safe");
   }
 
+  /** Auto-shoot: is the crosshair on someone it could hit? Checked every other frame; the last answer between. */
+  private onEnemy(m: Match, me: Contestant): boolean {
+    if (this.autoTick++ % 2) return this.autoWas;
+    const h = this.host;
+    const g = m.module<GunsModule>("guns");
+    const slot = g ? g.slot[me.index] : 0;
+    if (g && g.mag[me.index][slot] <= 0) return (this.autoWas = false);
+    const range = g ? GUNS.kinds[GUN_KINDS[g.gun[me.index][slot]] ?? "pistol"].range : SURVIVAL.gun.range;
+    const yaw = h.rig.aimYaw;
+    const pitch = h.rig.aimPitch;
+    const cp = Math.cos(pitch);
+    const dx = -Math.sin(yaw) * cp;
+    const dy = Math.sin(pitch);
+    const dz = -Math.cos(yaw) * cp;
+    const o = h.camera.position;
+    const reach = range + Math.hypot(o.x - me.x, o.z - me.z);
+    const space = m.world.space;
+    for (const c of m.contestants) {
+      if (c === me || c.status !== "alive" || (!this.dead && m.squads[c.index] === m.squads[me.index]) || m.seated(c)) continue;
+      const px = c.x - o.x;
+      const pz = c.z - o.z;
+      const dist = px * dx + pz * dz;
+      if (dist < 1) continue;
+      const along = dist / Math.max(1e-3, cp * cp);
+      if (along > reach) continue;
+      // Across: the body's radius. Up: from its feet to its head.
+      const cx = o.x + dx * along - c.x;
+      const cz = o.z + dz * along - c.z;
+      if (cx * cx + cz * cz > 0.2) continue;
+      const y = o.y + dy * along - (c.h + c.y);
+      if (y < 0 || y > 1.85) continue;
+      if (space.ray(o.x, o.y, o.z, dx, dy, dz, along) < along - 0.4) continue;
+      return (this.autoWas = true);
+    }
+    return (this.autoWas = false);
+  }
+
   // ── Fixed step ─────────────────────────────────────────────────────────────
 
   update(dt: number): void {
@@ -491,8 +530,9 @@ export class FfaMode implements GameMode {
     const src = this.src;
     const m = src.match;
     const me = src.me!;
-    c.update();
     const live = me.status === "alive" && m.phase === "play" && !this.over && !h.paused;
+    c.autoTrigger = live && !m.seated(me) && h.settings.autoFire && (!!this.gunsView || !!this.dead) && this.onEnemy(m, me);
+    c.update();
     c.enabled = (m.phase === "play" || m.phase === "countdown") && !this.over && !h.paused;
     if (live) {
       const { x, y } = c.move;
@@ -647,6 +687,7 @@ export class FfaMode implements GameMode {
       }
       case "dmg":
         if (e.by === me.id || e.tg === me.id) this.actionAt = m.elapsed;
+        this.markHit(m, e.tg);
         if (e.by === me.id && e.tg !== me.id) {
           const dead = e.hp <= 0;
           this.combat?.hitMark(e.head, dead);
@@ -959,7 +1000,10 @@ export class FfaMode implements GameMode {
     }
     const heat = ps ? (ps.outside ? 0.35 + 0.65 * ps.exposure : ps.exposure * 0.5) : 0;
     this.fk.update({ watch, armour, armourMax: GUNS.armour.max, tag, health: alive ? health : 1, heat: alive ? heat : 0, doomed: !!ps?.doomed });
-    if (!sv) return;
+    if (!sv) {
+      if (g) this.playerBars(m, me, g);
+      return;
+    }
     // Dead Streets' centre: health and the torch round the dot, the rounds by it.
     const cb = this.combat;
     if (cb) {
@@ -1009,6 +1053,34 @@ export class FfaMode implements GameMode {
     }
     list.sort((a, b) => a[0] - b[0]);
     for (const [, b] of list) this.zBars.push(b);
+    this.fk.zombies(this.zBars);
+  }
+
+  private markHit(m: Match, id: string): void {
+    const c = m.get(id);
+    if (!c) return;
+    if (this.zHitAt.length !== m.contestants.length) this.zHitAt = new Float32Array(m.contestants.length).fill(-99);
+    this.zHitAt[c.index] = m.elapsed;
+  }
+
+  /** v5: a small health bar over anyone being shot (3 s after the last hit), near and on screen, nearest first. */
+  private playerBars(m: Match, me: Contestant, g: GunsModule): void {
+    const { w: W, h: H } = gameSize();
+    const cam = this.host.camera;
+    this.zBars.length = 0;
+    if (this.zHitAt.length === m.contestants.length) {
+      const list: [number, ZombieBar][] = [];
+      for (const c of m.contestants) {
+        if (c === me || c.status !== "alive" || m.elapsed - this.zHitAt[c.index] > 3 || m.seated(c)) continue;
+        const d = Math.hypot(c.x - me.x, c.z - me.z);
+        if (d > 80) continue;
+        _bar.set(c.x, c.h + c.y + 2.05, c.z).project(cam);
+        if (_bar.z > 1 || Math.abs(_bar.x) > 1.05 || Math.abs(_bar.y) > 1.05) continue;
+        list.push([d, { x: ((_bar.x + 1) / 2) * W, y: ((1 - _bar.y) / 2) * H, v: g.hp[c.index] / GUNS.hp, on: true, masked: g.armour[c.index] > 0 }]);
+      }
+      list.sort((a, b) => a[0] - b[0]);
+      for (const [, b] of list) this.zBars.push(b);
+    }
     this.fk.zombies(this.zBars);
   }
 

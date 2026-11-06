@@ -123,8 +123,10 @@ export class Controls {
   private finisher = false;
   /** Guns (v4): the trigger held (FIRE buttons, the left mouse button), aiming down the sights, the reload and swap counters. */
   get trigger(): boolean {
-    return this.fireTouch > 0 || this.fireMouse;
+    return this.fireTouch > 0 || this.fireMouse || this.autoTrigger;
   }
+  /** v5: auto-shoot, set by the mode each frame (the crosshair is on an enemy and the setting is on). */
+  autoTrigger = false;
   ads = false;
   reloads = 0;
   swaps = 0;

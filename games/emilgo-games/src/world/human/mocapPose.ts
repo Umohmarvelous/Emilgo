@@ -36,6 +36,14 @@ const _y = new Quaternion();
 const _e = new Euler(0, 0, 0, "ZYX");
 const UP = new Vector3(0, 1, 0);
 
+/** Each bone's other side (L ↔ R), for a mirrored clip. */
+const MIRROR = BONES.map((b, i) => {
+  const m = /^(.*)([LR])$/.exec(b);
+  if (!m) return i;
+  const other = BONE_INDEX[`${m[1]}${m[2] === "L" ? "R" : "L"}` as BoneName];
+  return other ?? i;
+});
+
 const UPPER_NAMES: BoneName[] = [
   "spine", "chest", "neck", "head", "clavL", "clavR", "upperArmL", "upperArmR", "foreArmL", "foreArmR", "handL", "handR",
   "thumb1L", "thumb2L", "thumb3L", "index1L", "index2L", "index3L", "middle1L", "middle2L", "middle3L", "ring1L", "ring2L", "ring3L", "pinky1L", "pinky2L", "pinky3L",
@@ -210,6 +218,37 @@ const _kw = [0, 0, 0, 0];
  * animator works). Returns false when it can't (no clips yet, or lying prone:
  * the procedural crawl does that).
  */
+/**
+ * v5: dying (the owner: "the COD-style dying pose"). The mocap death clip, not a
+ * tumble: the hit from the last pose, the knees go, down, and limp. Half the
+ * bodies mirrored and each at its own pace, so a street of them isn't one fall.
+ * False if the clip isn't here (a scan without clips falls the old way).
+ */
+export function deathPose(a: AnimState, out: Pose): boolean {
+  const c = CLIPS.death;
+  if (!operatorsReady() || !c) return false;
+  const pace = 0.92 + ((a.seed * 7.3) % 1) * 0.2;
+  QB.fill(0);
+  HB.set(0, 0, 0);
+  sampleClip(c, a.dead * pace, 1, QB, HB);
+  normalise(QB);
+  const flip = ((a.seed * 13.7) % 2) < 1;
+  for (let i = 1; i < NB; i++) {
+    if (!carried(i)) continue;
+    const from = (flip ? MIRROR[i] : i) * 4;
+    _q.set(QB[from], QB[from + 1], QB[from + 2], QB[from + 3]);
+    _e.setFromQuaternion(_q, "ZYX");
+    out.rot[i * 3] = _e.x;
+    out.rot[i * 3 + 1] = flip ? -_e.y : _e.y;
+    out.rot[i * 3 + 2] = flip ? -_e.z : _e.z;
+  }
+  out.hipsX = flip ? -HB.x : HB.x;
+  out.hipsY = HB.y;
+  out.hipsZ = HB.z;
+  out.fingers = true;
+  return true;
+}
+
 export function mocapPose(a: AnimState, out: Pose): boolean {
   if (!operatorsReady() || a.stance > 1.05) return false;
   QB.fill(0);
