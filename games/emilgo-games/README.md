@@ -469,6 +469,7 @@ one server, as before.
 | One node, 1,000 Free For All players (Find the Flag + Royale) | 1,000/1,000 connected; tick p50 1–5 ms; 5.6 KB/s to each phone. Socket writes are about 20% of the node's CPU, the rules about 30%. |
 | **10,000 clients through the directory** (4 nodes, cap 3,000; 3 load processes) | **10,000/10,000 connected, 0 failed.** ~1,000 in live matches (63 rooms), 9,000 in the menus; 1.0 GB of memory over the 4 nodes. |
 | The same with 4 × cap 2,000 | 8,288 connected, 1,712 told `full` by the directory: the cap works. |
+| The same, after the v4 rework (this 8 GB Mac, swapping; 3–6 Nov) | **Not reproduced:** 6,429, 9,183, 6,941 connected in 120 s, 7,675 in 300 s. The Phase 10 commit got 6,572 the same day, so this is the machine, not a regression; 10,000 on the current build still needs real servers. |
 
 The load processes, the nodes and the browser all shared four cores (load average
 up to 118), so the tick times above are the laptop's, not a server's. On it, ticks
