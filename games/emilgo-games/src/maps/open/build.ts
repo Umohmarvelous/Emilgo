@@ -42,6 +42,7 @@ import {
   type Camera,
   type Scene,
   type WebGLRenderer,
+  type BufferAttribute,
 } from "three";
 
 import type { TierSpec } from "../../graphics/tiers";
@@ -769,6 +770,27 @@ export async function buildOpenWorldIdle(L: OpenLayout, spec: TierSpec, opts: { 
   }
 }
 
+/** After the GPU has it, drop the JS copy (the world never changes its shapes). */
+function dropCopy(this: { array: unknown }): void {
+  this.array = new Float32Array(0);
+}
+
+/**
+ * v5: once a shape is on the GPU, the JS copy goes (on a phone both are the same
+ * RAM, so it was held twice). Only the merged shapes this world owns: a library
+ * model is shared with the next world, so it keeps its copy.
+ */
+function freeWhenUploaded(group: Group): void {
+  group.traverse((o) => {
+    const m = o as Mesh;
+    if (!m.isMesh || (m as unknown as InstancedMesh).isInstancedMesh || !m.geometry) return;
+    const g = m.geometry;
+    if (!g.boundingSphere) g.computeBoundingSphere();
+    for (const k of Object.keys(g.attributes)) (g.attributes[k] as BufferAttribute).onUpload(dropCopy);
+    g.index?.onUpload(dropCopy);
+  });
+}
+
 function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }, lib: WorldLibrary | null): Generator<void, OpenWorld> {
   const night = !!opts.night;
   const view = VIEW[spec.tier];
@@ -1166,6 +1188,8 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }, lib: W
     fog.far = fogFar + (air.see - fogFar) * air.dust;
     sky.group.visible = air.dim < 0.5 && air.dust < 0.6;
   };
+
+  freeWhenUploaded(group);
 
   return {
     layout: L,

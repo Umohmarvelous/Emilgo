@@ -244,6 +244,24 @@ async function main() {
         console.log(`saved ${s.file} (${Math.round(Buffer.byteLength(m[1], "base64") / 1024)} KB)`);
       } else console.log(`saveEval failed: ${JSON.stringify(r.error ?? r.value).slice(0, 200)}`);
     }
+    // {"heap": 25}: what's holding the JS heap now, by the function that allocated it (the top 25).
+    if (s.heap) {
+      await send("HeapProfiler.collectGarbage");
+      const { profile } = await send("HeapProfiler.getSamplingProfile");
+      const tally = new Map();
+      const walk = (n) => {
+        const k = `${n.callFrame.functionName || "(anon)"} ${n.callFrame.url.split("/").pop().split("?")[0]}:${n.callFrame.lineNumber}`;
+        const own = n.selfSize || 0;
+        if (own) tally.set(k, (tally.get(k) || 0) + own);
+        for (const c of n.children) walk(c);
+      };
+      walk(profile.head);
+      const list = [...tally].sort((a, b) => b[1] - a[1]);
+      const total = list.reduce((t, x) => t + x[1], 0);
+      console.log(`heap sampled ${(total / 1e6).toFixed(0)} MB`);
+      for (const [k, v] of list.slice(0, s.heap)) console.log(`  ${(v / 1e6).toFixed(1)} MB  ${k}`);
+    }
+    if (s.heapStart) await send("HeapProfiler.startSampling", { samplingInterval: 65536 });
     if (s.shot) {
       // {"shot": "name", "webp": 62}: a small picture for the game itself.
       const r = await send("Page.captureScreenshot", s.webp ? { format: "webp", quality: s.webp } : { format: "png" });
