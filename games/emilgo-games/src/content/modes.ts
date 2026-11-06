@@ -199,11 +199,11 @@ export const BUILTIN_MANIFEST: Manifest = {
     },
     // ── The staked duel (Lagos Life, 2–4 seats: SPEC-V3 Answers) ──
     {
-      id: "flag-duel", v: 1, family: "ffa", minRank: "rookie-1", players: { min: 2, max: 4, squad: [1, 1] }, map: "naija-world:market", time: 300,
+      id: "flag-duel", v: 2, family: "ffa", minRank: "rookie-1", players: { min: 2, max: 4, squad: [1, 1] }, map: "naija-world:market", time: 300,
       name: { en: "Flag Duel", pcm: "Flag Duel" },
-      blurb: { en: "Staked: first to find the flag and hold it 10 s wins.", pcm: "Stake: first person wey find flag hold am 10 seconds, win." },
+      blurb: { en: "Staked: first to take the flag and hold it 10 s wins.", pcm: "Stake: first person wey carry flag hold am 10 seconds, win." },
       respawn: { on: true, delay: 5 },
-      modules: { zone: { phases: [[45, 70, 30, 1.5], [150, 35, 30, 3]] }, items: ITEMS, melee: MELEE, flags: { count: 1, spots: "stash", claimHold: 10, hints: [60, 120] } },
+      modules: { zone: { phases: [[45, 70, 30, 1.5], [150, 35, 30, 3]] }, items: ITEMS, melee: MELEE, flags: { count: 1, claimHold: 10 } },
       win: { kind: "first", event: "flags.claimed" },
       tags: ["staked"],
     },

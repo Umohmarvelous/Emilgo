@@ -16,7 +16,7 @@ import { placeBoards, type BoardSlot, type BoardWish } from "./billboards";
 import { footprint, solidsOf, type Placement, type PrefabId } from "./prefabs";
 import { PROPS } from "./propTable";
 
-export type GroundKind = "asphalt" | "laterite" | "paving" | "grass" | "earth" | "sand";
+export type GroundKind = "asphalt" | "laterite" | "paving" | "grass" | "earth" | "sand" | "snow";
 
 export interface Road {
   x0: number;
@@ -95,6 +95,7 @@ export const SURFACE_OF: Record<GroundKind, Surface> = {
   paving: "concrete",
   laterite: "sand",
   earth: "sand",
+  snow: "sand",
   sand: "sand",
   grass: "grass",
 };

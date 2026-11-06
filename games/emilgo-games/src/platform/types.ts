@@ -117,6 +117,14 @@ export interface Host {
    */
   rankIdentity(): Promise<RankIdentity | null>;
 
+  /**
+   * The player's Lagos Life money, whole naira, or null when the host can't say.
+   * Null everywhere today: Lagos Life's rules keep a player's money from games
+   * (docs, "What you get"), and SDK v1 has no call for it. The day Lagos Life
+   * adds one, the lobby's slot beside CP fills by itself.
+   */
+  money(): Promise<number | null>;
+
   /** Fire and forget. The host throttles to its platform's limits. */
   submitScore(score: number): void;
   leaderboard(): Promise<Leaderboard>;

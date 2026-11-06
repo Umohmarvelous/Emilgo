@@ -58,7 +58,7 @@ import {
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 
 import type { TierSpec } from "../graphics/tiers";
-import { Human, type Look, type PoseId } from "./human";
+import { Human, operatorsReady, type Look, type PoseId } from "./human";
 import type { EmoteId } from "../social/emotes";
 import { circleRadius, circleSpots } from "../flow/waitingRoom";
 import { bark, canvasTexture, danfoSkin, flagNg, foliage, frond, glow, mural, paving, plaster, tiled, wood, zinc } from "./tex";
@@ -522,6 +522,9 @@ export class LobbyStage {
       if (this.idle > 4 && Math.abs(this.yawVel) < 0.05) this.yaw += Math.atan2(Math.sin(-this.yaw), Math.cos(-this.yaw)) * (1 - Math.exp(-dt * 1.2));
     }
     if (this.me && this.mode !== "podium") {
+      // v5: nobody on the stage until the real body has loaded (the old camouflaged one showed for a moment); after 6 s, whatever there is.
+      this.opWait += dt;
+      this.me.mesh.visible = operatorsReady() || this.opWait > 6;
       this.me.mesh.rotation.y = this.yaw;
       this.me.update(dt, 0, 0, 0);
     }
@@ -589,6 +592,7 @@ export class LobbyStage {
     this.me?.setGear(kit, 0);
   }
   private operatorKit: Kit | null = null;
+  private opWait = 0;
 
   /**
    * v4 Lobby A: the week's next drop full-bleed behind you (a shot of the

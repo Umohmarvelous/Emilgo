@@ -29,7 +29,7 @@ const city = buildNaijaWorld();
 check(city.placements.every((p, i) => p.x === L.placements[i].x && p.z === L.placements[i].z && p.prefab === L.placements[i].prefab), "Naija World's city is in the middle exactly as it is");
 const kinds = new Set(L.placements.map((p) => p.prefab));
 for (const k of ["pine", "turbine", "containers", "crane", "tank", "flarestack", "dune", "hangar", "ctower", "mangrove", "stilt", "club", "stand", "glasstower"] as const) check(kinds.has(k), `has ${k}`);
-check(L.landmarks.filter((l) => l.id.startsWith("mx-")).length === 9, "nine new places on the compass");
+check(L.landmarks.filter((l) => l.id.startsWith("mx-")).length === 11, "eleven new places on the compass");
 check((L.boards ?? []).length > (city.boards ?? []).length + 8 && (city.boards ?? []).every((b, i) => L.boards![i].id === b.id), `more billboards: ${(L.boards ?? []).length} (the city's ${(city.boards ?? []).length} kept first, ids unchanged)`);
 check(L.spawns.length >= 40, `starts spread for 24 players: ${L.spawns.length}`);
 const space = new Space(L.solids, { x0: -L.half, z0: -L.half, x1: L.half, z1: L.half }, (x, z) => SURFACE_OF[L.groundAt(x, z)]);

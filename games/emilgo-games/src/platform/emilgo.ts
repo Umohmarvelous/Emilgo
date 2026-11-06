@@ -119,6 +119,10 @@ class EmilgoHost implements Host {
   private readonly authWaiters: ((tok: string) => void)[] = [];
 
   /** The signed-in EMILGO account's token, asked of the app each time (it refreshes it). */
+  money(): Promise<number | null> {
+    return Promise.resolve(null);
+  }
+
   rankIdentity(): Promise<RankIdentity | null> {
     return new Promise((resolve) => {
       const timer = setTimeout(() => {

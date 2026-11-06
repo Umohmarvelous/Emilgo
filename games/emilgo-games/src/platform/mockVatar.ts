@@ -115,6 +115,8 @@ export async function installMockVatar(): Promise<void> {
   const sdk: VatarSDK & { __mock: true } = {
     __mock: true,
     version: "1-mock",
+    // ?mockvatar&money=125000: what the lobby does the day Lagos Life adds a balance call (SDK v1 has none).
+    ...(new URLSearchParams(location.search).has("money") ? { balance: () => later({ balance: Number(new URLSearchParams(location.search).get("money")) }) } : {}),
     init: () => later({ player, session, mode: "test" as const }, 300),
     session: async () => {
       if (!world) return later({ session, exp: Date.now() + 15 * 60_000 });

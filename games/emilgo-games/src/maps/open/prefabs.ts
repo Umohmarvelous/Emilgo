@@ -82,6 +82,8 @@ export type PrefabId =
   // v4 Phase 7: the big world's places (maps/open/max.ts).
   | "pine" | "rock" | "cabin" | "rangertower" | "turbine" | "containers" | "crane" | "warehouse" | "tank" | "flarestack"
   | "pipes" | "hangar" | "ctower" | "planewreck" | "dune" | "mangrove" | "stilt" | "club" | "stand" | "glasstower"
+  // v5: Frostline's spruce, snow on every tier.
+  | "snowpine"
   // v4 rework R9: a CC0 model from the props' table (v & 255 is its index in PROPS).
   | "prop";
 
@@ -163,7 +165,9 @@ export function footprint(id: PrefabId, v: number): [number, number] {
     case "genalley": return [5, 24];
     case "plaza": return [12, 12];
     case "wall": return [10, 0.3];
-    case "pine": return [2.4, 2.4];
+    case "pine":
+    case "snowpine":
+      return [2.4, 2.4];
     case "rock": { const s = 1.2 + (v % 7) * 0.4; return [s * 2, s * 1.6]; }
     case "prop": { const q = propOf(v); return [q.w, q.d]; }
     case "cabin": return [7, 6];
@@ -505,6 +509,7 @@ export function parts(id: PrefabId, v: number): Part[] {
       break;
     // ── v4 Phase 7: the big world's places ──
     case "pine":
+    case "snowpine":
       out.push(box(0, 0, 0.5, 0.5, 0, 8, "wood"));
       break;
     case "prop": {

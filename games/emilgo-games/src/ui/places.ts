@@ -6,6 +6,8 @@
 import cityUrl from "./places/city.webp?url";
 import dunesUrl from "./places/dunes.webp?url";
 import forestUrl from "./places/forest.webp?url";
+import frostlineUrl from "./places/frostline.webp?url";
+import glassUrl from "./places/glass.webp?url";
 import harbourUrl from "./places/harbour.webp?url";
 
 export interface PlaceArt {
@@ -20,6 +22,8 @@ export const PLACE_ART: readonly PlaceArt[] = [
   { id: "forest", name: "Ironwood Forest", line: "Pines thick round a ranger tower", url: forestUrl },
   { id: "dunes", name: "Dune Sea", line: "Ridges to run over · a plane down", url: dunesUrl },
   { id: "city", name: "Meridian City", line: "The arcade, the transit hub, the rooftops", url: cityUrl },
+  { id: "glass", name: "Glass District", line: "Towers on every block · a plaza at the crossing", url: glassUrl },
+  { id: "frostline", name: "Frostline", line: "Snow, spruce and a radar post", url: frostlineUrl },
 ];
 
 /** Weeks since 5 Jan 2026 (a Monday): the same week everywhere. */

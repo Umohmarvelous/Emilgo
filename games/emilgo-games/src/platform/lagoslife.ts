@@ -35,6 +35,8 @@ export interface VatarSDK {
   version: string;
   init(): Promise<{ player: { id: string; name: string; avatar: string | null }; session: string; mode: "live" | "test" }>;
   session(): Promise<{ session: string; exp: number }>;
+  /** Not in SDK v1. Asked for from Lagos Life: the player's balance (see Host.money). */
+  balance?(): Promise<{ balance: number } | number>;
   purchase(productId: string): Promise<{ purchaseId: string; productId: string }>;
   purchases(): Promise<{ purchaseId: string; productId: string }[]>;
   submitScore(n: number): Promise<{ best: number; accepted: boolean }>;
@@ -119,6 +121,17 @@ class LagosLifeHost implements Host {
     if (!this.identified || !this.player.id) return null;
     try {
       return { k: "ll", tok: (await this.sdk.session()).session };
+    } catch {
+      return null;
+    }
+  }
+
+  async money(): Promise<number | null> {
+    if (!this.identified || typeof this.sdk.balance !== "function") return null;
+    try {
+      const r = await this.sdk.balance();
+      const n = Math.floor(Number(typeof r === "number" ? r : r?.balance));
+      return Number.isFinite(n) && n >= 0 ? n : null;
     } catch {
       return null;
     }

@@ -52,7 +52,7 @@ export type { ActionId, EmoteId, PoseId } from "./animator";
 export type { Detail, Tier } from "./mesh";
 export { nearDetail } from "./mesh";
 export { loadScans } from "./scanbody";
-export { loadOperators } from "./op";
+export { loadOperators, operatorsReady } from "./op";
 
 // ── Caches ────────────────────────────────────────────────────────────────────
 

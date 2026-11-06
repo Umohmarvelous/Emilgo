@@ -270,6 +270,8 @@ input { font: inherit; color: inherit; }
 .profile .lv .bar { width: 90px; }
 .profile .meta { display: flex; gap: 10px; font-size: 10px; color: var(--dim); }
 .profile .meta b { color: var(--white); font: 500 10px var(--num); }
+.profile .meta .money { display: inline-flex; align-items: center; gap: 3px; color: var(--yellow); cursor: pointer; }
+.profile .meta .money b { color: var(--yellow); font-weight: 700; }
 
 .friends-w { display: flex; flex-direction: column;  gap: 4px; padding: 8px 12px; min-width: 200px; bottom: calc(var(--safe-b) + var(--gap))}
 .friends-w .row { display: flex; align-items: center; gap: 8px; font-size: 10px; color: var(--dim); padding-bottom: 12px; }
@@ -818,7 +820,28 @@ input { font: inherit; color: inherit; }
 .playscreen .start { display: flex; gap: 8px; }
 .playscreen .games { grid-column: 1; grid-row: 2; }
 .playscreen .modes { grid-column: 2; grid-row: 2 / 4; justify-content: center; gap: 8px; }
-@media (orientation: portrait), (max-width: 700px) { .playscreen .games, .playscreen .modes { grid-column: 1; grid-row: auto; } .playscreen .modes { justify-content: flex-start; } .md { width: auto; } }
+/* v5, the owner: on a phone held upright everything sits in one centred column; a short screen sits mid-height, a long one scrolls with Start kept in reach. */
+@media (orientation: portrait), (max-width: 700px) {
+  .playscreen { grid-template-columns: minmax(0, 440px); grid-template-rows: none; grid-auto-rows: max-content; justify-content: center; align-content: start; align-content: safe center; overflow-y: auto; overscroll-behavior: contain; gap: 12px; }
+  .playscreen > *, .playscreen .head, .playscreen .games, .playscreen .modes, .playscreen .side, .playscreen .start { grid-column: 1; grid-row: auto; width: 100%; }
+  .playscreen .head { position: relative; justify-content: center; min-height: 44px; }
+  .playscreen .head .ibtn { position: absolute; left: 0; top: 0; }
+  .playscreen .head .grow { display: none; }
+  .playscreen .games { justify-content: center; flex-wrap: wrap; overflow: visible; }
+  .playscreen .games button { text-align: center; justify-content: center; }
+  .playscreen .modes, .playscreen .side { justify-content: flex-start; align-items: stretch; overflow: visible; min-height: auto; }
+  .playscreen .modes .md, .playscreen .side .md { width: 100%; align-self: stretch; }
+  .playscreen .modes .md .grow { align-items: center; text-align: center; }
+  .playscreen .mapcard, .playscreen .gamecard { align-items: center; text-align: center; }
+  .playscreen .mapcard .row { justify-content: center; }
+  .playscreen .mapcard .row b { flex: none; }
+  .playscreen .gamecard .seg, .playscreen .gamecard .chips, .playscreen .gamecard .row, .playscreen .gamecard form.join, .playscreen .gamecard .rk { width: 100%; justify-content: center; align-self: center; }
+  .playscreen .gamecard .seg button { text-align: center; justify-content: center; }
+  .playscreen .start { position: sticky; bottom: 0; justify-content: center; z-index: 2; }
+  .playscreen .modes form.join { width: 100%; }
+  .playscreen .status { text-align: center; }
+  .md { width: auto; }
+}
 .playscreen .start .btn.secondary { flex: 0 0 auto; width: auto; font-size: 11px; gap: 4px; }
 
 /* ── Open worlds (SPEC-V3 Phase 3): the zone, items, the backpack ─────────── */
@@ -936,12 +959,26 @@ input { font: inherit; color: inherit; }
 .ffa-table td.num, .ffa-table th:last-child { text-align: right; }
 .ffa-table tr.me td { color: #ffd36a; }
 /* Free For All's "How to play" cards (Brief 2b): a picture, a title, a line; swipe or Next. */
-.fcards { position: absolute; inset: 0; z-index: 40; display: none; place-items: center; background: rgba(0, 0, 0, 0.55); pointer-events: auto; }
+.fcards { position: absolute; inset: 0; z-index: 40; display: none; place-items: center; background: rgba(4, 6, 8, 0.92); pointer-events: auto; }
 .fcards.visible { display: grid; }
 .fcard { width: min(420px, calc(100% - 32px)); max-height: calc(100% - 24px); display: flex; flex-direction: column; gap: 6px; padding: 10px 14px 12px; border-radius: 12px; overflow: hidden; }
 .fc-top { display: flex; align-items: center; justify-content: space-between; }
 .fc-art { border-radius: 8px; overflow: hidden; background: linear-gradient(180deg, #3a2a1c, #1d150e); }
-.fc-art svg { display: block; max-height: 42vh; }
+.fc-art img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; }
+.fc-meta { font: 600 10px var(--head); letter-spacing: 0.06em; color: var(--yellow); text-transform: uppercase; margin-top: -4px; }
+.fc-body { display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow-y: auto; }
+.fc-win { margin: 0; font: 500 12px/1.45 var(--body); }
+.fc-win b { display: block; font: 700 10px var(--head); letter-spacing: 0.08em; color: var(--yellow); text-transform: uppercase; margin-bottom: 2px; }
+.fc-tips { margin: 0; padding-left: 16px; font: 500 11px/1.45 var(--body); color: var(--dim); }
+.fc-tips li + li { margin-top: 3px; }
+.fcards .fcard { background: #101317; border: 1px solid var(--line); }
+.ht-hub { height: calc(100% - var(--safe-t) - var(--safe-b) - 24px); max-height: calc(100% - var(--safe-t) - var(--safe-b) - 24px); }
+.ht-scroll { display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.ht-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.ht-tile { display: flex; flex-direction: column; gap: 3px; padding: 0 0 8px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: rgba(0, 0, 0, 0.45); text-align: left; }
+.ht-tile .ht-pic { display: block; width: 100%; aspect-ratio: 16 / 9; background: #111 center / cover no-repeat; }
+.ht-tile b { padding: 3px 8px 0; font: 700 11px var(--head); letter-spacing: 0.03em; text-transform: uppercase; }
+.ht-tile small { padding: 0 8px; font-size: 9px; color: var(--dim); }
 .fc-title { font: 800 14px var(--head); letter-spacing: 0.04em; text-transform: uppercase; }
 .fc-text { margin: 0; font: 500 12px/1.45 var(--body); color: var(--dim); }
 .fc-nav { display: flex; align-items: center; gap: 8px; }

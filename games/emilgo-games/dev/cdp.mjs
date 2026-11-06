@@ -245,8 +245,9 @@ async function main() {
       } else console.log(`saveEval failed: ${JSON.stringify(r.error ?? r.value).slice(0, 200)}`);
     }
     if (s.shot) {
-      const r = await send("Page.captureScreenshot", { format: "png" });
-      writeFileSync(join(outDir, `${s.shot}.png`), Buffer.from(r.data, "base64"));
+      // {"shot": "name", "webp": 62}: a small picture for the game itself.
+      const r = await send("Page.captureScreenshot", s.webp ? { format: "webp", quality: s.webp } : { format: "png" });
+      writeFileSync(join(outDir, `${s.shot}.${s.webp ? "webp" : "png"}`), Buffer.from(r.data, "base64"));
       console.log(`shot ${s.shot}`);
     }
   }

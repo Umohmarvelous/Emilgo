@@ -46,6 +46,10 @@ class WebHost implements Host {
     return () => {};
   }
   /** A guest on the web: no rank profile (the phone keeps its own count). */
+  money(): Promise<number | null> {
+    return Promise.resolve(null);
+  }
+
   rankIdentity(): Promise<RankIdentity | null> {
     return Promise.resolve(null);
   }

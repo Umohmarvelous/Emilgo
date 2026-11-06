@@ -49,7 +49,7 @@ export function emptyChunk(): OpenChunk {
 }
 
 /** Prefabs whose leaves get a far stand-in. */
-const VEG = new Set(["tree", "palm", "bush", "plaza", "pine", "mangrove"]);
+const VEG = new Set(["tree", "palm", "bush", "plaza", "pine", "snowpine", "mangrove"]);
 const OCTA = new OctahedronGeometry(1, 0);
 const TRUNK = new BoxGeometry(1, 1, 1);
 
@@ -786,7 +786,8 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
       for (const q of ps) if (q.kind !== "ramp" && q.y1 > 0.5) k.box("#cfcac0", [q.hx * 2 + 0.08, 0.08, q.hz * 2 + 0.08], [q.x, q.y1 + 0.04, q.z], "detail", q.rot ? [0, q.rot, 0] : undefined);
       break;
     // ── v4 Phase 7: the big world's places (low-poly, coloured per vertex, merged per cell) ──
-    case "pine": {
+    case "pine":
+    case "snowpine": {
       // A spruce (v4 rework: the forest less like a toy): a tapering trunk, more,
       // thinner tiers that narrow to a spire, each turned and tipped a little,
       // the greens varied per tree. Medium and up: 7 tiers of 10 sides.
@@ -794,7 +795,8 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
       const hi = k.tier >= 1;
       k.cyl("#3b2e23", 0.32, h * 0.55, [0, h * 0.27, 0], "mass", { sides: hi ? 10 : 6, top: 0.45 });
       const tint = r.range(-0.04, 0.04);
-      const greens = ["#1d3822", "#24402a", "#2b472d", "#203a26"].map((c) => shadeHex(c, tint));
+      // v5, Frostline: snow on it, more toward the top.
+      const greens = (p.prefab === "snowpine" ? ["#b9c9c6", "#a7bbb8", "#dfe7e8", "#8fa6a0"] : ["#1d3822", "#24402a", "#2b472d", "#203a26"]).map((c) => shadeHex(c, tint));
       const n = hi ? 7 : 5;
       for (let i = 0; i < n; i++) {
         const t = i / (n - 1);
@@ -937,7 +939,7 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
     case "glasstower": {
       const w = 18 + (v % 3) * 4;
       const h = 40 + (v % 4) * 12;
-      k.texBox("glass", "#7a96a8", [w, h, w], [0, h / 2, 0], 4);
+      k.texBox("glass", "#e8eef2", [w, h, w], [0, h / 2, 0], 16);
       k.box("#3a4248", [w + 0.6, 1, w + 0.6], [0, h + 0.5, 0], "main");
       for (let y = 4; y < h; y += 4) k.box("#5a6a74", [w + 0.1, 0.25, w + 0.1], [0, y, 0], "detail");
       k.glow("#ff2a1a", [0.5, 0.5, 0.5], [0, h + 1.4, 0]);

@@ -104,7 +104,7 @@ import type { FfaMode } from "../modes/ffa";
 type V3 = typeof import("../modes/v3");
 /** Ball Haunt's chunk (modes/rlgl.ts; SPEC-V3 §1.2). */
 type Rl = typeof import("../modes/rlgl");
-import { FfaCards } from "../ui/ffaCards";
+import { HowTo } from "../ui/howto";
 import type { ModeHost, ModeResult } from "../modes/types";
 import { Content } from "../content/load";
 import type { Highlights, Moment, MomentKind } from "./highlights";
@@ -219,6 +219,8 @@ export class Game {
   /** The round whose boosts were used (a rejoin doesn't use them twice). */
   private boostSeed = -1;
   private readonly rotator: Rotator;
+  private moneyNow: number | null = null;
+  private moneyAt = 0;
   private readonly uiRoot: HTMLElement;
   /** Auto graphics: the highest tier this phone held (lowered when it struggles at the lowest resolution). */
   private autoCap: Tier = 2;
@@ -331,7 +333,7 @@ export class Game {
   /** Ball Haunt's code, once loaded (loadRl). */
   private rl: Rl | null = null;
   private rlp: Promise<Rl> | null = null;
-  private readonly cards: FfaCards;
+  private readonly cards: HowTo;
 
   // Lagos Life matches
   private vmatch: MatchView | null = null;
@@ -446,7 +448,8 @@ export class Game {
       this.startTutorial("solo");
     });
     this.tutorial = new TutorialPlayer(ui);
-    this.cards = new FfaCards(ui);
+    this.cards = new HowTo(ui);
+    this.cards.staked = !!host.matches;
     this.tutorial.onClose(() => this.endTutorial());
     this.countdown = new Countdown(this.hud, (last) => this.sound.countTick(last));
     this.chat.onSend((text) => this.net?.send({ t: "chat", text }));
@@ -685,13 +688,25 @@ export class Game {
     if (!this.loop.isRunning && !this.hostPaused) this.loop.start();
   }
 
+  /** Ask the host for the player's money, at most every 30 s (a lobby can redraw often); the slot updates when it answers. */
+  private refreshMoney(): void {
+    if (Date.now() - this.moneyAt < 30_000) return;
+    this.moneyAt = Date.now();
+    void this.host.money().then((n) => {
+      this.moneyNow = n;
+      if (this.screens.name === "lobby") this.screens.setMoney(n);
+    });
+  }
+
   private showLobby(): void {
     this.screens.avatarPick = this.settings.avatar;
+    this.refreshMoney();
     // The lobby's track (v4 rework: a downloaded CC0 track, streamed).
     this.sound.score.play("lobby");
     const daily = ensureDaily(this.settings.daily);
     this.stage.setDummy(false);
     this.screens.lobby({
+      money: this.moneyNow,
       host: this.host,
       settings: this.settings,
       online: this.onlineAvailability(),
@@ -3179,8 +3194,8 @@ export class Game {
         break;
       case "ffa-tutorial": {
         const def = this.ffaPick();
-        if (this.playMode === "lagos") this.cards.show("flag-duel", "Flag Duel");
-        else if (def) this.cards.show(def.id, def.name.en);
+        if (this.playMode === "lagos") this.cards.show("flag-duel");
+        else if (def) this.cards.show(def.id);
         break;
       }
       case "dummy": {
@@ -3249,7 +3264,10 @@ export class Game {
         this.startPractice();
         break;
       case "tutorial":
-        this.startTutorial("menu");
+        this.cards.hub();
+        break;
+      case "money":
+        this.screens.toast(this.moneyNow === null ? "Your Lagos Life money shows here once Lagos Life shares it with games." : "Your Lagos Life money.", 3200);
         break;
       case "back":
         if (this.round && this.paused) this.screens.pause(this.host, this.mode === "online");
@@ -3620,7 +3638,7 @@ export class Game {
       if (!seen.includes("flag-duel")) {
         this.settings.ffaSeen = [...seen, "flag-duel"].join(",");
         saveSettings(this.host, this.settings);
-        this.cards.show("flag-duel", "Flag Duel", () => this.goFfa());
+        this.cards.show("flag-duel", () => this.goFfa());
         return;
       }
       this.vError = null;
@@ -3637,7 +3655,7 @@ export class Game {
     if (!seen.includes(def.id)) {
       this.settings.ffaSeen = [...seen, def.id].join(",");
       saveSettings(this.host, this.settings);
-      this.cards.show(def.id, def.name.en, () => this.goFfa());
+      this.cards.show(def.id, () => this.goFfa());
       return;
     }
     saveSettings(this.host, this.settings);

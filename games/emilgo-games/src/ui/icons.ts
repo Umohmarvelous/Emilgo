@@ -26,6 +26,7 @@ const P: Record<string, string> = {
   user: `<circle cx="12" cy="8" r="3.8"/><path d="M4.5 20.5c.8-4 3.8-6.2 7.5-6.2s6.7 2.2 7.5 6.2"/>`,
   friends: `<circle cx="9" cy="8.5" r="3.3"/><path d="M2.8 19.5c.6-3.4 3-5.3 6.2-5.3s5.6 1.9 6.2 5.3"/><circle cx="17" cy="7.5" r="2.6"/><path d="M16.2 12.8c2.7 0 4.6 1.5 5.1 4.4"/>`,
   invite: `<circle cx="10" cy="8" r="3.6"/><path d="M3 20c.7-3.7 3.5-5.8 7-5.8 1.6 0 3 .4 4.2 1.2"/><path d="M18.5 13v7M15 16.5h7"/>`,
+  wallet: `<rect x="3.5" y="7" width="17" height="12.5" rx="2"/><path d="M6 7l9-3 1.5 3"/><circle cx="16.5" cy="13.2" r="1.2"/>`,
   store: `<path d="M5 8.5h14l-1 11.5H6z"/><path d="M8.8 8.5V7a3.2 3.2 0 0 1 6.4 0v1.5"/>`,
   loadout: `<path d="M5 6h14M5 12h14M5 18h14"/><circle cx="9" cy="6" r="1.8" fill="currentColor"/><circle cx="15" cy="12" r="1.8" fill="currentColor"/><circle cx="8" cy="18" r="1.8" fill="currentColor"/>`,
   customize: `<path d="M8.5 3.5 4 6l1.5 4.5 2-1V20.5h9V9.5l2 1L20 6l-4.5-2.5c-.5 1.5-1.9 2.5-3.5 2.5s-3-1-3.5-2.5z"/>`,

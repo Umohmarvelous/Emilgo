@@ -13,6 +13,10 @@
 //   north-west   Neon Row and        clubs in neon, glass towers, and the Arena's
 //                the Arena           stands round a pitch
 //
+// v5, two more: Glass District (just north-east of the city: towers, a plaza,
+// two streets) and Frostline (east, between the harbour and the refinery: snow,
+// spruce, a radar post).
+//
 // Savanna between them, laterite roads out from the city to each. Pure and
 // seeded like the city: the server and every phone build the same world.
 
@@ -91,7 +95,11 @@ const PLACES: Place[] = [
   { id: "mangrove", name: "Mangrove Sink", x: -760, z: 0, r: 220, ground: "earth" },
   { id: "neon", name: "Neon Row", x: -760, z: -560, r: 140, ground: "paving" },
   { id: "arena", name: "The Arena", x: -560, z: -800, r: 110, ground: "paving" },
+  { id: "glass", name: "Glass District", x: 330, z: -330, r: 118, ground: "paving" },
+  { id: "frostline", name: "Frostline", x: 772, z: 345, r: 120, ground: "snow" },
 ];
+/** The new places borrow the CC0 props already made for a place like them. */
+const PROPS_OF: Record<string, string> = { glass: "neon", frostline: "ironwood" };
 
 /** The roads out of the city to every place (laterite; the runway is tarred). */
 const OUT_ROADS: Road[] = [
@@ -109,6 +117,10 @@ const OUT_ROADS: Road[] = [
   { x0: 460, z0: 460, x1: 760, z1: 760, w: 7, kind: "laterite", gutters: false },
   { x0: -460, z0: 460, x1: -560, z1: 560, w: 7, kind: "laterite", gutters: false },
   { x0: -460, z0: -460, x1: -700, z1: -700, w: 7, kind: "laterite", gutters: false },
+  // Glass District's two streets; the track out to Frostline.
+  { x0: CITY, z0: -330, x1: 460, z1: -330, w: 10, kind: "asphalt", gutters: false },
+  { x0: 330, z0: -CITY, x1: 330, z1: -460, w: 10, kind: "asphalt", gutters: false },
+  { x0: 460, z0: 345, x1: 652, z1: 345, w: 7, kind: "laterite", gutters: false },
 ];
 /** The Old Airfield's runway (asphalt ground, not a road: nothing parks on it). */
 const RUNWAY = { x: -700, z: 700, len: 520, w: 36, rot: Math.PI / 4 };
@@ -180,6 +192,12 @@ const MAX_BOARDS: BoardWish[] = [
   { x: -820, z: -600, fx: -760, fz: -560, kind: "plaza", premium: true, r: 30 },
   { x: -700, z: -610, fx: -760, fz: -560, kind: "plaza", r: 30 },
   { x: -600, z: -860, fx: -560, fz: -800, kind: "plaza", r: 30 },
+  // v5: Glass District and Frostline (on the end: the older boards keep their ids).
+  { x: 216, z: -318, fx: 260, fz: -330, kind: "road", premium: true },
+  { x: 318, z: -216, fx: 330, fz: -260, kind: "road", premium: true },
+  { x: 444, z: -344, fx: 400, fz: -330, kind: "road" },
+  { x: 500, z: 358, fx: 560, fz: 345, kind: "road" },
+  { x: 640, z: 332, fx: 600, fz: 345, kind: "road" },
 ];
 
 export function buildMaxWorld(seed = 1957): OpenLayout {
@@ -265,10 +283,24 @@ export function buildMaxWorld(seed = 1957): OpenLayout {
     const a = (s * Math.PI) / 2;
     place("stand", P.arena.x + Math.sin(a) * 52, P.arena.z + Math.cos(a) * 52, a + Math.PI, nextV(), 0.2);
   }
+  // ── Glass District: a tower on each block either side of the two streets, a plaza at the crossing ──
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    place("plaza", P.glass.x + sx * 24, P.glass.z + sz * 24, 0);
+    for (const [ax, az] of [[40, 40], [78, 34], [34, 78]]) place("glasstower", P.glass.x + sx * ax, P.glass.z + sz * az, 0);
+  }
+  scatter(P.glass, "pole", 18, { inner: 0.05 });
+  // ── Frostline: a radar post in a clearing, cabins, spruce and rock in the snow ──
+  place("ctower", P.frostline.x, P.frostline.z, 0);
+  for (const [dx, dz] of [[-34, 22], [30, 30], [-20, -36], [44, -24]]) place("cabin", P.frostline.x + dx, P.frostline.z + dz, rng.range(0, 6.28));
+  place("containers", P.frostline.x + 8, P.frostline.z + 44, 0.3, nextV(), 2.2);
+  place("generator", P.frostline.x - 10, P.frostline.z + 16, 0);
+  scatter(P.frostline, "wreck", 3, { inner: 0.2 });
+  scatter(P.frostline, "rock", 34, { inner: 0.04 });
+  scatter(P.frostline, "snowpine", 170, { inner: 0.08, gap: 1.6 });
   // ── Props (v4 rework R9): the CC0 models for each place (crates, drums and buoys on the quay,
   // generators and racks in the refinery, ferns and camp tables in the forest...), room round each ──
   for (const pl of PLACES) {
-    const mine = PROPS.flatMap((q, i) => (q.built && q.at.includes(pl.id) ? [i] : []));
+    const mine = PROPS.flatMap((q, i) => (q.built && q.at.includes(PROPS_OF[pl.id] ?? pl.id) ? [i] : []));
     const want = Math.round(pl.r * 0.45);
     for (let k = 0, put = 0; mine.length && k < want * 6 && put < want; k++) {
       const a = rng.range(0, Math.PI * 2);
@@ -347,7 +379,7 @@ export function buildMaxWorld(seed = 1957): OpenLayout {
   // The answer per 2 m square, worked out once (the ground paint and the map ask hundreds of thousands of times).
   const GN = H;
   const memo = new Uint8Array(GN * GN).fill(255);
-  const KINDS: GroundKind[] = ["asphalt", "laterite", "paving", "grass", "earth", "sand"];
+  const KINDS: GroundKind[] = ["asphalt", "laterite", "paving", "grass", "earth", "sand", "snow"];
   const groundAt = (x: number, z: number): GroundKind => {
     const q = Math.floor((x + H) / 2);
     const r = Math.floor((z + H) / 2);

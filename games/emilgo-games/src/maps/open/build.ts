@@ -156,15 +156,15 @@ const WALL_LIB: Record<"day" | "night", (TexName | null)[]> = {
   day: ["plaster", "concrete", "brick", "planks", "paintedConcrete", "corrugated", "glassTower", "roofTiles"],
   night: ["plaster", "concrete", "brick", "planks", "paintedConcrete", "rustSheet", "nightOffice", "roofTiles"],
 };
-/** The ground kinds in the ground atlas's order (3 × 2), their textures, and metres per repeat. */
-export const GROUND_KINDS: GroundKind[] = ["asphalt", "laterite", "paving", "grass", "earth", "sand"];
+/** The ground kinds in the ground atlas's order (4 × 2), their textures, and metres per repeat. */
+export const GROUND_KINDS: GroundKind[] = ["asphalt", "laterite", "paving", "grass", "earth", "sand", "snow"];
 const GROUND_LIB: Record<"day" | "night", TexName[]> = {
-  day: ["asphalt", "gravel", "paving", "grass", "dirt", "sand"],
-  night: ["roadDamaged", "gravel", "paving", "grassSparse", "mud", "sand"],
+  day: ["asphalt", "gravel", "paving", "grass", "dirt", "sand", "snow"],
+  night: ["roadDamaged", "gravel", "paving", "grassSparse", "mud", "sand", "snow"],
 };
-const GROUND_REP = [7, 6, 4, 5, 6, 7];
+const GROUND_REP = [7, 6, 4, 5, 6, 7, 6];
 /** How much of each kind's own colour shows (the photo dirt and gravel are warm; a city's verges are grey). */
-const GROUND_SAT = [1, 0.45, 1, 0.9, 0.4, 1];
+const GROUND_SAT = [1, 0.45, 1, 0.9, 0.4, 1, 1];
 
 export interface WorldLibrary {
   walls: ({ a: HTMLImageElement; n: HTMLImageElement | null } | null)[];
@@ -328,7 +328,7 @@ function* paintGround(L: OpenLayout, px: number, forMap: boolean, neutral = fals
       const kind = L.groundAt(x + 1.5, z + 1.5);
       if (kind === "asphalt" || kind === "laterite") continue;
       if (neutral) g.fillStyle = rnd() < 0.5 ? "#848484" : "#7a7a7a";
-      else g.fillStyle = kind === "grass" ? (rnd() < 0.5 ? "#6c8248" : "#627a42") : kind === "paving" ? (rnd() < 0.5 ? "#a8a8a2" : "#9e9e98") : kind === "sand" ? "#c8b48c" : rnd() < 0.5 ? "#857a6a" : "#7c7262";
+      else g.fillStyle = kind === "grass" ? (rnd() < 0.5 ? "#6c8248" : "#627a42") : kind === "paving" ? (rnd() < 0.5 ? "#a8a8a2" : "#9e9e98") : kind === "sand" ? "#c8b48c" : kind === "snow" ? "#e4e8ee" : rnd() < 0.5 ? "#857a6a" : "#7c7262";
       g.fillRect(x - 0.4, z - 0.4, 3.8, 3.8);
     }
     if (row % 10 === 9) yield;
@@ -442,7 +442,7 @@ function* paintGround(L: OpenLayout, px: number, forMap: boolean, neutral = fals
   return c;
 }
 
-/** Each pixel's ground kind (GROUND_KINDS index × 40 + 20 in red), from the layout itself: no blending, so no kind is made up at an edge. */
+/** Each pixel's ground kind (GROUND_KINDS index × 30 + 15 in red), from the layout itself: no blending, so no kind is made up at an edge. */
 function* kindMap(L: OpenLayout, px: number): Generator<void, HTMLCanvasElement> {
   const c = document.createElement("canvas");
   c.width = c.height = px;
@@ -454,7 +454,7 @@ function* kindMap(L: OpenLayout, px: number): Generator<void, HTMLCanvasElement>
     for (let x = 0; x < px; x++) {
       const k = GROUND_KINDS.indexOf(L.groundAt(-L.half + (x + 0.5) * m, z));
       const o = (y * px + x) * 4;
-      img.data[o] = Math.max(0, k) * 40 + 20;
+      img.data[o] = Math.max(0, k) * 30 + 15;
       img.data[o + 3] = 255;
     }
     if (y % 64 === 63) yield;
@@ -463,18 +463,18 @@ function* kindMap(L: OpenLayout, px: number): Generator<void, HTMLCanvasElement>
   return c;
 }
 
-/** The ground's six photo textures side by side (3 × 2), and their normals. */
+/** The ground's photo textures side by side (4 × 2; one cell spare), and their normals. */
 function groundAtlas(lib: WorldLibrary, tile: number): { a: CanvasTexture; n: CanvasTexture | null } {
   const mk = (pick: (x: { a: HTMLImageElement; n: HTMLImageElement | null }) => HTMLImageElement | null, fill: string) => {
     const c = document.createElement("canvas");
-    c.width = tile * 3;
+    c.width = tile * 4;
     c.height = tile * 2;
     const g = c.getContext("2d")!;
     g.fillStyle = fill;
     g.fillRect(0, 0, c.width, c.height);
     lib.ground.forEach((s, i) => {
       const im = s ? pick(s) : null;
-      if (im) g.drawImage(im, (i % 3) * tile, Math.floor(i / 3) * tile, tile, tile);
+      if (im) g.drawImage(im, (i % 4) * tile, Math.floor(i / 4) * tile, tile, tile);
     });
     const t = new CanvasTexture(c);
     t.minFilter = LinearMipmapLinearFilter;
@@ -502,16 +502,16 @@ function texturedGround(spec: TierSpec, macro: CanvasTexture, kinds: CanvasTextu
       .replace(
         "#include <common>",
         `#include <common>
-        uniform sampler2D uKind; uniform sampler2D uGA; uniform sampler2D uGN; uniform float uHalf; uniform float uKN; uniform float uRep[6]; uniform float uSat[6];
+        uniform sampler2D uKind; uniform sampler2D uGA; uniform sampler2D uGN; uniform float uHalf; uniform float uKN; uniform float uRep[7]; uniform float uSat[7];
         varying vec2 vGround;
         vec3 gN = vec3(0.0, 0.0, 1.0);
         vec3 desat(vec3 c, int k) { float l = dot(c, vec3(0.3, 0.59, 0.11)); return mix(vec3(l), c, uSat[k]); }
         vec2 tileUv(int k, out vec2 dx, out vec2 dy) {
           vec2 w = vGround / uRep[k];
-          dx = dFdx(w) / vec2(3.0, 2.0); dy = dFdy(w) / vec2(3.0, 2.0);
+          dx = dFdx(w) / vec2(4.0, 2.0); dy = dFdy(w) / vec2(4.0, 2.0);
           vec2 f = clamp(fract(w), 0.004, 0.996);
-          float col = mod(float(k), 3.0); float row = floor(float(k) / 3.0);
-          return vec2((col + f.x) / 3.0, (1.0 - row + f.y) / 2.0);
+          float col = mod(float(k), 4.0); float row = floor(float(k) / 4.0);
+          return vec2((col + f.x) / 4.0, (1.0 - row + f.y) / 2.0);
         }`,
       )
       .replace(
@@ -522,12 +522,12 @@ function texturedGround(spec: TierSpec, macro: CanvasTexture, kinds: CanvasTextu
           vec3 acc = vec3(0.0); vec3 nacc = vec3(0.0);
           ${
             taps === 1
-              ? `{ int k = int(texture2D(uKind, kt).r * 255.0 / 40.0); vec2 dx, dy; vec2 uv = tileUv(k, dx, dy); acc = desat(textureGrad(uGA, uv, dx, dy).rgb, k); ${atlas.n ? "nacc = textureGrad(uGN, uv, dx, dy).xyz;" : ""} }`
+              ? `{ int k = int(texture2D(uKind, kt).r * 255.0 / 30.0); vec2 dx, dy; vec2 uv = tileUv(k, dx, dy); acc = desat(textureGrad(uGA, uv, dx, dy).rgb, k); ${atlas.n ? "nacc = textureGrad(uGN, uv, dx, dy).xyz;" : ""} }`
               : `vec2 f = kt * uKN - 0.5; vec2 i0 = floor(f); vec2 fw = fract(f);
                  for (int j = 0; j < 4; j++) {
                    vec2 off = vec2(float(j - (j / 2) * 2), float(j / 2));
                    float w = (off.x > 0.5 ? fw.x : 1.0 - fw.x) * (off.y > 0.5 ? fw.y : 1.0 - fw.y);
-                   int k = int(texture2D(uKind, (i0 + off + 0.5) / uKN).r * 255.0 / 40.0);
+                   int k = int(texture2D(uKind, (i0 + off + 0.5) / uKN).r * 255.0 / 30.0);
                    vec2 dx, dy; vec2 uv = tileUv(k, dx, dy);
                    acc += desat(textureGrad(uGA, uv, dx, dy).rgb, k) * w;
                    ${atlas.n ? "nacc += textureGrad(uGN, uv, dx, dy).xyz * w;" : ""}
@@ -1068,7 +1068,7 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }, lib: W
     if (rockSet && rs?.length) {
       const groups = new Map<BufferGeometry, { m: CdnModel; ps: Placement[] }>();
       for (const p of rs) {
-        const m = (L.groundAt(p.x, p.z) === "sand" ? rockSet.sand : rockSet.grass) ?? rockSet.grass ?? rockSet.sand!;
+        const m = (L.groundAt(p.x, p.z) === "sand" || L.groundAt(p.x, p.z) === "snow" ? rockSet.sand : rockSet.grass) ?? rockSet.grass ?? rockSet.sand!;
         const g = m.parts.length ? m.parts[p.v % m.parts.length] : m.geometry;
         const e = groups.get(g) ?? { m, ps: [] };
         e.ps.push(p);

@@ -156,6 +156,8 @@ export interface LobbyState {
   /** Your rank on the ladder (SPEC-V3 §2), and whether it is the server's (else this phone's own count). */
   rank: Rank;
   rankSaved: boolean;
+  /** The player's Lagos Life money, or null where the host can't say. */
+  money: number | null;
   /** Your place on Lagos Life's board ("#12"), when there is one. */
   board: string | null;
   friends: { online: number | null; inMatch: number | null; recent: string[] };
@@ -311,7 +313,7 @@ export class Screens {
         <div class="who">
           <span class="nm" data-name></span>
           <span class="lv" title="${rk.into.toLocaleString()} / ${rk.need.toLocaleString()} XP${s.rankSaved ? "" : " (this device)"}"><b>${esc(rk.name.toUpperCase())}</b><span class="bar gold"><i style="width:${rk.top ? 100 : Math.round((rk.into / rk.need) * 100)}%"></i></span>${settings.founder ? `<span class="founder">FOUNDER</span>` : ""}${honourTitle(settings.honour) ? `<span class="founder honour">${esc(t(honourTitle(settings.honour)!).toUpperCase())}</span>` : ""}</span>
-          <span class="meta">${settings.form ? `<span class="form" title="${esc(t("Form: your last five online matches"))}">FORM <b>${[...settings.form].map((x) => `<i class="${x === "W" ? "w" : "l"}">${x}</i>`).join("")}</b></span>` : ""}${settings.streak >= 2 ? `<span class="streak">STREAK <b>${settings.streak}</b></span>` : ""}${s.board ? `<span>BOARD <b>${esc(s.board)}</b></span>` : ""}<span>BEST <b>${settings.best || 0}</b></span><span>CP <b>${settings.cp}</b></span></span>
+          <span class="meta">${settings.form ? `<span class="form" title="${esc(t("Form: your last five online matches"))}">FORM <b>${[...settings.form].map((x) => `<i class="${x === "W" ? "w" : "l"}">${x}</i>`).join("")}</b></span>` : ""}${settings.streak >= 2 ? `<span class="streak">STREAK <b>${settings.streak}</b></span>` : ""}${s.board ? `<span>BOARD <b>${esc(s.board)}</b></span>` : ""}<span>BEST <b>${settings.best || 0}</b></span><span>CP <b>${settings.cp}</b></span><span class="money" data-act="money" role="button" tabindex="0" aria-label="${esc(t("Your Lagos Life money"))}">${icon("wallet", "", 11)}<b data-money>${s.money === null ? "₦ —" : naira(s.money)}</b></span></span>
         </div>
       </div>
       ${tabsHtml("lobby")}
@@ -430,6 +432,12 @@ export class Screens {
       `<div class="grid av-grid">${tiles}</div>
        <label class="md av-up" style="margin:12px auto 0">${icon("user", "", 18)}<span class="grow"><b>${esc(t("Use a picture from your phone"))}</b><small>${esc(t("It stays on this phone. Other players don't see it."))}</small></span><input type="file" accept="image/*" data-avatar-file hidden></label>`,
     );
+  }
+
+  /** The player's Lagos Life money beside CP (null: Lagos Life hasn't said). */
+  setMoney(n: number | null): void {
+    const e = this.root.querySelector<HTMLElement>("[data-money]");
+    if (e) e.textContent = n === null ? "₦ —" : naira(n);
   }
 
   /** Live friend counts on the lobby. */
@@ -808,7 +816,7 @@ export class Screens {
           <div class="glass gamecard"><div class="label">Dead Streets</div><span class="small">Cross the dead city to the Mast. Fast, and alive. After 12:00 you bleed. On your own; your run is checked by our server.</span>
             <span class="small">${s.best > 0 ? `Your best: <b class="num">${fmtTime(s.best)}</b>` : "No finished run yet."}</span></div>
         </div>
-        <div class="start"><button class="btn primary" data-act="go">${icon("play", "", 16)}Start a run</button></div>
+        <div class="start"><button class="btn secondary" data-act="tutorial">${icon("help", "", 16)}How to play</button><button class="btn primary" data-act="go">${icon("play", "", 16)}Start a run</button></div>
       </div>`,
       "dim",
     );
@@ -819,7 +827,7 @@ export class Screens {
     const info: Record<PlayMode, { name: string; sub: string; icon: string; tag: string }> = {
       new: { name: "Quick match", sub: "This week's featured modes · 12 players", icon: "people", tag: "Online" },
       friends: { name: "Private room", sub: "Any mode you've unlocked, with your people", icon: "invite", tag: "Online" },
-      solo: { name: "Practice", sub: "Meridian City on your own: learn the moves", icon: "target", tag: "Alone" },
+      solo: { name: "Practice", sub: "The big world on your own: learn the moves", icon: "target", tag: "Alone" },
       lagos: { name: "Lagos Life match", sub: "The Flag Duel · 2–4 players · optional stakes", icon: "trophy", tag: "Stakes" },
     };
     const order: PlayMode[] = ["new", "friends", "solo", "lagos"];
@@ -867,7 +875,7 @@ export class Screens {
         : "";
     const card =
       s.mode === "lagos"
-        ? `<div class="label">Lagos Life match</div><span class="small">The Flag Duel on the market: the first to find the hidden flag and hold it for 10 s wins. Melee, the zone and items are on. Every staked match plays the same.</span>`
+        ? `<div class="label">Lagos Life match</div><span class="small">The Flag Duel on the market: the flag stands in the open, on your map. The first to take it and hold it for 10 s wins. Guns, the zone and items are on. Every staked match plays the same.</span>`
         : `<div class="label">Mode</div><div class="seg wrap ffa-modes">${seg || `<span class="small">No mode here yet.</span>`}</div>
            ${ranked}
            ${s.mutator ? `<span class="small mu">${icon("star", "", 12)} ${esc(t("This week"))}: ${esc(t(s.mutator))}</span>` : ""}
@@ -885,8 +893,8 @@ export class Screens {
         </div>
         <div class="side">
           <div class="glass mapcard">
-            <div class="row"><b>Meridian City</b></div>
-            <span class="small">One city, 400 × 400 m: glass offices, the arcade and the transit hub in the east, courtyard flats, old farms and the river in the west. The zone closes in; the sky hunts whoever is outside it.</span>
+            <div class="row"><b>Meridian Max</b></div>
+            <span class="small">One world, 2 km across: the city in the middle, then Ironwood Forest, Glass District, Windmere Ridge, Harbour Yard, Frostline, Black Refinery, Dune Sea, Old Airfield, Mangrove Sink, Neon Row and The Arena. The zone closes in; stay outside too long and the sky finishes you.</span>
           </div>
           <div class="glass gamecard">${card}${partyBox}</div>
         </div>
@@ -1323,7 +1331,7 @@ export class Screens {
     this.mount(
       "room",
       `<div class="sq-head">
-         <span class="label">${room.kind === "match" && room.stake ? `${naira(room.stake)} each` : room.ffa ? `${esc(BUILTIN_MANIFEST.modes.find((d) => d.id === room.ffa)?.name.en ?? "Free For All")} · ${t("Meridian City")}${room.rk ? ` · ${t("Ranked")}` : ""}` : `${MODE_NAME[room.mode]} · ${room.dist} m`}</span>
+         <span class="label">${room.kind === "match" && room.stake ? `${naira(room.stake)} each` : room.ffa ? `${esc(BUILTIN_MANIFEST.modes.find((d) => d.id === room.ffa)?.name.en ?? "Free For All")} · ${t(BUILTIN_MANIFEST.modes.find((d) => d.id === room.ffa)?.map.startsWith("max-world") ? "Meridian Max" : "Meridian City")}${room.rk ? ` · ${t("Ranked")}` : ""}` : `${MODE_NAME[room.mode]} · ${room.dist} m`}</span>
          <span class="h">${title}</span>
          ${room.code && room.kind !== "match" ? `<div style="display:flex;gap:6px;align-items:center"><span class="code" style="padding:6px 10px;font-size:14px">${esc(room.code)}</span><button class="ibtn glass" data-act="copy-code" aria-label="Copy code">${icon("copy", "", 18)}</button></div>` : ""}
        </div>

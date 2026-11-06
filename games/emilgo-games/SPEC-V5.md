@@ -55,6 +55,19 @@ owner's go-ahead.** Nothing from "Suggestions" is built without a yes.
 | 3.8 | **Tutorial** with real pictures of the game | Must be shot after 3.1, 3.3 and 3.7, or it shows the old game |
 | 3.9 | **App icon and name** | Needs the avatar image the owner will send |
 
+## The owner's second list (6 Nov 2026)
+
+| Item | Status |
+|---|---|
+| The two missing places | Done. Glass District (north-east of the city) and Frostline (east, snow). All 11 exist, all reachable on foot |
+| Staked duel | Done. The flag stands in the open, like every other flag mode; the staked match test passes against the fake Lagos Life |
+| Billboards | The migration is written: `supabase/migrations/migration_game_billboards_max.sql`, 58 big-world slots. **The owner runs it** in Supabase |
+| Lagos Life money beside CP | The slot is built. **It shows "₦ —" until Lagos Life provides the balance**: their docs say games never get a player's money, and SDK v1 has no call for it. With a test balance it shows ₦125,000 |
+| Kill switch for every mode | Done. One line per mode in `MODE_SWITCH`, and a live switch: `scripts/modes.mjs` (README) |
+| Play screen centred on portrait phones | Done |
+| How to Play: real pictures, every mode described | Done. `dev/howto-shots.mjs` re-shoots them |
+| Tap to rotate: mid-screen, 5 times, 10 s apart | Done, in the lobby and in a match. Held back while a menu is open |
+
 ## Questions for the owner
 
 1. **Health bars.** The brief says both "every player must have one" and "only when they are being shot at". Built: only while being shot.

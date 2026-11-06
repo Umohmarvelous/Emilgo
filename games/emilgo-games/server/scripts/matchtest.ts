@@ -3,8 +3,8 @@
 //
 //   1. Two test players stake ₦1,000 each in a 2-seat match on the platform.
 //   2. Both connect to our game server and ask to play it with their sessions.
-//   3. The round is played (the Flag Duel, SPEC-V3 §11): A searches the
-//      market's stash spots, finds the flag and holds it 10 s; B stands still.
+//   3. The round is played (the Flag Duel, SPEC-V3 §11): A walks onto
+//      the flag in the open and holds it 10 s; B stands still.
 //   4. Our server posts the SIGNED result; the platform verifies it with the
 //      formula from the docs and settles: A wins the pot less 5%.
 // And the attacks that must fail:
@@ -25,7 +25,7 @@ import { NET } from "../../src/config";
 import type { FlagsModule } from "../../src/game/modules/flags";
 import type { ServerMsg } from "../../src/net/protocol";
 import { signResult } from "../src/vatar";
-import { field, Phone, spotDone } from "./ffanet";
+import { field, Phone } from "./ffanet";
 
 const PLATFORM = process.env.PLATFORM ?? "http://localhost:8790";
 const GAME = process.env.GAME ?? "ws://localhost:8787";
@@ -58,8 +58,7 @@ async function newPlayer(name: string): Promise<TestPlayer> {
 
 /**
  * A phone that asks to play `matchId` (it keeps a copy of the match, as ffanet's do).
- * "runner" searches the market's stash spots, nearest first and inside the newest
- * radio hint, then holds the flag 10 s; "statue" stands still.
+ * "runner" walks onto the flag in the open, then holds it 10 s; "statue" stands still.
  */
 async function gameClient(
   matchId: string,
@@ -83,8 +82,8 @@ async function gameClient(
     if (m.t === "vresult") vresult = { winner: m.winner, posted: m.posted };
     if (run === "runner") console.log(`    (${((Date.now() - t0) / 1000).toFixed(0)} s seated to result, ${(p.playMs / 1000).toFixed(0)} s of play)`);
   });
-  const fields = new Map<number, Int32Array>();
-  let target = -1;
+  let flagField: Int32Array | null = null;
+  let flagAt: [number, number] = [0, 0];
   const steer = setInterval(() => {
     const m = p.match;
     const c = p.me();
@@ -94,32 +93,13 @@ async function gameClient(
       p.stick(0, 0);
       return p.sendInput();
     }
-    if (target < 0 || spotDone(p, target)) {
-      // Nearest spot not yet searched, inside the newest hint when there is one.
-      const h = p.hint;
-      let best = Infinity;
-      target = -1;
-      for (const s of flags.stashes) {
-        if (spotDone(p, s.index)) continue;
-        const d = Math.hypot(s.x - c.x, s.z - c.z) + (h && Math.hypot(s.x - h.x, s.z - h.z) > h.r ? 1000 : 0);
-        if (d < best) {
-          best = d;
-          target = s.index;
-        }
-      }
+    // The flag stands in the open (v5): walk onto it, along the walk grid.
+    const f0 = flags.flags[0];
+    if (!flagField || Math.hypot(flagAt[0] - f0.x, flagAt[1] - f0.z) > 1) {
+      flagAt = [f0.x, f0.z];
+      flagField = field(m.reach, f0.x, f0.z);
     }
-    if (target < 0) p.stick(0, 0);
-    else {
-      const s = flags.stashes[target];
-      if (Math.hypot(s.x - c.x, s.z - c.z) < 1.4) {
-        p.stick(0, 0);
-        p.tap();
-      } else {
-        let f = fields.get(target);
-        if (!f) fields.set(target, (f = field(m.reach, s.x, s.z)));
-        p.steer(f);
-      }
-    }
+    p.steer(flagField);
     p.sendInput();
   }, 50);
   await done.catch(() => null);
