@@ -26,7 +26,7 @@ owner's go-ahead.** Nothing from "Suggestions" is built without a yes.
 | 1.13 | Music skipping fixed | Done. Needs your ears to confirm |
 | 1.14 | Bag redesigned: small, real | Done |
 | 1.15 | Relics more eye-catching | Done as "items on the ground": taller coloured shafts (question 8) |
-| 1.16 | More billboards | Done. 35 more, 52 on the big world beyond the city's 13 |
+| 1.16 | More billboards | Done. 39 more: 66 in all |
 | 1.17 | Death: COD-style falls | Done. Motion-captured fall, mirrored for half the bodies |
 | 1.18 | Avatar back, changeable in the lobby | Done. Tap the avatar in the lobby: 12 drawn, or a picture from your phone |
 
