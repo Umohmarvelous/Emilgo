@@ -96,13 +96,13 @@ export const BUILTIN_MANIFEST: Manifest = {
   modes: [
     // ── Free For All (Naija World) ──
     {
-      id: "find-the-flag", v: 2, family: "ffa", minRank: "rookie-1", players: SOLO_OR_SQUAD, map: "naija-world", time: 540,
+      id: "find-the-flag", v: 3, family: "ffa", minRank: "rookie-1", players: SOLO_OR_SQUAD, map: "naija-world", time: 540,
       name: { en: "Find the Flag", pcm: "Find Di Flag" },
-      blurb: { en: "Find the one hidden flag and hold it for 10 s.", pcm: "Find the one flag wey dem hide, hold am for 10 seconds." },
+      blurb: { en: "Get to the flag on the map, grab it and hold it for 10 s.", pcm: "Reach the flag wey dey for map, carry am, hold am for 10 seconds." },
       respawn: { on: true, delay: 6 },
-      modules: { zone: ZONE_FFA, items: ITEMS, vehicles: CARS, airfall: AIRFALL, melee: MELEE, flags: { count: 1, spots: "stash", claimHold: 10, hints: [90, 180, 270] } },
+      modules: { zone: ZONE_FFA, items: ITEMS, vehicles: CARS, airfall: AIRFALL, melee: MELEE, flags: { count: 1, claimHold: 10 } },
       win: { kind: "first", event: "flags.claimed" },
-      ranked: { ...RANKED, "respawn.on": false, "flags.claimHold": 20, "flags.hints": [180] },
+      ranked: { ...RANKED, "respawn.on": false, "flags.claimHold": 20 },
     },
     {
       id: "hold-the-flag", v: 2, family: "ffa", minRank: "rookie-1", players: SOLO_OR_SQUAD, map: "naija-world", time: 480,
@@ -205,11 +205,11 @@ export const BUILTIN_MANIFEST: Manifest = {
       win: { kind: "last", measure: "guns.alive" },
     },
     {
-      id: "max-flag", v: 1, family: "ffa", minRank: "rookie-1", players: { min: 8, max: 24, squad: [1, 4] }, map: "max-world", time: 720,
+      id: "max-flag", v: 2, family: "ffa", minRank: "rookie-1", players: { min: 8, max: 24, squad: [1, 4] }, map: "max-world", time: 720,
       name: { en: "Meridian Max: Find the Flag", pcm: "Meridian Max: Find Di Flag" },
-      blurb: { en: "The big world: find the hidden flag and hold it for 15 s.", pcm: "The big world: find the flag wey dem hide, hold am 15 seconds." },
+      blurb: { en: "The big world: get to the flag on the map, grab it and hold it for 15 s.", pcm: "The big world: reach the flag wey dey for map, carry am, hold am 15 seconds." },
       respawn: { on: true, delay: 8 },
-      modules: { zone: MAX_ZONE, items: { table: "ffa-core", density: 0.5 }, vehicles: { count: [4, 6], kinds: ["danfo", "keke", "tokunbo"] }, airfall: AIRFALL, melee: MELEE, flags: { count: 1, spots: "stash", claimHold: 15, hints: [120, 240, 360, 480] } },
+      modules: { zone: MAX_ZONE, items: { table: "ffa-core", density: 0.5 }, vehicles: { count: [4, 6], kinds: ["danfo", "keke", "tokunbo"] }, airfall: AIRFALL, melee: MELEE, flags: { count: 1, claimHold: 15 } },
       win: { kind: "first", event: "flags.claimed" },
     },
     // ── Dead Streets (Spooky World) ──

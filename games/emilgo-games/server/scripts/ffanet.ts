@@ -396,6 +396,7 @@ export async function online(url: string, check: Check): Promise<number> {
     const parked = cars().map((c) => [c.x, c.z]);
     let droveAt = -1;
     let carSeen = false;
+    let flagField: ReturnType<typeof field> | null = null;
     const t0 = Date.now();
     let told = 0;
     while (!phones.every((p) => p.ended) && Date.now() - t0 < 300_000) {
@@ -451,7 +452,13 @@ export async function online(url: string, check: Check): Promise<number> {
         }
         if (f.holder === c.index) p.stick(0, 0);
         else if (f.holder >= 0) p.stick(0, 0);
-        else {
+        else if (!f.hidden) {
+          // v5: the flag stands in the open. Everyone heads for it once the driver has driven (an early grab would end the match first).
+          if (carSeen || m.elapsed > 40) {
+            flagField ??= field(reach, f.x, f.z);
+            p.steer(flagField);
+          } else p.stick(0, 0);
+        } else {
           const list = todo.get(p)!;
           while (list.length && spotDone(p, list[0])) list.shift();
           // Done with its own: help with the nearest spot nobody has searched (a phone stuck on a corner can't hold one up).

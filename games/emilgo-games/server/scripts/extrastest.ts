@@ -677,19 +677,7 @@ console.log("the extras (§10):");
   runFor(m, 0.1);
   check(!mel.mateFor(m, m.get("p0")!), "a rival down: no help from you");
   // §10.20: pulled out of a gutter.
-  const gut = layout.gutters[0];
-  const gx = gut.x;
-  const gz = gut.z;
-  const inG = put(m, "p0", gx, gz);
-  inG.h = space.floorAt(gx, gz, 0).h;
-  const side = Math.cos(gut.rot);
-  const sideZ = -Math.sin(gut.rot);
-  put(m, "p1", gx + side * 1.4, gz + sideZ * 1.4);
-  runFor(m, 2.5);
-  const was = inG.h;
-  m.setInteract("p1", 2, false);
-  const ev2 = runFor(m, 0.1);
-  check(was < -0.3 && ev2.some((e) => e.type === "helpup" && e.how === "rescue") && inG.h > -0.1, `in a gutter (${was.toFixed(1)} m): a squad mate pulls you out`);
+  check(layout.gutters.length === 0, "v5: no gutters in the city");
 }
 {
   // §10.10: Hold the Flag's bounty on the leader.

@@ -18,6 +18,7 @@ import {
   AdditiveBlending,
   BoxGeometry,
   type BufferGeometry,
+  CanvasTexture,
   Color,
   CylinderGeometry,
   DoubleSide,
@@ -32,6 +33,8 @@ import {
   Quaternion,
   RingGeometry,
   ShaderMaterial,
+  SphereGeometry,
+  SRGBColorSpace,
   Vector3,
 } from "three";
 
@@ -154,14 +157,73 @@ export function displacement(why: string, by: string | null, tg: string, gutter:
 /** A knockdown's worth as the play of the game (§10.11): the more it moved someone somewhere bad, the more. */
 export const PLAY_SCORE: Record<string, number> = { ringout: 5, hijack: 4, blast: 4, throw: 3, tackle: 3, daze: 2, trip: 1, tumble: 1 };
 
-/** A flag: a pole and a gold cloth with a green band. */
+/** A flag's pole: a steel mast on a weighted base, with a ball on top. The cloth is its own mesh (it waves). */
 function flagGeometry(): BufferGeometry {
   return merge([
-    part(new CylinderGeometry(0.025, 0.03, 1.9, 6), 0x3a3530, { p: [0, 0.95, 0] }),
-    part(new PlaneGeometry(0.7, 0.42), 0xffc23a, { p: [0.36, 1.66, 0] }),
-    part(new PlaneGeometry(0.7, 0.1), 0x1f8a4a, { p: [0.36, 1.5, 0.002] }),
-    part(new CylinderGeometry(0.05, 0.05, 0.05, 6), 0xffc23a, { p: [0, 1.92, 0] }),
+    part(new CylinderGeometry(0.03, 0.038, 3.3, 8), 0x8d9299, { p: [0, 1.65, 0] }),
+    part(new SphereGeometry(0.055, 8, 6), 0xd8b34a, { p: [0, 3.33, 0] }),
+    part(new CylinderGeometry(0.2, 0.26, 0.09, 12), 0x3d4044, { p: [0, 0.045, 0] }),
+    part(new CylinderGeometry(0.07, 0.09, 0.2, 8), 0x55595e, { p: [0, 0.15, 0] }),
+    part(new CylinderGeometry(0.036, 0.036, 0.04, 8), 0x2c2e31, { p: [0, 2.32, 0] }),
+    part(new CylinderGeometry(0.036, 0.036, 0.04, 8), 0x2c2e31, { p: [0, 3.2, 0] }),
   ]);
+}
+
+/** The cloth's picture: a woven red field, a white disc and a dark star. No nation's flag and no brand. */
+function clothTexture(): CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = 192;
+  c.height = 120;
+  const g = c.getContext("2d")!;
+  g.fillStyle = "#b5141c";
+  g.fillRect(0, 0, 192, 120);
+  g.fillStyle = "#f1ece1";
+  g.fillRect(0, 0, 192, 10);
+  g.fillRect(0, 110, 192, 10);
+  g.beginPath();
+  g.arc(96, 60, 32, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = "#1b1c1e";
+  g.beginPath();
+  for (let k = 0; k < 10; k++) {
+    const r = k % 2 ? 11 : 26;
+    const a = -Math.PI / 2 + (k * Math.PI) / 5;
+    g.lineTo(96 + Math.cos(a) * r, 60 + Math.sin(a) * r);
+  }
+  g.fill();
+  // The weave.
+  g.globalAlpha = 0.07;
+  g.fillStyle = "#000";
+  for (let y = 0; y < 120; y += 2) g.fillRect(0, y, 192, 1);
+  for (let x = 0; x < 192; x += 2) g.fillRect(x, 0, 1, 120);
+  g.globalAlpha = 1;
+  const t = new CanvasTexture(c);
+  t.colorSpace = SRGBColorSpace;
+  t.anisotropy = 2;
+  return t;
+}
+
+/** Waves in the vertex shader: nothing per frame but one uniform, however many flags. */
+function clothMaterial(time: { value: number }): MeshLambertMaterial {
+  const mat = new MeshLambertMaterial({ map: clothTexture(), side: DoubleSide });
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uTime = time;
+    sh.vertexShader = `uniform float uTime;\n${sh.vertexShader}`
+      .replace(
+        "#include <beginnormal_vertex>",
+        `#include <beginnormal_vertex>
+         float wPh = uv.x * 9.0 - uTime * 6.0 + instanceMatrix[3][0];
+         float wPh2 = uv.x * 17.0 - uTime * 9.0 + uv.y * 4.0;
+         objectNormal = normalize(vec3(-(cos(wPh) * 0.8 + cos(wPh2) * 0.5) * uv.x, 0.0, 1.0));`,
+      )
+      .replace(
+        "#include <begin_vertex>",
+        `#include <begin_vertex>
+         transformed.z += (sin(wPh) * 0.09 + sin(wPh2) * 0.03) * uv.x;
+         transformed.y -= 0.1 * uv.x * uv.x;`,
+      );
+  };
+  return mat;
 }
 
 const RING_VERT = /* glsl */ `
@@ -230,6 +292,8 @@ export class FfaView {
   private readonly o: FfaViewOptions;
   private readonly props = new Map<PropId, InstancedMesh>();
   private readonly flagMesh: InstancedMesh;
+  private readonly clothMesh: InstancedMesh;
+  private readonly clothTime = { value: 0 };
   private readonly rings: InstancedMesh;
   private readonly columns: InstancedMesh;
   private readonly glowMats: ShaderMaterial[] = [];
@@ -248,7 +312,9 @@ export class FfaView {
       this.props.set(k, m);
       this.group.add(m);
     }
-    this.flagMesh = instanced(flagGeometry(), new MeshLambertMaterial({ vertexColors: true, side: DoubleSide }), MAX_FLAGS);
+    this.flagMesh = instanced(flagGeometry(), new MeshLambertMaterial({ vertexColors: true }), MAX_FLAGS);
+    // 1.15 × 0.72 m, from the pole; dense enough to wave.
+    this.clothMesh = instanced(new PlaneGeometry(1.15, 0.72, 16, 6).translate(0.6, 2.8, 0), clothMaterial(this.clothTime), MAX_FLAGS);
     const glow = (frag: string) => {
       const mat = new ShaderMaterial({ uniforms: { time: { value: 0 } }, vertexShader: RING_VERT, fragmentShader: frag, blending: AdditiveBlending, transparent: true, depthWrite: false, side: DoubleSide, forceSinglePass: true });
       this.glowMats.push(mat);
@@ -257,7 +323,7 @@ export class FfaView {
     // A ring 1 m across (scaled to the goal), flat on the ground; a column 1 m wide, 1 m tall (scaled).
     this.rings = instanced(new RingGeometry(0.94, 1, 48, 1).rotateX(-Math.PI / 2), glow(RING_FRAG), MAX_GOALS + MAX_FLAGS, true);
     this.columns = instanced(new CylinderGeometry(1, 1, 1, 24, 1, true).translate(0, 0.5, 0), glow(COLUMN_FRAG), MAX_GOALS + MAX_FLAGS, true);
-    this.group.add(this.flagMesh, this.rings, this.columns);
+    this.group.add(this.flagMesh, this.clothMesh, this.rings, this.columns);
     this.headLayer.dataset.ui = "1";
     o.layer.append(this.headLayer);
     o.hud.map.hints = this.hints;
@@ -508,7 +574,9 @@ export class FfaView {
         let x = f.x;
         let y = f.h;
         let z = f.z;
-        let yaw = this.time * 0.6;
+        // v5: it doesn't spin; the cloth waves from the pole.
+        let yaw = 0.6;
+        let size = 1;
         if (f.holder >= 0) {
           const c = m.contestants[f.holder];
           marks.push({ x: c.x, z: c.z, kind: "flag" });
@@ -517,16 +585,22 @@ export class FfaView {
           const at = crowd.hands(f.holder, _v);
           if (at) {
             x = at.x;
-            y = at.y - 0.9;
+            y = at.y - 0.7;
             z = at.z;
           } else y = c.h;
           yaw = c.heading - Math.PI / 2;
+          size = 0.72;
         } else {
           marks.push({ x, z, kind: "flag" });
           aim(x, z, "flag");
           glow(x, y, z, 0.7, 24, "#ffc23a");
         }
-        if (flagsN < MAX_FLAGS) this.flagMesh.setMatrixAt(flagsN++, _m.compose(_p.set(x, y, z), _q.setFromAxisAngle(_up, yaw), _s.set(1, 1, 1)));
+        if (flagsN < MAX_FLAGS) {
+          _m.compose(_p.set(x, y, z), _q.setFromAxisAngle(_up, yaw), _s.set(size, size, size));
+          this.flagMesh.setMatrixAt(flagsN, _m);
+          this.clothMesh.setMatrixAt(flagsN, _m);
+          flagsN++;
+        }
       }
       if (flags.gate) {
         glow(flags.gate.x, m.world.space.floorAt(flags.gate.x, flags.gate.z, 2).h, flags.gate.z, 4, 40, "#59d98e");
@@ -553,8 +627,9 @@ export class FfaView {
       if (m.elapsed > p.until) this.pings.splice(i, 1);
       else marks.push({ x: p.x, z: p.z, kind: "ping" });
     }
-    this.flagMesh.count = flagsN;
-    if (flagsN) this.flagMesh.instanceMatrix.needsUpdate = true;
+    this.flagMesh.count = this.clothMesh.count = flagsN;
+    this.clothTime.value = this.time;
+    if (flagsN) this.flagMesh.instanceMatrix.needsUpdate = this.clothMesh.instanceMatrix.needsUpdate = true;
     this.rings.count = this.columns.count = glows;
     if (glows) {
       this.rings.instanceMatrix.needsUpdate = this.columns.instanceMatrix.needsUpdate = true;
@@ -647,7 +722,7 @@ export class FfaView {
     if (flags.claimHold > 0) {
       const f = flags.flags[0];
       if (!f || f.hidden) return t("Find the flag: search the stash spots");
-      if (f.holder < 0) return t("The flag is loose: grab it");
+      if (f.holder < 0) return t("Get to the flag on the map and grab it");
       const c = m.contestants[f.holder];
       const left = Math.max(0, flags.claimHold - flags.claim[f.holder]);
       if (c === me) return `${t("Hold it")}: ${Math.ceil(left)} s`;
@@ -669,6 +744,10 @@ export class FfaView {
     }
     this.flagMesh.geometry.dispose();
     this.flagMesh.dispose();
+    this.clothMesh.geometry.dispose();
+    (this.clothMesh.material as MeshLambertMaterial).map?.dispose();
+    (this.clothMesh.material as MeshLambertMaterial).dispose();
+    this.clothMesh.dispose();
     this.rings.geometry.dispose();
     this.columns.geometry.dispose();
     for (const mat of this.glowMats) mat.dispose();

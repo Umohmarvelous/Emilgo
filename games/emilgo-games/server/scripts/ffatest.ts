@@ -39,6 +39,8 @@ const world = matchWorldOf(layout, space);
 const def = (id: string) => BUILTIN_MANIFEST.modes.find((m) => m.id === id)!;
 
 /** A mode's settings, changed by `patch` (shorter times, no zone) so a test needn't wait minutes. */
+/** v5: Find the Flag's flag stands in the open; the staked duel keeps the stash spots, tested here on the same rules. */
+const stashed = (s: MatchSettings): void => void (s.modules.flags = { count: 1, spots: "stash", claimHold: 10, hints: [90, 180, 270] });
 function mode(id: string, patch: (s: MatchSettings) => void = () => {}): MatchSettings {
   const s = settingsOf(def(id));
   patch(s);
@@ -352,7 +354,7 @@ console.log("melee (Gidigbo):");
 
 console.log("Find the Flag:");
 {
-  const m = newMatch(21, mode("find-the-flag"));
+  const m = newMatch(21, mode("find-the-flag", stashed));
   runFor(m, 0.1);
   const flags = m.module<FlagsModule>("flags")!;
   check(flags.stashes.length === FLAGS.stashes && flags.flags[0].hidden, `the flag hidden in 1 of ${flags.stashes.length} stash spots`);
@@ -374,7 +376,7 @@ console.log("Find the Flag:");
   check(st.find((s) => s.id === "p0")?.place === 1 && st.filter((s) => s.place === 1).length === 1, "the winner is first");
 }
 {
-  const m = newMatch(22, mode("find-the-flag"));
+  const m = newMatch(22, mode("find-the-flag", stashed));
   const ev = runFor(m, 275);
   const hints = ev.filter((e): e is Extract<MatchEvent, { type: "hint" }> => e.type === "hint");
   const f = m.module<FlagsModule>("flags")!.flags[0];
@@ -505,8 +507,8 @@ console.log("the Flag Duel (staked, on the market):");
 console.log("the phone's copy (mirror):");
 {
   // What a player mustn't know ahead comes from the server's secret seed.
-  const srv = new Match({ seed: 5, secret: 991, world, settings: mode("find-the-flag"), contestants: Array.from({ length: 12 }, (_, i) => ({ id: `p${i}`, name: "P", bot: false })) });
-  const ph = new Match({ seed: 5, world, settings: mode("find-the-flag"), contestants: srv.contestants.map((c) => ({ id: c.id, name: c.name, bot: false })), mirror: true });
+  const srv = new Match({ seed: 5, secret: 991, world, settings: mode("find-the-flag", stashed), contestants: Array.from({ length: 12 }, (_, i) => ({ id: `p${i}`, name: "P", bot: false })) });
+  const ph = new Match({ seed: 5, world, settings: mode("find-the-flag", stashed), contestants: srv.contestants.map((c) => ({ id: c.id, name: c.name, bot: false })), mirror: true });
   const sz = srv.module<ZoneModule>("zone")!;
   const pz = ph.module<ZoneModule>("zone")!;
   const pfl = ph.module<FlagsModule>("flags")!;
@@ -563,7 +565,7 @@ console.log("the phone's copy (mirror):");
 
 // ── Cost ──
 {
-  const m = newMatch(91, mode("find-the-flag"));
+  const m = newMatch(91, mode("find-the-flag", stashed));
   runFor(m, 1);
   const t = performance.now();
   let k = 0;
