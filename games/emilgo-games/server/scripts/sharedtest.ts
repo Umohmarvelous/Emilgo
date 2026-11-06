@@ -37,6 +37,9 @@ const ftf = BUILTIN_MANIFEST.modes.find((m) => m.id === "find-the-flag")!;
 function shared(ranked = false): MatchSettings {
   const s = settingsOf(ftf, ranked);
   s.modules = { zone: s.modules.zone, items: s.modules.items, airfall: s.modules.airfall };
+  // v5: the launch modes' numbers are for the big world; these tests run on the small city, so city-sized ones.
+  s.modules.zone = { ...s.modules.zone, phases: [[60, 180, 40, 1.0], [180, 110, 40, 1.5], [300, 60, 40, 2.5], [420, 25, 40, 4]] };
+  if (!ranked) s.modules.items = { ...s.modules.items, density: 0.8 };
   return s;
 }
 function newMatch(seed: number, n = 12, settings = shared()): Match {

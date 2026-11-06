@@ -63,6 +63,10 @@ export interface Settings {
   lookAccel: number;
   lookDead: number;
   fireAim: boolean;
+  /** v5: your avatar: a preset's id (ui/avatars.ts), a small picture from your phone, or "" for the default. */
+  avatar: string;
+  /** v5: older saves had a coloured suit by default: set once they've been brought to the black one. */
+  suitV5: boolean;
   /** v5: the gun fires by itself while the crosshair is on an enemy. Off: only FIRE fires. */
   autoFire: boolean;
   /** The move stick: fixed in the corner (default) or wherever the thumb lands. */
@@ -187,6 +191,8 @@ export function defaults(host: Host): Settings {
     lookAccel: 1.4,
     lookDead: 3,
     fireAim: true,
+    avatar: "op-black",
+    suitV5: true,
     autoFire: true,
     moveStick: "fixed",
     mouseLook: "lock",
@@ -252,7 +258,7 @@ export function defaults(host: Host): Settings {
  * look and wheel, the map and mode you picked, the tutorial seen.
  */
 export const KEPT_ON_RESET: readonly (keyof Settings)[] = [
-  "look", "badge", "lobbyPose", "wheel", "map", "mode", "distance", "tutorialSeen", "best", "played", "wins", "xp",
+  "look", "avatar", "suitV5", "badge", "lobbyPose", "wheel", "map", "mode", "distance", "tutorialSeen", "best", "played", "wins", "xp",
   "rankXp", "rankKnown", "deviceXp", "founder", "honour", "form", "streak", "runBest", "runWeapon", "runPerks", "runCharms", "runMods", "runDaily", "runDeaths",
   "daily", "recent", "fid", "friends", "cp", "boosts", "boostsOn", "song",
 ];
@@ -292,6 +298,11 @@ export function loadSettings(host: Host): Settings {
     }
     // One choice now: whatever an older save chose becomes the default.
     out.song = base.song;
+    // v5: everyone starts in the black suit (the owner) until they pick a colour; older saves had one picked for them.
+    if (saved.suitV5 !== true) {
+      out.suitV5 = true;
+      out.look = cleanLook({ ...out.look, hoodie: base.look.hoodie, design: "plain" });
+    }
     if (!["auto", "low", "medium", "high", "max"].includes(out.graphics)) out.graphics = base.graphics;
     // Before v4 the look stick could be drawn "always": that now shows the touch point.
     if (typeof saved.lookDot !== "boolean" && (saved as { lookStick?: string }).lookStick === "always") out.lookDot = true;

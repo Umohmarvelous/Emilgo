@@ -300,8 +300,9 @@ export class ItemsView {
       _q.setFromAxisAngle(_up, t * 0.8 + i * 1.7);
       mesh.setMatrixAt(n, _m.compose(_p.set(it.x, it.h + 0.12 + Math.sin(t * 2.2 + i) * 0.04, it.z), _q, _s.set(1.3, 1.3, 1.3)));
       this.counts.set(l, n + 1);
-      if (ITEM_DEFS[it.kind].rare) pillar(it.x, it.h, it.z, 0.9, 0.62, 0.15);
-      else pillar(it.x, it.h, it.z, 0.5, 0.4, 0.26);
+      // v5: pick-ups catch the eye: a tall, coloured shaft you can see from across a street; gold for the rare ones.
+      if (ITEM_DEFS[it.kind].rare) pillar(it.x, it.h, it.z, 1.5, 0.95, 0.15, 2.4);
+      else pillar(it.x, it.h, it.z, 0.2, 0.85, 1.25, 1.6);
     }
     for (const l of LOOKS) {
       const mesh = this.kinds.get(l)!;

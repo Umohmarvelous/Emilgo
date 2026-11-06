@@ -21,6 +21,7 @@
 // countdown 5 → 1 (flow/countdown.ts) → play → results. The tutorial
 // (flow/tutorial.ts, rlgl/tutorial.ts) plays a real round with a model.
 
+import { shrinkPicture } from "../ui/avatars";
 import { ACESFilmicToneMapping, BackSide, Mesh, OrthographicCamera, PCFShadowMap, PCFSoftShadowMap, PMREMGenerator, SRGBColorSpace, ShaderMaterial, SphereGeometry, type Texture, WebGLRenderTarget, PerspectiveCamera, Scene, Vector2, Vector3, WebGLRenderer } from "three";
 
 import { Sound } from "../audio/sound";
@@ -677,6 +678,7 @@ export class Game {
   }
 
   private showLobby(): void {
+    this.screens.avatarPick = this.settings.avatar;
     // The lobby's track (v4 rework: a downloaded CC0 track, streamed).
     this.sound.score.play("lobby");
     const daily = ensureDaily(this.settings.daily);
@@ -820,6 +822,23 @@ export class Game {
     }
   }
   private contentAsked = false;
+
+  private setAvatar(pick: string): void {
+    this.settings.avatar = pick;
+    saveSettings(this.host, this.settings);
+    this.screens.avatarPick = pick;
+    this.closePanel();
+  }
+
+  /** The sheet's file input: a picture from the phone, shrunk and kept here. */
+  private watchAvatarFile(): void {
+    const input = document.querySelector<HTMLInputElement>("[data-avatar-file]");
+    input?.addEventListener("change", () => {
+      const f = input.files?.[0];
+      if (!f) return;
+      void shrinkPicture(f).then((u) => u && this.setAvatar(u));
+    });
+  }
 
   private showCustomize(): void {
     this.frame("left-panel");
@@ -2171,7 +2190,7 @@ export class Game {
 
   /** The match loading screen (Brief 1) while the world builds: you on the stage, the cards, the map card, the route sign. */
   private showLoading(kind: "ffa" | "run", def: ModeDef, players?: { name: string; rank: string; squad: number; me: boolean }[]): void {
-    void this.adFeed(kind === "run" ? "spooky-world" : "naija-world");
+    void this.adFeed(kind === "run" ? "spooky-world" : "max-world");
     this.sound.score.play("menu");
     this.view = "lobby";
     this.stage.setMode("lobby");
@@ -2829,6 +2848,14 @@ export class Game {
       case "tab":
         this.lobbyTab(d.tab as LobbyTab);
         break;
+      case "avatar":
+        this.screens.avatarSheet(this.settings.avatar);
+        this.frame("left-panel");
+        this.watchAvatarFile();
+        break;
+      case "avatar-pick":
+        this.setAvatar(d.id ?? "");
+        break;
       case "customize":
         this.showCustomize();
         break;
@@ -3320,9 +3347,17 @@ export class Game {
       case "resume":
         this.resume();
         break;
-      case "menu":
-        this.toLobby();
+      case "menu": {
+        // v5: quitting a match shows its defeat screen first.
+        const gm = this.gm as { forfeit?: () => void } | null;
+        if (gm?.forfeit && this.paused) {
+          this.paused = false;
+          this.sound.hush(false);
+          this.sound.resume();
+          gm.forfeit();
+        } else this.toLobby();
         break;
+      }
       case "exit":
         this.host.exit();
         break;

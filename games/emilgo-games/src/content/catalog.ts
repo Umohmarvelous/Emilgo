@@ -21,6 +21,8 @@ export interface CatalogOptions {
   xp: number;
   /** Ball Haunt's switch (FEATURES.ballHaunt unless a test says otherwise). */
   ballHaunt?: boolean;
+  /** A test server: the modes tagged "dev" too. */
+  dev?: boolean;
   /** The modules this build can play (BUILT unless a test says otherwise). */
   built?: ReadonlySet<string>;
 }
@@ -38,6 +40,7 @@ export function catalog(manifest: Manifest, o: CatalogOptions): ModeEntry[] {
   for (const def of manifest.modes) {
     if (def.family === "rlgl" && !on) continue;
     if (def.family !== "rlgl" && !familyOn(def.family)) continue;
+    if (def.tags?.includes("dev") && !o.dev) continue;
     if (def.tags?.includes("staked")) continue; // the staked duel has its own path (Lagos Life match)
     const need = divisionIndex(def.minRank);
     if (!buildable(def, o.built)) out.push({ def, state: "soon" });

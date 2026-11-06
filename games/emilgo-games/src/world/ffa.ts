@@ -593,7 +593,7 @@ export class FfaView {
         } else {
           marks.push({ x, z, kind: "flag" });
           aim(x, z, "flag");
-          glow(x, y, z, 0.7, 24, "#ffc23a");
+          glow(x, y, z, 0.28, 60, "#ffb030");
         }
         if (flagsN < MAX_FLAGS) {
           _m.compose(_p.set(x, y, z), _q.setFromAxisAngle(_up, yaw), _s.set(size, size, size));

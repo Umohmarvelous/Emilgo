@@ -555,7 +555,7 @@ export const VEHICLES = {
   alarm: 8,
   /** A Danfo Key calls a danfo to a road this far away (m); no more than `max` cars in a match. */
   call: [10, 45],
-  max: 4,
+  max: 8,
   /** Starting cars: on a road at least this far from the middle of the starts, this far from each other. */
   far: 100,
   apart: 50,

@@ -113,7 +113,7 @@ export class Lobby {
   private openFor(peer: Peer, id: string): ModeDef | ErrorCode {
     const def = ffaMode(id);
     if (!def || def.tags?.includes("staked")) return "mode_off";
-    const e = catalog(BUILTIN_MANIFEST, { xp: this.xpOf(peer) }).find((x) => x.def.id === id);
+    const e = catalog(BUILTIN_MANIFEST, { xp: this.xpOf(peer), dev: this.rlgl }).find((x) => x.def.id === id);
     if (!e || e.state === "soon") return "mode_off";
     return e.state === "locked" ? "locked" : def;
   }
@@ -134,7 +134,7 @@ export class Lobby {
   fq(peer: Peer, id: string, ranked = false): ErrorCode | null {
     const def = this.openFor(peer, id);
     if (typeof def === "string") return def;
-    if (!BUILTIN_MANIFEST.rotation.includes(id)) return "mode_off";
+    if (!BUILTIN_MANIFEST.rotation.includes(id) && !def.tags?.includes("dev")) return "mode_off";
     const crew = this.crew(peer);
     if (typeof crew === "string") return crew;
     if (ranked && crew.some((p) => rankOf(this.xpOf(p)).k < RANKED_FROM)) return "locked";

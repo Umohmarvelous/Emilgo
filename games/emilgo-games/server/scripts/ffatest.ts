@@ -40,7 +40,10 @@ const def = (id: string) => BUILTIN_MANIFEST.modes.find((m) => m.id === id)!;
 
 /** A mode's settings, changed by `patch` (shorter times, no zone) so a test needn't wait minutes. */
 /** v5: Find the Flag's flag stands in the open; the staked duel keeps the stash spots, tested here on the same rules. */
-const stashed = (s: MatchSettings): void => void (s.modules.flags = { count: 1, spots: "stash", claimHold: 10, hints: [90, 180, 270] });
+const stashed = (s: MatchSettings): void => {
+  s.modules.flags = { count: 1, spots: "stash", claimHold: 10, hints: [90, 180, 270] };
+  s.modules.zone = { ...s.modules.zone, phases: [[60, 180, 40, 1.0], [180, 110, 40, 1.5], [300, 60, 40, 2.5], [420, 25, 40, 4]] };
+};
 function mode(id: string, patch: (s: MatchSettings) => void = () => {}): MatchSettings {
   const s = settingsOf(def(id));
   patch(s);

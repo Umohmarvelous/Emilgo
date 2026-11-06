@@ -350,16 +350,16 @@ export const HOODIE_DESIGNS: { id: HoodieDesign; name: string; product?: string;
   { id: "plain", name: "Plain" },
   { id: "twotone", name: "Two-tone" },
   { id: "stripe", name: "Chest stripe" },
-  { id: "ankara", name: "Ankara", product: "outfit_ankara" },
+  { id: "ankara", name: "Geometric", product: "outfit_ankara" },
   { id: "block", name: "Colour block" },
-  { id: "tracksuit", name: "Tracksuit stripes", rank: "rookie-3" },
-  { id: "adire", name: "Adire indigo", rank: "pro-1" },
-  { id: "bomber", name: "Bomber and cargo", rank: "pro-3" },
-  { id: "tactical", name: "Tactical gear", rank: "legendary-1" },
-  { id: "armour", name: "Armour", rank: "master-1" },
-  { id: "asooke", name: "Agbada: Aso-oke weave", rank: "grandmaster-1" },
-  { id: "royal", name: "Royal Agbada", rank: "mythic-1" },
-  { id: "titan", name: "Titan armour", rank: "titan-1" },
+  { id: "tracksuit", name: "Side stripes", rank: "rookie-3" },
+  { id: "adire", name: "Washed", rank: "pro-1" },
+  { id: "bomber", name: "Urban camo", rank: "pro-3" },
+  { id: "tactical", name: "Digital camo", rank: "legendary-1" },
+  { id: "armour", name: "Tiger stripe", rank: "master-1" },
+  { id: "asooke", name: "Carbon weave", rank: "grandmaster-1" },
+  { id: "royal", name: "Gold trim", rank: "mythic-1" },
+  { id: "titan", name: "Titan", rank: "titan-1" },
 ];
 export const DESIGN_BY_ID = Object.fromEntries(HOODIE_DESIGNS.map((d) => [d.id, d])) as Record<HoodieDesign, (typeof HOODIE_DESIGNS)[number]>;
 const FREE_HOODIES = HOODIE_COLORS.map((c, i) => (c.product ? -1 : i)).filter((i) => i >= 0);
@@ -398,7 +398,7 @@ export function wearProduct(look: Look, product: string): Look | null {
   return d ? { ...look, design: d.id } : null;
 }
 
-export const DEFAULT_LOOK: Look = { body: "m", skin: 4, hair: "lowcut", hairColor: 0, outfit: "street", extras: [], height: 1, hoodie: 6, design: "plain" };
+export const DEFAULT_LOOK: Look = { body: "f", skin: 4, hair: "lowcut", hairColor: 0, outfit: "street", extras: [], height: 1, hoodie: 2, design: "plain" };
 
 /** Clamp anything (saved settings, the wire) into a valid look. */
 export function cleanLook(raw: Partial<Look> | null | undefined, base: Look = DEFAULT_LOOK): Look {

@@ -24,6 +24,7 @@
 
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
+import { buildMaxWorld } from "../../src/maps/open/max";
 import { buildNaijaWorld } from "../../src/maps/open/naija";
 import { buildSpookyWorld } from "../../src/maps/open/spooky";
 
@@ -80,6 +81,7 @@ export function adsBackendFromEnv(env: NodeJS.ProcessEnv): AdsBackend | null {
 
 const MAPS: Record<string, () => { boards?: { id: string }[] }> = {
   "naija-world": () => buildNaijaWorld(),
+  "max-world": () => buildMaxWorld(),
   "spooky-world": () => buildSpookyWorld(),
 };
 const slotSets = new Map<string, ReadonlySet<string>>();

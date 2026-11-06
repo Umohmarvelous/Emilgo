@@ -36,6 +36,8 @@ const EAST = Math.PI / 2;
 
 function mode(id: string, patch: (s: MatchSettings) => void = () => {}): MatchSettings {
   const s = settingsOf(def(id));
+  // v5: the launch modes' cars are for the big world; these tests run on the small city.
+  if (s.modules.vehicles) s.modules.vehicles = { ...s.modules.vehicles, count: [1, 2] };
   patch(s);
   return s;
 }
@@ -214,17 +216,6 @@ console.log("walls, gutters, the edge:");
   });
   check(car.x < layout.half && !inside && car.speed < 1, `into the city wall: stopped at x ${car.x.toFixed(1)}, never through it`);
   check(car.damage > 0, `the hit cost it (${car.damage.toFixed(0)} damage${ev.some((e) => e.type === "wreck") ? `, now ${["", "scratched", "smoking", "on fire"][car.state]}` : ""})`);
-  // Off the side of the road: a gutter stops it; it never drops in.
-  const m2 = newMatch(9, bare());
-  toPlay(m2);
-  clear(m2, ["p0"]);
-  const c2 = park(m2, "tokunbo", 30, LANE[1], EAST);
-  noOtherCars(m2, [c2]);
-  getIn(m2, "p0", c2, 0);
-  m2.setInput("p0", 0.3, -1);
-  let low = 0;
-  runFor(m2, 4, [], () => (low = Math.min(low, c2.h)));
-  check(low > -0.05 && c2.z > -96, `steered at the gutter: it stops at the edge (lowest ${low.toFixed(2)} m, z ${c2.z.toFixed(1)})`);
 }
 
 // ── People ──

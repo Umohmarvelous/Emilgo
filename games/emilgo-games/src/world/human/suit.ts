@@ -22,7 +22,11 @@ import { CanvasTexture, Color, MeshLambertMaterial, MeshStandardMaterial, Repeat
 
 import type { Tier } from "./mesh";
 import type { BoneName, V3 } from "./skeleton";
-import { HOODIE_COLORS, SKIN_TONES, type Look } from "./wardrobe";
+import { HOODIE_COLORS, HOODIE_DESIGNS, type Look } from "./wardrobe";
+
+/** v5: one skin tone for everyone, fair (the owner); only the eyes and nose show it. */
+const FAIR = "#e8c4a8";
+const BLACK = HOODIE_COLORS.findIndex((c) => c.id === "black");
 
 let weaveTex: CanvasTexture | null = null;
 
@@ -71,14 +75,25 @@ function weave(): CanvasTexture {
 
 const lin = (hex: string) => new Color(hex);
 
+/** The design's second colour: near black on a colour, a mid grey on black; gold on the two top ones. */
+function suitAlt(look: Look): Color {
+  if (look.design === "royal" || look.design === "titan") return new Color(0.75, 0.52, 0.14);
+  if (look.hoodie === BLACK) return new Color(0.2, 0.21, 0.22);
+  return lin(HOODIE_COLORS[look.hoodie]?.hex ?? "#1d1d20").multiplyScalar(0.18);
+}
+
 /** The suit's material for one body (its skin shows only in the slit; its armband in its colour). */
 export function suitMaterial(look: Look, tier: Tier, rest: Record<BoneName, V3>): Material {
   const eyeL = rest.eyeL;
   const eyeR = rest.eyeR;
   const u = {
     weaveMap: { value: weave() },
-    skinCol: { value: lin(SKIN_TONES[look.skin] ?? SKIN_TONES[3]) },
-    bandCol: { value: lin(HOODIE_COLORS[look.hoodie]?.hex ?? "#c8a040") },
+    skinCol: { value: lin(FAIR) },
+    bandCol: { value: lin(look.hoodie === BLACK ? "#5a5f66" : HOODIE_COLORS[look.hoodie]?.hex ?? "#c8a040") },
+    // v5: the suit's colour and design (black and plain until you change them in Customize).
+    suitA: { value: look.hoodie === BLACK ? new Color(0.034, 0.036, 0.041) : lin(HOODIE_COLORS[look.hoodie]?.hex ?? "#1d1d20") },
+    suitB: { value: suitAlt(look) },
+    design: { value: Math.max(0, HOODIE_DESIGNS.findIndex((d) => d.id === look.design)) },
     eyeC: { value: new Vector3((eyeL.x + eyeR.x) / 2, (eyeL.y + eyeR.y) / 2, Math.max(eyeL.z, eyeR.z)) },
     eyeHalf: { value: new Vector2(Math.abs(eyeL.x - eyeR.x) * 0.5 + 0.024, 0.0145) },
   };
@@ -94,7 +109,32 @@ export function suitMaterial(look: Look, tier: Tier, rest: Record<BoneName, V3>)
         "#include <common>",
         `#include <common>
         flat varying int vReg; varying float vRS, vRS2; varying vec3 vBind; varying vec3 vBindN; varying vec4 vPal; varying float vAcc;
-        uniform sampler2D weaveMap; uniform vec3 skinCol, bandCol, eyeC; uniform vec2 eyeHalf;
+        uniform sampler2D weaveMap; uniform vec3 skinCol, bandCol, eyeC, suitA, suitB; uniform vec2 eyeHalf; uniform int design;
+        // The suit's pattern, on the bind pose in metres, so it never swims (order: HOODIE_DESIGNS).
+        float hash2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float vnoise(vec2 p) {
+          vec2 i = floor(p), f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(hash2(i), hash2(i + vec2(1, 0)), f.x), mix(hash2(i + vec2(0, 1)), hash2(i + vec2(1, 1)), f.x), f.y);
+        }
+        vec3 suitPattern(vec3 p, vec3 n) {
+          float y = p.y; float ax = abs(p.x);
+          vec2 q = abs(n.x) > 0.6 ? p.zy : p.xy;
+          float m = 0.0;
+          if (design == 1) m = step(y, 0.98);                                  // Two-tone: the legs
+          else if (design == 2) m = step(1.2, y) * step(y, 1.29) * step(ax, 0.2); // Chest stripe
+          else if (design == 3) m = step(0.5, fract((q.x + q.y) * 9.0)) * step(0.5, fract((q.x - q.y) * 9.0)); // Geometric
+          else if (design == 4) m = step(0.98, y) * step(p.x, 0.0);            // Colour block: half the top
+          else if (design == 5) m = step(0.72, abs(n.x)) * step(y, 1.42);      // Side stripes: down the arms and legs
+          else if (design == 6) m = smoothstep(0.4, 0.62, vnoise(q * 7.0)) * 0.7; // Washed
+          else if (design == 7) m = step(0.56, vnoise(q * 6.0));               // Urban camo
+          else if (design == 8) m = step(0.55, hash2(floor(q * 26.0)));        // Digital camo
+          else if (design == 9) m = step(0.5, fract(p.y * 7.0 + vnoise(q * 5.0) * 1.3)); // Tiger stripe
+          else if (design == 10) m = step(0.5, fract((q.x + q.y) * 80.0)) * 0.55; // Carbon weave
+          else if (design == 11) m = step(1.2, y) * step(y, 1.24) + step(0.8, abs(n.x)) * step(y, 0.95) * 0.0 + step(0.965, y) * step(y, 0.995); // Gold trim: chest and hip lines
+          else if (design == 12) m = step(0.56, vnoise(q * 9.0)) * step(0.5, fract(p.y * 16.0)) + step(1.2, y) * step(y, 1.24); // Titan
+          return mix(suitA, suitB, clamp(m, 0.0, 1.0));
+        }
         vec3 tri(vec3 p, vec3 n) {
           vec3 w = pow(abs(n), vec3(4.0)); w /= (w.x + w.y + w.z + 1e-5);
           return texture2D(weaveMap, p.zy).rgb * w.x + texture2D(weaveMap, p.xz).rgb * w.y + texture2D(weaveMap, p.xy).rgb * w.z;
@@ -128,7 +168,7 @@ export function suitMaterial(look: Look, tier: Tier, rest: Record<BoneName, V3>)
           if (r == 0 || r == 1 || r == 7) {
             // One black for the suit and the mannequin's joint gussets (no darker V at the hips,
             // no outlined shoulder caps): the suit reads as one garment.
-            if (r <= 1) { c = vec3(0.034, 0.036, 0.041); rough = 0.88; }
+            if (r <= 1) { c = suitPattern(vBind, vBindN); rough = 0.88; }
             // Ripstop, worn a little grey at the knees, the seat, the elbows.
             c *= 0.82 + 0.36 * wv.r;
             c = mix(c, vec3(0.075, 0.072, 0.068), smoothstep(0.35, 0.9, wear.b) * 0.16);
@@ -190,6 +230,6 @@ export function suitMaterial(look: Look, tier: Tier, rest: Record<BoneName, V3>)
         );
     }
   };
-  mat.customProgramCacheKey = () => `suit:${lit ? "l" : "s"}`;
+  mat.customProgramCacheKey = () => `suit2:${lit ? "l" : "s"}`;
   return mat;
 }

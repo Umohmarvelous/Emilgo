@@ -6,6 +6,7 @@
 // came from outside (a player's display name) goes through esc() — never raw
 // into innerHTML. Text is white or black; nothing is bigger than 16px; no emoji.
 
+import { AVATARS, avatarInner } from "./avatars";
 import { DISTANCES, FEATURES, FLOW, MODES, MODE_NAME, NET, PRACTICE, SQUAD_COLORS, STAKED, TIME_LIMIT, ballCount } from "../config";
 import { CONTROLS, RLGL_CONTROLS, unusedReason } from "../input/actions";
 import type { ChallengeDef } from "../game/progress";
@@ -306,7 +307,7 @@ export class Screens {
       "lobby",
       `<div class="vignette-lobby"></div>
       <div class="lb-tl profile" data-act="customize" role="button" tabindex="0" aria-label="Your profile">
-        <div class="avatar" data-avatar></div>
+        <button class="avatar" data-avatar data-act="avatar" aria-label="${esc(t("Change your avatar"))}"></button>
         <div class="who">
           <span class="nm" data-name></span>
           <span class="lv" title="${rk.into.toLocaleString()} / ${rk.need.toLocaleString()} XP${s.rankSaved ? "" : " (this device)"}"><b>${esc(rk.name.toUpperCase())}</b><span class="bar gold"><i style="width:${rk.top ? 100 : Math.round((rk.into / rk.need) * 100)}%"></i></span>${settings.founder ? `<span class="founder">FOUNDER</span>` : ""}${honourTitle(settings.honour) ? `<span class="founder honour">${esc(t(honourTitle(settings.honour)!).toUpperCase())}</span>` : ""}</span>
@@ -392,7 +393,7 @@ export class Screens {
       ${icon("swap", "", 18)}
       <span class="txt art-t"><span class="label">${s.ffa === "Dead Streets" ? "Survival" : "Free For All"}</span>
       <b>${esc(s.ffa)}</b>
-      <span class="small">${t(s.ffa === "Dead Streets" ? "Spooky World" : "Meridian City")}</span></span>
+      <span class="small">${t(s.ffa === "Dead Streets" ? "Spooky World" : "Meridian Max")}</span></span>
     </button>`;
     }
     const map = mapOf(s.settings.map);
@@ -412,15 +413,23 @@ export class Screens {
     for (const n of root.querySelectorAll<HTMLElement>("[data-name]")) n.textContent = host.player.name;
     const av = root.querySelector<HTMLElement>("[data-avatar]");
     if (!av) return;
-    av.replaceChildren();
-    if (host.player.avatar) {
-      const img = document.createElement("img");
-      img.alt = "";
-      img.src = host.player.avatar; // validated as data:image/… by the host
-      av.append(img);
-    } else {
-      av.textContent = host.player.name.trim().charAt(0).toUpperCase() || "E";
-    }
+    const inner = avatarInner(this.avatarPick, host.player.avatar, "x");
+    if (inner) av.innerHTML = inner;
+    else av.textContent = host.player.name.trim().charAt(0).toUpperCase() || "E";
+  }
+
+  /** The player's avatar (a preset's id or a picture); the session sets it from Settings. */
+  avatarPick = "";
+
+  /** Pick an avatar: the drawn ones, or a picture from your phone. */
+  avatarSheet(pick: string): void {
+    const tiles = AVATARS.map((a) => `<button class="tile av-tile ${pick === a.id ? "on" : ""}" data-act="avatar-pick" data-id="${a.id}" aria-label="${esc(t("Avatar"))}">${a.svg}</button>`).join("");
+    this.sheet(
+      "avatar",
+      "Avatar",
+      `<div class="grid av-grid">${tiles}</div>
+       <label class="md av-up" style="margin:12px auto 0">${icon("user", "", 18)}<span class="grow"><b>${esc(t("Use a picture from your phone"))}</b><small>${esc(t("It stays on this phone. Other players don't see it."))}</small></span><input type="file" accept="image/*" data-avatar-file hidden></label>`,
+    );
   }
 
   /** Live friend counts on the lobby. */
@@ -467,7 +476,7 @@ export class Screens {
   /** Character editor: the hoodie (colour and design: the only clothes there are) and the body. Paid ones show their price and a lock. */
   customize(look: Look, tab: string, owned: ReadonlySet<string>, canBuy: boolean, rankK = 0): void {
     const tabs = [
-      ["hoodie", "Armband"],
+      ["hoodie", "Suit"],
       ["body", "Body"],
     ]
       .map(([id, label]) => `<button class="tab ${tab === id ? "on" : ""}" data-act="ctab" data-tab="${id}">${label}</button>`)
@@ -481,12 +490,11 @@ export class Screens {
     } else {
       const main = HOODIE_COLORS[look.hoodie]?.hex ?? HOODIE_COLORS[0].hex;
       const alt = contrastOf(main);
+      // v5: the suit's colour and pattern (what you see on the model beside this panel, as you tap).
       const colours = HOODIE_COLORS.map((c, i) => {
         const locked = lock(c.product);
         const fill = c.satin ? `linear-gradient(135deg, ${c.hex} 20%, rgba(255,255,255,.55) 50%, ${c.hex} 80%), ${c.hex}` : c.hex;
-        return `<button class="tile ${look.hoodie === i ? "on" : ""} ${locked ? "locked" : ""}" data-act="look" data-key="hoodie" data-val="${i}" ${locked ? `data-locked="${c.product}"` : ""} aria-label="${esc(c.name)}">
-          ${locked ? `<span class="lock">${icon("lock", "", 14)}</span>` : ""}<span class="swatch" style="background:${fill}"></span><span class="t">${esc(c.name)}</span>${price(c.product, locked)}
-        </button>`;
+        return `<button class="chip-col ${look.hoodie === i ? "on" : ""} ${locked ? "locked" : ""}" data-act="look" data-key="hoodie" data-val="${i}" ${locked ? `data-locked="${c.product}"` : ""} aria-label="${esc(c.name)}" style="background:${fill}">${locked ? icon("lock", "", 12) : ""}</button>`;
       }).join("");
       const designs = HOODIE_DESIGNS.map((d) => {
         const rankLocked = !!d.rank && rankK < divisionIndex(d.rank);
@@ -495,9 +503,10 @@ export class Screens {
           ${locked ? `<span class="lock">${icon("lock", "", 14)}</span>` : ""}<span class="swatch" style="background:${designSwatch(d.id, main, alt)}"></span><span class="t">${esc(d.name)}</span>${price(d.product, locked)}
         </button>`;
       }).join("");
-      body = `<div class="label" style="margin-bottom:8px">Colour</div><div class="grid">${colours}</div>
-        <div class="label" style="margin:14px 0 8px">Design</div><div class="grid wide">${designs}</div>
-        ${canBuy ? "" : `<p class="note" style="margin-top:10px">Gold, Midnight and the Ankara design are bought inside Lagos Life. Here you can try them on.</p>`}`;
+      const current = HOODIE_COLORS[look.hoodie]?.name ?? "";
+      body = `<div class="label" style="margin-bottom:8px">${t("Suit colour")} · ${esc(current)}</div><div class="col-row">${colours}</div>
+        <div class="label" style="margin:14px 0 8px">${t("Suit design")}</div><div class="grid wide">${designs}</div>
+        ${canBuy ? "" : `<p class="note" style="margin-top:10px">${t("Locked colours and designs can be tried on. Tap one to see it.")}</p>`}`;
     }
     this.sheet("customize", "Customize", body, {
       tabs,

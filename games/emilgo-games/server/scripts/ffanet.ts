@@ -313,7 +313,7 @@ export async function online(url: string, check: Check): Promise<number> {
     mate.send({ t: "party", op: "join", code: lead.party!.code });
     await mate.wait((m) => m.t === "party" && !("off" in m) && m.members.length === 2, 3000);
     ok(lead.party?.members === 2 && mate.party?.lead === lead.seat, "a party of two: made, joined by its code");
-    mate.send({ t: "fq", m: "find-the-flag" });
+    mate.send({ t: "fq", m: "city-flag" });
     await mate.wait((m) => m.t === "err", 3000);
     ok(mate.errors.includes("lead"), "the member can't pick the game for the party");
     // A guest's rank (Rookie) hasn't opened Scarcity.
@@ -326,18 +326,18 @@ export async function online(url: string, check: Check): Promise<number> {
     g.send({ t: "fq", m: "dead-streets" });
     await g.wait((m) => m.t === "err" && g.errors.length >= 3, 3000);
     ok(g.errors[2] === "mode_off", "a mode this build can't play yet (Dead Streets): refused");
-    g.send({ t: "fq", m: "find-the-flag", r: true });
+    g.send({ t: "fq", m: "city-flag", r: true });
     await g.wait((m) => m.t === "err" && g.errors.length >= 4, 3000);
     ok(g.errors[3] === "locked", "Ranked before Pro I: refused");
     // The queue fills.
-    lead.send({ t: "fq", m: "find-the-flag" });
+    lead.send({ t: "fq", m: "city-flag" });
     await sleep(300);
-    for (const p of phones.slice(2)) p.send({ t: "fq", m: "find-the-flag" });
+    for (const p of phones.slice(2)) p.send({ t: "fq", m: "city-flag" });
     await Promise.all(phones.map((p) => p.wait((m) => m.t === "start", 15000)));
     const start = lead.start!;
     const sq = start.ffa!.sq;
     const idx = (p: Phone) => start.roster.findIndex((r) => r.id === p.seat);
-    ok(start.roster.length === 12 && start.ffa!.mode === "find-the-flag", "twelve in the queue: the match starts at once");
+    ok(start.roster.length === 12 && start.ffa!.mode === "city-flag", "twelve in the queue: the match starts at once");
     ok(sq[idx(lead)] === sq[idx(mate)] && new Set(sq).size === 11, "the party is one squad; everyone else is on their own");
 
     // A squad ping (§10.7): the mate hears it, a rival never does; one a second at most.

@@ -71,13 +71,15 @@ export interface Manifest {
   rotation: string[];
 }
 
-const ZONE_FFA = { phases: [[60, 180, 40, 1.0], [180, 110, 40, 1.5], [300, 60, 40, 2.5], [420, 25, 40, 4]] };
+// v5: the big world's size, closing over a shorter match than the Royale's.
+const ZONE_FFA = { phases: [[60, 1000, 50, 1.0], [170, 560, 50, 1.5], [280, 300, 50, 2.5], [390, 140, 40, 3], [470, 50, 40, 4]] };
 /** The big world's zone: from the whole of it down to a street corner. */
 const MAX_ZONE = { phases: [[90, 1000, 60, 0.6], [240, 560, 60, 1.0], [390, 300, 55, 1.6], [540, 140, 45, 2.5], [690, 50, 40, 4]] };
-const ZONE_TIGHT = { phases: [[45, 150, 35, 1.5], [150, 80, 35, 2.5], [270, 35, 35, 4], [390, 12, 30, 6]] };
-const ITEMS = { table: "ffa-core", density: 0.8 };
+const ZONE_TIGHT = { phases: [[45, 800, 45, 1.5], [150, 400, 45, 2.5], [270, 160, 40, 4], [390, 40, 30, 6]] };
+// v5: the launch modes play on the big world (the owner couldn't see its places), so their items and cars are spread for it.
+const ITEMS = { table: "ffa-core", density: 0.5 };
 const AIRFALL = { max: 3, gap: [180, 240] };
-const CARS = { count: [1, 2], kinds: ["danfo", "keke", "tokunbo"] };
+const CARS = { count: [4, 6], kinds: ["danfo", "keke", "tokunbo"] };
 // v5: `props: 0` no street props (plastic chairs, buckets, brooms, pestles, slippers): old looks, the owner asked them gone.
 const MELEE = { set: "gidigbo", props: 0 };
 const SOLO_OR_SQUAD = { min: 6, max: 12, squad: [1, 4] as [number, number] };
@@ -92,11 +94,11 @@ export const BUILTIN_MANIFEST: Manifest = {
   issued: "2026-10-28",
   // Hustle joined with its module (economy, Phase 6); Steal & Reposition rests this week (private rooms still play it).
   // v4: the big world's Royale featured first.
-  rotation: ["max-royale", "find-the-flag", "hold-the-flag", "max-flag"],
+  rotation: ["find-the-flag", "max-royale", "hold-the-flag", "steal-reposition"],
   modes: [
     // ── Free For All (Naija World) ──
     {
-      id: "find-the-flag", v: 3, family: "ffa", minRank: "rookie-1", players: SOLO_OR_SQUAD, map: "naija-world", time: 540,
+      id: "find-the-flag", v: 3, family: "ffa", minRank: "rookie-1", players: SOLO_OR_SQUAD, map: "max-world", time: 540,
       name: { en: "Find the Flag", pcm: "Find Di Flag" },
       blurb: { en: "Get to the flag on the map, grab it and hold it for 10 s.", pcm: "Reach the flag wey dey for map, carry am, hold am for 10 seconds." },
       respawn: { on: true, delay: 6 },
@@ -105,7 +107,7 @@ export const BUILTIN_MANIFEST: Manifest = {
       ranked: { ...RANKED, "respawn.on": false, "flags.claimHold": 20 },
     },
     {
-      id: "hold-the-flag", v: 2, family: "ffa", minRank: "rookie-1", players: SOLO_OR_SQUAD, map: "naija-world", time: 480,
+      id: "hold-the-flag", v: 2, family: "ffa", minRank: "rookie-1", players: SOLO_OR_SQUAD, map: "max-world", time: 480,
       name: { en: "Hold the Flag", pcm: "Hold Di Flag" },
       blurb: { en: "Most seconds holding the flag, all match long.", pcm: "Who hold the flag pass for the whole match, win." },
       respawn: { on: true, delay: 6 },
@@ -114,7 +116,7 @@ export const BUILTIN_MANIFEST: Manifest = {
       ranked: { ...RANKED, "respawn.on": false, "flags.ping": 5 },
     },
     {
-      id: "steal-reposition", v: 2, family: "ffa", minRank: "rookie-1", players: SOLO_OR_SQUAD, map: "naija-world", time: 540,
+      id: "steal-reposition", v: 2, family: "ffa", minRank: "rookie-1", players: SOLO_OR_SQUAD, map: "max-world", time: 540,
       name: { en: "Steal & Reposition", pcm: "Thief Am, Move Am" },
       blurb: { en: "Deliver flags to the drop zones. First to 5.", pcm: "Carry flag reach the drop zone. First to reach 5." },
       respawn: { on: true, delay: 6 },
@@ -123,7 +125,7 @@ export const BUILTIN_MANIFEST: Manifest = {
       ranked: { ...RANKED, "respawn.on": false, "dropzones.life": 45 },
     },
     {
-      id: "squad-rally", v: 2, family: "ffa", minRank: "rookie-1", players: { min: 8, max: 12, squad: [4, 4] }, map: "naija-world", time: 480,
+      id: "squad-rally", v: 2, family: "ffa", minRank: "rookie-1", players: { min: 8, max: 12, squad: [4, 4] }, map: "max-world", time: 480,
       name: { en: "Squad Rally", pcm: "Squad Rally" },
       blurb: { en: "Most of your squad inside the moving point at the end.", pcm: "Squad wey get pass people inside the moving point for end, win." },
       respawn: { on: true, delay: 8 },
@@ -132,7 +134,7 @@ export const BUILTIN_MANIFEST: Manifest = {
       ranked: { ...RANKED, "respawn.on": false, "capture.radius": 7 },
     },
     {
-      id: "hustle", v: 1, family: "ffa", minRank: "rookie-1", players: SOLO_OR_SQUAD, map: "naija-world", time: 600,
+      id: "hustle", v: 1, family: "ffa", minRank: "rookie-1", players: SOLO_OR_SQUAD, map: "max-world", time: 600,
       name: { en: "Hustle", pcm: "Hustle" },
       blurb: { en: "Do jobs across the city. Most Owo banked wins.", pcm: "Do work round the city. Who bank pass Owo, win." },
       respawn: { on: true, delay: 6 },
@@ -141,7 +143,7 @@ export const BUILTIN_MANIFEST: Manifest = {
       ranked: { ...RANKED, "respawn.on": false, "economy.spill": 0.7 },
     },
     {
-      id: "scarcity", v: 2, family: "ffa", minRank: "pro-1", players: SOLO_OR_SQUAD, map: "naija-world", time: 600,
+      id: "scarcity", v: 2, family: "ffa", minRank: "pro-1", players: SOLO_OR_SQUAD, map: "max-world", time: 600,
       name: { en: "Scarcity", pcm: "Scarcity" },
       blurb: { en: "Three flags, twelve players. Last standing with one wins.", pcm: "Three flag for twelve people. Last person wey still hold one, win." },
       respawn: { on: false },
@@ -150,7 +152,7 @@ export const BUILTIN_MANIFEST: Manifest = {
       ranked: { ...RANKED, "zone.scale": 0.8 },
     },
     {
-      id: "chase-reverse", v: 1, family: "ffa", minRank: "pro-1", players: SOLO_OR_SQUAD, map: "naija-world", time: 420,
+      id: "chase-reverse", v: 1, family: "ffa", minRank: "pro-1", players: SOLO_OR_SQUAD, map: "max-world", time: 420,
       name: { en: "Chase & Reverse", pcm: "Pursue & Reverse" },
       blurb: { en: "Run from the Ojuju. Tagged, you become one. Last human wins.", pcm: "Run from Ojuju. If e touch you, you don turn Ojuju. Last human win." },
       respawn: { on: false },
@@ -159,7 +161,7 @@ export const BUILTIN_MANIFEST: Manifest = {
       ranked: { ...RANKED, "tag.cures": 1 },
     },
     {
-      id: "compound-wars", v: 2, family: "ffa", minRank: "pro-1", players: SOLO_OR_SQUAD, map: "naija-world:compound", time: 480,
+      id: "compound-wars", v: 2, family: "ffa", minRank: "pro-1", players: SOLO_OR_SQUAD, map: "max-world:compound", time: 480,
       name: { en: "Compound Wars", pcm: "Compound Wars" },
       blurb: { en: "Hold the best rooms in the compound. Most points wins.", pcm: "Hold the fine rooms for compound. Who get pass points, win." },
       respawn: { on: true, delay: 5 },
@@ -168,7 +170,7 @@ export const BUILTIN_MANIFEST: Manifest = {
       ranked: { ...RANKED, "respawn.on": false },
     },
     {
-      id: "riddles-elders", v: 1, family: "ffa", minRank: "legendary-1", players: SOLO_OR_SQUAD, map: "naija-world", time: 600,
+      id: "riddles-elders", v: 1, family: "ffa", minRank: "legendary-1", players: SOLO_OR_SQUAD, map: "max-world", time: 600,
       name: { en: "Riddles of the Elders", pcm: "Elders Riddle" },
       blurb: { en: "Solve 3 riddles across the city, then return to the Elders.", pcm: "Answer 3 riddle for inside city, come back meet the Elders." },
       respawn: { on: true, delay: 6 },
@@ -177,13 +179,23 @@ export const BUILTIN_MANIFEST: Manifest = {
       ranked: { ...RANKED, "respawn.on": false, "riddles.wrongCost": 35 },
     },
     {
-      id: "lights-out", v: 1, family: "ffa", minRank: "legendary-1", players: SOLO_OR_SQUAD, map: "naija-world", time: 480,
+      id: "lights-out", v: 1, family: "ffa", minRank: "legendary-1", players: SOLO_OR_SQUAD, map: "max-world", time: 480,
       name: { en: "Lights Out", pcm: "Light Don Go" },
       blurb: { en: "Power cuts. Keep someone in your light 1.5 s to find them. Last hidden wins.", pcm: "Light don go. Hold person for your light 1.5 seconds to catch am. Last person wey hide, win." },
       respawn: { on: false },
       modules: { zone: ZONE_FFA, items: ITEMS, melee: MELEE, blackout: { every: [60, 90], dim: 0.15, findHold: 1.5 } },
       win: { kind: "last", measure: "blackout.hidden" },
       ranked: { ...RANKED, "blackout.findHold": 1.2 },
+    },
+    // ── For the network test only (tag "dev"; a test server opens it with BALL_HAUNT=1): the small city with stash spots, a quick match. ──
+    {
+      id: "city-flag", v: 1, family: "ffa", minRank: "rookie-1", players: SOLO_OR_SQUAD, map: "naija-world", time: 540,
+      name: { en: "City Flag (test)" },
+      blurb: { en: "Network test." },
+      respawn: { on: true, delay: 6 },
+      modules: { zone: { phases: [[60, 180, 40, 1.0], [180, 110, 40, 1.5], [300, 60, 40, 2.5], [420, 25, 40, 4]] }, items: { table: "ffa-core", density: 0.8 }, vehicles: { count: [1, 2], kinds: ["danfo", "keke", "tokunbo"] }, airfall: AIRFALL, melee: MELEE, flags: { count: 1, spots: "stash", claimHold: 10, hints: [90, 180, 270] } },
+      win: { kind: "first", event: "flags.claimed" },
+      tags: ["dev"],
     },
     // ── The staked duel (Lagos Life, 2–4 seats: SPEC-V3 Answers) ──
     {

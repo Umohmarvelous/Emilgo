@@ -1193,6 +1193,11 @@ export class FfaMode implements GameMode {
     });
   }
 
+  /** v5: you left before the end: that's a defeat, and you see it (the owner never saw the end screens). */
+  forfeit(): void {
+    if (!this.over) this.finish();
+  }
+
   /** The match is over: the result, for the session's results screen. */
   private finish(): void {
     const m = this.src.match;
