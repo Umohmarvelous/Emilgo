@@ -1257,6 +1257,8 @@ export class FfaMode implements GameMode {
     const kind = GUN_KINDS[g.gun[i][s]] ?? "pistol";
     const K = GUNS.kinds[kind];
     h.rig.adsWant = live && c.ads ? 1 : 0;
+    // v6: one-thumb portrait keeps you in the middle of the view (down the sights goes back over the shoulder).
+    h.rig.centre = c.thumbMode && !c.ads ? 1 : 0;
     // Aiming or firing, you face the aim (the server turns your body the same way).
     if (live && (c.ads || c.trigger || m.elapsed - g.aimedAt[i] < 0.8)) me.heading = h.rig.aimYaw + Math.PI;
     h.rig.adsZoom = K.zoom;

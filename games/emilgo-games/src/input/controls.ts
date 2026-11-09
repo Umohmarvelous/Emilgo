@@ -113,8 +113,8 @@ export class Controls {
   get lefty(): boolean {
     return this.leftHanded !== this.thumbMode;
   }
-  /** One-thumb: full radians a second the camera turns with the stick pushed fully sideways. */
-  thumbTurn = 2.1;
+  /** One-thumb: full radians a second the camera turns with the stick pushed fully sideways (v6: 2.1 → 2.6, sooner). */
+  thumbTurn = 2.6;
   private thumbAt = 0;
   /** Touch look: sensitivity (both axes, and each), acceleration, dead zone (px), the touch point, aim from FIRE. */
   readonly pad = { sens: 1, h: 1, v: 1, accel: 1.4, dead: 3, dot: false, fireAim: true };
@@ -544,11 +544,12 @@ export class Controls {
     const now = performance.now();
     const dt = Math.min(0.1, Math.max(0, (now - this.thumbAt) / 1000));
     this.thumbAt = now;
-    // One-thumb: the sideways part of the stick (past a dead zone, so walking ahead doesn't drift) turns the view.
+    // One-thumb: the sideways part of the stick (past a small dead zone, so walking ahead doesn't drift) turns the
+    // view that way, so the camera swings round behind you as you go (v6: from a lighter push, more at once).
     if (this.enabled && this.thumbMode && this.sticks.move.id !== null) {
       const x = this.move.x;
-      const k = Math.min(1, Math.max(0, (Math.abs(x) - 0.22) / 0.78));
-      this.padYaw += Math.sign(x) * k * k * (3 - 2 * k) * this.thumbTurn * this.pad.sens * dt;
+      const k = Math.min(1, Math.max(0, (Math.abs(x) - 0.12) / 0.88));
+      this.padYaw += Math.sign(x) * Math.pow(k, 1.35) * this.thumbTurn * this.pad.sens * dt;
     }
     const d = { x: this.padYaw, y: this.padPitch };
     this.padYaw = this.padPitch = 0;

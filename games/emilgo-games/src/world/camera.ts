@@ -63,6 +63,12 @@ export class CameraRig {
   private viewYaw = 0;
   private viewPitch = 0.12;
   autoCenter = false;
+  /**
+   * v6 (the owner: one-thumb portrait "placing the model in the center at all time ... just like Lagos Life"):
+   * 1 puts the body in the middle of the view instead of over the shoulder; it eases there (`centreK`).
+   */
+  centre = 0;
+  private centreK = 0;
   shakeEnabled = true;
   invertY = false;
   sensH = 0.35;
@@ -391,7 +397,8 @@ export class CameraRig {
     this.dist += (want - this.dist) * (want < this.dist ? 1 : 1 - Math.exp(-dt * 4));
     // Down the sights: closer in over the shoulder.
     const dist = this.dist * (1 - 0.42 * this.adsK);
-    const sh = SHOULDER + 0.12 * this.adsK;
+    this.centreK += (this.centre - this.centreK) * (1 - Math.exp(-dt * 5));
+    const sh = SHOULDER * (1 - this.centreK) + 0.12 * this.adsK;
     this.wantPos.set(this.pivot.x - d.x * dist + rx * sh, Math.max(this.floor + 0.25, this.pivot.y - d.y * dist), this.pivot.z - d.z * dist + rz * sh);
     // Aim straight ahead from the shoulder, so the player sits left of centre.
     this.wantLook.set(this.wantPos.x + d.x * 10, this.wantPos.y + d.y * 10, this.wantPos.z + d.z * 10);
