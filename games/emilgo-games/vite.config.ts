@@ -24,7 +24,8 @@ function stripVatarSdk(): Plugin {
   return {
     name: "emilgo-games-strip-vatar",
     transformIndexHtml(html) {
-      return html.replace(/\s*<!--[^]*?-->\s*<script async src="https:\/\/lagoslife\.app\/sdk\/vatar-games-v1\.js"><\/script>/, "");
+      // The comment just before the tag, and the tag (a comment may not run into another: the page has more than one).
+      return html.replace(/\s*<!--(?:(?!-->)[\s\S])*-->\s*<script async src="https:\/\/lagoslife\.app\/sdk\/vatar-games-v1\.js"><\/script>/, "");
     },
   };
 }
