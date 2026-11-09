@@ -857,6 +857,7 @@ export class Game {
 
   private setAvatar(pick: string): void {
     this.settings.avatar = pick;
+    this.settings.avatarSet = pick !== "";
     saveSettings(this.host, this.settings);
     this.screens.avatarPick = pick;
     this.closePanel();
@@ -2895,7 +2896,7 @@ export class Game {
         this.lobbyTab(d.tab as LobbyTab);
         break;
       case "avatar":
-        this.screens.avatarSheet(this.settings.avatar);
+        this.screens.avatarSheet(this.settings.avatar, this.host.player.avatar);
         this.frame("left-panel");
         this.watchAvatarFile();
         break;

@@ -71,8 +71,14 @@ export interface Settings {
   lookAccel: number;
   lookDead: number;
   fireAim: boolean;
-  /** v5: your avatar: a preset's id (ui/avatars.ts), a small picture from your phone, or "" for the default. */
+  /**
+   * v5: your avatar: a preset's id (ui/avatars.ts), a small picture from your phone, or "" for the default. v6 (the
+   * owner: "the default avatar will be player's avatar from lagoslife"): the default is the platform's own picture
+   * (Lagos Life's), the first preset only where there's none.
+   */
   avatar: string;
+  /** v6: the player has picked an avatar themselves (a v5 save's "op-black" was only the old default). */
+  avatarSet: boolean;
   /** v5: older saves had a coloured suit by default: set once they've been brought to the black one. */
   suitV5: boolean;
   /** v5: the gun fires by itself while the crosshair is on an enemy. Off: only FIRE fires. */
@@ -205,7 +211,8 @@ export function defaults(host: Host): Settings {
     lookAccel: 1.4,
     lookDead: 3,
     fireAim: true,
-    avatar: "op-black",
+    avatar: "",
+    avatarSet: false,
     suitV5: true,
     autoFire: true,
     moveStick: "fixed",
@@ -272,7 +279,7 @@ export function defaults(host: Host): Settings {
  * look and wheel, the map and mode you picked, the tutorial seen.
  */
 export const KEPT_ON_RESET: readonly (keyof Settings)[] = [
-  "look", "avatar", "suitV5", "badge", "lobbyPose", "wheel", "map", "mode", "distance", "tutorialSeen", "best", "played", "wins", "xp",
+  "look", "avatar", "avatarSet", "suitV5", "badge", "lobbyPose", "wheel", "map", "mode", "distance", "tutorialSeen", "best", "played", "wins", "xp",
   "rankXp", "rankKnown", "deviceXp", "founder", "honour", "form", "streak", "runBest", "runWeapon", "runPerks", "runCharms", "runMods", "runDaily", "runDeaths",
   "daily", "recent", "fid", "friends", "cp", "boosts", "boostsOn", "song",
 ];
@@ -372,6 +379,8 @@ export function loadSettings(host: Host): Settings {
       out.look = cleanLook({ ...DEFAULT_LOOK, outfit: saved.equipped.outfit ?? "street", extras: saved.equipped.cap ? ["fila"] : [] });
       out.badge = saved.equipped.badge === true;
     }
+    // v6: v5 put everyone on the "op-black" preset by default: unless they picked it, back to the platform's picture.
+    if (!saved.avatarSet && out.avatar === "op-black") out.avatar = "";
     if (saved.quality === "saver") out.graphics = "low";
     if (saved.quality === "sharp") out.graphics = "high";
     out.wheel = Array.isArray(saved.wheel) && saved.wheel.length >= 1 && saved.wheel.length <= 8 && saved.wheel.every((e) => EMOTE_IDS.includes(e)) ? saved.wheel : base.wheel;

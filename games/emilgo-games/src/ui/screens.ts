@@ -433,7 +433,8 @@ export class Screens {
     for (const n of root.querySelectorAll<HTMLElement>("[data-name]")) n.textContent = host.player.name;
     const av = root.querySelector<HTMLElement>("[data-avatar]");
     if (!av) return;
-    const inner = avatarInner(this.avatarPick, host.player.avatar, "x");
+    // v6: no pick of your own: the platform's picture (Lagos Life's), else the first preset.
+    const inner = avatarInner(this.avatarPick || (host.player.avatar ? "" : "op-black"), host.player.avatar, "x");
     if (inner) av.innerHTML = inner;
     else av.textContent = host.player.name.trim().charAt(0).toUpperCase() || "E";
   }
@@ -442,8 +443,10 @@ export class Screens {
   avatarPick = "";
 
   /** Pick an avatar: the drawn ones, or a picture from your phone. */
-  avatarSheet(pick: string): void {
-    const tiles = AVATARS.map((a) => `<button class="tile av-tile ${pick === a.id ? "on" : ""}" data-act="avatar-pick" data-id="${a.id}" aria-label="${esc(t("Avatar"))}">${a.svg}</button>`).join("");
+  avatarSheet(pick: string, platform: string | null = null): void {
+    // v6: your platform's picture (Lagos Life's) first, when there is one: it's the default.
+    const own = platform ? `<button class="tile av-tile ${pick === "" ? "on" : ""}" data-act="avatar-pick" data-id="" aria-label="${esc(t("Your Lagos Life picture"))}"><img alt="" src="${platform.replace(/"/g, "")}"></button>` : "";
+    const tiles = own + AVATARS.map((a) => `<button class="tile av-tile ${pick === a.id ? "on" : ""}" data-act="avatar-pick" data-id="${a.id}" aria-label="${esc(t("Avatar"))}">${a.svg}</button>`).join("");
     this.sheet(
       "avatar",
       "Avatar",
