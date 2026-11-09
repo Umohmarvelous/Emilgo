@@ -1259,6 +1259,8 @@ export class FfaMode implements GameMode {
     h.rig.adsWant = live && c.ads ? 1 : 0;
     // v6: one-thumb portrait keeps you in the middle of the view (down the sights goes back over the shoulder).
     h.rig.centre = c.thumbMode && !c.ads ? 1 : 0;
+    // v6: the sprint's widening view and bob (the burst more).
+    h.rig.sprint = live && me.sprinting ? (me.tac > 0 ? 1 : 0.6) : 0;
     // Aiming or firing, you face the aim (the server turns your body the same way).
     if (live && (c.ads || c.trigger || m.elapsed - g.aimedAt[i] < 0.8)) me.heading = h.rig.aimYaw + Math.PI;
     h.rig.adsZoom = K.zoom;

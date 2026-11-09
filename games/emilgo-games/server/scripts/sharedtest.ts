@@ -468,5 +468,44 @@ console.log("walk-through pickup:");
   check(!full.taken && !ev6.some((e) => e.type === "full"), "a full backpack walks past it, without a word");
 }
 
+// ── v6: the tactical sprint ──
+console.log("the tactical sprint:");
+{
+  // A Free For All match (they all run melee: that's what brings the burst).
+  const s5 = shared();
+  s5.modules.melee = { set: "gidigbo", props: 0 };
+  const m5 = newMatch(51, 12, s5);
+  runTo(m5, 1);
+  const c5 = m5.get("p5")!;
+  const at = reach.centre(reach.open[Math.floor(reach.open.length / 2)]);
+  c5.x = at[0];
+  c5.z = at[1];
+  c5.stamina = 1;
+  const speeds: number[] = [];
+  runTo(m5, m5.elapsed + 3, [], () => {
+    m5.setInput("p5", 0, -1);
+    m5.setButtons("p5", true, 0, 0);
+    speeds.push(Math.hypot(c5.vx, c5.vz));
+  });
+  const early = Math.max(...speeds.slice(30, 90));
+  const late = Math.max(...speeds.slice(140, 170));
+  check(early > MOVE.sprint + 0.5 && early <= MOVE.tac + 0.01, `a fresh sprint opens with the burst (${early.toFixed(1)} m/s)`);
+  check(Math.abs(late - MOVE.sprint) < 0.3, `then runs on at a sprint (${late.toFixed(1)} m/s)`);
+  // Without Free For All's modules (Ball Haunt, Dead Streets): no burst.
+  const m6 = newMatch(52);
+  runTo(m6, 1);
+  const c6 = m6.get("p5")!;
+  c6.x = at[0];
+  c6.z = at[1];
+  c6.stamina = 1;
+  let top6 = 0;
+  runTo(m6, m6.elapsed + 1.5, [], () => {
+    m6.setInput("p5", 0, -1);
+    m6.setButtons("p5", true, 0, 0);
+    top6 = Math.max(top6, Math.hypot(c6.vx, c6.vz));
+  });
+  check(top6 <= MOVE.sprint + 0.01, `elsewhere a sprint is a sprint (${top6.toFixed(1)} m/s)`);
+}
+
 console.log(failures ? `\n${failures} FAILED` : "\nall passed");
 process.exit(failures ? 1 : 0);

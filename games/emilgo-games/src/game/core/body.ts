@@ -58,6 +58,8 @@ export interface Contestant {
   /** Sprint held, and whether actually sprinting now. */
   inSprint: boolean;
   sprinting: boolean;
+  /** v6: seconds left of the tactical sprint's opening burst (0: none). */
+  tac: number;
   /** 0..1. Sprinting spends it; it refills after a short rest. */
   stamina: number;
   /** Seconds since the last sprint (refill delay). */
@@ -97,11 +99,11 @@ export interface Contestant {
 }
 
 /** A fresh contestant's movement state (shared by the referee and the online client). */
-type Motion = "bst" | "grip" | "y" | "vy" | "h" | "stance" | "inStance" | "stanceT" | "inSprint" | "sprinting" | "stamina" | "rested" | "inJump" | "jumpSeen" | "inAttack" | "attackSeen" | "inGrab" | "grabSeen" | "ball" | "stun" | "forgive" | "act" | "cool" | "actKind" | "slide";
+type Motion = "bst" | "grip" | "y" | "vy" | "h" | "stance" | "inStance" | "stanceT" | "inSprint" | "sprinting" | "tac" | "stamina" | "rested" | "inJump" | "jumpSeen" | "inAttack" | "attackSeen" | "inGrab" | "grabSeen" | "ball" | "stun" | "forgive" | "act" | "cool" | "actKind" | "slide";
 
 export function freshMotion(): Pick<Contestant, Motion> {
   return {
-    bst: NO_BOOST, grip: 0, y: 0, vy: 0, h: 0, stance: 0, inStance: 0, stanceT: 0, inSprint: false, sprinting: false, stamina: 1, rested: 9, inJump: 0, jumpSeen: 0,
+    bst: NO_BOOST, grip: 0, y: 0, vy: 0, h: 0, stance: 0, inStance: 0, stanceT: 0, inSprint: false, sprinting: false, tac: 0, stamina: 1, rested: 9, inJump: 0, jumpSeen: 0,
     inAttack: 0, attackSeen: 0, inGrab: 0, grabSeen: 0, ball: -1, stun: 0, forgive: 0, act: 0, cool: 0, actKind: "", slide: 0,
   };
 }
@@ -132,6 +134,8 @@ export function isMoving(c: Contestant): boolean {
 export interface MoveEnv {
   grav: number;
   slip: number;
+  /** v6: the tactical sprint's burst (Free For All). */
+  tac?: boolean;
 }
 export const NORMAL_ENV: Readonly<MoveEnv> = { grav: 1, slip: 1 };
 
@@ -220,11 +224,16 @@ export function moveContestant(c: Contestant, dt: number, course: Course = DEFAU
   let top: number = c.stance === 2 ? MOVE.prone * bst.crouch : c.stance === 1 ? MOVE.crouch * bst.crouch : (m < MOVE.runAt ? MOVE.walk * (m / MOVE.runAt) : MOVE.run) * bst.speed;
   if (c.stance === 0 && m >= MOVE.runAt) {
     const can = c.sprinting ? c.stamina > 0 : c.stamina >= MOVE.sprintMin;
+    const was = c.sprinting;
     c.sprinting = wantSprint && can;
-    if (c.sprinting) top = MOVE.sprint * bst.sprint;
+    // v6: a fresh sprint with stamina to spare opens with the tactical burst.
+    if (env.tac && c.sprinting && !was && c.stamina >= MOVE.tacFrom) c.tac = MOVE.tacFor;
+    if (c.sprinting) top = (c.tac > 0 ? MOVE.tac : MOVE.sprint) * bst.sprint;
   } else {
     c.sprinting = false;
   }
+  if (!c.sprinting) c.tac = 0;
+  else if (c.tac > 0) c.tac = Math.max(0, c.tac - dt);
   if (c.stance > 0 && m > 1e-3) top *= Math.min(1, m / MOVE.runAt + 0.3);
   if (c.sprinting) {
     c.stamina = Math.max(0, c.stamina - dt / (MOVE.sprintFor * bst.stamina));

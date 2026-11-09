@@ -280,7 +280,9 @@ export class Match {
     this.fast = new Array(n).fill(null);
     this.respawnAt = new Array(n).fill(-1);
     this.seats = new Int16Array(n).fill(-1);
-    this.env = envOf(opts.settings.mutator);
+    // v6: Free For All's sprint opens with the tactical burst (every Free For All mode runs melee; Ball Haunt's field
+    // and a Dead Streets run, whose server check times the run at a plain sprint, don't).
+    this.env = { ...envOf(opts.settings.mutator), tac: !!opts.settings.modules.melee };
 
     this.modules = makeModules(opts.settings.modules);
     for (const m of this.modules) this.byModule.set(m.id, m);

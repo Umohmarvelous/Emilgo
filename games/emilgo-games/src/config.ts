@@ -227,6 +227,14 @@ export const MOVE = {
    */
   gravity: 27,
   jumpHeight: 1.15,
+  /**
+   * v6, the tactical sprint (the owner: "create and build the sprint moves like cod-style"): a sprint begun with
+   * at least `tacFrom` stamina opens with `tacFor` s at `tac` m/s, then runs on at `sprint`. Free For All only
+   * (not Ball Haunt, not Dead Streets).
+   */
+  tac: 10.5,
+  tacFor: 1.6,
+  tacFrom: 0.6,
   /** Seconds of sprint from full stamina, and to refill it from empty. */
   sprintFor: 4.5,
   refillIn: 6,

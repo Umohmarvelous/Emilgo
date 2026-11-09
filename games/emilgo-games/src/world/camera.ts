@@ -69,6 +69,9 @@ export class CameraRig {
    */
   centre = 0;
   private centreK = 0;
+  /** v6, the COD-style sprint: 0 walking, 0.6 sprinting, 1 in the tactical burst; the view widens and bobs with it. */
+  sprint = 0;
+  private sprintK = 0;
   shakeEnabled = true;
   invertY = false;
   sensH = 0.35;
@@ -319,6 +322,8 @@ export class CameraRig {
         this.look.copy(this.wantLook);
       }
       wantFov = this.zoomed(dt, wantFov) * (1 + (this.adsZoom - 1) * this.adsK);
+      this.sprintK += (this.sprint - this.sprintK) * (1 - Math.exp(-dt * (this.sprint > this.sprintK ? 6 : 3)));
+      if (!this.firstPerson) wantFov *= 1 + 0.11 * this.sprintK * (1 - this.adsK);
     } else if (this.mode === "shot") {
       wantFov = this.fov;
     } else if (this.mode === "cinematic") {
@@ -340,6 +345,8 @@ export class CameraRig {
     this.fov += (wantFov - this.fov) * (1 - Math.exp(-dt * 8));
 
     this.camera.position.copy(this.pos);
+    // v6: a runner's bob at a sprint (stride-timed), stronger in the tactical burst.
+    if (this.sprintK > 0.02 && this.mode === "follow" && !this.firstPerson) this.camera.position.y += Math.sin(this.time * 12.5) * 0.03 * this.sprintK;
     if (this.shake > 0.001) {
       const s = this.shake * this.shake * 0.35;
       this.camera.position.x += (Math.sin(this.time * 61) + Math.sin(this.time * 37)) * 0.5 * s;
