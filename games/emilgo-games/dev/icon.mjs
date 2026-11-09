@@ -6,7 +6,7 @@
 //
 //   node dev/icon.mjs        → public/icons/icon-{1024,512,192,180}.png (with the name), icon-32.png and icon-bare-512.png (without)
 //
-// The name (the owner asked for a better one than "Kill Squad"): BLACKMASK.
+// The name: SILO ZONE (the owner, 9 Nov 2026; Blackmask before it).
 
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
@@ -65,9 +65,9 @@ const COMPOSE = `(() => {
   x.fillStyle = band; x.fillRect(0, S * 0.74, S, S * 0.26);
   x.textAlign = 'center'; x.textBaseline = 'alphabetic';
   x.font = '900 ' + Math.round(S * 0.125) + 'px Montserrat, "Arial Black", Impact, sans-serif';
-  x.lineWidth = S * 0.012; x.strokeStyle = 'rgba(0,0,0,.8)'; x.strokeText('BLACKMASK', S * 0.5, S * 0.925);
+  x.lineWidth = S * 0.012; x.strokeStyle = 'rgba(0,0,0,.8)'; x.strokeText('SILO ZONE', S * 0.5, S * 0.925);
   const tg = x.createLinearGradient(0, S * 0.8, 0, S * 0.93); tg.addColorStop(0, '#ffffff'); tg.addColorStop(1, '#ffd36a');
-  x.fillStyle = tg; x.fillText('BLACKMASK', S * 0.5, S * 0.925);
+  x.fillStyle = tg; x.fillText('SILO ZONE', S * 0.5, S * 0.925);
   window.__icon = c;
   // Put the world back.
   for (const o of hidden) o.visible = true; scene.background = bg; scene.fog = fog;

@@ -132,11 +132,11 @@ function siteAssets(): Plugin {
  */
 function siteMeta(): Plugin {
   const site = (process.env.SITE_URL ?? "https://milgogames.pages.dev").replace(/\/+$/, "");
-  const title = "Blackmask: Treasure Hunt · free in your browser";
+  const title = "Silo Zone: Treasure Hunt · free in your browser";
   const about = "Free in your browser, nothing to download: find the five hidden treasures, upload them at the machine, and fight for what the others found.";
   const tags: [string, string, string][] = [
     ["property", "og:type", "website"],
-    ["property", "og:site_name", "Blackmask · EMILGO Games"],
+    ["property", "og:site_name", "Silo Zone · EMILGO Games"],
     ["property", "og:title", title],
     ["property", "og:description", about],
     ["property", "og:url", `${site}/?play`],
