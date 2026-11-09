@@ -48,21 +48,21 @@ can show the balance; it can't pay into it. What grows with wins and level is CP
 
 | # | Item | Status |
 |---|---|---|
-| 1.1 | The name **Silo Zone** on the loading screen, the page title, the link card and the home-screen manifest | |
-| 1.2 | The X link opens on one **PLAY NOW** button and plays first; the later "get the app" note sends players to the EMILGO app | |
-| 1.3 | Items: only Smoke Canister, Decoy Flag, Pulse Scanner, Squad Disguise (and v5's Titan Serum and Map Print) in every loot table and every Airfall | |
-| 1.4 | No cars, buses or keke in any mode (switched off, the code kept) | |
-| 1.5 | Controls: by default only the move stick (walk), fire, aim, jump, sprint, crouch ("bend") and backpack; the player can add or remove any control in Arrange buttons | |
-| 1.6 | Settings open on top of the match, the game visible behind | |
-| 1.7 | Jumping starts sooner and lands sooner | |
-| 1.8 | Emotes: only Shaku Shaku and Zanku, free for everyone | |
-| 1.9 | The zone, COD-style: a short warning outside, then damage that grows each circle; at 0 health you're down at once | |
-| 1.10 | Network status, COD-style: "Connection lost, reconnecting" while offline, "Connection restored" when it's back | |
-| 1.11 | CP pay, COD-style: more for winning, for placing, and for your level | |
-| 1.12 | Items spread across the map (no clusters), each spinning and bobbing, the glow coloured by kind | |
-| 1.13 | The squad leader wears a captain's armband on the upper arm | |
-| 1.14 | Treasure-carrier warning: whoever holds 4 of 5 shows on everyone's compass | |
-| 1.15 | One-thumb portrait (Free For All): pushing the stick left or right turns the camera that way, the body kept centred, as in Lagos Life | |
+| 1.1 | The name **Silo Zone** on the loading screen, the page title, the link card and the home-screen manifest | Done, and the icon re-made with the name (`dev/icon.mjs`). Not checked for trademarks |
+| 1.2 | The X link opens on one **PLAY NOW** button and plays first; the later "get the app" note sends players to the EMILGO app | Done. The note says "Get the EMILGO app"; its link is still the owner's to set (`VITE_APP_*`) |
+| 1.3 | Items: only Smoke Canister, Decoy Flag, Pulse Scanner, Squad Disguise (and v5's Titan Serum and Map Print) in every loot table and every Airfall | Done. Protocol 20 |
+| 1.4 | No cars, buses or keke in any mode (switched off, the code kept) | Done (`FEATURES.vehicles`). Also gone from the worlds: the car wrecks, parked vans, cars on blocks and parked motorbikes, redrawn as cement pallets, container shops and a water seller's drums in the same boxes, so nothing else moved |
+| 1.5 | Controls: by default only the move stick (walk), fire, aim, jump, sprint, crouch ("bend") and backpack; the player can add or remove any control in Arrange buttons | Done. A switch on each control in Arrange buttons; the choice holds in both orientations. Reload is hidden: a gun reloads itself when empty. "Speed walk": question 1 |
+| 1.6 | Settings open on top of the match, the game visible behind | Done. The fault: the HUD (watch, crosshair, ammo) drew over Settings and the pause menu |
+| 1.7 | Jumping starts sooner and lands sooner | Done. 0.58 s in the air (was 0.69), 1.15 m high |
+| 1.8 | Emotes: only Shaku Shaku and Zanku, free for everyone | Done. The Party emote pack is out of the store. **The owner** turns it off in the Lagos Life dashboard too |
+| 1.9 | The zone, COD-style: a short warning outside, then damage that grows each circle; at 0 health you're down at once | Done. 5 s of warning, then 3, 4, 6, 9, 13, 18 health a second as the circles close, through armour; out at 0. Modes without health: the laser 15 s after the warning |
+| 1.10 | Network status, COD-style: "Connection lost, reconnecting" while offline, "Connection restored" when it's back | Done. Red with no network, amber while the server link comes back, green when it's restored |
+| 1.11 | CP pay, COD-style: more for winning, for placing, and for your level | Done. Free For All paid no CP before. Now: 10 a match, 25 a win (or 10 top three, 5 top half), 2 a kill (up to 15), 5 online, then ×1 to ×2 by rank (+4% a division). A match left in its first minute pays nothing. The results list each line |
+| 1.12 | Items spread across the map (no clusters), each spinning and bobbing, the glow coloured by kind | Done. On the big world: 1,573 items, never closer than 14 m (two of a kind 40 m), about 30 m apart on average; a quarter at the places (was over half). Each kept item has its own look (a smoke can, a staked flag, a handset, a folded jacket) and light: white smoke, orange decoy, cyan scanner, purple disguise, red serum, gold map |
+| 1.13 | The squad leader wears a captain's armband on the upper arm | Done. Yellow with a black C, left upper arm, fitted to the arm. The leader is the squad's first player still in (Treasure Hunt's uploader rule) |
+| 1.14 | Treasure-carrier warning: whoever holds 4 of 5 shows on everyone's compass | Done: on the map (named) and the compass, and once in the feed. Not yet seen in a match (practice has no rivals) |
+| 1.15 | One-thumb portrait (Free For All): pushing the stick left or right turns the camera that way, the body kept centred, as in Lagos Life | Done. Centred (over the shoulder again when aiming), a lighter push turns it, up to 2.6 rad/s |
 
 ## Tier 2: one system reworked, no heavy automation
 
