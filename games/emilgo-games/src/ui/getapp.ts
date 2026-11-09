@@ -6,8 +6,9 @@
 //              page carries an X card (vite.config.ts: siteMeta) so a post of
 //              the link shows the game.
 //   The app    after a few minutes of play in a browser, between matches, a
-//              short note: the app is the full game (sharper, smoother,
-//              offline). Not inside the EMILGO app or Lagos Life. Once a day
+//              short note: the EMILGO app is the full game (sharper, smoother,
+//              offline). v6 (the owner): the game first, on a PLAY NOW button,
+//              then the EMILGO app. Not inside the EMILGO app or Lagos Life. Once a day
 //              at most; "Not now" waits three days.
 //
 // The store addresses come from the build (VITE_APP_ANDROID_URL,
@@ -51,7 +52,7 @@ export function tapToPlay(parent: HTMLElement, mode: string, blurb: string): Pro
         <span class="tp-k">${esc(t("Free to play · no download"))}</span>
         <b class="tp-mode">${esc(t(mode))}</b>
         <span class="tp-blurb">${esc(blurb)}</span>
-        <span class="tp-go">${icon("play", "", 22)}<span>${esc(t("Tap to play"))}</span></span>
+        <span class="tp-go">${icon("play", "", 22)}<span>${esc(t("Play now"))}</span></span>
       </div>`;
     let went = false;
     const go = (e: Event) => {
@@ -95,13 +96,13 @@ export function showGetApp(parent: HTMLElement, s: GetAppState, onClose: () => v
   root.setAttribute("aria-label", t("Get the app"));
   root.innerHTML = `<div class="ga-card">
       <span class="ga-k">${esc(t("Enjoying it?"))}</span>
-      <b>${esc(t("Get the full game"))}</b>
+      <b>${esc(t("Get the EMILGO app"))}</b>
       <ul>
         <li>${icon("graphics", "", 16)}<span>${esc(t("Sharper graphics and smoother play"))}</span></li>
         <li>${icon("signal", "", 16)}<span>${esc(t("Plays offline, starts in a second"))}</span></li>
-        <li>${icon("trophy", "", 16)}<span>${esc(t("Your rank and your look on every phone"))}</span></li>
+        <li>${icon("trophy", "", 16)}<span>${esc(t("Silo Zone, your rank and your look on every phone"))}</span></li>
       </ul>
-      <a class="btn primary" data-ga="get" href="${esc(appUrl())}" target="_blank" rel="noopener">${icon("next", "", 16)}${esc(t("Get the app"))}</a>
+      <a class="btn primary" data-ga="get" href="${esc(appUrl())}" target="_blank" rel="noopener">${icon("next", "", 16)}${esc(t("Get EMILGO"))}</a>
       <button class="btn secondary" data-ga="later">${esc(t("Not now"))}</button>
     </div>`;
   const close = (later: boolean) => {
