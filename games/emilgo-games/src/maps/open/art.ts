@@ -42,10 +42,12 @@ export interface OpenChunk extends Chunk {
   atlas: BufferGeometry[];
   /** Drawn only at the far level: the trees' stand-ins. */
   far: BufferGeometry[];
+  /** v5 (3.7): High and Max, the trees' leaves apart (their own material); otherwise empty (they join `main`). */
+  leaves: BufferGeometry[];
 }
 
 export function emptyChunk(): OpenChunk {
-  return { mass: [], main: [], detail: [], foliage: [], glow: [], tex: {}, atlas: [], far: [] };
+  return { mass: [], main: [], detail: [], foliage: [], glow: [], tex: {}, atlas: [], far: [], leaves: [] };
 }
 
 /** Prefabs whose leaves get a far stand-in. */
@@ -61,6 +63,8 @@ export class PrefabKit extends Kit {
   /** The props (by table index) whose CC0 model is drawn instead (build.ts): the rest get a plain box for their solid. */
   props: ReadonlySet<number> = new Set();
   readonly localLamps: V3[] = [];
+  /** v5 (3.7): keep the trees' leaves apart (High and Max draw them in the leaf material). */
+  splitLeaves = false;
 
   override chunkAt(): Chunk {
     return this.scratch;
@@ -85,7 +89,7 @@ export class PrefabKit extends Kit {
       b.computeBoundingBox();
       const bb = b.boundingBox!;
       const col = ch.foliage[0].attributes.color;
-      ch.main.push(...ch.foliage);
+      (this.splitLeaves ? ch.leaves : ch.main).push(...ch.foliage);
       ch.foliage = [];
       // A palm's segmented trunk goes too; the stand-in brings a plain one.
       if (p.prefab === "palm") {
@@ -104,7 +108,7 @@ export class PrefabKit extends Kit {
     }
     const m = new Matrix4().makeRotationY(p.rot).setPosition(p.x, 0, p.z);
     const ch = this.scratch;
-    for (const list of [ch.mass, ch.main, ch.detail, ch.foliage, ch.glow, ch.atlas, ch.far]) for (const g of list) g.applyMatrix4(m);
+    for (const list of [ch.mass, ch.main, ch.detail, ch.foliage, ch.glow, ch.atlas, ch.far, ch.leaves]) for (const g of list) g.applyMatrix4(m);
     const c = Math.cos(p.rot);
     const s = Math.sin(p.rot);
     const lamps = this.lamps.map(([x, y, z]): V3 => [p.x + x * c + z * s, y, p.z - x * s + z * c]);

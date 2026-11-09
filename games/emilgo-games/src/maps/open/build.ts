@@ -260,8 +260,8 @@ export async function loadWorldLibrary(spec: TierSpec, night: boolean, L?: OpenL
 }
 
 /**
- * v5 (3.7, the realism pass): the trees' crowns (the flat green parts of the
- * world) get clumps of needles and leaves from their position in the world,
+ * v5 (3.7, the realism pass): the trees' crowns (the foliage, drawn apart
+ * with this material) get clumps of needles and leaves from their position in the world,
  * with no texture and no new draw: dark gaps, lit tips, the surface bumped so
  * light falls through unevenly. Only the leaves pay for it (two noise
  * lookups a pixel). High and Max only: it cost Medium a quarter of its frame
@@ -291,9 +291,8 @@ function detailed(m: MeshStandardMaterial): MeshStandardMaterial {
         `#include <color_fragment>
         {
           vec3 c0 = diffuseColor.rgb;
-          // Leaves: green over red and blue, and not too bright (paint is brighter and greyer).
-          // (Linear colours: a dark green is tiny numbers, so by ratio, not by difference.)
-          dLeafy = smoothstep(1.2, 1.55, c0.g / max(max(c0.r, c0.b), 0.002)) * step(max(c0.r, max(c0.g, c0.b)), 0.45);
+          // Only leaves are drawn with this material (the foliage bucket): every pixel is a leaf.
+          dLeafy = 1.0;
           vec3 p = vWorldD;
           if (dLeafy > 0.0) {
             float clump = dNoise(p * 2.3);
@@ -949,6 +948,7 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }, lib: W
   const cellIndex = (x: number, z: number) => Math.min(n - 1, Math.max(0, Math.floor((z + L.half) / CELL))) * n + Math.min(n - 1, Math.max(0, Math.floor((x + L.half) / CELL)));
   const kit = new PrefabKit(1957);
   kit.tier = spec.tier;
+  kit.splitLeaves = spec.pbr && spec.tier >= 2;
   // The scanned rocks stand in for the drawn ones (Medium and up, with the library).
   const rockSet = lib && (lib.rocks.grass || lib.rocks.sand) ? lib.rocks : null;
   if (rockSet) kit.skip = new Set(["rock"]);
@@ -969,6 +969,7 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }, lib: W
     c.main.push(...chunk.main);
     c.detail.push(...chunk.detail);
     c.foliage.push(...chunk.foliage);
+    c.leaves.push(...chunk.leaves);
     c.glow.push(...chunk.glow);
     c.atlas.push(...chunk.atlas);
     c.far.push(...chunk.far);
@@ -1091,7 +1092,9 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }, lib: W
   group.add(water);
 
   // Merge each cell into its LOD and its atlas, foliage and glow draws.
-  const vc = spec.pbr ? (spec.tier >= 2 ? detailed : (m: MeshStandardMaterial) => m)(new MeshStandardMaterial({ vertexColors: true, roughness: 0.88, metalness: 0, side: DoubleSide })) : new MeshLambertMaterial({ vertexColors: true, side: DoubleSide });
+  const vc = spec.pbr ? new MeshStandardMaterial({ vertexColors: true, roughness: 0.88, metalness: 0, side: DoubleSide }) : new MeshLambertMaterial({ vertexColors: true, side: DoubleSide });
+  // v5 (3.7): High and Max, the leaves in their own material (needle clumps).
+  const leafMat = spec.pbr && spec.tier >= 2 ? detailed(new MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0, side: DoubleSide })) : null;
   const at = yield* atlasTexture(lib ? texSize(spec.tier) : spec.tier === 0 ? 256 : 512, lib);
   const atlas = atlasMaterial(spec, at.map, at.normal);
   const glowMat = new MeshBasicMaterial({ vertexColors: true });
@@ -1115,6 +1118,7 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }, lib: W
     rel(ch.glow);
     rel(ch.atlas);
     rel(ch.far);
+    rel(ch.leaves);
     const cell: CellMeshes = { i, cx, cz, objects: [], casters: [] };
     const mk = (gs: BufferGeometry[], mat: Material, uv = false): Mesh | null => {
       if (!gs.length) return null;
@@ -1123,21 +1127,37 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }, lib: W
       m.receiveShadow = spec.shadows;
       return m;
     };
-    const all = [...ch.mass, ...ch.main, ...ch.detail, ...ch.foliage];
-    if (all.length) {
+    // High and Max: the leaves are their own draw, in the leaf material (needle clumps); elsewhere, merged with the rest.
+    const leafSplit = !!leafMat && ch.leaves.length > 0;
+    const fol = ch.foliage;
+    const all = [...ch.mass, ...ch.main, ...ch.detail, ...fol];
+    if (all.length || ch.far.length) {
       const lod = new LOD();
       lod.position.set(cx, 0, cz);
       const lvl = (gs: BufferGeometry[]) => {
+        if (!gs.length) return new Object3D();
         const m = new Mesh(merge(gs), vc);
         m.receiveShadow = spec.shadows;
         return m;
       };
       const full = lvl(all);
       lod.addLevel(full, 0);
-      lod.addLevel(lvl([...ch.mass, ...ch.main, ...ch.foliage]), near);
-      lod.addLevel(lvl([...ch.mass, ...ch.foliage, ...ch.far]), mid);
+      lod.addLevel(lvl([...ch.mass, ...ch.main, ...fol]), near);
+      lod.addLevel(lvl([...ch.mass, ...fol, ...ch.far]), mid);
       cell.objects.push(lod);
-      cell.casters.push(full);
+      if ((full as Mesh).isMesh) cell.casters.push(full as Mesh);
+      group.add(lod);
+    }
+    if (leafSplit) {
+      // Near and middle distance: the leaves; far, nothing (the far stand-ins above take over).
+      const lod = new LOD();
+      lod.position.set(cx, 0, cz);
+      const leaves = new Mesh(merge(ch.leaves), leafMat!);
+      leaves.receiveShadow = spec.shadows;
+      lod.addLevel(leaves, 0);
+      lod.addLevel(new Object3D(), mid);
+      cell.objects.push(lod);
+      cell.casters.push(leaves);
       group.add(lod);
     }
     const am = mk(ch.atlas, atlas, true);
@@ -1212,7 +1232,7 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }, lib: W
     cells.push(cell);
   }
   // Scratch geometries are merged copies now.
-  for (const ch of chunks) for (const list of [ch.mass, ch.main, ch.detail, ch.foliage, ch.glow, ch.atlas, ch.far]) for (const g of list) g.dispose();
+  for (const ch of chunks) for (const list of [ch.mass, ch.main, ch.detail, ch.foliage, ch.glow, ch.atlas, ch.far, ch.leaves]) for (const g of list) g.dispose();
   // v4: the world stands still (only the sky and the sun follow the camera): its matrices are worked out once, not
   // every frame (4,000+ objects on Naija Max: an eighth of a slow phone's frame).
   group.updateMatrixWorld(true);
