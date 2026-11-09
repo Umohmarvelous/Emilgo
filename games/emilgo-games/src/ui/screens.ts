@@ -564,7 +564,7 @@ export class Screens {
        <div class="grid">${tiles}</div>
        <div class="label" style="margin:14px 0 8px">Emote wheel</div>
        <div class="grid" style="grid-template-columns:repeat(4,1fr)">${slots}</div>
-       ${!packOwned ? `<div class="status" style="margin-top:12px">${icon("lock", "", 14)} Wobble, Shuffle and Hero come with the Party emote pack${canBuy ? ` · ${naira(PRODUCT_BY_ID.emotes_owambe.price)} in the Store` : " (inside Lagos Life)"}.</div>` : ""}`,
+       ${!packOwned && EMOTES.some((e) => e.pack) ? `<div class="status" style="margin-top:12px">${icon("lock", "", 14)} Wobble, Shuffle and Hero come with the Party emote pack${canBuy ? ` · ${naira(PRODUCT_BY_ID.emotes_owambe.price)} in the Store` : " (inside Lagos Life)"}.</div>` : ""}`,
     );
   }
 
@@ -616,7 +616,7 @@ export class Screens {
       };
       body = `${note ? `<p class="status" role="status">${esc(note)}</p>` : ""}
         <p class="note">${canBuy ? "Cosmetics only: nothing here helps you win. You pay with Lagos Life Game Naira on Lagos Life's own sheet, and the price there is the price. Each item is yours for good." : "Cosmetics only. Items are bought inside Lagos Life; here you can tap any item to try it on."}</p>
-        <div class="grid wide">${PRODUCTS.map(tile).join("")}</div>`;
+        <div class="grid wide">${PRODUCTS.filter((p) => !p.retired).map(tile).join("")}</div>`;
     }
     this.sheet("store", "Store", body, {
       tabs,

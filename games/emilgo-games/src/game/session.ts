@@ -1633,7 +1633,7 @@ export class Game {
     // The kill feed (step 9): "[Name] was eliminated".
     this.hud.pushFeed(`${isMe ? "You were" : `${this.label(c)} was`} eliminated`, "out");
 
-    if (isMe && this.mode === "practice") this.cpuReact(["laugh", "taunt"], 2, 0.5);
+    if (isMe && this.mode === "practice") this.cpuReact(["shaku", "zanku"], 2, 0.5);
     if (isMe) {
       this.my = "out";
       this.controls.enabled = false;
@@ -1723,7 +1723,7 @@ export class Game {
       this.spectateIn = 2.2;
     } else {
       this.hud.pushFeed(`${this.label(c)} crossed${place === 1 ? " first" : ""}`, "safe");
-      if (c.bot && Math.random() < 0.4) setTimeout(() => this.playEmote(c.id, Math.random() < 0.5 ? "dance" : "flex"), 600);
+      if (c.bot && Math.random() < 0.4) setTimeout(() => this.playEmote(c.id, Math.random() < 0.5 ? "shaku" : "zanku"), 600);
     }
   }
 

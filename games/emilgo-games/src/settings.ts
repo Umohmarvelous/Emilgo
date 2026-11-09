@@ -98,7 +98,7 @@ export interface Settings {
   song: SongChoice;
   /** The stance your character holds in the lobby. */
   lobbyPose: PoseId;
-  /** The emote wheel, eight slots. */
+  /** The emote wheel: up to eight slots (v6: the two emotes left). */
   wheel: EmoteId[];
   /** Last map picked for practice. */
   map: string;
@@ -172,7 +172,8 @@ export interface Settings {
 
 const KEY = "settings.v1";
 
-export const DEFAULT_WHEEL: EmoteId[] = ["wave", "dance", "laugh", "taunt", "respect", "handshake", "cry", "slay"];
+// v6: the two emotes left (social/emotes.ts LIVE_EMOTES).
+export const DEFAULT_WHEEL: EmoteId[] = ["shaku", "zanku"];
 
 export function defaults(host: Host): Settings {
   return {
@@ -373,7 +374,7 @@ export function loadSettings(host: Host): Settings {
     }
     if (saved.quality === "saver") out.graphics = "low";
     if (saved.quality === "sharp") out.graphics = "high";
-    out.wheel = Array.isArray(saved.wheel) && saved.wheel.length === 8 && saved.wheel.every((e) => EMOTE_IDS.includes(e)) ? saved.wheel : base.wheel;
+    out.wheel = Array.isArray(saved.wheel) && saved.wheel.length >= 1 && saved.wheel.length <= 8 && saved.wheel.every((e) => EMOTE_IDS.includes(e)) ? saved.wheel : base.wheel;
     out.daily = saved.daily && typeof saved.daily.day === "string" && Array.isArray(saved.daily.progress) ? saved.daily : base.daily;
     out.recent = Array.isArray(saved.recent) ? saved.recent.filter((r) => r && typeof r.name === "string").slice(0, 30) : [];
     if (!FID_RE.test(out.fid)) out.fid = newFid();

@@ -30,6 +30,8 @@ export interface Product {
   price: number;
   /** Shop tile icon (ui/icons.ts). */
   icon: string;
+  /** No longer sold (kept so past purchases still resolve). Turn it off in the Lagos Life dashboard too. */
+  retired?: boolean;
 }
 
 export const PRODUCTS: Product[] = [
@@ -37,7 +39,8 @@ export const PRODUCTS: Product[] = [
   { id: "outfit_gold", kind: "hoodie", name: "Gold hoodie", blurb: "A gold satin finish, joggers to match. Shine like the celebrant.", price: 500, icon: "outfit" },
   { id: "outfit_ankara", kind: "hoodie", name: "Ankara hoodie design", blurb: "Ankara print on the hood and the pocket, on any colour you pick.", price: 500, icon: "outfit" },
   { id: "outfit_midnight", kind: "hoodie", name: "Midnight hoodie", blurb: "Near black with a purple shine. The eye in the sky barely sees you (it does).", price: 500, icon: "outfit" },
-  { id: "emotes_owambe", kind: "emotes", name: "Party emote pack", blurb: "Three dance emotes: Wobble, Shuffle and Hero.", price: 300, icon: "emote" },
+  // v6: retired: its emotes are gone or free (social/emotes.ts).
+  { id: "emotes_owambe", kind: "emotes", name: "Party emote pack", blurb: "Three dance emotes: Wobble, Shuffle and Hero.", price: 300, icon: "emote", retired: true },
   { id: "badge_gold", kind: "badge", name: "Gold name badge", blurb: "A gold star and a gold frame on your name in every online chat.", price: 200, icon: "star" },
 ];
 
