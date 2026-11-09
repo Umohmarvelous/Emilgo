@@ -1086,6 +1086,7 @@ export class FfaMode implements GameMode {
   private fieldFrame(m: Match, me: Contestant): void {
     const h = this.host;
     this.armourLook(m, me);
+    this.captains(m);
     const ps = this.play.state;
     const sv = m.module<SurvivalModule>("survival");
     const g = m.module<GunsModule>("guns");
@@ -1223,6 +1224,25 @@ export class FfaMode implements GameMode {
       const tier = armourTier(points);
       const h = crowd.human(c.index);
       if (h && h.gearTier >= 0 && h.gearTier !== tier) crowd.setGear(c.index, KITS[this.looks[c.index].hoodie % KITS.length], tier);
+    }
+  }
+
+  /**
+   * v6: the captain's armband on each squad's leader: its first player still in (their first seat, the party's
+   * leader; Treasure Hunt's uploader is chosen the same way). Solo players wear none.
+   */
+  private captains(m: Match): void {
+    const crowd = this.host.crowd;
+    const lead = new Map<number, number>();
+    const size = new Map<number, number>();
+    for (const c of m.contestants) {
+      const sq = m.squads[c.index];
+      size.set(sq, (size.get(sq) ?? 0) + 1);
+      if (c.status === "alive" && !lead.has(sq)) lead.set(sq, c.index);
+    }
+    for (const c of m.contestants) {
+      const sq = m.squads[c.index];
+      crowd.human(c.index)?.setCaptain((size.get(sq) ?? 0) > 1 && lead.get(sq) === c.index);
     }
   }
 

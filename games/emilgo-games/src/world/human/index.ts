@@ -36,6 +36,7 @@ import { buildBody, nearDetail, type BuiltBody, type Detail, type Tier } from ".
 import { paintLook, TEX_SIZE } from "./paint";
 import { FALL_TIME, type FallKind } from "./ragdoll";
 import { packMesh } from "./pack";
+import { armbandMesh } from "./armband";
 import { BONES, PARENT, type BoneName } from "./skeleton";
 import { applyHold, type Hold } from "./hold";
 import { dressedGeometry, zombieGeometry, type Kit } from "./gear";
@@ -301,6 +302,9 @@ export class Human {
   private standIn: SkinnedMesh | null = null;
   /** The backpack on the chest bone (open worlds), or null. */
   private pack: import("three").Mesh | null = null;
+  /** v6: the captain's armband (the squad leader), and the body it was fitted to. */
+  private band: import("three").Mesh | null = null;
+  private bandFor: Body | null = null;
   /** Posed since the skin last read the bones. */
   private skinDirty = true;
 
@@ -829,8 +833,30 @@ export class Human {
     return !!this.pack;
   }
 
+  /** v6: the captain's armband on the left upper arm (the squad's leader), or not. */
+  setCaptain(on: boolean): void {
+    if (on && this.band && this.bandFor !== this.body) {
+      // The body changed under it (the operator's body, a new look): fit a new one.
+      this.band.removeFromParent();
+      this.band.geometry.dispose();
+      (this.band.material as Material).dispose();
+      this.band = null;
+    }
+    if (on && !this.band) {
+      this.band = armbandMesh(this.body.geometry, this.body.rest, "L");
+      this.bandFor = this.body;
+      this.bone("upperArmL").add(this.band);
+    }
+    if (this.band) this.band.visible = on;
+  }
+
   dispose(): void {
     this.pack?.removeFromParent();
+    if (this.band) {
+      this.band.removeFromParent();
+      this.band.geometry.dispose();
+      (this.band.material as Material).dispose();
+    }
     people.delete(this);
     releaseTexture(this.tex);
     (this.mesh.material as Material).dispose();
