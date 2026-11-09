@@ -194,6 +194,7 @@ export class FfaMode implements GameMode {
   private autoTick = 0;
   private stepAt = new Float32Array(0);
   private wasAir = false;
+  private winded = false;
   private autoWas = false;
   /** HUD A (v4 Phase 3): the watch, the plates, the edges, the zombies' bars. */
   private readonly fk = new FieldKit();
@@ -765,6 +766,8 @@ export class FfaMode implements GameMode {
         }
         if (e.tg === me.id) {
           this.fk.hurt();
+          // v6: you hear yourself take it (the zone's gas too).
+          if (e.hp > 0) h.sound.hurt(e.amt >= 20);
           const by = e.by ? m.get(e.by) : null;
           if (by) {
             // Where it came from, on screen: 0 ahead, + to the right.
@@ -1053,6 +1056,11 @@ export class FfaMode implements GameMode {
     if (air && !this.wasAir && me.vy > 0) h.sound.jump();
     else if (!air && this.wasAir && me.status === "alive") h.sound.land();
     this.wasAir = air;
+    // v6: a sprint that ran the stamina dry ends in hard breathing.
+    if (me.stamina < 0.08 && !this.winded && me.status === "alive") {
+      this.winded = true;
+      h.sound.breath();
+    } else if (me.stamina > 0.5) this.winded = false;
     if (m.phase !== "play" || this.over) return;
     const cam = h.camera;
     cam.getWorldDirection(_fwd);

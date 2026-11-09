@@ -789,6 +789,8 @@ export class Sound {
 
   /** v5: your jump: a short effort from the chest, in a woman's register, and the push off the ground. */
   jump(): void {
+    // v6: a recorded effort when the library has one ("voice-jump"; tools/audio/sfx.mjs), varied a little each time.
+    if (this.sample("voice-jump", 0.55, 0.95 + Math.random() * 0.1)) return;
     const t = this.now;
     this.tone(310, t, 0.15, { type: "sawtooth", gain: 0.022, to: 235, attack: 0.012 });
     this.tone(620, t, 0.11, { type: "sine", gain: 0.02, to: 470, attack: 0.012 });
@@ -798,10 +800,32 @@ export class Sound {
 
   /** v5: landing: boots on the ground and a breath out. */
   land(): void {
+    if (this.sample("voice-land", 0.5, 0.95 + Math.random() * 0.1)) return;
     const t = this.now;
     this.tone(95, t, 0.09, { type: "sine", gain: 0.1, to: 60 });
     this.noise(t, 0.05, { gain: 0.07, freq: 900, type: "lowpass" });
     this.noise(t + 0.04, 0.12, { gain: 0.018, freq: 1500, type: "bandpass" });
+  }
+
+  /** v6: you're hit: a short pained breath (recorded "voice-hurt" when the library has it). At most one at a time. */
+  hurt(heavy: boolean): void {
+    const now = this.now;
+    if (now < this.hurtUntil) return;
+    this.hurtUntil = now + 0.45;
+    if (this.sample("voice-hurt", heavy ? 0.65 : 0.45, 0.94 + Math.random() * 0.12)) return;
+    this.tone(heavy ? 260 : 300, now, 0.16, { type: "sawtooth", gain: heavy ? 0.03 : 0.02, to: 190, attack: 0.008 });
+    this.noise(now, 0.18, { gain: heavy ? 0.05 : 0.035, freq: 1100, type: "bandpass" });
+  }
+  private hurtUntil = 0;
+
+  /** v6: out of breath after a long sprint: two hard breaths ("voice-breath" when recorded). */
+  breath(): void {
+    if (this.sample("voice-breath", 0.4)) return;
+    const t = this.now;
+    for (let i = 0; i < 2; i++) {
+      this.noise(t + i * 0.55, 0.32, { gain: 0.03, freq: 1600, type: "bandpass" });
+      this.noise(t + i * 0.55 + 0.32, 0.22, { gain: 0.018, freq: 900, type: "bandpass" });
+    }
   }
 
   /** A swing: a whoosh, and if it landed, the hit — a thud (fist), a crack (slap), a shove (push). */
