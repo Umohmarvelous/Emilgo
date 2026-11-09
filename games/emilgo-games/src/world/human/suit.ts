@@ -96,6 +96,8 @@ export function suitMaterial(look: Look, tier: Tier, rest: Record<BoneName, V3>)
     design: { value: Math.max(0, HOODIE_DESIGNS.findIndex((d) => d.id === look.design)) },
     eyeC: { value: new Vector3((eyeL.x + eyeR.x) / 2, (eyeL.y + eyeR.y) / 2, Math.max(eyeL.z, eyeR.z)) },
     eyeHalf: { value: new Vector2(Math.abs(eyeL.x - eyeR.x) * 0.5 + 0.024, 0.0145) },
+    // v5 (3.2): growth, 0 … 3: the eyes burn red, then red veins open in a darker suit.
+    fierce: { value: 0 },
   };
   const lit = tier === 0;
   const mat = lit ? new MeshLambertMaterial({ color: 0xffffff }) : new MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, metalness: 0 });
@@ -109,7 +111,8 @@ export function suitMaterial(look: Look, tier: Tier, rest: Record<BoneName, V3>)
         "#include <common>",
         `#include <common>
         flat varying int vReg; varying float vRS, vRS2; varying vec3 vBind; varying vec3 vBindN; varying vec4 vPal; varying float vAcc;
-        uniform sampler2D weaveMap; uniform vec3 skinCol, bandCol, eyeC, suitA, suitB; uniform vec2 eyeHalf; uniform int design;
+        uniform sampler2D weaveMap; uniform vec3 skinCol, bandCol, eyeC, suitA, suitB; uniform vec2 eyeHalf; uniform int design; uniform float fierce;
+        float fglow = 0.0;
         // The suit's pattern, on the bind pose in metres, so it never swims (order: HOODIE_DESIGNS).
         float hash2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
         float vnoise(vec2 p) {
@@ -169,6 +172,13 @@ export function suitMaterial(look: Look, tier: Tier, rest: Record<BoneName, V3>)
             // One black for the suit and the mannequin's joint gussets (no darker V at the hips,
             // no outlined shoulder caps): the suit reads as one garment.
             if (r <= 1) { c = suitPattern(vBind, vBindN); rough = 0.88; }
+            if (fierce > 0.5) {
+              // Grown: darker, and from level 2 red veins that glow through it.
+              c *= 1.0 - 0.12 * fierce;
+              vec2 vq = abs(vBindN.x) > 0.6 ? vBind.zy : vBind.xy;
+              float vein = 1.0 - smoothstep(0.0, 0.035, abs(vnoise(vq * 7.0 + vBind.y * 3.0) - 0.5));
+              fglow = vein * step(1.5, fierce) * (0.35 + 0.3 * (fierce - 2.0));
+            }
             // Ripstop, worn a little grey at the knees, the seat, the elbows.
             c *= 0.82 + 0.36 * wv.r;
             c = mix(c, vec3(0.075, 0.072, 0.068), smoothstep(0.35, 0.9, wear.b) * 0.16);
@@ -194,6 +204,8 @@ export function suitMaterial(look: Look, tier: Tier, rest: Record<BoneName, V3>)
             bool slit = abs(d.x) < eyeHalf.x && abs(d.y + 0.002) < eyeHalf.y * (1.0 - 0.45 * e) && d.z > -0.06;
             bool bridge = abs(d.x) < 0.010 && d.y < 0.0 && d.y > -0.03 && d.z > -0.02;
             if (slit || bridge) { c = mix(skinCol, vec3(dot(skinCol, vec3(0.33))), 0.3) * (0.24 + 0.2 * smoothstep(-0.03, 0.01, d.z)) * (0.75 + 0.25 * smoothstep(eyeHalf.y, 0.0, d.y)); rough = 0.6; hgt = 0.0; }
+            // Grown: the eyes burn.
+            if (slit && fierce > 0.5) fglow = 0.55 + 0.25 * fierce;
             else { c *= 0.85 + 0.3 * wv.g; hgt = wv.g; }
           } else if (r == 9) {
             vec3 en = normalize(vBindN);
@@ -209,7 +221,8 @@ export function suitMaterial(look: Look, tier: Tier, rest: Record<BoneName, V3>)
           c = mix(c, bandCol * (0.8 + 0.25 * wv.r), vAcc);
           diffuseColor.rgb = c;
         }`,
-      );
+      )
+      .replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\ntotalEmissiveRadiance += fglow * vec3(1.0, 0.16, 0.04);");
     if (!lit) {
       s.fragmentShader = s.fragmentShader
         .replace("#include <roughnessmap_fragment>", "#include <roughnessmap_fragment>\nroughnessFactor = rough;")
@@ -230,6 +243,8 @@ export function suitMaterial(look: Look, tier: Tier, rest: Record<BoneName, V3>)
         );
     }
   };
-  mat.customProgramCacheKey = () => `suit2:${lit ? "l" : "s"}`;
+  mat.customProgramCacheKey = () => `suit3:${lit ? "l" : "s"}`;
+  // The growth level, set per body (Human.setFierce).
+  mat.userData.fierce = u.fierce;
   return mat;
 }

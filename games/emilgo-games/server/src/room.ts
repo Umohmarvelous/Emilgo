@@ -459,6 +459,8 @@ export class Room {
       if (!peer?.connected) game.idle(seat);
       return peer?.connected ? peer.graceBonus : 0;
     });
+    // A seat's own events (a Map Print's reveal) go to that phone alone, at once.
+    for (const w of game.takeWhispers()) this.peerAt(w.seat)?.send({ t: "mev", e: [w.e] });
     // Events go out at 30 Hz (and with each snapshot, and at the end): half the socket writes of every tick.
     if (events.length) this.mev.push(...events);
     const snapNow = (this.ticks + 1) % SNAP_EVERY === 0 || game.over;

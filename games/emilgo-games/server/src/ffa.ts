@@ -128,6 +128,15 @@ export class FfaGame {
   private readonly zone: ZoneModule | null;
   private readonly flags: FlagsModule | null;
   private readonly cars: VehiclesModule | null;
+  /** Events for one seat only, since the room last took them. */
+  private whispered: { seat: string; e: WireEvent }[] = [];
+
+  takeWhispers(): { seat: string; e: WireEvent }[] {
+    const out = this.whispered;
+    this.whispered = [];
+    return out;
+  }
+
   /** Rivals each seat has killed. */
   private readonly kills = new Map<string, number>();
 
@@ -151,6 +160,7 @@ export class FfaGame {
       secret: randomInt(0, 2 ** 31),
     });
     roster.forEach((r, i) => this.index.set(r.id, i));
+    this.match.whispering = true;
     this.melee = this.match.module<MeleeModule>("melee");
     this.zone = this.match.module<ZoneModule>("zone");
     this.flags = this.match.module<FlagsModule>("flags");
@@ -190,6 +200,8 @@ export class FfaGame {
     for (const c of m.contestants) c.graceBonus = graceOf(c.id);
     m.step(dt);
     const out: WireEvent[] = [];
+    // A seat's own events (a Map Print's reveal): kept apart, for the room to send to that phone only. Not in the log.
+    for (const w of m.whispers.splice(0)) this.whispered.push({ seat: w.id, e: encodeEvent(w.e, (id) => this.index.get(id) ?? -1) });
     for (const e of m.drain()) {
       // Kills earn XP too (v5): a rival's, not a mate's or your own.
       if (e.type === "kill" && e.by && e.by !== e.tg) {

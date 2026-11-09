@@ -720,6 +720,13 @@ export class Human {
     mat.emissive.setHex(glow);
   }
 
+  /** v5 growth (0 … 3): the operator's suit shows it (burning eyes, red veins); the old dress, a red heat. */
+  setFierce(level: number): void {
+    const u = (this.opMat?.userData as { fierce?: { value: number } } | undefined)?.fierce;
+    if (u) u.value = level;
+    if (!this.op) this.tint(level > 0 ? 0xb8a8a8 : null, level > 0 ? 0x1a0402 * level : 0);
+  }
+
   hideHead(on: boolean): void {
     const head = this.bone("head");
     const s = on ? 0.001 : 1;

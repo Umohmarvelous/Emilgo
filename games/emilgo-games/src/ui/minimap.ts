@@ -19,8 +19,10 @@ export interface MapMark {
    * (green), a flag holder's ping (red). Vehicles add a car (r 0: blown
    * up) and a fuel boy still selling.
    */
-  kind: "other" | "out" | "safe" | "ball" | "basket" | "crate" | "flag" | "goal" | "mate" | "ping" | "car" | "fuel" | "job";
+  kind: "other" | "out" | "safe" | "ball" | "basket" | "crate" | "flag" | "goal" | "mate" | "ping" | "car" | "fuel" | "job" | "rival" | "chest" | "treasure" | "loot";
   r?: number;
+  /** The full map writes it beside the mark (a Map Print's names). */
+  label?: string;
 }
 
 export interface TerrainShot {
@@ -53,6 +55,8 @@ export class Minimap {
   names: readonly { name: string; x: number; z: number }[] = [];
   /** Open worlds: the zone now (outside it shaded) and the next circle (dashed). */
   zone: { now: { x: number; z: number; r: number }; next: { x: number; z: number; r: number } | null } | null = null;
+  /** A Map Print's seconds left (v5): its banner on the full map. */
+  print = 0;
   /** Find the Flag: the radio hints, each a circle the flag is somewhere in (the newest drawn strongest). */
   hints: { x: number; z: number; r: number }[] = [];
 
@@ -128,6 +132,38 @@ export class Minimap {
 
   private mark(g: CanvasRenderingContext2D, m: MapMark, r: number): void {
     g.beginPath();
+    if (m.kind === "rival") {
+      // A Map Print (v5): a rival, red with a dark rim.
+      g.fillStyle = "#ff4a3a";
+      g.strokeStyle = "#000";
+      g.lineWidth = r * 0.3;
+      g.arc(m.x, m.z, r * 1.1, 0, Math.PI * 2);
+      g.fill();
+      g.stroke();
+      return;
+    }
+    if (m.kind === "chest" || m.kind === "loot") {
+      // A Map Print: an unopened chest (brown), an item on the ground (pale).
+      g.fillStyle = m.kind === "chest" ? "#9a6a3a" : "rgba(230,230,220,0.8)";
+      g.rect(m.x - r * 0.7, m.z - r * 0.5, r * 1.4, r);
+      g.fill();
+      return;
+    }
+    if (m.kind === "treasure") {
+      // A treasure (a Map Print shows where they hide): a gold star.
+      g.fillStyle = "#ffc23a";
+      g.strokeStyle = "#000";
+      g.lineWidth = r * 0.3;
+      for (let k = 0; k < 10; k++) {
+        const a = -Math.PI / 2 + (k * Math.PI) / 5;
+        const q = k % 2 ? r * 0.8 : r * 2;
+        g.lineTo(m.x + Math.cos(a) * q, m.z + Math.sin(a) * q);
+      }
+      g.closePath();
+      g.fill();
+      g.stroke();
+      return;
+    }
     if (m.kind === "basket") {
       g.fillStyle = "#c08a4a";
       g.rect(m.x - r, m.z - r, r * 2, r * 2);
@@ -306,10 +342,12 @@ export class Minimap {
   private drawBig(me: { x: number; z: number; heading: number; out: boolean }, marks: readonly MapMark[], doll: { x: number; z: number; watching: boolean } | null): void {
     const t = this.terrain;
     const dpr = Math.min(2, window.devicePixelRatio || 1);
-    const H = Math.round(gameSize().h * 0.86 * dpr);
     const span = t ? t.z1 - t.z0 : 140;
     const wide = t ? t.x1 - t.x0 : 60;
-    const k = H / span;
+    // As big as fits: 86% of the height, or (a phone held upright, a square world) 94% of the width.
+    const { w: sw, h: sh } = gameSize();
+    const k = Math.min((sh * 0.86 * dpr) / span, (sw * 0.94 * dpr) / wide);
+    const H = Math.round(span * k);
     const W = Math.round(wide * k);
     if (this.bigCanvas.width !== W || this.bigCanvas.height !== H) {
       this.bigCanvas.width = W;
@@ -351,6 +389,27 @@ export class Minimap {
           break;
         }
       }
+    }
+    // A Map Print's labels: who each rival is, what each star is.
+    g.font = `700 ${Math.round(9 * dpr)}px Montserrat, sans-serif`;
+    g.textAlign = "left";
+    g.lineWidth = 3 * dpr;
+    g.strokeStyle = "rgba(0,0,0,0.75)";
+    for (const m of marks) {
+      if (!m.label) continue;
+      const x = (m.x - x0) * k + 6 * dpr;
+      const y = (m.z - z0) * k + 3 * dpr;
+      g.fillStyle = m.kind === "rival" ? "#ff8a7a" : m.kind === "treasure" ? "#ffd36a" : "#ffffff";
+      g.strokeText(m.label, x, y);
+      g.fillText(m.label, x, y);
+    }
+    if (this.print > 0) {
+      const txt = `MAP PRINT · ${Math.ceil(this.print)} s`;
+      g.font = `800 ${Math.round(12 * dpr)}px Montserrat, sans-serif`;
+      g.textAlign = "center";
+      g.strokeText(txt, W / 2, 18 * dpr);
+      g.fillStyle = "#ffd36a";
+      g.fillText(txt, W / 2, 18 * dpr);
     }
     this.arrow(g, (me.x - x0) * k, (me.z - z0) * k, me.heading, Math.max(8, r * k * 2.2), me.out);
   }

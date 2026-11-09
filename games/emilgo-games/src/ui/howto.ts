@@ -139,7 +139,12 @@ const BASICS: Page[] = [
     id: "basics-items",
     name: "Items and Airfall",
     text: "Walk onto a glowing item to take it: up to 10 fit in your backpack, and every one adds armour. A red flare means an Airfall crate is coming down with the best loot.",
-    tips: ["Open a crate by holding the button for 3 seconds.", "Going down drops your bag for others to take."],
+    tips: [
+      "Open a crate by holding the button for 3 seconds.",
+      "Going down drops your bag for others to take.",
+      "Titan Serum: each dose (up to 3) makes you look fiercer and take less from every shot. At 3 it takes twice the shots to drop you. Go down and you lose it all.",
+      "Map Print: the whole map for 20 seconds, everyone named, everything hidden shown. One use a match.",
+    ],
   },
   {
     id: "basics-cars",

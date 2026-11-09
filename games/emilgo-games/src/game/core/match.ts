@@ -483,6 +483,19 @@ export class Match {
 
   // ── Events ──
 
+  /**
+   * The server sets this: events for one seat alone are kept for it to send
+   * (Match.whisper). Off on a phone's practice match (its view reads the
+   * modules) and on the online copy.
+   */
+  whispering = false;
+  readonly whispers: { id: string; e: MatchEvent }[] = [];
+
+  /** An event only `id`'s phone may hear (what a Map Print shows of the server's secrets). */
+  whisper(id: string, e: MatchEvent): void {
+    if (this.whispering && !this.mirror) this.whispers.push({ id, e });
+  }
+
   /** Queue an event, and let every module react to it now. */
   emit(e: MatchEvent): void {
     this.events.push(e);

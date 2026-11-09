@@ -53,9 +53,9 @@ const ITEM_VIEW = [40, 55, 70] as const;
 const FALL_S = 8;
 const FALL_H = 70;
 
-type Look = "kola" | "zobo" | "big-bag" | "zone-shield" | "bundle";
-const LOOKS: Look[] = ["kola", "zobo", "big-bag", "zone-shield", "bundle"];
-const lookOf = (k: ItemId): Look => (k === "kola" || k === "zobo" || k === "big-bag" || k === "zone-shield" ? k : "bundle");
+type Look = "kola" | "zobo" | "big-bag" | "zone-shield" | "titan-serum" | "map-print" | "bundle";
+const LOOKS: Look[] = ["kola", "zobo", "big-bag", "zone-shield", "titan-serum", "map-print", "bundle"];
+const lookOf = (k: ItemId): Look => (k === "kola" || k === "zobo" || k === "big-bag" || k === "zone-shield" || k === "titan-serum" || k === "map-print" ? k : "bundle");
 
 // ── The things themselves: small, low-poly, coloured per vertex ───────────────
 
@@ -95,6 +95,25 @@ function itemGeometry(l: Look): BufferGeometry {
         part(new ConeGeometry(0.34, 0.14, 8, 1, true), 0xf4f1ea, { p: [0, 0.3, 0], r: [0.5, 0, 0] }),
         part(new CylinderGeometry(0.012, 0.012, 0.42, 4), 0x2a2622, { p: [0, 0.2, 0.08], r: [0.5, 0, 0] }),
         part(new CylinderGeometry(0.02, 0.02, 0.08, 4), 0x2a2622, { p: [0, 0.03, 0.18], r: [0.5, 0, 0] }),
+      ]);
+    case "titan-serum":
+      // An auto-injector of something red, in a steel cage: Titan Serum.
+      return merge([
+        part(new CylinderGeometry(0.05, 0.05, 0.26, 10), 0xd0201a, { p: [0, 0.07, 0], r: [0, 0, Math.PI / 2] }),
+        part(new CylinderGeometry(0.058, 0.058, 0.05, 10), 0x2a2c30, { p: [-0.13, 0.07, 0], r: [0, 0, Math.PI / 2] }),
+        part(new CylinderGeometry(0.058, 0.058, 0.05, 10), 0x2a2c30, { p: [0.13, 0.07, 0], r: [0, 0, Math.PI / 2] }),
+        part(new CylinderGeometry(0.012, 0.004, 0.06, 6), 0xc8ccd2, { p: [0.18, 0.07, 0], r: [0, 0, Math.PI / 2] }),
+        part(new BoxGeometry(0.22, 0.012, 0.012), 0x8a9098, { p: [0, 0.125, 0.04] }),
+        part(new BoxGeometry(0.22, 0.012, 0.012), 0x8a9098, { p: [0, 0.125, -0.04] }),
+      ]);
+    case "map-print":
+      // A folded map with a red route and a pin.
+      return merge([
+        part(new BoxGeometry(0.3, 0.02, 0.22), 0xeae2c8, { p: [0, 0.01, 0] }),
+        part(new BoxGeometry(0.1, 0.022, 0.22), 0xd9cfae, { p: [-0.1, 0.012, 0] }),
+        part(new BoxGeometry(0.22, 0.024, 0.012), 0xc4361f, { p: [0.02, 0.013, 0.03], r: [0, 0.5, 0] }),
+        part(new CylinderGeometry(0.006, 0.006, 0.08, 4), 0x2a2622, { p: [0.08, 0.05, -0.04] }),
+        part(new SphereGeometry(0.022, 6, 4), 0xe0201a, { p: [0.08, 0.095, -0.04] }),
       ]);
     default:
       // A cloth bundle, tied at the top.

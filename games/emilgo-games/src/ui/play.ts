@@ -58,6 +58,7 @@ export const ITEM_ICON: Record<ItemId, string> = {
   "talking-drum": "signal", "aso-ebi": "outfit", "golden-slipper": "bundle", jerrycan: "fuel", "danfo-key": "car",
   zanku: "dance", shaku: "fire", odogwu: "crown", breakdance: "dance",
   bandage: "heal", medkit: "heal", ammo: "ammo", armour: "brace", battery: "bolt", nv: "eye",
+  "titan-serum": "serum", "map-print": "map",
 };
 
 export function itemName(k: ItemId): string {
@@ -76,6 +77,7 @@ const EFFECT_NAME: Record<string, { item: ItemId; label: string }> = {
   bait: { item: "zanku", label: "Wobble Bait" },
   shaku: { item: "shaku", label: "Shuffle Shield" },
   pose: { item: "odogwu", label: "Hero Pose" },
+  print: { item: "map-print", label: "Map Print" },
 };
 
 export class PlayHud {

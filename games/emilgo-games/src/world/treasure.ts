@@ -626,6 +626,20 @@ export class TreasureView {
     }
   }
 
+  /** A Map Print's marks: every chest not yet opened, and (starred, named) the ones a treasure is in. */
+  printMarks(m: Match, marks: MapMark[]): void {
+    const tm = this.tm(m);
+    if (!tm) return;
+    const real = new Set<number>();
+    for (const tr of tm.treasures) if (tr.box >= 0) real.add(tr.box);
+    for (const b of tm.boxes) {
+      if (b.opened) continue;
+      if (real.has(b.index)) marks.push({ x: b.x, z: b.z, kind: "treasure", label: t("Treasure") });
+      else marks.push({ x: b.x, z: b.z, kind: "chest" });
+    }
+    for (const tr of tm.treasures) if (tr.holder >= 0 && tr.holder !== this.o.me) marks.push({ x: tr.x, z: tr.z, kind: "treasure" });
+  }
+
   /** Does body i carry them all (marked over the head from far, like a flag's holder)? */
   carriesAll(m: Match, i: number): boolean {
     const tm = this.tm(m);

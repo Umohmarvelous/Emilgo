@@ -10,7 +10,7 @@
 import { Vector3 } from "three";
 
 import { RADIO_IDS, RADIO_NAME, type RadioId } from "../audio/radio";
-import { GUN_KINDS, GUNS, HARMATTAN, MOVE, SURVIVAL, VEHICLES } from "../config";
+import { GROWTH, GUN_KINDS, GUNS, HARMATTAN, MOVE, SURVIVAL, VEHICLES } from "../config";
 import { ITEM_DEFS } from "../content/items";
 import { type ModeDef } from "../content/modes";
 import { Rng } from "../core/rng";
@@ -57,6 +57,7 @@ import { MatchScene } from "../world/matchScene";
 import { GadgetView } from "../world/gadgets";
 import { ModesView } from "../world/modesView";
 import { TreasureView } from "../world/treasure";
+import { GrowthView } from "../world/growth";
 import { VehicleView } from "../world/vehicles";
 import type { GameMode, ModeHost, ModeResult } from "./types";
 
@@ -157,6 +158,9 @@ export class FfaMode implements GameMode {
   private readonly modes6: ModesView;
   /** Treasure Hunt's boxes, relics and machine (that mode only). */
   private readonly treasure: TreasureView | null;
+  /** v5: grown bodies' fiercer look; the Map Print (whether it opened the full map). */
+  private readonly growth: GrowthView;
+  private printOpened = false;
   /** Rivals you killed this match. */
   private kills = 0;
   /** Dead Streets' screen side (a run only). */
@@ -282,6 +286,8 @@ export class FfaMode implements GameMode {
     this.modes6 = new ModesView({ crowd: h.crowd, hud: h.hud, sound: h.sound, me: me.index });
     h.scene.add(this.modes6.group);
     this.treasure = m.module("treasure") ? new TreasureView({ hud: h.hud, sound: h.sound, me: me.index, layer: h.ui }) : null;
+    this.growth = new GrowthView(h.crowd);
+    h.scene.add(this.growth.group);
     if (this.treasure) h.scene.add(this.treasure.group);
     const guns = m.module<GunsModule>("guns");
     this.gunsView = guns ? new GunsView({ crowd: h.crowd, sound: h.sound, tier: h.spec.tier, me: me.index, blood: h.settings.blood }) : null;
@@ -657,6 +663,20 @@ export class FfaMode implements GameMode {
         if (e.id === me.id) h.hud.pushFeed(t("Too fast for the sky"), "safe");
         break;
       case "use": {
+        // v5: growth and the Map Print, said.
+        const items = m.module<ItemsModule>("items");
+        if (e.kind === "titan-serum") {
+          const c = m.get(e.id);
+          const lv = c && items ? items.growth[c.index] : 0;
+          if (c === me) h.hud.pushFeed(`${t("Titan Serum")}: ${t("level")} ${lv} · ${Math.round((1 - GROWTH.take[lv]) * 100)}% ${t("less damage")}`, "safe");
+          else if (c && lv >= GROWTH.max && Math.hypot(c.x - me.x, c.z - me.z) < 80) h.hud.pushFeed(`${c.name} ${t("is fully grown: it takes twice the shots")}`, "out");
+        } else if (e.kind === "map-print" && e.id === me.id) {
+          h.hud.pushFeed(t("Map Print: everyone and everything, for 20 s"), "safe");
+          if (!h.hud.map.expanded) {
+            h.hud.map.expand(true);
+            this.printOpened = true;
+          }
+        }
         // The first time you use an item: how it's beaten (SPEC-V3 §10.16).
         if (e.id !== me.id) break;
         const seen = h.settings.itemsSeen.split(",").filter(Boolean);
@@ -896,6 +916,8 @@ export class FfaMode implements GameMode {
     this.fieldFrame(m, me);
     this.soundFrame(dt, m, me);
     const trPin = this.treasure?.update(dt, m, h.camera, this.marks).pin ?? null;
+    this.growth.update(dt, m, cam, me.index, h.rig.firstPerson);
+    this.printFrame(m, me);
     const goal = trPin ?? flagGoal ?? deadPin ?? this.modes6.update(dt, m, this.marks).pin;
     // The Harmattan: the siren, then the dust; footprints gone; headlights on (or in a power cut).
     const hm = m.module<HarmattanModule>("harmattan");
@@ -1208,6 +1230,31 @@ export class FfaMode implements GameMode {
     });
   }
 
+  /**
+   * A Map Print (v5): while it lasts, the map shows everyone (named), every
+   * item on the ground, the crates, and what the mode hides (Treasure Hunt's
+   * chests, and which hold a treasure). It closes the full map it opened.
+   */
+  private printFrame(m: Match, me: Contestant): void {
+    const map = this.host.hud.map;
+    const left = me.status === "alive" ? (m.effects(me).find((e) => e.key === "print")?.left ?? 0) : 0;
+    map.print = left;
+    if (left <= 0) {
+      if (this.printOpened) {
+        this.printOpened = false;
+        map.expand(false);
+      }
+      return;
+    }
+    for (const c of m.contestants) {
+      if (c === me || c.status !== "alive") continue;
+      this.marks.push({ x: c.x, z: c.z, kind: m.sameSquad(c, me) ? "mate" : "rival", label: c.name });
+    }
+    const items = m.module<ItemsModule>("items");
+    if (items) for (const it of items.items) if (!it.taken) this.marks.push({ x: it.x, z: it.z, kind: "loot" });
+    this.treasure?.printMarks(m, this.marks);
+  }
+
   /** v5: you left before the end: that's a defeat, and you see it (the owner never saw the end screens). */
   forfeit(): void {
     if (!this.over) this.finish();
@@ -1287,6 +1334,9 @@ export class FfaMode implements GameMode {
       h.scene.remove(this.treasure.group);
       this.treasure.dispose();
     }
+    h.scene.remove(this.growth.group);
+    this.growth.dispose(this.src.match);
+    h.hud.map.print = 0;
     if (this.dimmed) this.world.setDim(0);
     if (this.dustSet) this.world.setDust(0, HARMATTAN.see);
     h.sound.engine(0, 0);

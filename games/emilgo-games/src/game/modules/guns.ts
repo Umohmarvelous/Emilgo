@@ -22,7 +22,8 @@
 // Pure and shared, like every module: the server referees; the phone's copy
 // (Match.mirror) applies the server's events and works out only the regen.
 
-import { GUN_KINDS, GUNS, VEHICLES, type GunKind } from "../../config";
+import { GROWTH, GUN_KINDS, GUNS, VEHICLES, type GunKind } from "../../config";
+import type { ItemsModule } from "./items";
 import { SpotGrid } from "../core/spotgrid";
 import type { Contestant } from "../core/body";
 import type { Match } from "../core/match";
@@ -440,6 +441,8 @@ export class GunsModule implements RuleModule {
   hurt(m: Match, c: Contestant, amount: number, by: Contestant | null, head: boolean, how: string): void {
     const i = c.index;
     if (c.status !== "alive" || amount <= 0 || m.seated(c)) return;
+    // v5: grown on Titan Serum, every hit takes less.
+    amount *= GROWTH.take[m.module<ItemsModule>("items")?.growth[i] ?? 0] ?? 1;
     let left = amount;
     if (this.armour[i] > 0) {
       const a = Math.min(this.armour[i], amount * GUNS.armour.share);

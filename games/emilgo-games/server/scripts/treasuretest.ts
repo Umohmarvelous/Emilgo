@@ -6,11 +6,14 @@
 //
 //   node server/build-tools.mjs && node server/dist/treasuretest.mjs
 
-import { TREASURE } from "../../src/config";
+import { GROWTH, GUNS, TREASURE } from "../../src/config";
 import { BUILTIN_MANIFEST } from "../../src/content/modes";
 import { Match, settingsOf } from "../../src/game/core/match";
 import type { MatchEvent } from "../../src/game/core/module";
 import type { TreasureModule } from "../../src/game/modules/treasure";
+import type { ItemsModule } from "../../src/game/modules/items";
+import type { GunsModule } from "../../src/game/modules/guns";
+import type { ItemId } from "../../src/content/items";
 import { KILL_XP, KILL_XP_CAP, matchXp, xpParts, type MatchFacts } from "../../src/rank/xp";
 import { worldFor } from "../src/ffa";
 
@@ -245,6 +248,55 @@ console.log("the phone's copy:");
   }
   check(tp.count[2] === 3 && tm.count[2] === 3, "and P2 take them");
   check(tp.boxes.every((b, i) => b.opened === tm.boxes[i].opened), "the same boxes open");
+}
+
+console.log("growth and the Map Print:");
+{
+  const m = fresh(12, 3);
+  const items = m.module<ItemsModule>("items")!;
+  const guns = m.module<GunsModule>("guns")!;
+  const [a, b] = [m.get("p0")!, m.get("p1")!];
+  let packN = 0;
+  const use = (id: string, kind: ItemId) => {
+    const c = m.get(id)!;
+    items.packs[c.index][0] = kind;
+    m.setPack(id, ((++packN & 511) << 5) | 0);
+    run(m, DT * 2);
+  };
+  const hit = (c: typeof a) => {
+    guns.hp[c.index] = GUNS.hp;
+    guns.armour[c.index] = 0;
+    guns.hurt(m, c, 40, b, false, "shot");
+    return GUNS.hp - guns.hp[c.index];
+  };
+  const plain = hit(a);
+  use("p0", "titan-serum");
+  check(items.growth[0] === 1 && Math.abs(hit(a) - plain * GROWTH.take[1]) < 0.01, `Titan Serum: level 1, a 40 hit takes ${(plain * GROWTH.take[1]).toFixed(0)}`);
+  use("p0", "titan-serum");
+  use("p0", "titan-serum");
+  use("p0", "titan-serum");
+  check(items.growth[0] === GROWTH.max && items.packs[0][0] === "titan-serum" && Math.abs(hit(a) - plain * GROWTH.take[GROWTH.max]) < 0.01, "at the most: half of every hit, and another dose stays in the pack");
+  m.eliminate(a, "shot");
+  run(m, DT);
+  check(items.growth[0] === 0, "down: the growth is gone");
+  const ev: MatchEvent[] = [];
+  m.whispering = true;
+  items.packs[1][0] = "map-print";
+  m.setPack("p1", ((++packN & 511) << 5) | 0);
+  run(m, DT * 2, ev);
+  const w = m.whispers.splice(0);
+  check(m.effects(b).some((e) => e.key === "print" && e.left > 19) && items.printed[1] === 1, "a Map Print: 20 s of the whole map");
+  check(w.length === 1 && w[0].id === "p1" && w[0].e.type === "tmap" && !ev.some((e) => e.type === "tmap"), "where the treasures hide goes to its user alone, never in the events everyone hears");
+  items.packs[1][0] = "map-print";
+  m.setPack("p1", ((++packN & 511) << 5) | 0);
+  run(m, DT * 2);
+  check(items.packs[1][0] === "map-print" && !m.whispers.length, "a second one: once a match, it stays in the pack");
+  // The phone's copy: it learns the boxes from its own whisper only.
+  const ph = fresh(12, 3, undefined, 0, true);
+  const tp = tmOf(ph);
+  const e = w[0].e;
+  ph.applyRemote(e);
+  check(tp.treasures.every((t, i) => t.box === tmOf(m).treasures[i].box), "the user's phone, told, knows which chests hold them");
 }
 
 console.log("XP, line by line:");

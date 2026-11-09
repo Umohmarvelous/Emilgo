@@ -231,6 +231,11 @@ export class Crowd {
     this.people[i]?.tint(color, glow);
   }
 
+  /** v5 growth: how fierce body i looks (0 … 3). */
+  setFierce(i: number, level: number): void {
+    this.people[i]?.setFierce(level);
+  }
+
   /** In a car (vehicles): seated `lift` metres above the body's floor, the driver's hands on the wheel; null: standing. */
   setSeat(i: number, seat: { lift: number; driver: boolean } | null): void {
     const h = this.people[i];

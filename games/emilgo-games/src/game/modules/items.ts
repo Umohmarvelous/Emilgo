@@ -13,7 +13,7 @@
 //   Death     the backpack drops as a loot bag (it glows LOOT.bagGlow s on
 //             phones); you come back with an empty one.
 
-import { LOOT } from "../../config";
+import { GROWTH, LOOT } from "../../config";
 import { SpotGrid } from "../core/spotgrid";
 
 /** The items' lookup grid (m). */
@@ -64,6 +64,9 @@ export class ItemsModule implements RuleModule {
   }
   readonly bags: LootBag[] = [];
   packs: Pack[] = [];
+  /** v5: each body's growth level (Titan Serum, 0 … GROWTH.max), lost on going down; whether they've used their Map Print. */
+  growth = new Int8Array(0);
+  printed = new Uint8Array(0);
   readonly table: string;
   readonly density: number;
 
@@ -74,6 +77,8 @@ export class ItemsModule implements RuleModule {
 
   init(m: Match): void {
     this.packs = m.contestants.map(() => new Array<ItemId | null>(this.size(m)).fill(null));
+    this.growth = new Int8Array(m.contestants.length);
+    this.printed = new Uint8Array(m.contestants.length);
     this.scatter(m);
   }
 
@@ -132,6 +137,7 @@ export class ItemsModule implements RuleModule {
     if (e.type === "eliminated") {
       const c = m.get(e.id);
       if (!c) return;
+      this.growth[c.index] = 0;
       const kinds = this.packs[c.index].filter((k): k is ItemId => k !== null);
       this.packs[c.index] = new Array<ItemId | null>(this.size(m)).fill(null);
       if (!kinds.length) return;
@@ -278,6 +284,17 @@ export class ItemsModule implements RuleModule {
       case "call":
         if (!m.module<VehiclesModule>("vehicles")?.canCall(m, c)) return;
         break;
+      case "grow":
+        // Titan Serum: one level, up to the most (another stays in the pack).
+        if (this.growth[c.index] >= GROWTH.max) return;
+        this.growth[c.index]++;
+        break;
+      case "print":
+        // The Map Print: once a match (another stays in the pack, useless).
+        if (this.printed[c.index]) return;
+        this.printed[c.index] = 1;
+        m.setEffect(c, "print", fx.s);
+        break;
       case "survival":
         // Dead Streets': survival.ts does it when it hears the "use" (if it would do anything now).
         if (!m.module<SurvivalModule>("survival")?.can(m, c, kind)) return;
@@ -326,6 +343,11 @@ export class ItemsModule implements RuleModule {
         if (fx?.kind === "slots") for (let i = 0; i < fx.add; i++) pack.push(null);
         else if (fx?.kind === "speed") m.setEffect(c, "speed", fx.s, fx.mult);
         else if (fx?.kind === "shield" || fx?.kind === "pepper" || fx?.kind === "iron") m.setEffect(c, fx.kind, fx.s);
+        else if (fx?.kind === "grow") this.growth[c.index] = Math.min(GROWTH.max, this.growth[c.index] + 1);
+        else if (fx?.kind === "print") {
+          this.printed[c.index] = 1;
+          m.setEffect(c, "print", fx.s);
+        }
         break;
       }
       case "bag":
@@ -344,6 +366,7 @@ export class ItemsModule implements RuleModule {
       case "eliminated":
       case "respawn":
         if (c && e.type === "respawn") this.packs[c.index] = new Array<ItemId | null>(this.size(m)).fill(null);
+        if (c && e.type === "eliminated") this.growth[c.index] = 0;
         break;
     }
   }

@@ -14,7 +14,8 @@ export type ItemId =
   | "pepper-powder" | "megaphone" | "slipper" | "decoy-flag" | "talking-drum" | "aso-ebi"
   | "golden-slipper" | "zone-shield" | "jerrycan" | "danfo-key"
   | "zanku" | "shaku" | "odogwu" | "breakdance"
-  | "bandage" | "medkit" | "ammo" | "armour" | "battery" | "nv";
+  | "bandage" | "medkit" | "ammo" | "armour" | "battery" | "nv"
+  | "titan-serum" | "map-print";
 
 export type ItemEffect =
   /** Faster for a while: run and sprint × mult. */
@@ -36,7 +37,11 @@ export type ItemEffect =
   /** The §10 items (Phase 6): what each does is in modules/gadgets.ts. */
   | { kind: "gadget" }
   /** Dead Streets' (Phase 7): what each does is in modules/survival.ts. */
-  | { kind: "survival" };
+  | { kind: "survival" }
+  /** v5: one level of growth (config GROWTH): less damage taken, a fiercer look. */
+  | { kind: "grow" }
+  /** v5: the whole map, live, for `s` seconds; once a match. */
+  | { kind: "print"; s: number };
 
 export interface ItemDef {
   id: ItemId;
@@ -93,6 +98,9 @@ export const ITEM_DEFS: Record<ItemId, ItemDef> = {
   armour: def("armour", "Armour Plates", "Armour Plates", "+50 armour: takes half of every hit", "+50 armour: e go take half of every hit", { kind: "survival" }, false, "survival"),
   battery: def("battery", "Battery", "Battery", "Fills your torch", "E go full your torch", { kind: "survival" }, false, "survival"),
   nv: def("nv", "Night Vision", "Night Vision", "See in the dark for 60 s", "See for dark for 60 seconds", { kind: "survival" }, false, "survival"),
+  // v5 (3.2): growth, and the Map Print.
+  "titan-serum": { ...def("titan-serum", "Titan Serum", "Titan Serum", "Grow one level (to 3): you take less damage and look fiercer. Lost when you go down", "Grow one level (reach 3): bullet no go do you like before, you go look strong. E go go when you fall", { kind: "grow" }), counter: { en: "Shoot them more, or knock them down: they lose it all", pcm: "Shoot dem more, or knock dem down: everything go comot" } },
+  "map-print": { ...def("map-print", "Map Print", "Map Print", "The whole map for 20 s: everyone and everything hidden, live. Once a match", "The whole map for 20 seconds: everybody and everything wey hide, live. Once for one match", { kind: "print", s: 20 }, true), counter: { en: "Keep moving: it shows where you are, not where you'll be", pcm: "Dey move: e dey show where you dey now, no be where you go reach" } },
   // Vehicles' (Phase 5).
   jerrycan: def("jerrycan", "Fuel Jerrycan", "Fuel Jerrycan", "+15 s of fuel for the car you're in or beside", "+15 seconds fuel for the motor wey you dey inside or near", { kind: "fuel" }, true, "vehicles"),
   "danfo-key": def("danfo-key", "Van Key", "Van Key", "Calls a minibus to the road nearby", "E go call minibus come the road wey near", { kind: "call" }, true, "vehicles"),
@@ -105,8 +113,8 @@ export const LOOT_TABLES: Record<string, LootTable> = {
   // v5: the old items are out of the loot (the owner: "remove old items like the pepper soup"): Hot Ration, Iron Guard,
   // Banana Peel, Pepper Spray, Megaphone, the Throwing and Golden Boots and the four dance cards. Their rules stay
   // in the code, unused (a mode could still name them in its own table).
-  "ffa-core": [["kola", 4], ["zobo", 4], ["big-bag", 1.5], ["smoke-pot", 2], ["decoy-flag", 1], ["talking-drum", 1.5], ["aso-ebi", 1]],
-  airfall: [["zone-shield", 1], ["jerrycan", 1], ["danfo-key", 1]],
+  "ffa-core": [["kola", 4], ["zobo", 4], ["big-bag", 1.5], ["smoke-pot", 2], ["decoy-flag", 1], ["talking-drum", 1.5], ["aso-ebi", 1], ["titan-serum", 1.8], ["map-print", 0.5]],
+  airfall: [["zone-shield", 1], ["jerrycan", 1], ["danfo-key", 1], ["titan-serum", 1.2], ["map-print", 1]],
   "ds-core": [["bandage", 5], ["medkit", 1.5], ["ammo", 6], ["armour", 1.2], ["battery", 3], ["nv", 0.8]],
 };
 

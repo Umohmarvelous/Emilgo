@@ -507,6 +507,19 @@ export const TREASURE = {
   upload: 12,
 } as const;
 
+/**
+ * Growth (v5, 3.2): Titan Serum, one level a dose. Same size (the owner: no
+ * giants), a fiercer look, and less of every shot taken. Lost when you go down.
+ */
+export const GROWTH = {
+  max: 3,
+  /** Damage taken at each level (0 … max): level 3 takes twice the shots. */
+  take: [1, 0.8, 0.65, 0.5],
+} as const;
+
+/** Map Print (v5, 3.2): the whole map, everyone and everything on it, live, for this long. Once a match. */
+export const MAP_PRINT = { seconds: 20 } as const;
+
 /** Steal & Reposition's drop zones. */
 export const DROPZONES = { radius: 5, minApart: 60 } as const;
 
@@ -885,7 +898,8 @@ export const NET = {
   // 16 (v5): the zone's grace, the flags in the open, the launch modes on the big world: an older server can't referee them.
   // 17 (v5): the live kill switch: welcome carries what's off, and "modes" when it changes.
   // 18 (v5): Treasure Hunt; snapshots in packed bytes.
-  protocol: 18,
+  // 19 (v5): Titan Serum and the Map Print in the loot (the scatter changed), a seat's own events ("reveal").
+  protocol: 19,
   tickHz: 60,
   /** Server → client state broadcasts per second. */
   snapshotHz: 15,

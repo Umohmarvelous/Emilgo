@@ -281,6 +281,12 @@ export class TreasureModule implements RuleModule {
   }
 
   onEvent(m: Match, e: MatchEvent): void {
+    // A Map Print shows its user where the treasures still hide (theirs alone: the rest never learn).
+    if (e.type === "use" && e.kind === "map-print") {
+      const hid = this.treasures.filter((t) => t.box >= 0);
+      m.whisper(e.id, { type: "tmap", t: hid.map((t) => t.index), b: hid.map((t) => t.box) });
+      return;
+    }
     if (e.type !== "eliminated") return;
     const c = m.get(e.id);
     if (!c) return;
@@ -338,6 +344,13 @@ export class TreasureModule implements RuleModule {
   }
 
   apply(m: Match, e: MatchEvent): void {
+    if (e.type === "tmap") {
+      e.t.forEach((k, j) => {
+        const tr = this.treasures[k];
+        if (tr && tr.box !== -1 && tr.holder < 0) tr.box = e.b[j];
+      });
+      return;
+    }
     if (e.type === "tbox") {
       const b = this.boxes[e.box];
       if (b) b.opened = true;

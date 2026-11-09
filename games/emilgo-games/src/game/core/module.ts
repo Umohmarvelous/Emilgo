@@ -61,6 +61,8 @@ export type MatchEvent =
   | { type: "tbox"; box: number; id: string; found: number }
   | { type: "tre"; t: number; how: "find" | "take" | "give" | "drop"; id: string | null; x: number; z: number; h: number }
   | { type: "upl"; id: string; how: "start" | "stop" | "done" }
+  /** A Map Print (v5): which box each treasure still in one is in. Only to the seat that used it (Match.whisper). */
+  | { type: "tmap"; t: number[]; b: number[] }
   // ── Objectives (Phase 4: flags, drop zones, the rally point) ──
   | { type: "flag"; flag: number; how: "take" | "drop" | "found" | "home" | "deliver"; id: string | null; x: number; z: number; h: number }
   | { type: "search"; id: string; spot: number; found: boolean }

@@ -1084,6 +1084,17 @@ export class Sound {
       case "jerrycan": // Fuel poured.
         this.noise(t, 0.5, { gain: 0.08, freq: 900, type: "bandpass" });
         break;
+      case "titan-serum": // An auto-injector's punch, then a low surge and a heartbeat.
+        this.noise(t, 0.03, { gain: 0.12, freq: 2400, type: "bandpass" });
+        this.tone(70, t + 0.05, 0.7, { type: "sawtooth", gain: 0.09, to: 140 });
+        this.tone(55, t + 0.45, 0.16, { type: "sine", gain: 0.2, to: 40 });
+        this.tone(55, t + 0.7, 0.16, { type: "sine", gain: 0.16, to: 40 });
+        break;
+      case "map-print": // Paper unfolded, then a sweep and three pings.
+        this.noise(t, 0.18, { gain: 0.08, freq: 1500, type: "bandpass" });
+        this.tone(500, t + 0.15, 0.3, { type: "sine", gain: 0.07, to: 1400 });
+        for (let k = 0; k < 3; k++) this.tone(1760, t + 0.5 + k * 0.14, 0.08, { type: "sine", gain: 0.06 });
+        break;
       case "danfo-key": // A key fob's two chirps.
         this.tone(2100, t, 0.06, { type: "square", gain: 0.04 });
         this.tone(2100, t + 0.11, 0.06, { type: "square", gain: 0.04 });
