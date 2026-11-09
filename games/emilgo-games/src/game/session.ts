@@ -91,6 +91,7 @@ import { addProgress, ensureDaily } from "./progress";
 import { DIVISIONS, rankOf, rankUp } from "../rank/ladder";
 import { xpParts } from "../rank/xp";
 import { catalog, games } from "../content/catalog";
+import { getAppDue, linkPlay, showGetApp, tapToPlay } from "../ui/getapp";
 import type { ModeDef } from "../content/modes";
 import type { OpenWorld } from "../maps/open/build";
 import { dailySeed, medalOf, MUTATOR_NAME, RUN_MUTATOR_NAME, runMutator, weeklyMutator } from "./weekly";
@@ -470,7 +471,8 @@ export class Game {
     this.board.onPick = (seat, name) => this.chat.moderate(seat, name);
     this.rotator = new Rotator(ui, canvas, () => this.resize());
     // Over the lobby or a match, never over a menu it could hide or block.
-    this.rotator.canShow = () => !this.screens.name || this.screens.name === "lobby";
+    // Not over a link's one big button either (3.4): the first tap must play.
+    this.rotator.canShow = () => !this.linkWait && (!this.screens.name || this.screens.name === "lobby");
     this.rotator.onTap = () => {
       this.settings.rotate = !this.settings.rotate;
       saveSettings(this.host, this.settings);
@@ -638,7 +640,8 @@ export class Game {
     }
     this.toLobby();
     this.loop.start();
-    // §6.5: a portrait phone is offered the turn as the game starts.
+    this.fromLink();
+    // §6.5: a portrait phone is offered the turn as the game starts (after a link's button is tapped).
     this.rotator.prompt();
     void this.shop?.boot();
     const idle = (window as unknown as { requestIdleCallback?: (fn: () => void, o?: object) => void }).requestIdleCallback;
@@ -3955,6 +3958,46 @@ export class Game {
     );
     this.loop.setFpsCap(30);
     saveSettings(this.host, this.settings);
+    this.maybeGetApp(r.seconds);
+  }
+
+  /**
+   * One click from X (v5, 3.4): a link with ?play (or ?play=<mode>) opens on
+   * one big button over the lobby; a tap plays that mode at once, a practice
+   * on the big world (no account, no queue, no How to Play first).
+   */
+  private linkWait = false;
+
+  private fromLink(): void {
+    const want = linkPlay();
+    if (want === null || !familyOn("ffa")) return;
+    const open = catalog(this.content.manifest, { xp: this.rankXp }).filter((e) => e.state === "play" && e.def.family === "ffa" && !e.def.tags?.includes("staked"));
+    const def = open.find((e) => e.def.id === want)?.def ?? open.find((e) => e.def.id === this.content.manifest.rotation[0])?.def ?? open[0]?.def;
+    if (!def) return;
+    this.linkWait = true;
+    void tapToPlay(this.uiRoot, def.name.en, getLang() === "pcm" && def.blurb.pcm ? def.blurb.pcm : def.blurb.en).then(() => {
+      this.linkWait = false;
+      if (this.gm || this.screens.name !== "lobby") return;
+      const seen = this.settings.ffaSeen.split(",").filter(Boolean);
+      if (!seen.includes(def.id)) this.settings.ffaSeen = [...seen, def.id].join(",");
+      this.settings.game = "ffa";
+      this.settings.ffaMode = def.id;
+      saveSettings(this.host, this.settings);
+      this.sound.unlock();
+      this.practiceFfa(def);
+    });
+  }
+
+  /** Between matches in a browser, after a few minutes of play: the app is the full game (once a day at most). */
+  private maybeGetApp(seconds: number): void {
+    if (this.host.kind !== "web") return;
+    this.settings.webSeconds += Math.max(0, Math.round(seconds));
+    saveSettings(this.host, this.settings);
+    if (!getAppDue(this.settings)) return;
+    setTimeout(() => {
+      if (this.gm || !["results", "lobby"].includes(this.screens.name)) return;
+      showGetApp(this.uiRoot, this.settings, () => saveSettings(this.host, this.settings));
+    }, 4200);
   }
 
   /** START on the play screen. */

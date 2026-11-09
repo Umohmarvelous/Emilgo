@@ -264,8 +264,10 @@ async function main() {
     if (s.heapStart) await send("HeapProfiler.startSampling", { samplingInterval: 65536 });
     if (s.shot) {
       // {"shot": "name", "webp": 62}: a small picture for the game itself.
-      const r = await send("Page.captureScreenshot", s.webp ? { format: "webp", quality: s.webp } : { format: "png" });
-      writeFileSync(join(outDir, `${s.shot}.${s.webp ? "webp" : "png"}`), Buffer.from(r.data, "base64"));
+      // {"shot": "name", "jpeg": 80}: a link card (X and the rest read JPEG everywhere).
+      const fmt = s.webp ? "webp" : s.jpeg ? "jpeg" : "png";
+      const r = await send("Page.captureScreenshot", s.webp ? { format: "webp", quality: s.webp } : s.jpeg ? { format: "jpeg", quality: s.jpeg } : { format: "png" });
+      writeFileSync(join(outDir, `${s.shot}.${fmt === "jpeg" ? "jpg" : fmt}`), Buffer.from(r.data, "base64"));
       console.log(`shot ${s.shot}`);
     }
   }

@@ -280,6 +280,26 @@ queue, private rooms and practice, and the server refuses it. Saved scores and
 ranks stay. A player who last picked it lands on a mode that's still on. Leave
 at least one mode on.
 
+## Sharing on X (one click to play)
+
+Post the site's address with `?play` on the end, for example
+`https://milgogames.pages.dev/?play`. The post shows the game's card (the
+picture is `public/card.jpg`; re-shoot it with `node dev/howto-shots.mjs card`),
+and a tap on it opens the game on one big **Tap to play** button: one more tap
+and the person is in a Treasure Hunt practice on the big world. No account, no
+download, no queue. `?play=hold-the-flag` (any mode id) starts that mode instead.
+
+The card's links use `SITE_URL` at build time (the test site by default):
+`SITE_URL=https://play.emilgo.app npx vite build --mode web` once the real
+address is live.
+
+After about six minutes of play in a browser, between matches, the game
+suggests the app (once a day at most; "Not now" waits three days). Not in the
+EMILGO app, not in Lagos Life. Where it sends people is set at build time:
+`VITE_APP_ANDROID_URL`, `VITE_APP_IOS_URL` and `VITE_APP_URL` (until the store
+listings exist, Android goes to the Play listing for `com.teqil.app` and
+everyone else to `https://emilgo.app`).
+
 ## 5. Running it
 
 ```bash

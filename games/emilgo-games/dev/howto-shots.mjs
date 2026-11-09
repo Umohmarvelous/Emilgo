@@ -36,6 +36,8 @@ const SHOTS = [
   { id: "basics-zone", mode: "max-royale", at: "({x:330,z:-420})", back: 3, side: 0, hud: true, zone: true },
   { id: "basics-items", mode: "max-royale", at: "m.byId('items').ground?.[0] ?? ({x:60,z:-260})", back: 5, side: 0, pitch: 0.3 },
   { id: "basics-cars", mode: "max-royale", at: "m.byId('vehicles').cars?.[0] ?? ({x:60,z:-260})", back: 9, side: 2, pitch: 0.16 },
+  // The link card (3.4: a post on X shows it): 1200 × 630, JPEG, in public/ (served as /card.jpg).
+  { id: "card", dir: "public", view: "1200x630", jpeg: 82, mode: "treasure-hunt", at: "(()=>{const t=m.byId('treasure');for(const x of t.treasures){if(x.holder>=0)continue;x.box=-1;x.holder=0;t.count[0]++}return t.machine})()", back: 8, side: -3, pitch: 0.12 },
   { id: "glass", dir: PLACES, mode: "max-royale", at: "({x:330,z:-340})", back: 3, side: 0, pitch: 0.02 },
   { id: "frostline", dir: PLACES, mode: "max-royale", at: "({x:772,z:320})", back: 3, side: 0, pitch: 0.08 },
 ];
@@ -61,9 +63,9 @@ for (const s of list) {
   }
   steps.push({ wait: 3500 });
   if (!s.hud) steps.push({ eval: `(()=>{document.querySelector('#ui')?.style.setProperty('visibility','hidden');for(const e of document.querySelectorAll('[data-ui]'))e.style.visibility='hidden';return 1})()`, label: "hide" });
-  steps.push({ wait: 400, shot: s.id, webp: 58 });
+  steps.push(s.jpeg ? { wait: 400, shot: s.id, jpeg: s.jpeg } : { wait: 400, shot: s.id, webp: 58 });
   const f = join(mkdtempSync(join(tmpdir(), "shot-")), "s.json");
   writeFileSync(f, JSON.stringify(steps));
-  const out = execFileSync("node", ["dev/cdp.mjs", "http://localhost:5173/", s.dir ?? HOWTO, f], { encoding: "utf8", env: { ...process.env, GPU: "1", VIEW: "640x360" }, timeout: 300000 });
+  const out = execFileSync("node", ["dev/cdp.mjs", "http://localhost:5173/", s.dir ?? HOWTO, f], { encoding: "utf8", env: { ...process.env, GPU: "1", VIEW: s.view ?? "640x360" }, timeout: 300000 });
   console.log(s.id, out.split("\n").filter((l) => /stand|FAIL|timeout|error:/i.test(l)).join(" | ").slice(0, 220));
 }

@@ -113,6 +113,39 @@ function siteAssets(): Plugin {
   };
 }
 
+/**
+ * The link card (v5, 3.4: one click from X): what a post of the site's link
+ * shows on X and the rest (Open Graph and Twitter Card tags). SITE_URL is the
+ * site's address (the test site by default); the picture is public/card.jpg
+ * (dev/howto-shots.mjs card). The link people post: <SITE_URL>/?play
+ */
+function siteMeta(): Plugin {
+  const site = (process.env.SITE_URL ?? "https://milgogames.pages.dev").replace(/\/+$/, "");
+  const title = "Treasure Hunt · EMILGO Games";
+  const about = "Free in your browser, nothing to download: find the five hidden treasures, upload them at the machine, and fight for what the others found.";
+  const tags: [string, string, string][] = [
+    ["property", "og:type", "website"],
+    ["property", "og:site_name", "EMILGO Games"],
+    ["property", "og:title", title],
+    ["property", "og:description", about],
+    ["property", "og:url", `${site}/?play`],
+    ["property", "og:image", `${site}/card.jpg`],
+    ["property", "og:image:width", "1200"],
+    ["property", "og:image:height", "630"],
+    ["property", "og:image:alt", "A player walking up to the treasure upload machine in its ring of light"],
+    ["name", "twitter:card", "summary_large_image"],
+    ["name", "twitter:title", title],
+    ["name", "twitter:description", about],
+    ["name", "twitter:image", `${site}/card.jpg`],
+  ];
+  return {
+    name: "emilgo-games-site-meta",
+    transformIndexHtml() {
+      return tags.map(([k, v, content]) => ({ tag: "meta", attrs: { [k]: v, content }, injectTo: "head" as const }));
+    },
+  };
+}
+
 function escapeRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -144,6 +177,8 @@ export default defineConfig(({ mode }) => {
           }
         : {}),
     },
-    plugins: emilgo ? [stripVatarSdk(), singleFile()] : web ? [stripVatarSdk(), preloadScans(), siteAssets()] : [preloadScans(), siteAssets()],
+    // The app's single file has no public/ (the link card and the site's headers are the site's).
+    ...(emilgo ? { publicDir: false as const } : {}),
+    plugins: emilgo ? [stripVatarSdk(), singleFile()] : web ? [stripVatarSdk(), preloadScans(), siteAssets(), siteMeta()] : [preloadScans(), siteAssets(), siteMeta()],
   };
 });

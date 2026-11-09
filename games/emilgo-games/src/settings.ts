@@ -56,6 +56,10 @@ export interface Settings {
   leftHanded: boolean;
   /** v5: held upright, one stick walks and turns the view, on the side of the hand holding the phone. */
   oneThumb: boolean;
+  /** v5 (3.4): seconds played in a browser, and the "get the app" note's last showing and its "not now" (ms). */
+  webSeconds: number;
+  getAppAt: number;
+  getAppWait: number;
   /**
    * Touch look (v4 Phase 1): the right half is a touchpad. A faint touch point
    * (off by default: invisible), the acceleration (0 = linear), the dead zone
@@ -190,6 +194,9 @@ export function defaults(host: Host): Settings {
     autoCam: false,
     leftHanded: false,
     oneThumb: true,
+    webSeconds: 0,
+    getAppAt: 0,
+    getAppWait: 0,
     lookDot: false,
     lookAccel: 1.4,
     lookDead: 3,
