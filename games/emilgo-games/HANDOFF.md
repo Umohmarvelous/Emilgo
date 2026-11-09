@@ -1,9 +1,23 @@
 # EMILGO Games: session handoff
 
-> **6 Nov 2026: v5 is under way.** The owner's brief ([SPEC-V5-ORIGINAL.md](SPEC-V5-ORIGINAL.md))
-> is in build order in [SPEC-V5.md](SPEC-V5.md). **Tiers 1 and 2 are built. Tier 3 (Treasure Hunt,
-> growth items, one-thumb portrait, one click from X, body and face, voice, realism, tutorial, icon)
-> waits for the owner's go-ahead and answers to the questions there.**
+> **9 Nov 2026: v5 is built, Tiers 1–3.** The owner's brief ([SPEC-V5-ORIGINAL.md](SPEC-V5-ORIGINAL.md))
+> is in build order in [SPEC-V5.md](SPEC-V5.md), each row with what was built, measured and left.
+> Tier 3 went ahead on 9 Nov with my recommended answers (health bars only while shot; the
+> announcer a Mandarin-accented woman; growth same size, fiercer; the name **Blackmask**; zone
+> grace 3.5 min): Treasure Hunt (replaces Find the Flag, switched off not deleted), Titan Serum and
+> the Map Print, one-thumb portrait, one click from X (`<site>/?play`, the link card, the "get the
+> app" note), fuller legs and the open face with the closed mask as a choice, the announcer, the
+> realism pass (part one), How to Play re-shot, the icon and name. Protocol 19.
+> **The owner's steps:** `fly deploy` (protocol 19: older servers refuse new phones);
+> `scripts/deploy-site.sh`; run `supabase/migrations/migration_game_billboards_max.sql`; set the
+> store addresses (`VITE_APP_ANDROID_URL`, `VITE_APP_IOS_URL`, `VITE_APP_URL`) and `SITE_URL` once
+> they exist (README, Sharing on X); ask Lagos Life for a balance call (the money slot shows "₦ —"
+> until then); recorded announcer lines need a speech model run on the owner's computer (the
+> sandbox refused one: drop `public/voice/<id>.mp3` and `index.json`, ids and words in
+> `src/audio/voice.ts`); send the avatar picture if the icon should follow it (`dev/icon.mjs`).
+> **Not mine, left alone:** the working copy has `FEATURES.deadStreets: false` in `src/config.ts`
+> and edits to `src/ui/styles.css` (the Play screen's start button) and `SPEC-V5.md`'s tables that
+> no commit of mine carries.
 >
 > **3 Nov 2026: the v4 rework (R1–R10) is done**, from the owner's rework brief
 > (last section of [SPEC-V4-ORIGINAL.md](SPEC-V4-ORIGINAL.md)). Status and the

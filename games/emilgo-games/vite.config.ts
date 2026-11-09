@@ -29,6 +29,16 @@ function stripVatarSdk(): Plugin {
   };
 }
 
+/** The app's single file has no public/ (v5, 3.9): no home-screen icon or manifest links to miss (the app has its own icon). */
+function stripSiteLinks(): Plugin {
+  return {
+    name: "emilgo-games-strip-site-links",
+    transformIndexHtml(html) {
+      return html.replace(/\s*<link rel="(manifest|apple-touch-icon)"[^>]*>/g, "").replace(/<link rel="icon" type="image\/png" href="icons\/icon-32\.png" \/>/, '<link rel="icon" href="data:," />');
+    },
+  };
+}
+
 /** Inline the JS and CSS into index.html, so the app can load it as a string. */
 function singleFile(): Plugin {
   return {
@@ -121,11 +131,11 @@ function siteAssets(): Plugin {
  */
 function siteMeta(): Plugin {
   const site = (process.env.SITE_URL ?? "https://milgogames.pages.dev").replace(/\/+$/, "");
-  const title = "Treasure Hunt · EMILGO Games";
+  const title = "Blackmask: Treasure Hunt · free in your browser";
   const about = "Free in your browser, nothing to download: find the five hidden treasures, upload them at the machine, and fight for what the others found.";
   const tags: [string, string, string][] = [
     ["property", "og:type", "website"],
-    ["property", "og:site_name", "EMILGO Games"],
+    ["property", "og:site_name", "Blackmask · EMILGO Games"],
     ["property", "og:title", title],
     ["property", "og:description", about],
     ["property", "og:url", `${site}/?play`],
@@ -179,6 +189,6 @@ export default defineConfig(({ mode }) => {
     },
     // The app's single file has no public/ (the link card and the site's headers are the site's).
     ...(emilgo ? { publicDir: false as const } : {}),
-    plugins: emilgo ? [stripVatarSdk(), singleFile()] : web ? [stripVatarSdk(), preloadScans(), siteAssets(), siteMeta()] : [preloadScans(), siteAssets(), siteMeta()],
+    plugins: emilgo ? [stripVatarSdk(), stripSiteLinks(), singleFile()] : web ? [stripVatarSdk(), preloadScans(), siteAssets(), siteMeta()] : [preloadScans(), siteAssets(), siteMeta()],
   };
 });

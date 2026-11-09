@@ -6,12 +6,18 @@
     <meta name="theme-color" content="#050607" />
     <meta name="referrer" content="no-referrer" />
     <meta name="description" content="Free For All across Naija World and Dead Streets in Spooky World: play online with friends, right in the browser." />
-    <title>EMILGO Games</title>
+    <title>Blackmask · EMILGO Games</title>
+    <!-- v5 (3.9): the name and the icon (dev/icon.mjs); a phone's home screen uses them. -->
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="icons/icon-180.png" />
+    <meta name="apple-mobile-web-app-title" content="Blackmask" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <!-- Vatar Games SDK, served by Lagos Life — never a copy (docs, Quick start 01).
          `async`: a slow network must not hold the game back. The game waits for
          it only when it is actually framed by a world. Stripped from the EMILGO build. -->
     <script async src="https://lagoslife.app/sdk/vatar-games-v1.js"></script>
-    <link rel="icon" href="data:," />
+    <link rel="icon" type="image/png" href="icons/icon-32.png" />
     <style>
       html, body { margin: 0; height: 100%; background: #050607; }
       /* Welcome: full-screen hero art, the wordmark, a thin green bar. */
@@ -28,7 +34,7 @@
       #boot .shade { position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0,0,0,.9) 0%, rgba(0,0,0,0) 45%), linear-gradient(90deg, rgba(0,0,0,.75) 0%, rgba(0,0,0,0) 55%); }
       #boot .logo { position: absolute; left: calc(34px + env(safe-area-inset-left, 0px)); top: 26%; line-height: 1; animation: bootrise 0.8s ease-out both; }
       #boot .logo .e { font: 800 12px Montserrat, "Arial Black", sans-serif; letter-spacing: 0.5em; color: #f5a623; }
-      #boot .logo .g { font: 900 min(52px, 12vw) Montserrat, "Arial Black", Impact, sans-serif; letter-spacing: 0.02em; text-shadow: 0 3px 0 rgba(0,0,0,.5); }
+      #boot .logo .g { font: 900 min(52px, 10.5vw) Montserrat, "Arial Black", Impact, sans-serif; letter-spacing: 0.02em; text-shadow: 0 3px 0 rgba(0,0,0,.5); }
       #boot .logo .tag { font: 600 10px system-ui, sans-serif; letter-spacing: 0.14em; opacity: 0.85; margin-top: 8px; }
       #boot .logo .chips { display: flex; gap: 6px; margin-top: 14px; }
       #boot .logo .chips span { font: 800 8px system-ui, sans-serif; letter-spacing: 0.08em; padding: 4px 8px; border: 1px solid rgba(255,255,255,.55); }
@@ -49,9 +55,9 @@
     <div id="boot" role="status" aria-live="polite">
       <div class="art" id="boot-art"></div>
       <div class="shade"></div>
-      <div class="logo" aria-label="EMILGO Games">
+      <div class="logo" aria-label="Blackmask, by EMILGO Games">
         <div class="e">EMILGO</div>
-        <div class="g">GAMES</div>
+        <div class="g">BLACKMASK</div>
         <div class="tag">SURVIVE THE NIGHT · OWN THE STREETS</div>
         <div class="chips"><span>FREE FOR ALL</span><span class="ds">DEAD STREETS</span></div>
       </div>
