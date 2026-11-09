@@ -1,9 +1,9 @@
 // Items on the ground, loot bags and Airfall crates, drawn (SPEC-V3 §6.2, §7,
 // §10.3). One instanced draw per kind of thing ("one draw per prefab"), only
 // for what is near: beyond the tier's item distance nothing is drawn (the
-// compass points to the nearest). Each item turns slowly over a short pillar
-// of light so it reads from across a street: warm for everyday items, gold for
-// Airfall's, green for a loot bag while it glows.
+// compass points to the nearest). Each item turns and floats over a pillar of
+// light so it reads from across a street, the light in the kind's own colour
+// (v6: GLOW), green for a loot bag while it glows.
 //
 // Airfall: a red flare column stands where the crate will land from the moment
 // it is announced; the crate drops the last few seconds under an Ankara-cloth
@@ -53,9 +53,29 @@ const ITEM_VIEW = [40, 55, 70] as const;
 const FALL_S = 8;
 const FALL_H = 70;
 
-type Look = "kola" | "zobo" | "big-bag" | "zone-shield" | "titan-serum" | "map-print" | "bundle";
-const LOOKS: Look[] = ["kola", "zobo", "big-bag", "zone-shield", "titan-serum", "map-print", "bundle"];
-const lookOf = (k: ItemId): Look => (k === "kola" || k === "zobo" || k === "big-bag" || k === "zone-shield" || k === "titan-serum" || k === "map-print" ? k : "bundle");
+type Look = "kola" | "zobo" | "big-bag" | "zone-shield" | "titan-serum" | "map-print" | "smoke-pot" | "decoy-flag" | "talking-drum" | "aso-ebi" | "bundle";
+const LOOKS: Look[] = ["kola", "zobo", "big-bag", "zone-shield", "titan-serum", "map-print", "smoke-pot", "decoy-flag", "talking-drum", "aso-ebi", "bundle"];
+const lookOf = (k: ItemId): Look => ((LOOKS as string[]).includes(k) ? (k as Look) : "bundle");
+
+/**
+ * v6 (the owner: "use other colours for the glow around the items depending on the type"): each kind's light,
+ * additive (above 1 reads as a hot core). Kinds not named here: a cool blue.
+ */
+const GLOW: Partial<Record<ItemId, readonly [number, number, number]>> = {
+  "smoke-pot": [0.8, 0.86, 0.95],
+  "decoy-flag": [1.45, 0.55, 0.1],
+  "talking-drum": [0.12, 0.95, 1.45],
+  "aso-ebi": [0.9, 0.3, 1.45],
+  "titan-serum": [1.55, 0.14, 0.1],
+  "map-print": [1.5, 0.95, 0.15],
+  bandage: [0.25, 1.35, 0.45],
+  medkit: [0.25, 1.35, 0.45],
+  ammo: [1.35, 0.8, 0.2],
+  armour: [0.3, 0.65, 1.55],
+  battery: [1.3, 1.2, 0.2],
+  nv: [0.35, 1.4, 0.75],
+};
+const GLOW_DEFAULT = [0.2, 0.85, 1.25] as const;
 
 // ── The things themselves: small, low-poly, coloured per vertex ───────────────
 
@@ -114,6 +134,38 @@ function itemGeometry(l: Look): BufferGeometry {
         part(new BoxGeometry(0.22, 0.024, 0.012), 0xc4361f, { p: [0.02, 0.013, 0.03], r: [0, 0.5, 0] }),
         part(new CylinderGeometry(0.006, 0.006, 0.08, 4), 0x2a2622, { p: [0.08, 0.05, -0.04] }),
         part(new SphereGeometry(0.022, 6, 4), 0xe0201a, { p: [0.08, 0.095, -0.04] }),
+      ]);
+    case "smoke-pot":
+      // A smoke canister: an olive can, its cap, the spoon lever and the pull ring.
+      return merge([
+        part(new CylinderGeometry(0.06, 0.06, 0.2, 10), 0x4e5a3a, { p: [0, 0.1, 0] }),
+        part(new CylinderGeometry(0.062, 0.062, 0.03, 10), 0xd8d4c8, { p: [0, 0.15, 0] }),
+        part(new CylinderGeometry(0.035, 0.045, 0.05, 8), 0x2a2c30, { p: [0, 0.225, 0] }),
+        part(new BoxGeometry(0.02, 0.16, 0.03), 0x8a9098, { p: [0.068, 0.17, 0], r: [0, 0, -0.12] }),
+        part(new IcosahedronGeometry(0.022, 0), 0xc8ccd2, { p: [-0.04, 0.26, 0], s: [1, 0.35, 1] }),
+      ]);
+    case "decoy-flag":
+      // A rolled-out decoy flag on a short stake: orange, folded at the top.
+      return merge([
+        part(new CylinderGeometry(0.01, 0.012, 0.5, 5), 0x2a2622, { p: [0, 0.25, 0] }),
+        part(new BoxGeometry(0.22, 0.14, 0.008), 0xe8661a, { p: [0.11, 0.42, 0] }),
+        part(new BoxGeometry(0.22, 0.03, 0.01), 0xf2f0ea, { p: [0.11, 0.41, 0] }),
+        part(new ConeGeometry(0.03, 0.06, 5), 0x8a9098, { p: [0, 0.03, 0], r: [Math.PI, 0, 0] }),
+      ]);
+    case "talking-drum":
+      // A pulse scanner: a rugged handset, its cyan screen and a stub antenna.
+      return merge([
+        part(new BoxGeometry(0.12, 0.2, 0.05), 0x23262b, { p: [0, 0.1, 0] }),
+        part(new BoxGeometry(0.09, 0.09, 0.012), 0x1fd8ff, { p: [0, 0.13, 0.027] }, 1.6),
+        part(new BoxGeometry(0.1, 0.03, 0.012), 0x3a3f46, { p: [0, 0.04, 0.027] }),
+        part(new CylinderGeometry(0.008, 0.012, 0.1, 5), 0x111214, { p: [0.04, 0.25, 0] }),
+      ]);
+    case "aso-ebi":
+      // A squad disguise: a folded rival-colour jacket with a patch.
+      return merge([
+        part(new BoxGeometry(0.3, 0.07, 0.24), 0x6a2a9a, { p: [0, 0.035, 0] }),
+        part(new BoxGeometry(0.3, 0.03, 0.08), 0x4d1d72, { p: [0, 0.08, -0.08] }),
+        part(new BoxGeometry(0.08, 0.012, 0.06), 0xf2c230, { p: [0.08, 0.075, 0.05] }),
       ]);
     default:
       // A cloth bundle, tied at the top.
@@ -273,7 +325,7 @@ export class ItemsView {
         depthWrite: false,
         side: DoubleSide,
       }),
-      MAX_ITEMS + MAX_BAGS + MAX_CRATES,
+      MAX_ITEMS * 2 + MAX_BAGS + MAX_CRATES,
       true,
     );
     // The flare: one open tube per crate.
@@ -316,12 +368,15 @@ export class ItemsView {
       const n = this.counts.get(l)!;
       if (n >= MAX_ITEMS) continue;
       const mesh = this.kinds.get(l)!;
-      _q.setFromAxisAngle(_up, t * 0.8 + i * 1.7);
-      mesh.setMatrixAt(n, _m.compose(_p.set(it.x, it.h + 0.12 + Math.sin(t * 2.2 + i) * 0.04, it.z), _q, _s.set(1.3, 1.3, 1.3)));
+      // v6 (the owner: "make items spin around or move up and down constantly ... like the guns"): turning and
+      // floating above the ground like a gun on the ground, the glow pulsing in the item's own colour.
+      _q.setFromAxisAngle(_up, t * 1.6 + i * 1.7);
+      mesh.setMatrixAt(n, _m.compose(_p.set(it.x, it.h + 0.32 + Math.sin(t * 2.4 + i) * 0.09, it.z), _q, _s.set(1.4, 1.4, 1.4)));
       this.counts.set(l, n + 1);
-      // v5: pick-ups catch the eye: a tall, coloured shaft you can see from across a street; gold for the rare ones.
-      if (ITEM_DEFS[it.kind].rare) pillar(it.x, it.h, it.z, 1.5, 0.95, 0.15, 2.4);
-      else pillar(it.x, it.h, it.z, 0.2, 0.85, 1.25, 1.6);
+      // v5: pick-ups catch the eye: a tall shaft you can see from across a street, taller for the rare ones.
+      const g = GLOW[it.kind] ?? GLOW_DEFAULT;
+      const k = 0.85 + 0.15 * Math.sin(t * 3 + i * 0.7);
+      pillar(it.x, it.h, it.z, g[0] * k, g[1] * k, g[2] * k, ITEM_DEFS[it.kind].rare ? 2.4 : 1.7);
     }
     for (const l of LOOKS) {
       const mesh = this.kinds.get(l)!;

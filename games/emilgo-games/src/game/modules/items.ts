@@ -2,10 +2,11 @@
 // changes every match, a 10-slot backpack, using and dropping from it, and the
 // loot bag a body leaves where it dies.
 //
-//   Scatter   LOOT.perHectare × density items over the world, a little over
-//             half at the named places, the rest anywhere you can walk; never
-//             closer than LOOT.spacing, only on open, reachable ground, from
-//             the mode's table (only items whose effect is built).
+//   Scatter   LOOT.perHectare × density items over the world, a quarter at
+//             the named places (v6), the rest anywhere you can walk; never
+//             closer than LOOT.spacing (two of a kind: LOOT.sameKind), only on
+//             open, reachable ground, from the mode's table (only items whose
+//             effect is built).
 //   Pick up   an interact tap within LOOT.reach: the nearest item or loot bag.
 //             A full backpack says so and leaves it.
 //   Use       from the backpack: its effect, then the slot is empty.
@@ -93,7 +94,13 @@ export class ItemsModule implements RuleModule {
     const places = m.world.places;
     const sp2 = LOOT.spacing * LOOT.spacing;
     const grid = new SpotGrid(Math.max(1, LOOT.spacing));
+    // v6: the same kind kept further apart, so one street never holds three of one thing.
+    const same2 = LOOT.sameKind * LOOT.sameKind;
+    const kinds = new Map<ItemId, SpotGrid>();
     for (let n = 0; n < count; n++) {
+      const kind = pick(loot, rng.next());
+      let kindGrid = kinds.get(kind);
+      if (!kindGrid) kinds.set(kind, (kindGrid = new SpotGrid(LOOT.sameKind)));
       const atPlace = places.length > 0 && rng.chance(LOOT.atPlaces);
       let spot: [number, number, number] | null = null;
       for (let t = 0; t < 12 && !spot; t++) {
@@ -101,7 +108,8 @@ export class ItemsModule implements RuleModule {
         if (atPlace) {
           const p = places[rng.int(0, places.length - 1)];
           const a = rng.range(0, Math.PI * 2);
-          const d = Math.sqrt(rng.next()) * (p.r + 8);
+          // v6: out to well past the place's edge, spread evenly over the area (not bunched at its centre).
+        const d = Math.sqrt(rng.next()) * (p.r + 30);
           cell = reach.cell(p.x + Math.cos(a) * d, p.z + Math.sin(a) * d);
           if (cell < 0 || !reach.ground[cell]) continue;
         } else cell = reach.open[rng.int(0, reach.open.length - 1)];
@@ -109,11 +117,13 @@ export class ItemsModule implements RuleModule {
         const x = cx + rng.range(-0.4, 0.4);
         const z = cz + rng.range(-0.4, 0.4);
         if (grid.any(x, z, LOOT.spacing, (sx, sz) => (sx - x) ** 2 + (sz - z) ** 2 < sp2)) continue;
+        if (kindGrid.any(x, z, LOOT.sameKind, (sx, sz) => (sx - x) ** 2 + (sz - z) ** 2 < same2)) continue;
         spot = [x, z, reach.h[cell]];
       }
       if (!spot) continue;
-      this.items.push({ index: this.items.length, kind: pick(loot, rng.next()), x: spot[0], z: spot[1], h: spot[2], taken: false });
+      this.items.push({ index: this.items.length, kind, x: spot[0], z: spot[1], h: spot[2], taken: false });
       grid.add(spot[0], spot[1]);
+      kindGrid.add(spot[0], spot[1]);
     }
   }
 

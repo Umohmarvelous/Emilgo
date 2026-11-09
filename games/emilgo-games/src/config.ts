@@ -358,10 +358,15 @@ export const LOOT = {
   reachUp: 1.0,
   /** Items scattered per hectare of the world at density 1. */
   perHectare: 8,
-  /** The closest two scattered items may lie, metres. */
-  spacing: 5,
-  /** The share scattered at the named places (the rest anywhere you can walk). */
-  atPlaces: 0.55,
+  /**
+   * The closest two scattered items may lie, metres. v6 (the owner: "items are placed closer together and
+   * they are too many in some area ... spread items everywhere"): 5 → 14, and fewer at the named places.
+   */
+  spacing: 14,
+  /** The share scattered at the named places (the rest anywhere you can walk): v6 0.55 → 0.25. */
+  atPlaces: 0.25,
+  /** v6: two of the same kind never lie closer than this, metres. */
+  sameKind: 40,
   /** A loot bag glows (and shows on the compass) this long, seconds. */
   bagGlow: 60,
 } as const;
@@ -899,7 +904,8 @@ export const NET = {
   // 17 (v5): the live kill switch: welcome carries what's off, and "modes" when it changes.
   // 18 (v5): Treasure Hunt; snapshots in packed bytes.
   // 19 (v5): Titan Serum and the Map Print in the loot (the scatter changed), a seat's own events ("reveal").
-  protocol: 19,
+  // 20 (v6): only the kept items in the loot, spread wider (the scatter changed).
+  protocol: 20,
   tickHz: 60,
   /** Server → client state broadcasts per second. */
   snapshotHz: 15,

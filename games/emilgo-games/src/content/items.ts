@@ -111,10 +111,12 @@ export type LootTable = readonly (readonly [ItemId, number])[];
 
 export const LOOT_TABLES: Record<string, LootTable> = {
   // v5: the old items are out of the loot (the owner: "remove old items like the pepper soup"): Hot Ration, Iron Guard,
-  // Banana Peel, Pepper Spray, Megaphone, the Throwing and Golden Boots and the four dance cards. Their rules stay
-  // in the code, unused (a mode could still name them in its own table).
-  "ffa-core": [["kola", 4], ["zobo", 4], ["big-bag", 1.5], ["smoke-pot", 2], ["decoy-flag", 1], ["talking-drum", 1.5], ["aso-ebi", 1], ["titan-serum", 1.8], ["map-print", 0.5]],
-  airfall: [["zone-shield", 1], ["jerrycan", 1], ["danfo-key", 1], ["titan-serum", 1.2], ["map-print", 1]],
+  // Banana Peel, Pepper Spray, Megaphone, the Throwing and Golden Boots and the four dance cards.
+  // v6 (the owner: "leave only these items"): Smoke Canister, Decoy Flag, Pulse Scanner, Squad Disguise, with v5's
+  // Titan Serum and Map Print. Out: Adrenaline Shot, Field Flask, Big Bag, Zone Shield, Fuel Jerrycan, Van Key.
+  // Their rules stay in the code, unused (a mode could still name them in its own table).
+  "ffa-core": [["smoke-pot", 3], ["decoy-flag", 1.2], ["talking-drum", 2.4], ["aso-ebi", 1.6], ["titan-serum", 2], ["map-print", 0.5]],
+  airfall: [["titan-serum", 1.4], ["map-print", 1], ["talking-drum", 0.5], ["smoke-pot", 0.5]],
   "ds-core": [["bandage", 5], ["medkit", 1.5], ["ammo", 6], ["armour", 1.2], ["battery", 3], ["nv", 0.8]],
 };
 
