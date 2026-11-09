@@ -54,6 +54,8 @@ export interface Settings {
   autoCam: boolean;
   /** Move on the right, look on the left. */
   leftHanded: boolean;
+  /** v5: held upright, one stick walks and turns the view, on the side of the hand holding the phone. */
+  oneThumb: boolean;
   /**
    * Touch look (v4 Phase 1): the right half is a touchpad. A faint touch point
    * (off by default: invisible), the acceleration (0 = linear), the dead zone
@@ -187,6 +189,7 @@ export function defaults(host: Host): Settings {
     shake: true,
     autoCam: false,
     leftHanded: false,
+    oneThumb: true,
     lookDot: false,
     lookAccel: 1.4,
     lookDead: 3,

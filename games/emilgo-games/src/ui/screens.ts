@@ -1141,7 +1141,7 @@ export class Screens {
         <div class="row-set off"><span class="lbl"><b>Voice chat volume</b><small>Not available</small></span><input class="slider" type="range" min="0" max="100" value="0" disabled aria-label="Voice chat volume" /></div>`;
     } else if (tab === "controls") {
       const preset = Object.entries(LOOK_PRESETS).find(([, [v, acc]]) => Math.abs(s.sens - v) < 0.005 && Math.abs(s.lookAccel - acc) < 0.005)?.[0] ?? "";
-      body = `<p class="note" style="margin:0 0 8px">Look: drag anywhere on the ${s.leftHanded ? "left" : "right"} half. The camera turns as far as your thumb travels, more for a quick flick. Nothing re-centres.</p>
+      body = `<p class="note" style="margin:0 0 8px">${s.oneThumb ? `Upright: the stick on the ${s.leftHanded ? "left" : "right"} walks, and pushing it sideways turns the view too. ` : ""}Turned sideways: look by dragging anywhere on the ${s.leftHanded ? "left" : "right"} half. The camera turns as far as your thumb travels, more for a quick flick. Nothing re-centres.</p>
         <div class="row-set"><span class="lbl"><b>Look feel</b><small>Precise: slow and steady. Classic: the default. Fast: quick flicks turn round. Linear: no acceleration</small></span>${seg("lookPreset", preset, [["precise", "Precise"], ["classic", "Classic"], ["fast", "Fast"], ["linear", "Linear"]])}</div>
         ${range("sens", "Camera sensitivity", "Both look speeds together")}
         ${range("sensH", "Horizontal sensitivity", "Looking sideways. Lower is calmer")}
@@ -1155,7 +1155,8 @@ export class Screens {
         <div class="row-set"><span class="lbl"><b>Move stick</b><small>Fixed: always in the corner. Floating: appears where your thumb lands</small></span>${seg("moveStick", s.moveStick, [["fixed", "Fixed"], ["float", "Floating"]])}</div>
         <div class="row-set"><span class="lbl"><b>Stick size</b></span>${seg("stickSize", s.stickSize, [["small", "Small"], ["medium", "Medium"], ["large", "Large"]])}</div>
         ${range("stickOpacity", "Stick opacity", "How solid the move stick looks")}
-        ${sw("leftHanded", "Left-handed", "Move on the right, look on the left")}
+        ${sw("oneThumb", "One-thumb when upright", "Phone held upright: one stick walks and turns the view, on your thumb's side. Turned sideways: two sticks")}
+        ${sw("leftHanded", "Left-handed", "Move on the right, look on the left (one-thumb: the stick on the left)")}
         <div class="row-set"><span class="lbl"><b>Arrange the buttons</b><small>Drag every button where you want it and resize it. Saved for landscape and portrait apart</small></span><span class="seg"><button data-act="arrange-ctl">Arrange</button><button data-act="arrange-reset">Reset</button></span></div>
         <div class="row-set"><span class="lbl"><b>Sprint</b><small>Toggle: tap on, tap off. Hold: sprint while held. Auto: a full push sprints</small></span>${seg("sprintMode", s.sprintMode, [["toggle", "Toggle"], ["hold", "Hold"], ["auto", "Auto"]])}</div>
         <div class="row-set"><span class="lbl"><b>Mouse</b><small>Computer: click to take the mouse (Esc gives it back), or drag as a stick</small></span>${seg("mouseLook", s.mouseLook, [["lock", "Mouse look"], ["stick", "Joystick"]])}</div>

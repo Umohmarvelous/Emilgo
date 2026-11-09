@@ -120,8 +120,8 @@ const BASICS: Page[] = [
   {
     id: "basics-move",
     name: "Moving",
-    text: "The left stick walks and runs. Drag the right side of the screen to look.",
-    tips: ["Sprint, jump, crouch and go prone from the buttons.", "Turn your phone sideways, or tap Rotate, for the full view."],
+    text: "Phone upright: one stick, under your thumb, walks and runs, and pushing it sideways turns the view as you go. Phone sideways: the left stick walks, and dragging the right side of the screen looks.",
+    tips: ["Sprint, jump, crouch and go prone from the buttons.", "Left-handed? Settings, Controls: the stick moves to the other side.", "Turn your phone sideways, or tap Rotate, for the full view."],
   },
   {
     id: "basics-guns",

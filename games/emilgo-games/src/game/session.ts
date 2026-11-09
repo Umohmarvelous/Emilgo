@@ -3295,7 +3295,7 @@ export class Game {
         break;
       case "arrange-ctl":
         // Arrange the buttons (v4 rework): drag, resize, save per orientation.
-        void editSpots(document.body, this.settings.ctlLayout, this.settings.leftHanded).then((out) => {
+        void editSpots(document.body, this.settings.ctlLayout, this.controls.lefty).then((out) => {
           if (out === null) return;
           this.settings.ctlLayout = out;
           saveSettings(this.host, this.settings);
@@ -4027,6 +4027,7 @@ export class Game {
     this.rig.sensH = s.sensH * s.sens;
     this.rig.sensV = s.sensV * s.sens;
     this.stage?.setLightMode(s.lightMode);
+    this.controls.oneThumb = s.oneThumb;
     this.controls.setLayout(s.leftHanded, s.moveStick === "fixed", s.ctlLayout);
     // Touch look: "Camera sensitivity" scales both axes; the horizontal and vertical sliders (0.3 = 1×) each axis.
     this.controls.setPad(s.sens, s.sensH / 0.3, (s.sensV / 0.3) * 0.8, s.lookAccel, s.lookDead, s.lookDot, s.fireAim);

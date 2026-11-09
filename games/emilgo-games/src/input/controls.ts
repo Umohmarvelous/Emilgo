@@ -96,6 +96,26 @@ export class Controls {
   /** Called when the pointer is taken or given back. */
   onPointerLock: ((locked: boolean) => void) | null = null;
   leftHanded = false;
+  /**
+   * v5 (3.3, the owner: "one hand on portrait"): held upright, one stick both
+   * walks and turns the view (its sideways push turns the camera as you go),
+   * and it sits on the side of the hand that holds the phone (the right, or
+   * the left with left-handed on): the layout is the mirror of two-thumb
+   * portrait. Landscape keeps the two sides: stick left, look right.
+   */
+  oneThumb = true;
+  /** One-thumb mode is on now (on, and the game area is upright). */
+  get thumbMode(): boolean {
+    const g = gameSize();
+    return this.oneThumb && g.h > g.w;
+  }
+  /** Mirrored now: left-handed, or (exclusive) one-thumb portrait. */
+  get lefty(): boolean {
+    return this.leftHanded !== this.thumbMode;
+  }
+  /** One-thumb: full radians a second the camera turns with the stick pushed fully sideways. */
+  thumbTurn = 2.1;
+  private thumbAt = 0;
   /** Touch look: sensitivity (both axes, and each), acceleration, dead zone (px), the touch point, aim from FIRE. */
   readonly pad = { sens: 1, h: 1, v: 1, accel: 1.4, dead: 3, dot: false, fireAim: true };
   /** The move stick sits fixed in the corner, or floats where the thumb lands. */
@@ -375,9 +395,10 @@ export class Controls {
     window.addEventListener("keydown", this.keyDown);
     window.addEventListener("keyup", this.keyUp);
     window.addEventListener("blur", () => this.reset());
+    // A turn of the phone can switch one-thumb on or off: the sides, the boxes and the stick follow.
     window.addEventListener("resize", () => {
-      this.arrange();
-      this.placeMoveHome();
+      this.setLayout(this.leftHanded, this.moveFixed);
+      this.gunpad.classList.toggle("lefty", this.lefty);
     });
     surface.addEventListener("contextmenu", (e) => e.preventDefault());
     document.addEventListener("mousemove", this.lockedMove);
@@ -484,8 +505,8 @@ export class Controls {
     this.leftHanded = leftHanded;
     this.moveFixed = moveFixed;
     this.ctlLayout = ctlLayout;
-    this.actions.classList.toggle("lefty", leftHanded);
-    this.moveSide.classList.toggle("lefty", leftHanded);
+    this.actions.classList.toggle("lefty", this.lefty);
+    this.moveSide.classList.toggle("lefty", this.lefty);
     this.arrange();
     this.placeMoveHome();
   }
@@ -498,7 +519,7 @@ export class Controls {
 
   /** Put every control where the layout says (after a resize, a rotation, or a new arrangement). */
   arrange(): void {
-    for (const r of [this.actions, this.moveSide, this.vitals, this.gunpad, ...this.extraRoots]) this.spots = applySpots(r, this.ctlLayout, this.leftHanded);
+    for (const r of [this.actions, this.moveSide, this.vitals, this.gunpad, ...this.extraRoots]) this.spots = applySpots(r, this.ctlLayout, this.lefty);
   }
 
   /** The touch look's feel (Settings): sensitivity × each axis, acceleration, dead zone px, the touch point, aim from FIRE. */
@@ -518,8 +539,17 @@ export class Controls {
     return PAD_BASE * this.pad.sens * (1 + this.pad.accel * t * t * (3 - 2 * t));
   }
 
-  /** The touchpad's turn since the last call (radians: x sideways, + right; y, + down). */
+  /** The touchpad's turn since the last call (radians: x sideways, + right; y, + down). One-thumb: the stick's turn too. */
   consumePad(): Vec2 {
+    const now = performance.now();
+    const dt = Math.min(0.1, Math.max(0, (now - this.thumbAt) / 1000));
+    this.thumbAt = now;
+    // One-thumb: the sideways part of the stick (past a dead zone, so walking ahead doesn't drift) turns the view.
+    if (this.enabled && this.thumbMode && this.sticks.move.id !== null) {
+      const x = this.move.x;
+      const k = Math.min(1, Math.max(0, (Math.abs(x) - 0.22) / 0.78));
+      this.padYaw += Math.sign(x) * k * k * (3 - 2 * k) * this.thumbTurn * this.pad.sens * dt;
+    }
     const d = { x: this.padYaw, y: this.padPitch };
     this.padYaw = this.padPitch = 0;
     return d;
@@ -701,7 +731,7 @@ export class Controls {
       this.setAds(false);
     }
     this.gunpad.hidden = !(on || this.survivalGun) || this.actions.hidden || !!this.driving;
-    this.gunpad.classList.toggle("lefty", this.leftHanded);
+    this.gunpad.classList.toggle("lefty", this.lefty);
   }
 
   setAds(on: boolean): void {
@@ -837,10 +867,10 @@ export class Controls {
     const g = gameSize();
     const portrait = g.h > g.w;
     const sp = this.spots?.move;
-    if (sp) return { x: (this.leftHanded ? 1 - sp.x : sp.x) * g.w, y: sp.y * g.h };
+    if (sp) return { x: (this.lefty ? 1 - sp.x : sp.x) * g.w, y: sp.y * g.h };
     const x = 40 + this.radius;
     const y = g.h - (portrait ? 150 : 40) - this.radius;
-    return { x: this.leftHanded ? g.w - x : x, y };
+    return { x: this.lefty ? g.w - x : x, y };
   }
 
   /** The move stick at rest: drawn at home when fixed (in play), hidden when floating. */
@@ -866,7 +896,7 @@ export class Controls {
     // Game coordinates: the same as the screen's unless the game is turned on its side.
     const p = toGame(e.clientX, e.clientY);
     const leftSide = p.x < gameSize().w / 2;
-    const isMove = this.leftHanded ? !leftSide : leftSide;
+    const isMove = this.lefty ? !leftSide : leftSide;
     // Pointer lock (the default on a computer): a click on the game takes the mouse.
     if (e.pointerType === "mouse" && this.mouseMode === "lock") {
       e.preventDefault();
