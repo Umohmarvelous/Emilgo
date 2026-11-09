@@ -602,6 +602,15 @@ const PCM: Record<string, string> = {
   "Connection lost": "Connection don cut",
   "Reconnecting…": "E dey connect back…",
   "Reconnecting… you're standing still": "E dey connect back… you dey stand still",
+  // v6
+  "No connection": "No network",
+  "You're offline. Check your data or Wi-Fi.": "You no dey online. Check your data or Wi-Fi.",
+  "Connection restored": "Network don come back",
+  "fell to the zone": "fall for the zone",
+  "Play now": "Play now",
+  "Get the EMILGO app": "Get the EMILGO app",
+  "Silo Zone, your rank and your look on every phone": "Silo Zone, your rank and your look for every phone",
+  "Get EMILGO": "Get EMILGO",
   "Tap to rotate": "Tap make e turn",
   // Chat and moderation
   Chat: "Chat",

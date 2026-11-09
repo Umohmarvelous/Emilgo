@@ -67,6 +67,7 @@ import { QuickChat } from "../ui/quickchat";
 import { Scoreboard } from "../ui/scoreboard";
 import type { TerrainShot } from "../ui/minimap";
 import { Screens, honourTitle, naira, payoutOf, type FfaResultView, type LobbyState, type LobbyTab, type OnlineAvailability, type PlayMode, type ResultInfo } from "../ui/screens";
+import { NetStatus } from "../ui/netstatus";
 import { artForMap, nextDrop } from "../ui/places";
 import { KITS } from "../world/human/gear";
 
@@ -170,6 +171,8 @@ export class Game {
   private readonly controls: Controls;
   private readonly hud = new Hud();
   private readonly screens = new Screens();
+  /** v6: the COD-style network banner (offline, reconnecting, restored), over every screen. */
+  private netStatus!: NetStatus;
   private readonly touch: HTMLDivElement;
   private readonly chat: ChatPanel;
   private readonly wheel: EmoteWheel;
@@ -419,6 +422,7 @@ export class Game {
     this.board = new Scoreboard(ui);
     this.quick = new QuickChat(ui);
     ui.append(this.screens.root, this.screens.toastNode);
+    this.netStatus = new NetStatus(ui);
     this.bubbles = new Bubbles(bubbleLayer);
     this.chat = new ChatPanel(ui, this.controls.chatBtn);
     this.wheel = new EmoteWheel(ui);
@@ -2202,7 +2206,8 @@ export class Game {
   }
 
   private onNetState(s: NetClient["state"]): void {
-    if (this.mode === "online" && (this.round || this.gm)) this.hud.setConnection(s === "open" ? "ok" : s === "closed" ? "lost" : "reconnecting");
+    // v6: the network banner says it, everywhere (the HUD's own line is no longer needed).
+    this.netStatus.socket(s, this.mode === "online" && !!(this.round || this.gm));
     if (s === "closed" && this.room && !this.round) {
       this.room = null;
       if (this.screens.name === "room") {

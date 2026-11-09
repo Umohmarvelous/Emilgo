@@ -575,6 +575,19 @@ input { font: inherit; color: inherit; }
 
 .conn { padding: 4px 10px; font-size: 10px; border-radius: 4px; background: var(--glass-2); opacity: 0; transition: opacity 0.2s; white-space: nowrap; }
 .conn.visible { opacity: 1; }
+/* v6: the network banner, COD-style: a dark tactical strip at the top centre, its colour by state. */
+.netstat { position: absolute; left: 50%; top: calc(var(--safe-t, 0px) + 10px); z-index: 80; display: flex; align-items: center; gap: 10px; min-width: 220px; max-width: calc(100% - 24px); padding: 7px 14px 7px 12px; border-radius: 4px; background: rgba(14, 15, 11, 0.92); border: 1px solid rgba(255, 255, 255, 0.14); border-left: 4px solid #e5292a; color: #f2ecdc; pointer-events: none; transform: translate(-50%, -14px); opacity: 0; transition: opacity 0.22s, transform 0.22s; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45); }
+.netstat.visible { opacity: 1; transform: translate(-50%, 0); }
+.netstat .ns-bars { flex: none; }
+.netstat .ns-txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.netstat b { font: 800 12px/1.1 var(--head, Montserrat, sans-serif); letter-spacing: 0.12em; text-transform: uppercase; }
+.netstat small { font: 500 10px/1.2 var(--mono, "JetBrains Mono", monospace); color: #b8b39a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.netstat.offline { border-left-color: #e5292a; } .netstat.offline .ns-bars { color: #e5292a; }
+.netstat.reconnecting { border-left-color: #ffb23a; } .netstat.reconnecting .ns-bars { color: #ffb23a; }
+.netstat.restored { border-left-color: #1fc46a; } .netstat.restored .ns-bars { color: #1fc46a; }
+.netstat .ns-spin { flex: none; width: 14px; height: 14px; margin-left: auto; border-radius: 50%; border: 2px solid rgba(255, 178, 58, 0.25); border-top-color: #ffb23a; animation: ns-spin 0.8s linear infinite; }
+@keyframes ns-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .netstat .ns-spin { animation: none; } }
 
 /* Top right: the minimap — round, faded edge, slightly see-through. */
 .minimap { display: block; width: 124px; height: 124px; padding: 0; border-radius: 50%; overflow: hidden; opacity: 0.86; pointer-events: auto; -webkit-mask-image: radial-gradient(circle, #000 60%, transparent 71%); mask-image: radial-gradient(circle, #000 60%, transparent 71%); }
