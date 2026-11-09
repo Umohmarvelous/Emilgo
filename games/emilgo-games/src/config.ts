@@ -221,9 +221,12 @@ export const MOVE = {
   airAccel: 4,
   turnRate: 11, // rad/s
   radius: 0.34, // body radius for spacing
-  /** Jump: 1.2 m high under 20 m/s² gravity → take-off speed √(2gh). */
-  gravity: 20,
-  jumpHeight: 1.2,
+  /**
+   * Jump: take-off speed √(2gh). v6 (the owner: "jumping should take a little shorter time"): 1.15 m under
+   * 27 m/s², 0.58 s in the air (it was 1.2 m under 20 m/s², 0.69 s): snappier, still over anything waist-high.
+   */
+  gravity: 27,
+  jumpHeight: 1.15,
   /** Seconds of sprint from full stamina, and to refill it from empty. */
   sprintFor: 4.5,
   refillIn: 6,
