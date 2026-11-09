@@ -7,7 +7,7 @@
 //   - webhook purchase.paid: granted without the phone asking
 // And what the game itself promises:
 //   - online, others see only what a genuine ticket says you own
-//   - pack emotes only from pack owners; gold chat names only for buyers
+//   - (v6) only the two emotes left reach anyone, free for all; gold chat names only for buyers
 //
 //   node server/build-tools.mjs && node server/dist/shoptest.mjs
 // Writes the buyer's session to $SHOPTEST_OUT (if set) for the restart check.
@@ -170,9 +170,10 @@ async function main(): Promise<void> {
   const bZanku = await ca.waitFor((m) => m.t === "emote" && m.e === "zanku" && m.from !== ra?.id, 2500);
   const bWave = await ca.waitFor((m) => m.t === "emote" && m.e === "wave", 2500);
   const aZanku = await cb.waitFor((m) => m.t === "emote" && m.e === "zanku", 2500);
-  check(!bZanku, "B's pack emote (not owned) is dropped by the server");
-  check(!!bWave, "B's free emote goes through");
-  check(!!aZanku, "A's pack emote (owned) goes through");
+  // v6: only Shaku Shaku and Zanku are emotes, free for everyone; the old ones (Wave…) aren't on the wire any more.
+  check(!!bZanku, "B's Zanku goes through (free for everyone since v6)");
+  check(!bWave, "B's Wave (removed in v6) is dropped by the server");
+  check(!!aZanku, "A's Zanku goes through");
   ca.close();
   cb.close();
 
