@@ -439,5 +439,34 @@ console.log("Airfall:");
   check(ms < 0.5, `a 12-player step with the zone, items and Airfall costs ${(ms * 1000).toFixed(0)} µs (a 60 Hz tick has 16,667)`);
 }
 
+// ── v6: walk-through pickup ──
+console.log("walk-through pickup:");
+{
+  const m4 = newMatch(41);
+  runTo(m4, 1);
+  const it4 = m4.module<ItemsModule>("items")!;
+  const c4 = m4.get("p4")!;
+  const g4 = it4.items.find((x) => !x.taken && reach.at(x.x + 0.5, x.z))!;
+  const ev4: MatchEvent[] = [];
+  runTo(m4, m4.elapsed + 0.2, ev4, () => put(m4, "p4", g4.x + 0.5, g4.z));
+  check(g4.taken && it4.packs[c4.index].includes(g4.kind) && ev4.some((e) => e.type === "take" && e.id === "p4"), "walk onto an item: it's in the backpack, no tap");
+  const slot = it4.packs[c4.index].indexOf(g4.kind);
+  m4.setPack("p4", (1 << 5) | 16 | slot);
+  const ev5: MatchEvent[] = [];
+  runTo(m4, m4.elapsed + 1, ev5, () => put(m4, "p4", g4.x + 0.5, g4.z));
+  const dropped = ev5.find((e) => e.type === "drop" && e.id === "p4");
+  const back = dropped && dropped.type === "drop" ? it4.items[dropped.item] : null;
+  check(!!back && !back.taken, "your own drop stays on the ground while you stand by it");
+  runTo(m4, m4.elapsed + 0.2, [], () => put(m4, "p4", g4.x + 6, g4.z));
+  runTo(m4, m4.elapsed + 0.2, [], () => put(m4, "p4", back ? back.x : g4.x, back ? back.z : g4.z));
+  check(!!back && back.taken, "walk away and back: it's picked up again");
+  // A full backpack leaves it, silently (no "full" every step).
+  const full = it4.items.find((x) => !x.taken && x !== back && reach.at(x.x + 0.5, x.z))!;
+  it4.packs[c4.index].fill("smoke-pot");
+  const ev6: MatchEvent[] = [];
+  runTo(m4, m4.elapsed + 0.5, ev6, () => put(m4, "p4", full.x + 0.5, full.z));
+  check(!full.taken && !ev6.some((e) => e.type === "full"), "a full backpack walks past it, without a word");
+}
+
 console.log(failures ? `\n${failures} FAILED` : "\nall passed");
 process.exit(failures ? 1 : 0);

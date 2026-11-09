@@ -368,6 +368,8 @@ export const LOOT = {
   slots: 10,
   /** Pick-up reach, metres, and the most height between your feet and the item. */
   reach: 1.6,
+  /** v6: walk this close and it's picked up on its own (no tap). */
+  auto: 1.1,
   reachUp: 1.0,
   /** Items scattered per hectare of the world at density 1. */
   perHectare: 8,

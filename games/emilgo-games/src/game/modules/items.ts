@@ -7,8 +7,12 @@
 //             closer than LOOT.spacing (two of a kind: LOOT.sameKind), only on
 //             open, reachable ground, from the mode's table (only items whose
 //             effect is built).
-//   Pick up   an interact tap within LOOT.reach: the nearest item or loot bag.
-//             A full backpack says so and leaves it.
+//   Pick up   v6 (the owner: "automatically pick ... when they get too close,
+//             even walk through them"): walk within LOOT.auto of an item or a
+//             loot bag and it's yours, if the backpack has room (no tap; the
+//             phones play a pick-up pose). What you drop yourself waits until
+//             you've walked away from it. A tap within LOOT.reach still takes
+//             the nearest; a full backpack says so and leaves it.
 //   Use       from the backpack: its effect, then the slot is empty.
 //   Drop      from the backpack: on the ground in front of you.
 //   Death     the backpack drops as a loot bag (it glows LOOT.bagGlow s on
@@ -67,6 +71,8 @@ export class ItemsModule implements RuleModule {
   packs: Pack[] = [];
   /** v5: each body's growth level (Titan Serum, 0 … GROWTH.max), lost on going down; whether they've used their Map Print. */
   growth = new Int8Array(0);
+  /** v6: per body, the item it just dropped (not picked straight back up), or −1. */
+  private noAuto = new Int32Array(0);
   printed = new Uint8Array(0);
   readonly table: string;
   readonly density: number;
@@ -79,6 +85,7 @@ export class ItemsModule implements RuleModule {
   init(m: Match): void {
     this.packs = m.contestants.map(() => new Array<ItemId | null>(this.size(m)).fill(null));
     this.growth = new Int8Array(m.contestants.length);
+    this.noAuto = new Int32Array(m.contestants.length).fill(-1);
     this.printed = new Uint8Array(m.contestants.length);
     this.scatter(m);
   }
@@ -132,7 +139,24 @@ export class ItemsModule implements RuleModule {
       const act = m.takePackAct(c);
       if (c.status !== "alive") continue;
       if (act >= 0) this.packAct(m, c, act);
+      this.autoTake(m, c);
     }
+  }
+
+  /** v6: walk into an item or a loot bag and it goes in the backpack (when there's room). */
+  private autoTake(m: Match, c: Contestant): void {
+    if (m.seated(c) || c.stun > 0) return;
+    const i = c.index;
+    // Your own drop waits until you've stepped away from it.
+    const own = this.noAuto[i];
+    if (own >= 0) {
+      const it = this.items[own];
+      if (!it || it.taken || Math.hypot(it.x - c.x, it.z - c.z) > LOOT.auto * 2.2) this.noAuto[i] = -1;
+    }
+    if (!this.packs[i].includes(null)) return;
+    const t = this.target(c, LOOT.auto);
+    if (!t || (t.item && t.item.index === this.noAuto[i])) return;
+    this.interact(m, c, t);
   }
 
   /** An interact tap's candidate: the nearest item or loot bag (the core picks between modules). */
@@ -161,17 +185,17 @@ export class ItemsModule implements RuleModule {
   }
 
   /** The nearest item or loot bag c could take now (the UI's prompt, and a tap's choice). */
-  target(c: Contestant): Target | null {
+  target(c: Contestant, reach: number = LOOT.reach): Target | null {
     const feet = c.h + c.y;
     let best: Target | null = null;
-    let bestD: number = LOOT.reach;
+    let bestD: number = reach;
     // v4: only the grid cells within reach (the big world has thousands); ties go to the later item, as a full scan's did.
     let bestI = -1;
     const g = this.itemGrid();
-    const q0 = Math.floor((c.x - LOOT.reach) / ITEM_CELL);
-    const q1 = Math.floor((c.x + LOOT.reach) / ITEM_CELL);
-    const r0 = Math.floor((c.z - LOOT.reach) / ITEM_CELL);
-    const r1 = Math.floor((c.z + LOOT.reach) / ITEM_CELL);
+    const q0 = Math.floor((c.x - reach) / ITEM_CELL);
+    const q1 = Math.floor((c.x + reach) / ITEM_CELL);
+    const r0 = Math.floor((c.z - reach) / ITEM_CELL);
+    const r1 = Math.floor((c.z + reach) / ITEM_CELL);
     for (let q = q0; q <= q1; q++)
       for (let r = r0; r <= r1; r++) {
         const list = g.get(q * 65536 + r);
@@ -216,8 +240,8 @@ export class ItemsModule implements RuleModule {
   private grid: Map<number, number[]> | null = null;
   private gridN = -1;
 
-  private interact(m: Match, c: Contestant): void {
-    const t = this.target(c);
+  private interact(m: Match, c: Contestant, found?: Target): void {
+    const t = found ?? this.target(c);
     if (!t) return;
     const pack = this.packs[c.index];
     if (t.item) {
@@ -257,7 +281,8 @@ export class ItemsModule implements RuleModule {
         x = c.x;
         z = c.z;
       }
-      this.add(m, kind, x, z, c.h, c.id, slot);
+      // v6: not straight back into your own pack: it waits until you walk away (autoTake).
+      this.noAuto[c.index] = this.add(m, kind, x, z, c.h, c.id, slot).index;
       return;
     }
     const fx = ITEM_DEFS[kind].effect;
