@@ -120,6 +120,18 @@ const P: Record<string, string> = {
   ammo: `<path d="M7 20V9.5a2 2 0 0 1 4 0V20M13 20V9.5a2 2 0 0 1 4 0V20M5.5 20h13M7 12h4M13 12h4"/>`,
   gun: `<path d="M3.5 9h15l1.5 2h-4v2.5h-3.5l-1 4.5H8l1-4.5H6.5L5.5 11H3.5z"/>`,
   // v4 guns: a reticle (fire), a sight (aim down sights), a magazine going in (reload).
+  // v6 (the owner: "change all the control buttons, use cod-type icons"): the game screen's controls as bold, solid
+  // tactical silhouettes (our own drawings). Filled shapes and thick strokes, readable at 20 px under a thumb.
+  "c-fire": `<g fill="currentColor" stroke="none"><path d="M12 2.2c2.3 1.9 3.3 4.4 3.3 7.4v1.6H8.7V9.6c0-3 1-5.5 3.3-7.4z"/><rect x="8.7" y="12.2" width="6.6" height="7.4" rx=".6"/><rect x="8" y="20.3" width="8" height="1.8" rx=".5"/></g>`,
+  "c-ads": `<circle cx="12" cy="12" r="7.2" stroke-width="2.4"/><path d="M12 1.8v5.2M12 17v5.2M1.8 12H7M17 12h5.2" stroke-width="2.4"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/>`,
+  "c-jump": `<g fill="currentColor" stroke="none"><path d="M12 3.2 20 11l-2.5 2.4L12 8l-5.5 5.4L4 11z"/><path d="M12 10.6 20 18.4 17.5 20.8 12 15.4l-5.5 5.4L4 18.4z"/></g>`,
+  "c-crouch": `<circle cx="14.6" cy="5.4" r="2.5" fill="currentColor" stroke="none"/><path d="M13.6 8.8 10 13.4l4.6 1.6-.6 5.6M10 13.4l-2.2 4.3 2.4 2.7M12.4 10.6l5.2 1.2" stroke-width="3.1"/>`,
+  "c-sprint": `<circle cx="16.2" cy="4.2" r="2.4" fill="currentColor" stroke="none"/><path d="M15 7.6 11.6 13.6M11.6 13.6l4.4 2.4-.8 5.4M11.6 13.6 8 16.6 4.4 15.8M14.6 8.4l4.6 2.6M14 8.2l-4.2.4-2.4 3" stroke-width="3.1"/>`,
+  "c-pack": `<g fill="currentColor" stroke="none"><path d="M9.2 5.2V4a2.8 2.8 0 0 1 5.6 0v1.2h-1.6V4a1.2 1.2 0 0 0-2.4 0v1.2z"/><path d="M6.4 9.6A4.4 4.4 0 0 1 10.8 5.2h2.4a4.4 4.4 0 0 1 4.4 4.4V20a1.6 1.6 0 0 1-1.6 1.6H8a1.6 1.6 0 0 1-1.6-1.6z"/></g><path d="M9.2 13.2h5.6v4.4H9.2z" stroke="#000" stroke-opacity=".45" stroke-width="1.6"/>`,
+  "c-reload": `<path d="M19.4 12a7.4 7.4 0 1 1-2.2-5.3" stroke-width="2.6"/><path d="M20.2 3.6v4.8h-4.8z" fill="currentColor" stroke="none"/><path d="M10.4 9.2h3.2l.8 6.6h-4.8z" fill="currentColor" stroke="none"/>`,
+  "c-emote": `<circle cx="12" cy="4.4" r="2.4" fill="currentColor" stroke="none"/><path d="M12 8v6.4M12 9.6 6.4 6M12 9.6l5.6-3.6M12 14.4l-4 6.4M12 14.4l3.6 2.8.4 3.6" stroke-width="3"/>`,
+  "c-ping": `<path fill="currentColor" stroke="none" fill-rule="evenodd" d="M12 2.4a7 7 0 0 1 7 7c0 5-7 12.4-7 12.4S5 14.4 5 9.4a7 7 0 0 1 7-7zm0 4.2a2.8 2.8 0 1 0 0 5.6 2.8 2.8 0 0 0 0-5.6z"/>`,
+  "c-chat": `<path fill="currentColor" stroke="none" fill-rule="evenodd" d="M4 4.4h16a1.6 1.6 0 0 1 1.6 1.6v9.6a1.6 1.6 0 0 1-1.6 1.6h-8.4L6.4 21v-3.8H4a1.6 1.6 0 0 1-1.6-1.6V6A1.6 1.6 0 0 1 4 4.4zM7.6 9.4a1.4 1.4 0 1 0 0 2.8 1.4 1.4 0 0 0 0-2.8zm4.4 0a1.4 1.4 0 1 0 0 2.8 1.4 1.4 0 0 0 0-2.8zm4.4 0a1.4 1.4 0 1 0 0 2.8 1.4 1.4 0 0 0 0-2.8z"/>`,
   shoot: `<circle cx="12" cy="12" r="6.5"/><path d="M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4"/><circle cx="12" cy="12" r="1" fill="currentColor"/>`,
   sight: `<rect x="5" y="8" width="14" height="9" rx="2"/><circle cx="12" cy="12.5" r="2.2"/><path d="M8 8V6h8v2"/>`,
   reload: `<path d="M19 12a7 7 0 1 1-2.1-5"/><path d="M19.5 4.5v3.5H16"/><rect x="10" y="10" width="4" height="6" rx="1"/>`,

@@ -233,17 +233,17 @@ export class Controls {
       b.dataset.ui = "1";
       b.setAttribute("aria-label", aria);
       // Icons only: no words on the game screen (SPEC-V2 §3.6).
-      b.innerHTML = icon(ico, "", cls === "jump" ? 26 : 22);
+      b.innerHTML = icon(ico, "", cls === "jump" ? 24 : 22);
       this.actions.append(b);
       return b;
     };
-    this.sprintBtn = btn("sprint", "sprint", "Sprint");
-    this.emoteBtn = btn("emote", "emote", "Emotes (hold)");
-    this.chatBtn = btn("chat", "chat", "Chat");
-    this.quickBtn = btn("quick", "ping", "Quick chat");
+    this.sprintBtn = btn("sprint", "c-sprint", "Sprint");
+    this.emoteBtn = btn("emote", "c-emote", "Emotes (hold)");
+    this.chatBtn = btn("chat", "c-chat", "Chat");
+    this.quickBtn = btn("quick", "c-ping", "Quick chat");
     this.chatBtn.insertAdjacentHTML("beforeend", `<i class="dot-badge"></i>`);
-    this.crouchBtn = btn("crouch", "crouch", "Crouch (hold to lie down)");
-    this.jumpBtn = btn("jump", "jump", "Jump");
+    this.crouchBtn = btn("crouch", "c-crouch", "Crouch (hold to lie down)");
+    this.jumpBtn = btn("jump", "c-jump", "Jump");
     this.chatBtn.hidden = true;
     // v4 rework: every control is placed by the layout (layout.ts), boxes and circles.
     const tag = (b: HTMLElement, id: CtlId) => (b.dataset.ctl = id);
@@ -294,10 +294,10 @@ export class Controls {
       this.gunpad.append(b);
       return b;
     };
-    this.fireBtn = gbtn("fire", "shoot", "Fire", 30);
-    this.fireLBtn = gbtn("fireL", "shoot", "Fire", 22);
-    this.adsBtn = gbtn("ads", "sight", "Aim down the sights", 22);
-    this.reloadBtn = gbtn("reload", "reload", "Reload", 20);
+    this.fireBtn = gbtn("fire", "c-fire", "Fire", 30);
+    this.fireLBtn = gbtn("fireL", "c-fire", "Fire", 22);
+    this.adsBtn = gbtn("ads", "c-ads", "Aim down the sights", 24);
+    this.reloadBtn = gbtn("reload", "c-reload", "Reload", 20);
     this.fireBtn.dataset.ctl = "fire";
     this.fireLBtn.dataset.ctl = "fireL";
     this.adsBtn.dataset.ctl = "ads";

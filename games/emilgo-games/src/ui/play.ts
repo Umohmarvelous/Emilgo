@@ -134,7 +134,7 @@ export class PlayHud {
     this.expo.append(this.expoFill, this.expoText);
     this.act.append(this.actRing, this.actText);
     this.act.dataset.ui = "1";
-    this.packBtn.innerHTML = icon("pack", "", 18);
+    this.packBtn.innerHTML = icon("c-pack", "", 20);
     this.packBtn.dataset.ctl = "pack";
     this.act.dataset.ctl = "interact";
     this.packBtn.append(this.packCount);
