@@ -8,7 +8,7 @@
 import { generateKeyPairSync } from "node:crypto";
 
 import { openSigned } from "../../src/content/load";
-import { familyOn, MODE_SWITCH, setLiveOff } from "../../src/config";
+import { familyOn, FEATURES, MODE_SWITCH, setLiveOff } from "../../src/config";
 import { catalog, games } from "../../src/content/catalog";
 import { BUILTIN_MANIFEST, MODULE_IDS, type ModeDef } from "../../src/content/modes";
 import { checkManifest, modeErrors } from "../../src/content/validate";
@@ -25,13 +25,14 @@ console.log("the built-in manifest:");
 const own = checkManifest(BUILTIN_MANIFEST)!;
 check(own.dropped.length === 0, `every mode is valid (${own.dropped.map((d) => `${d.id}: ${d.errors.join(", ")}`).join("; ") || "none dropped"})`);
 const ffa = BUILTIN_MANIFEST.modes.filter((m) => m.family === "ffa" && !m.tags?.includes("staked"));
-check(ffa.filter((m) => !m.tags?.includes("dev")).length === 12, "twelve Free For All modes (v4: the ten and Naija Max's two)");
+check(ffa.filter((m) => !m.tags?.includes("dev")).length === 13, "thirteen Free For All modes (v4: the ten and Naija Max's two; v5: Treasure Hunt)");
+check(BUILTIN_MANIFEST.rotation[0] === "treasure-hunt" && ffa.some((m) => m.id === "treasure-hunt" && m.modules.treasure && m.win.measure === "treasure.count"), "Treasure Hunt first in the rotation, won by treasures");
 check(BUILTIN_MANIFEST.modes.some((m) => m.tags?.includes("staked") && m.players.max <= 4), "the staked duel: 2–4 seats");
 check(BUILTIN_MANIFEST.modes.some((m) => m.family === "survival"), "Dead Streets is there");
 check(own.manifest.rotation.length >= 3 && own.manifest.rotation.length <= 4, "a featured rotation of 3–4");
 
 console.log("\nbad modes are dropped, alone:");
-const base = BUILTIN_MANIFEST.modes[0];
+const base = BUILTIN_MANIFEST.modes.find((m) => m.modules.flags)!;
 const bad = (patch: Partial<ModeDef> | ((m: ModeDef) => void), why: string) => {
   const m = structuredClone(base) as ModeDef;
   if (typeof patch === "function") patch(m);
@@ -62,8 +63,8 @@ check(lockedAt?.state === "locked" && lockedAt.unlocksAt === "Legendary I", "a l
 const now = catalog(BUILTIN_MANIFEST, { xp: 0, ballHaunt: true });
 const stateOf = (id: string) => now.find((e) => e.def.id === id)?.state;
 check(
-  ["find-the-flag", "hold-the-flag", "steal-reposition", "squad-rally", "hustle"].every((id) => stateOf(id) === "play") && stateOf("scarcity") === "locked" && stateOf("chase-reverse") === "locked" && stateOf("lights-out") === "locked",
-  "this build (Phase 6): modes 1–4 and Hustle to play; Scarcity and Chase & Reverse at Pro, Lights Out at Legendary",
+  ["treasure-hunt", "hold-the-flag", "steal-reposition", "squad-rally", "hustle"].every((id) => stateOf(id) === "play") && stateOf("find-the-flag") === undefined && stateOf("scarcity") === "locked" && stateOf("chase-reverse") === "locked" && stateOf("lights-out") === "locked",
+  "this build: Treasure Hunt (Find the Flag switched off for it), modes 2–4 and Hustle to play; Scarcity and Chase & Reverse at Pro, Lights Out at Legendary",
 );
 check(now.some((e) => e.def.id === "ball-haunting" && e.state === "play"), "Ball Haunt on: playable");
 check(!catalog(BUILTIN_MANIFEST, { xp: 0, ballHaunt: false }).some((e) => e.def.family === "rlgl"), "Ball Haunt off: not in the menu at all");
@@ -87,13 +88,13 @@ check(BUILTIN_MANIFEST.modes.every((m) => allIds.has(m.id)), "the kill switch ha
 check([...allIds].every((id) => BUILTIN_MANIFEST.modes.some((m) => m.id === id)), "and no line for a mode that isn't there");
 const seen = () => catalog(BUILTIN_MANIFEST, { xp: 1e9 }).map((e) => e.def.id);
 setLiveOff(["hustle"]);
-check(!seen().includes("hustle") && seen().includes("find-the-flag"), "one mode off: gone, the rest stay");
+check(!seen().includes("hustle") && seen().includes("treasure-hunt"), "one mode off: gone, the rest stay");
 setLiveOff(["dead-streets"]);
 check(!familyOn("survival") && !games(BUILTIN_MANIFEST, { xp: 0 }).some((g) => g.id === "survival"), "a game's only mode off: the game is gone too");
 setLiveOff(["ffa"]);
 check(!familyOn("ffa") && !games(BUILTIN_MANIFEST, { xp: 0 }).some((g) => g.id === "ffa"), "a whole game off");
 setLiveOff([]);
-check(familyOn("ffa") && familyOn("survival") && seen().includes("hustle"), "all back on");
+check(familyOn("ffa") && (familyOn("survival") || !FEATURES.deadStreets) && seen().includes("hustle"), "all back on");
 
 console.log(failures ? `\n${failures} FAILED` : "\nall passed");
 process.exit(failures ? 1 : 0);

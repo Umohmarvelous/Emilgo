@@ -56,6 +56,7 @@ import { randomLook, type Look } from "../world/human/wardrobe";
 import { MatchScene } from "../world/matchScene";
 import { GadgetView } from "../world/gadgets";
 import { ModesView } from "../world/modesView";
+import { TreasureView } from "../world/treasure";
 import { VehicleView } from "../world/vehicles";
 import type { GameMode, ModeHost, ModeResult } from "./types";
 
@@ -154,6 +155,10 @@ export class FfaMode implements GameMode {
   private readonly cars: VehicleView | null;
   private readonly gadgets: GadgetView;
   private readonly modes6: ModesView;
+  /** Treasure Hunt's boxes, relics and machine (that mode only). */
+  private readonly treasure: TreasureView | null;
+  /** Rivals you killed this match. */
+  private kills = 0;
   /** Dead Streets' screen side (a run only). */
   private readonly dead: DeadView | null;
   /** The billboards (SPEC-V3 §8), this match's ads once they come, and whether their seconds have been sent. */
@@ -276,6 +281,8 @@ export class FfaMode implements GameMode {
     h.scene.add(this.gadgets.group);
     this.modes6 = new ModesView({ crowd: h.crowd, hud: h.hud, sound: h.sound, me: me.index });
     h.scene.add(this.modes6.group);
+    this.treasure = m.module("treasure") ? new TreasureView({ hud: h.hud, sound: h.sound, me: me.index, layer: h.ui }) : null;
+    if (this.treasure) h.scene.add(this.treasure.group);
     const guns = m.module<GunsModule>("guns");
     this.gunsView = guns ? new GunsView({ crowd: h.crowd, sound: h.sound, tier: h.spec.tier, me: me.index, blood: h.settings.blood }) : null;
     this.combat = guns || m.module("survival") ? new CombatHud() : null;
@@ -565,6 +572,7 @@ export class FfaMode implements GameMode {
     this.cars?.events(events, m, cam);
     this.gadgets.events(events, m, cam);
     this.modes6.events(events, m);
+    this.treasure?.events(events, m, cam);
     this.dead?.events(events, m);
     this.gunsView?.events(events, m, cam);
     for (const e of events) this.onEvent(e);
@@ -587,6 +595,10 @@ export class FfaMode implements GameMode {
     const h = this.host;
     const m = this.src.match;
     const me = this.src.me!;
+    if (e.type === "kill" && e.by === me.id && e.tg !== me.id) {
+      const tg = m.get(e.tg);
+      if (tg && !m.sameSquad(tg, me)) this.kills++;
+    }
     switch (e.type) {
       case "phase":
         if (e.phase === "play") {
@@ -864,13 +876,15 @@ export class FfaMode implements GameMode {
         ? { kind: "job" as const, d: tg.d, label: tg.how === "rescue" ? t("Pull them out of the gutter") : t("Help them up"), progress: 0 }
         : { kind: tg.kind, d: tg.d, label: tg.prop ? t(PROP_NAME[tg.prop]) : undefined, progress: 0 }
       : null;
-    const jobNear = this.modes6.target(m);
+    const tgt6 = this.modes6.target(m);
+    const trNear = this.treasure?.target(m) ?? null;
+    const jobNear = trNear && (!tgt6 || trNear.d <= tgt6.d) ? trNear : tgt6;
     const near = jobNear && (!flagNear || jobNear.d < flagNear.d) ? jobNear : flagNear;
     this.cars?.update(dt, m, cam, this.marks);
     const { inSmoke } = this.gadgets.update(dt, m, cam, this.marks);
     const extra = {
       target: car.target && (!near || car.target.d < near.d) ? car.target : near,
-      objective: m.phase === "play" ? this.view.objectiveLine(m, this.src.measures) || this.modes6.objectiveLine(m) : "",
+      objective: m.phase === "play" ? this.treasure?.objectiveLine(m) || this.view.objectiveLine(m, this.src.measures) || this.modes6.objectiveLine(m) : "",
       car: car.panel,
       smoke: inSmoke,
       riddle: this.modes6.riddle(m),
@@ -881,7 +895,8 @@ export class FfaMode implements GameMode {
     if (this.gunsView) this.gunFrame(dt, m, me);
     this.fieldFrame(m, me);
     this.soundFrame(dt, m, me);
-    const goal = flagGoal ?? deadPin ?? this.modes6.update(dt, m, this.marks).pin;
+    const trPin = this.treasure?.update(dt, m, h.camera, this.marks).pin ?? null;
+    const goal = trPin ?? flagGoal ?? deadPin ?? this.modes6.update(dt, m, this.marks).pin;
     // The Harmattan: the siren, then the dust; footprints gone; headlights on (or in a power cut).
     const hm = m.module<HarmattanModule>("harmattan");
     if (hm) {
@@ -1219,6 +1234,7 @@ export class FfaMode implements GameMode {
       online: !!this.online,
       seconds: m.elapsed,
       measure: measureName(m),
+      kills: this.kills,
       ...(this.best.text ? { play: this.best.text } : {}),
       trail: this.trail,
       ...(this.dead ? { run: runResult(m.module<SurvivalModule>("survival")!, this.trace) } : {}),
@@ -1267,6 +1283,10 @@ export class FfaMode implements GameMode {
       h.controls.setSurvival(false);
     }
     this.modes6.dispose(this.src.match);
+    if (this.treasure) {
+      h.scene.remove(this.treasure.group);
+      this.treasure.dispose();
+    }
     if (this.dimmed) this.world.setDim(0);
     if (this.dustSet) this.world.setDust(0, HARMATTAN.see);
     h.sound.engine(0, 0);
@@ -1302,6 +1322,7 @@ function measureName(m: Match): string {
   if (m.module("economy")) return "Owo banked";
   if (m.module("riddles")) return "Riddles solved";
   if (m.module("rooms")) return "Points";
+  if (m.module("treasure")) return "Treasures";
   if (m.module<CaptureModule>("capture")) return "Seconds in the rally point";
   if (!f) return "";
   if (f.claimHold > 0) return "Longest hold (s)";

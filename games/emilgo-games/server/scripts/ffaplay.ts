@@ -2,6 +2,8 @@
 // perf gate's crowd). N scripted phones join a mode's public queue on the
 // test server — with you, it fills — then play: they search the stash spots
 // (Find the Flag), walk to the flag or a drop zone, and swing at anyone close.
+// Treasure Hunt: they open the nearest boxes, take what's loose, and carry all
+// five to the machine.
 // Not bots in the game: test clients on the network, like the load test.
 //
 //   node server/dist/ffaplay.mjs [--url ws://localhost:8797] [--mode find-the-flag] [--n 11] [--seconds 300] [--hunt] [--shoot]
@@ -11,6 +13,7 @@
 
 import type { FlagsModule } from "../../src/game/modules/flags";
 import type { DropzonesModule } from "../../src/game/modules/dropzones";
+import type { TreasureModule } from "../../src/game/modules/treasure";
 import { field, Phone, spotDone } from "./ffanet";
 
 const arg = (k: string, d: string) => {
@@ -75,6 +78,30 @@ async function main(): Promise<void> {
           p.sendInput();
           continue;
         }
+      }
+      const tm = m.module<TreasureModule>("treasure");
+      if (tm) {
+        const d = (o: { x: number; z: number }) => Math.hypot(o.x - c.x, o.z - c.z);
+        const loose = tm.treasures.filter((t) => t.box === -1 && t.holder < 0).sort((a, b) => d(a) - d(b))[0];
+        const box = tm.boxes.filter((b) => !b.opened).sort((a, b) => d(a) - d(b))[phones.indexOf(p) % 2];
+        p.hold(false);
+        if (tm.count[c.index] >= tm.need && tm.machine) goal = d(tm.machine) > 3 ? tm.machine : null;
+        else if (loose && d(loose) < 120) goal = loose;
+        else if (box && d(box) < 1.6) {
+          p.stick(0, 0);
+          p.hold(true);
+          p.sendInput();
+          continue;
+        } else if (box) goal = box;
+        if (!goal) p.stick(0, 0);
+        else {
+          const key = `${Math.round(goal.x)},${Math.round(goal.z)}`;
+          let df = fields.get(key);
+          if (!df) fields.set(key, (df = field(m.reach, goal.x, goal.z)));
+          p.steer(df);
+        }
+        p.sendInput();
+        continue;
       }
       const mine = f?.flags.find((x) => x.holder === c.index);
       if (mine && dz) goal = dz.zones.reduce((a, b) => (Math.hypot(a.x - c.x, a.z - c.z) < Math.hypot(b.x - c.x, b.z - c.z) ? a : b), dz.zones[0]) ?? null;

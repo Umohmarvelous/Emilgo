@@ -15,6 +15,8 @@ const PLACES = "src/ui/places";
 // What each picture shows: a mode to play, where to stand (`at`: JS over the match `m`, giving {x, z}), how far back, from which side.
 const flagAt = "m.byId('flags').flags[0]";
 const SHOTS = [
+  // The upload machine and its ring, someone carrying all five.
+  { id: "treasure-hunt", mode: "treasure-hunt", at: "(()=>{const t=m.byId('treasure');for(const x of t.treasures){if(x.holder>=0)continue;x.box=-1;x.holder=0;t.count[0]++}return t.machine})()", back: 9, side: 3, pitch: 0.16 },
   { id: "find-the-flag", mode: "find-the-flag", at: flagAt, back: 11, side: 5, pitch: 0.2 },
   { id: "hold-the-flag", mode: "hold-the-flag", at: flagAt, back: 0.5, side: 0, take: true },
   { id: "steal-reposition", mode: "steal-reposition", at: "m.byId('dropzones').zones[0]", back: 12, side: 3, pitch: 0.34 },

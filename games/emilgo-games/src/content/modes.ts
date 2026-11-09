@@ -14,13 +14,15 @@ export const MODULE_IDS = [
   "flags", "dropzones", "capture", "economy", "rooms", "tag", "riddles", "blackout", "survival",
   // The §10 items' effects in the world (Phase 6): rides along with `items`, never named by a mode.
   "gadgets", "harmattan", "traffic", "zips",
+  // v5: Treasure Hunt.
+  "treasure",
   // v4: guns ride along with melee in Free For All (never named by a mode either).
   "guns",
 ] as const;
 export type ModuleId = (typeof MODULE_IDS)[number];
 
 /** The modules this build can play. Grows phase by phase (SPEC-V3 §13). */
-export const BUILT: ReadonlySet<ModuleId> = new Set<ModuleId>(["doll", "balls", "zone", "items", "airfall", "vehicles", "melee", "flags", "dropzones", "capture", "gadgets", "tag", "blackout", "economy", "riddles", "rooms", "harmattan", "traffic", "zips", "survival", "guns"]);
+export const BUILT: ReadonlySet<ModuleId> = new Set<ModuleId>(["doll", "balls", "zone", "items", "airfall", "vehicles", "melee", "flags", "dropzones", "capture", "gadgets", "tag", "blackout", "economy", "riddles", "rooms", "harmattan", "traffic", "zips", "survival", "guns", "treasure"]);
 
 export type Family = "ffa" | "survival" | "rlgl";
 export type Text = { en: string; pcm?: string };
@@ -94,9 +96,18 @@ export const BUILTIN_MANIFEST: Manifest = {
   issued: "2026-10-28",
   // Hustle joined with its module (economy, Phase 6); Steal & Reposition rests this week (private rooms still play it).
   // v4: the big world's Royale featured first.
-  rotation: ["find-the-flag", "max-royale", "hold-the-flag", "steal-reposition"],
+  rotation: ["treasure-hunt", "max-royale", "hold-the-flag", "steal-reposition"],
   modes: [
     // ── Free For All (Naija World) ──
+    {
+      id: "treasure-hunt", v: 1, family: "ffa", minRank: "rookie-1", players: SOLO_OR_SQUAD, map: "max-world", time: 720,
+      name: { en: "Treasure Hunt", pcm: "Treasure Hunt" },
+      blurb: { en: "Find the 5 hidden treasures and upload them at the machine. Kill for what others found.", pcm: "Find the 5 treasure wey hide, go upload am for the machine. Kill person collect wetin e find." },
+      respawn: { on: true, delay: 6 },
+      modules: { zone: ZONE_FFA, items: ITEMS, vehicles: CARS, airfall: AIRFALL, melee: MELEE, treasure: { need: 5, boxes: 44, upload: 12 } },
+      win: { kind: "most", measure: "treasure.count" },
+      ranked: { ...RANKED, "respawn.on": false, "treasure.upload": 18 },
+    },
     {
       id: "find-the-flag", v: 3, family: "ffa", minRank: "rookie-1", players: SOLO_OR_SQUAD, map: "max-world", time: 540,
       name: { en: "Find the Flag", pcm: "Find Di Flag" },

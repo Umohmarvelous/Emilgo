@@ -24,10 +24,11 @@ import { ItemsModule } from "./items";
 import { MeleeModule } from "./melee";
 import { VehiclesModule } from "./vehicles";
 import { GunsModule } from "./guns";
+import { TreasureModule } from "./treasure";
 import { ZoneModule } from "./zone";
 
 /** Phase 3: the zone, items and Airfall. Phase 4: melee, flags, drop zones, the rally point. Phase 5: vehicles. Phase 11: Ball Haunt's doll and balls. */
-export const MATCH_MODULES: ReadonlySet<ModuleId> = new Set<ModuleId>(["doll", "balls", "zone", "items", "airfall", "melee", "flags", "dropzones", "capture", "vehicles", "gadgets", "tag", "blackout", "economy", "riddles", "rooms", "harmattan", "traffic", "zips", "survival", "guns"]);
+export const MATCH_MODULES: ReadonlySet<ModuleId> = new Set<ModuleId>(["treasure", "doll", "balls", "zone", "items", "airfall", "melee", "flags", "dropzones", "capture", "vehicles", "gadgets", "tag", "blackout", "economy", "riddles", "rooms", "harmattan", "traffic", "zips", "survival", "guns"]);
 
 /**
  * The modules for a mode's settings, in the order they step: Ball Haunt's
@@ -66,6 +67,7 @@ export function makeModules(mods: Partial<Record<ModuleId, Record<string, unknow
   if (mods.airfall) out.push(new AirfallModule(mods.airfall));
   if (mods.dropzones) out.push(new DropzonesModule(mods.dropzones));
   if (mods.flags) out.push(new FlagsModule(mods.flags));
+  if (mods.treasure) out.push(new TreasureModule(mods.treasure));
   if (mods.capture) out.push(new CaptureModule(mods.capture));
   if (mods.tag) out.push(new TagModule(mods.tag));
   if (mods.blackout) out.push(new BlackoutModule(mods.blackout));

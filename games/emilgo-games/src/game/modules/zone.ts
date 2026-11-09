@@ -20,6 +20,7 @@ import type { Contestant } from "../core/body";
 import type { Match } from "../core/match";
 import type { MatchEvent, RuleModule } from "../core/module";
 import type { GunsModule } from "./guns";
+import type { TreasureModule } from "./treasure";
 import type { VehiclesModule } from "./vehicles";
 
 export interface Circle {
@@ -81,18 +82,26 @@ export class ZoneModule implements RuleModule {
     }
     const rng = m.secretRng("zone");
     const reach = m.reach;
+    // Treasure Hunt: every circle keeps the upload machine well inside, or the last one could shut it out.
+    const anchor = m.module<TreasureModule>("treasure")?.spot(m) ?? null;
     for (const p of this.phases) {
       const prev = this.circles[this.circles.length - 1];
       const room = Math.max(0, prev.r - p.r);
       // Mostly inside the world: a circle hanging off the edge would be a smaller one.
       const lim = half - Math.min(p.r * 0.35, half * 0.5);
       let best: Circle = { x: prev.x, z: prev.z, r: p.r };
+      if (anchor) {
+        const d0 = Math.hypot(anchor.x - prev.x, anchor.z - prev.z);
+        const go = d0 > 0 ? Math.min(1, room / d0) : 0;
+        best = { x: prev.x + (anchor.x - prev.x) * go, z: prev.z + (anchor.z - prev.z) * go, r: p.r };
+      }
       for (let t = 0; t < 60; t++) {
         const a = rng.range(0, Math.PI * 2);
         const d = Math.sqrt(rng.next()) * room;
         const x = prev.x + Math.cos(a) * d;
         const z = prev.z + Math.sin(a) * d;
         if (Math.abs(x - cx) > lim || Math.abs(z - cz) > lim || !reach.at(x, z)) continue;
+        if (anchor && Math.hypot(x - anchor.x, z - anchor.z) > p.r * 0.6) continue;
         best = { x, z, r: p.r };
         break;
       }

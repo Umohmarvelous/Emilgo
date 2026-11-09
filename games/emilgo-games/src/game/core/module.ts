@@ -57,6 +57,10 @@ export type MatchEvent =
   | { type: "prop"; id: string; prop: number; kind: PropId; how: "take" | "drop" | "break" | "throw"; x: number; z: number; h: number }
   | { type: "fly"; id: string; flight: number; x: number; z: number; h: number; dx: number; dz: number; back: boolean; prop: number }
   | { type: "landed-fly"; flight: number; x: number; z: number; h: number; hit: string | null }
+  // ── Treasure Hunt (v5): a box opened (found: the treasure in it, −1 empty); a treasure moves; the upload ──
+  | { type: "tbox"; box: number; id: string; found: number }
+  | { type: "tre"; t: number; how: "find" | "take" | "give" | "drop"; id: string | null; x: number; z: number; h: number }
+  | { type: "upl"; id: string; how: "start" | "stop" | "done" }
   // ── Objectives (Phase 4: flags, drop zones, the rally point) ──
   | { type: "flag"; flag: number; how: "take" | "drop" | "found" | "home" | "deliver"; id: string | null; x: number; z: number; h: number }
   | { type: "search"; id: string; spot: number; found: boolean }

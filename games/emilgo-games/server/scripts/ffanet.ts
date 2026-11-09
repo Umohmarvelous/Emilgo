@@ -123,6 +123,10 @@ export class Phone {
         this.seat = m.id;
         this.token = m.token;
         break;
+      case "ping":
+        // As a phone does: a server drops anyone silent for 30 s (a half-full queue waits a minute).
+        this.send({ t: "pong", s: m.s });
+        break;
       case "sping":
         this.spings.push({ from: m.from, k: m.k });
         break;
@@ -274,7 +278,12 @@ export class Phone {
   }
 
   tap(): void {
-    this.input.i = (this.input.i + 1) & 255;
+    this.input.i = ((this.input.i + 1) & 255) | (this.input.i & 256);
+  }
+
+  /** Hold interact (open a treasure box), or let go. */
+  hold(on: boolean): void {
+    this.input.i = (this.input.i & 255) | (on ? 256 : 0);
   }
 
   /** A swing: 1 fist, 2 slap, 3 push. */

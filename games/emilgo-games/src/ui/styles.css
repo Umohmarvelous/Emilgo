@@ -491,6 +491,13 @@ input { font: inherit; color: inherit; }
 .pm-stats div { padding: 6px; border-radius: 6px; background: rgba(255, 255, 255, 0.05); display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .pm-stats b { font: 500 14px var(--num); }
 .pm-stats small { font: 700 9px var(--head); letter-spacing: 0.12em; color: var(--dim); text-transform: uppercase; }
+/* The rewards (v5): each line slides in after the cinematic, its XP counts up (screens.ts). */
+.pm-rewards { display: grid; gap: 3px; margin: 6px 0 8px; }
+.pm-rewards .rw { display: flex; justify-content: space-between; align-items: baseline; padding: 4px 8px; border-radius: 6px; background: rgba(255, 255, 255, .06); font-size: 12px; opacity: 0; transform: translateX(-14px); animation: rw-in .35s cubic-bezier(.2, .8, .2, 1) forwards; animation-delay: calc(2.9s + var(--i) * .26s); }
+.pm-rewards .rw small { opacity: .65; font-size: 10px; }
+.pm-rewards .rw b { color: var(--gold, #f5c542); font-variant-numeric: tabular-nums; }
+@keyframes rw-in { to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .pm-rewards .rw { animation-duration: .01s; animation-delay: 0s; } }
 .pm-xp { display: flex; align-items: center; gap: 8px; font-size: 10px; }
 .pm-xp .bar { flex: 1; }
 .pm-actions { display: flex; gap: 8px; }
@@ -886,6 +893,20 @@ input { font: inherit; color: inherit; }
 .playhud .priddle span { font: 600 12px/1.3 var(--head); color: #fff; }
 .playhud .priddle small { font: 500 10px/1.3 var(--head); color: rgba(255,255,255,0.7); }
 /* Over heads: the Wobble meter (near), a brace's shield, a squad mate's diamond, the flag's holder. */
+/* Treasure Hunt: the upload panel, in the middle of the screen (v5). */
+.tr-upload { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%) scale(.96); width: min(78vw, 340px); padding: 10px 14px 9px; border-radius: 10px; background: rgba(6, 12, 10, .78); border: 1px solid rgba(89, 255, 142, .5); box-shadow: 0 0 24px rgba(89, 255, 142, .25); color: #e9fff0; opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s; z-index: 6; }
+.tr-upload.on { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.tr-upload .head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.tr-upload b { font-size: 13px; letter-spacing: .12em; text-transform: uppercase; }
+.tr-upload .pct { font: 700 20px/1 var(--font-num, inherit); font-variant-numeric: tabular-nums; }
+.tr-upload .bar { position: relative; height: 8px; margin: 7px 0 6px; border-radius: 4px; background: rgba(255, 255, 255, .12); overflow: hidden; }
+.tr-upload .bar i { position: absolute; inset: 0; transform-origin: left; transform: scaleX(0); background: linear-gradient(90deg, #2bd46a, #8dffb4); box-shadow: 0 0 10px #59ff8e; }
+.tr-upload .bar::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 14px, rgba(0, 0, 0, .35) 14px 16px); }
+.tr-upload small { display: block; font-size: 11px; opacity: .8; }
+.tr-upload.rival { border-color: rgba(255, 80, 70, .6); box-shadow: 0 0 24px rgba(255, 60, 50, .3); background: rgba(16, 6, 6, .8); color: #ffe9e6; }
+.tr-upload.rival .bar i { background: linear-gradient(90deg, #d4322b, #ff8a7a); box-shadow: 0 0 10px #ff5a4a; }
+.tr-upload.mate { border-color: rgba(56, 214, 255, .55); }
+@media (orientation: landscape) { .tr-upload { top: 34%; } }
 .ffa-heads { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .fhead { position: absolute; left: 0; top: 0; display: none; flex-direction: column; align-items: center; gap: 2px; }
 .fhead.on { display: flex; }

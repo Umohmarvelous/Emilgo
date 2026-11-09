@@ -1156,6 +1156,26 @@ export class Sound {
     this.tone(mine ? 260 : 200, t + 0.15, 0.22, { type: "sine", gain: g * 0.8, to: mine ? 420 : 300 });
   }
 
+  /** Treasure Hunt: a box's lid; then a treasure found (a bright rising chime) or nothing. */
+  treasure(mine: boolean, near = 1): void {
+    if (near <= 0.02) return;
+    const t = this.now;
+    const g = (mine ? 0.22 : 0.1) * near;
+    for (const [k, f] of [523, 659, 784, 1047].entries()) this.tone(f, t + k * 0.07, 0.5, { type: "triangle", gain: g * (1 - k * 0.12), attack: 0.004 });
+    this.tone(2093, t + 0.28, 0.9, { type: "sine", gain: g * 0.35, attack: 0.002 });
+  }
+
+  /** The upload machine: a scanning beep each `step` (0…1 along), then a long confirm tone when done. */
+  uploadBeep(along: number, done = false): void {
+    const t = this.now;
+    if (done) {
+      this.tone(880, t, 0.18, { type: "square", gain: 0.06 });
+      this.tone(1320, t + 0.16, 0.6, { type: "square", gain: 0.06 });
+      return;
+    }
+    this.tone(600 + along * 700, t, 0.07, { type: "square", gain: 0.035 });
+  }
+
   /** The radio: a burst of static and two blips (a hint is in). */
   /** Dead Streets (§3.4 #18): a church bell far off, soft (a sanctuary near). Never a jump scare. */
   bell(near: number): void {

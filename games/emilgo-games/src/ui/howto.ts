@@ -34,6 +34,16 @@ interface Words {
 }
 
 export const MODE_WORDS: Record<string, Words> = {
+  "treasure-hunt": {
+    text: "Five treasures are hidden in chests all over the world, among many empty ones. Hold the interact button at a chest to open it. One upload machine stands in an open field: its light shows from across the map.",
+    win: "Carry all 5 treasures to the machine and stay in its ring while they upload. If time runs out, the most treasures wins.",
+    tips: [
+      "Kill a carrier and everything they found drops where they fell: walk over it to take it.",
+      "Die in the ring and you lose them all. Clear the area before you upload.",
+      "In a squad, only your leader uploads. Walk up to them to hand over what you found, then protect them.",
+      "Someone carrying all 5 is marked over their head from far away.",
+    ],
+  },
   "find-the-flag": {
     text: "One flag stands in the open, on a tall mast. It shows on your map and compass, and on everyone else's.",
     win: "Walk onto the flag to take it, then stay alive holding it for 10 seconds.",

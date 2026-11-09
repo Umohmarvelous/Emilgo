@@ -101,6 +101,8 @@ const P: Record<string, string> = {
   zobo: `<path d="M10 3.5h4M10.5 3.5v3l-2 2.5v10.5a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1V9l-2-2.5v-3"/><path d="M8.5 12.5h7"/>`,
   bigbag: `<rect x="3.5" y="8.5" width="17" height="11.5" rx="1.5"/><path d="M8.5 8.5V6a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v2.5M3.5 13h17M9 8.5V20M15 8.5V20"/>`,
   umbrella: `<path d="M3 12a9 9 0 0 1 18 0z"/><path d="M12 3v1M12 12v6.5a2 2 0 0 1-4 0"/>`,
+  chest: `<path d="M3.5 10.5h17V19a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1z"/><path d="M3.5 10.5V9a5 4.5 0 0 1 5-4.5h7a5 4.5 0 0 1 5 4.5v1.5"/><rect x="10.3" y="9.3" width="3.4" height="4" rx=".8"/><path d="M8 4.8v5.7M16 4.8v5.7"/>`,
+  upload: `<path d="M12 15.5V4.5M7.5 9 12 4.5 16.5 9"/><path d="M4.5 14.5v4a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5v-4"/>`,
   crate: `<path d="M3.5 8 12 4l8.5 4v8.5L12 20.5l-8.5-4z"/><path d="M3.5 8 12 12l8.5-4M12 12v8.5M7.8 6l8.5 4"/>`,
   // Vehicles (Phase 5): a car, its horn, its radio, a jerrycan.
   car: `<path d="M4 15.5V12l2-4.5h12l2 4.5v3.5z"/><path d="M4 12h16M7.5 7.5l-1 4.5M16.5 7.5l1 4.5"/><circle cx="7.5" cy="16.5" r="1.8"/><circle cx="16.5" cy="16.5" r="1.8"/>`,

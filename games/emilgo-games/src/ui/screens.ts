@@ -105,6 +105,9 @@ export interface FfaResultView {
   trail?: readonly [number, number, number][];
   /** Today's challenges this match finished. */
   completed?: string[];
+  /** The rewards, line by line (online: the XP each earned), and your kills. */
+  rewards?: { label: string; xp: number; note?: string }[];
+  kills?: number;
 }
 
 /** Honour's cosmetic title (§10.12) for this many commends, or null. */
@@ -119,6 +122,15 @@ function rankLine(r: Pick<ResultInfo, "rank" | "xp" | "rankUp" | "xpNote"> & { c
   const bar = `<span class="bar gold"><i style="width:${k.top ? 100 : Math.round((k.into / k.need) * 100)}%"></i></span>`;
   const name = `<span class="label">${esc(k.name)}${r.rankUp ? " · Rank up" : ""}</span>`;
   return `${xp}${bar}${name}${r.xpNote ? `<span class="small">${esc(r.xpNote)}</span>` : ""}`;
+}
+
+/** The rewards (v5, the owner: "a screen for acquiring rewards like cod"): each line comes in, its XP counts up. */
+function rewardsHtml(r: FfaResultView): string {
+  const rows = r.rewards ?? [];
+  if (!rows.length) return r.kills ? `<div class="pm-rewards"><div class="rw" style="--i:0"><span>${esc(t("Kills"))}</span><b class="num">${r.kills}</b></div></div>` : "";
+  return `<div class="pm-rewards" data-rewards>${rows
+    .map((x, i) => `<div class="rw" style="--i:${i}"><span>${esc(t(x.label))}${x.note ? ` <small>${esc(x.note)}</small>` : ""}</span><b class="num" data-count="${Math.round(x.xp)}">${x.xp < 0 ? "−" : "+"}0</b></div>`)
+    .join("")}</div>`;
 }
 
 /** Stake chips (whole naira of the world's game money) and their street names. */
@@ -950,6 +962,7 @@ export class Screens {
          ${r.play ? `<div class="pm-play"><span class="label">${t("Play of the game")}</span><span class="small">${esc(r.play)}</span></div>` : ""}
          ${r.runMap ? `<div class="pm-heat"><span class="label">${t("Your run")}</span><canvas width="140" height="140" data-runmap></canvas></div>` : ""}
          ${r.trail && r.trail.length > 4 && !r.runMap ? `<div class="pm-heat"><span class="label">${t("Where you went")}</span><canvas width="120" height="120" data-heat></canvas></div>` : ""}
+         ${rewardsHtml(r)}
          <div class="pm-xp" data-rank-line>${r.online ? rankLine(r) : `<span class="small">Practice: no XP. Play online to rank up.</span>`}</div>
          ${r.online === "match" ? `<div class="status" data-match-outcome>${esc(r.matchNote ?? "Sending the result to Lagos Life…")}</div>` : ""}
          ${r.completed?.length ? `<div class="status ok">${icon("check", "", 14)} Daily done: ${r.completed.map((c) => esc(t(c))).join(", ")}</div>` : ""}
@@ -970,10 +983,33 @@ export class Screens {
       cineEl.addEventListener("pointerdown", done, { once: true });
       setTimeout(done, matchMedia("(prefers-reduced-motion: reduce)").matches ? 900 : 2900);
     }
+    this.countRewards();
     const heat = this.root.querySelector<HTMLCanvasElement>("canvas[data-heat]");
     if (heat && r.trail) this.drawHeat(heat, r.trail);
     const rm = this.root.querySelector<HTMLCanvasElement>("canvas[data-runmap]");
     if (rm && r.runMap) this.drawRunMap(rm, r.runMap);
+  }
+
+  /** The rewards' numbers count up, each after its line comes in. */
+  private countRewards(): void {
+    const els = [...this.root.querySelectorAll<HTMLElement>("[data-rewards] [data-count]")];
+    if (!els.length) return;
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const t0 = performance.now() + (still ? 0 : 2900);
+    const tick = () => {
+      if (!els[0].isConnected) return;
+      const now = performance.now();
+      let going = false;
+      els.forEach((e, i) => {
+        const v = Number(e.dataset.count);
+        const u = still ? 1 : Math.max(0, Math.min(1, (now - t0 - i * 260) / 600));
+        if (u < 1) going = true;
+        const n = Math.round(Math.abs(v) * (1 - (1 - u) ** 3));
+        e.textContent = `${v < 0 ? "−" : "+"}${n}`;
+      });
+      if (going) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
   }
 
   /** The server's word on a run arrived after the results went up: its note and the board. */

@@ -89,6 +89,7 @@ import type { buildAtlas } from "../world/textures";
 import type { BotBrain } from "./bots";
 import { addProgress, ensureDaily } from "./progress";
 import { DIVISIONS, rankOf, rankUp } from "../rank/ladder";
+import { xpParts } from "../rank/xp";
 import { catalog, games } from "../content/catalog";
 import type { ModeDef } from "../content/modes";
 import type { OpenWorld } from "../maps/open/build";
@@ -3879,6 +3880,21 @@ export class Game {
       ...(r.trail ? { trail: r.trail } : {}),
     };
     this.pendingGain = null;
+    // The rewards, line by line (the server's total is the one that counts: it adds the day's first match).
+    this.ffaRes.kills = r.kills ?? 0;
+    if (online && !r.run && me) {
+      this.ffaRes.rewards = xpParts({
+        players: this.ffaRes.sides,
+        place: me.place,
+        won: r.won,
+        stayed: true,
+        objective: me.objective,
+        objectiveTop: Math.max(0, ...r.standings.map((x) => x.objective)),
+        kills: r.kills ?? 0,
+        seconds: r.seconds,
+        ...(this.ranked ? { ranked: true } : {}),
+      });
+    }
     if (r.won) this.settings.wins++;
     // Today's challenges (v3's list while Ball Haunt is hidden).
     const d = this.settings.daily;

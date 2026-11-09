@@ -18,6 +18,8 @@ export interface MatchFacts {
   steals?: number;
   crates?: number;
   assists?: number;
+  /** Rivals killed (v5: kills are rewarded too). */
+  kills?: number;
   ranked?: boolean;
   /** The first counted match of the player's day (the server knows). */
   firstToday?: boolean;
@@ -28,21 +30,47 @@ export interface MatchFacts {
   seconds?: number;
 }
 
+/** XP per rival killed, and the most kills can earn in a match. */
+export const KILL_XP = 8;
+export const KILL_XP_CAP = 80;
+
 /** A full match: XP is paid in proportion below this. */
 export const FULL_MATCH_S = 480;
 
 /** Free For All (and, until it is hidden, an online Red Light, Green Light round). */
 export function matchXp(f: MatchFacts): number {
   if (!f.stayed) return 0;
+  return Math.round(xpParts(f).reduce((a, p) => a + p.xp, 0));
+}
+
+/** One line of the rewards screen: what earned it, and how much (unrounded). */
+export interface XpPart {
+  label: string;
+  xp: number;
+  /** "×3" (kills), "×2" (ranked): shown beside the label. */
+  note?: string;
+}
+
+/** matchXp, line by line, for the rewards screen (v5: "a screen for acquiring rewards"). The lines add up to matchXp. */
+export function xpParts(f: MatchFacts): XpPart[] {
+  if (!f.stayed) return [];
   const n = Math.max(1, f.players);
+  const out: XpPart[] = [{ label: "Match played", xp: 60 }];
   const placement = n > 1 ? (120 * (n - Math.min(n, Math.max(1, f.place)))) / (n - 1) : 0;
+  if (placement > 0) out.push({ label: "Placement", xp: placement });
+  if (f.won) out.push({ label: "Victory", xp: 150 });
   const objective = f.objectiveTop > 0 ? 100 * clamp01(f.objective / f.objectiveTop) : 0;
+  if (objective > 0) out.push({ label: "Objective", xp: objective });
+  const kills = f.kills ?? 0;
+  if (kills > 0) out.push({ label: "Kills", xp: Math.min(KILL_XP_CAP, KILL_XP * kills), note: `×${kills}` });
   const play = Math.min(40, 4 * (f.displacements ?? 0) + 6 * (f.steals ?? 0) + 5 * (f.crates ?? 0) + 3 * (f.assists ?? 0));
-  let xp = 60 + placement + (f.won ? 150 : 0) + objective + play;
-  if (f.seconds !== undefined) xp *= Math.min(1, Math.max(0.1, f.seconds / FULL_MATCH_S));
-  if (f.ranked) xp *= 2;
-  if (f.firstToday) xp += 100;
-  return Math.round(xp);
+  if (play > 0) out.push({ label: "Big plays", xp: play });
+  const base = out.reduce((a, p) => a + p.xp, 0);
+  const share = f.seconds !== undefined ? Math.min(1, Math.max(0.1, f.seconds / FULL_MATCH_S)) : 1;
+  if (share < 1) out.push({ label: "Short match", xp: base * share - base, note: `${Math.round(share * 100)}%` });
+  if (f.ranked) out.push({ label: "Ranked", xp: base * share, note: "×2" });
+  if (f.firstToday) out.push({ label: "First match today", xp: 100 });
+  return out;
 }
 
 export interface RunFacts {

@@ -46,6 +46,7 @@ import type { CaptureModule } from "../game/modules/capture";
 import type { DropzonesModule } from "../game/modules/dropzones";
 import type { FlagsModule } from "../game/modules/flags";
 import type { GadgetsModule } from "../game/modules/gadgets";
+import type { TreasureModule } from "../game/modules/treasure";
 import { PROP_IDS, type MeleeModule, type PropId, type SwingKind } from "../game/modules/melee";
 import type { Sound } from "../audio/sound";
 import type { Hud, ItemPin, MapMark } from "../ui/hud";
@@ -669,7 +670,8 @@ export class FfaView {
     for (const c of m.contestants) {
       const hd = this.heads[c.index];
       const mate = this.looksMate(m, c);
-      const holder = !!flags?.heldBy(c.index);
+      const tre = m.module<TreasureModule>("treasure");
+      const holder = !!flags?.heldBy(c.index) || (!!tre && tre.count[c.index] >= tre.need);
       const d = Math.hypot(c.x - camera.position.x, c.z - camera.position.z);
       const wob = mel ? mel.wobble[c.index] : 0;
       const brace = mel ? mel.brace[c.index] : false;

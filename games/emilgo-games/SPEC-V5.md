@@ -41,11 +41,13 @@ owner's go-ahead.** Nothing from "Suggestions" is built without a yes.
 | 2.5 | Sounds: pick up, use, jump, footsteps of others by distance | Done. Synthesised jump and item sounds; a recorded voice would come with 3.6 |
 | 2.6 | Customise bar redesigned: fair skin only, dark suit by default, colour and design really change the suit | Done |
 
-## Tier 3: heavy, waits for the owner's go-ahead
+## Tier 3: heavy (go-ahead 9 Nov 2026, built in order)
 
-| # | Item | Why it is heavy |
+The owner left the questions below to my recommendations: health bars only while being shot; the voice in English with a Mandarin accent, an adult woman, names read by the phone's own voice; growth keeps the body's size and makes the look fiercer; the name Blackmask; the zone grace stays 3.5 minutes.
+
+| # | Item | Status |
 |---|---|---|
-| 3.1 | **Treasure Hunt** replaces Find the Flag: 5 hidden boxes, one upload machine (ATM style, screen, circle of light, progress bar), loot drops on death, kills rewarded, squad leader, rewards screen | New rule module, server + phone, machine model, cinematic |
+| 3.1 | **Treasure Hunt** replaces Find the Flag: 5 hidden boxes, one upload machine (ATM style, screen, circle of light, progress bar), loot drops on death, kills rewarded, squad leader, rewards screen | Done. 44 chests over the big world (at least one in every place), 5 hold treasures (which ones is the server's secret). Hold to open. One kiosk on open ground with a scanning screen, a beacon seen across the map and a ring that fills as it uploads; the circles close on it. All 5 and 12 s in the ring (18 ranked) to win; die and they all drop. Squads: only the leader uploads, mates hand over by walking up. Time up: most treasures wins. Kills pay 8 XP each (up to 80); the results show each reward line counting up. Find the Flag is switched off in `MODE_SWITCH`, not deleted. `treasuretest` |
 | 3.2 | **Growth items**: pick-ups that change your look and take more bullets to kill. **Map Print**: one use, shows everything live | Rules, new looks per level, map labels |
 | 3.3 | **One-thumb portrait**: one joystick moves and looks in portrait, two sticks in landscape; every screen responsive on any phone | Controls, camera and every screen |
 | 3.4 | **One click from X**: instant web start, then "download the app" after some minutes | Faster boot, deep links, X card, prompt |

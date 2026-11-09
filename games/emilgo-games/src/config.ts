@@ -50,7 +50,8 @@ export const FEATURES: { ballHaunt: boolean; freeForAll: boolean; deadStreets: b
  */
 export const MODE_SWITCH: Record<"ffa" | "survival" | "rlgl", Record<string, boolean>> = {
   ffa: {
-    "find-the-flag": true,
+    "treasure-hunt": true,
+    "find-the-flag": false, // Treasure Hunt took its place (the owner, 6 Nov 2026)
     "hold-the-flag": true,
     "steal-reposition": true,
     "squad-rally": true,
@@ -487,6 +488,25 @@ export const FLAGS = {
   bounty: 5,
 } as const;
 
+/** Treasure Hunt (v5): modules/treasure.ts. Metres and seconds. */
+export const TREASURE = {
+  /** Treasures to find and upload; boxes hidden in the world; the closest two boxes. */
+  need: 5,
+  boxes: 44,
+  apart: 28,
+  /** Open a box: within `reach`, held this long. A loose treasure: walk within `touch`; its dropper can't retake it at once. */
+  reach: 2,
+  open: 1.2,
+  touch: 1.3,
+  noRetake: 1.5,
+  /** A mate hands over to the squad's leader from this close. */
+  hand: 3.5,
+  /** The machine: nothing solid this close to it (an open field); its ring; how long an upload takes. */
+  field: 9,
+  ring: 7,
+  upload: 12,
+} as const;
+
 /** Steal & Reposition's drop zones. */
 export const DROPZONES = { radius: 5, minApart: 60 } as const;
 
@@ -864,7 +884,8 @@ export const NET = {
   // 15 (v4): guns: the aim (y, p) and the gun buttons (w) in "in", and the guns events.
   // 16 (v5): the zone's grace, the flags in the open, the launch modes on the big world: an older server can't referee them.
   // 17 (v5): the live kill switch: welcome carries what's off, and "modes" when it changes.
-  protocol: 17,
+  // 18 (v5): Treasure Hunt; snapshots in packed bytes.
+  protocol: 18,
   tickHz: 60,
   /** Server → client state broadcasts per second. */
   snapshotHz: 15,

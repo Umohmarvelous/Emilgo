@@ -21,7 +21,7 @@ import type { ZoneModule } from "../../src/game/modules/zone";
 import { matchWorldOf } from "../../src/maps/open/matchWorld";
 import { buildNaijaWorld, SURFACE_OF, type OpenLayout } from "../../src/maps/open/naija";
 import { buildMaxWorld } from "../../src/maps/open/max";
-import { CAR_STRIDE, encodeEvent, HAND_FLAG, MATCH_PHASES, MSNAP_STRIDE, packMeter, type FfaStart, type MatchSnap, type MatchSync, type WireEvent } from "../../src/net/matchWire";
+import { packSnap, CAR_STRIDE, encodeEvent, HAND_FLAG, MATCH_PHASES, MSNAP_STRIDE, packMeter, type FfaStart, type MatchSnap, type MatchSync, type WireEvent } from "../../src/net/matchWire";
 import { packFlags } from "../../src/net/protocol";
 import type { MatchFacts } from "../../src/rank/xp";
 import type { WireLook } from "../../src/shop/catalog";
@@ -128,6 +128,8 @@ export class FfaGame {
   private readonly zone: ZoneModule | null;
   private readonly flags: FlagsModule | null;
   private readonly cars: VehiclesModule | null;
+  /** Rivals each seat has killed. */
+  private readonly kills = new Map<string, number>();
 
   constructor(
     readonly def: ModeDef,
@@ -188,7 +190,15 @@ export class FfaGame {
     for (const c of m.contestants) c.graceBonus = graceOf(c.id);
     m.step(dt);
     const out: WireEvent[] = [];
-    for (const e of m.drain()) out.push(encodeEvent(e, (id) => this.index.get(id) ?? -1));
+    for (const e of m.drain()) {
+      // Kills earn XP too (v5): a rival's, not a mate's or your own.
+      if (e.type === "kill" && e.by && e.by !== e.tg) {
+        const a = m.get(e.by);
+        const b = m.get(e.tg);
+        if (a && b && !m.sameSquad(a, b)) this.kills.set(e.by, (this.kills.get(e.by) ?? 0) + 1);
+      }
+      out.push(encodeEvent(e, (id) => this.index.get(id) ?? -1));
+    }
     if (this.log.length < LOG_MAX) this.log.push(...out);
     return out;
   }
@@ -230,7 +240,11 @@ export class FfaGame {
         v![k + 5] = Math.round(car.damage * 10);
       });
     }
-    return {
+    // v5: cars that haven't moved aren't sent again, except with the measures once a second (a phone on half the snapshots can't miss the last move for long).
+    const carsNow = v ? v.join() : "";
+    const carsAlso = full || !!measures || carsNow !== this.carsSent;
+    this.carsSent = carsNow;
+    return packSnap({
       t: "msnap",
       s: serverMs,
       ph: MATCH_PHASES.indexOf(m.phase),
@@ -240,8 +254,9 @@ export class FfaGame {
       p,
       ...(o ? { o } : {}),
       ...(v ? { v } : {}),
-    };
+    }, carsAlso);
   }
+  private carsSent = "";
 
   /** A rejoin: everything so far, less the last `pending` events (the room sends those to everyone shortly). */
   sync(startMs: number, serverMs: number, pending = 0): MatchSync {
@@ -286,6 +301,7 @@ export class FfaGame {
       objective: s.objective,
       objectiveTop: top,
       seconds: this.match.elapsed,
+      kills: this.kills.get(seat) ?? 0,
       ...(this.ranked ? { ranked: true } : {}),
     };
   }

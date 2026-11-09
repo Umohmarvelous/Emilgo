@@ -275,7 +275,13 @@ export class PlayHud {
       this.lastTarget = tl;
       this.act.classList.toggle("visible", !!tl);
       if (tl) {
-        const [kind, label, item] = tl.split(":");
+        // kind:label (a label may hold a colon), or item:label:id.
+        const cut = tl.indexOf(":");
+        const kind = tl.slice(0, cut);
+        const rest = tl.slice(cut + 1);
+        const last = kind === "item" ? rest.lastIndexOf(":") : -1;
+        const label = last >= 0 ? rest.slice(0, last) : rest;
+        const item = last >= 0 ? rest.slice(last + 1) : "";
         const ico = kind === "crate" ? "crate" : kind === "bag" || kind === "prop" ? "bundle" : kind === "stash" ? "search" : kind === "car" ? "car" : kind === "job" ? "hand" : ITEM_ICON[item as ItemId];
         this.act.querySelector("svg")?.remove();
         this.act.insertAdjacentHTML("afterbegin", icon(ico, "", 18));
