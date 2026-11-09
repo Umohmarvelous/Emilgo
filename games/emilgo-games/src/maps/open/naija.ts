@@ -13,7 +13,7 @@ import { Rng } from "../../core/rng";
 import type { Solid } from "../../game/core/space";
 import type { Surface } from "../registry";
 import { placeBoards, type BoardSlot, type BoardWish } from "./billboards";
-import { footprint, solidsOf, type Placement, type PrefabId } from "./prefabs";
+import { footprint, propPlaced, solidsOf, type Placement, type PrefabId } from "./prefabs";
 import { PROPS } from "./propTable";
 
 export type GroundKind = "asphalt" | "laterite" | "paving" | "grass" | "earth" | "sand" | "snow";
@@ -497,7 +497,7 @@ export function buildNaijaWorld(seed = 1957): OpenLayout {
   // ── Props (v4 rework R9): the CC0 street furniture in town (bins, crates, benches, planters,
   // air units, cabinets, bags, a covered car), each with room round it so no way is shut; after the starts, so
   // they don't move; before the boards, whose solids stay on the end ──
-  const cityProps = PROPS.flatMap((q, i) => (q.built && q.at.includes("city") ? [i] : []));
+  const cityProps = PROPS.flatMap((q, i) => (propPlaced(q) && q.at.includes("city") ? [i] : []));
   for (let i = 0, n = 0; cityProps.length && i < 2400 && n < 240; i++) {
     const x = rng.range(-HALF + 8, HALF - 8);
     const z = rng.range(-HALF + 8, HALF - 8);

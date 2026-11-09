@@ -24,7 +24,7 @@ import { Rng } from "../../core/rng";
 import type { Solid } from "../../game/core/space";
 import { placeBoards, type BoardWish } from "./billboards";
 import { buildNaijaWorld, EDGE, type Area, type GroundKind, type Landmark, type OpenLayout, type River, type Road } from "./naija";
-import { footprint, solidsOf, type Placement, type PrefabId } from "./prefabs";
+import { footprint, propPlaced, solidsOf, type Placement, type PrefabId } from "./prefabs";
 import { PROPS } from "./propTable";
 
 export const MAX_HALF = 1000;
@@ -300,7 +300,7 @@ export function buildMaxWorld(seed = 1957): OpenLayout {
   // ── Props (v4 rework R9): the CC0 models for each place (crates, drums and buoys on the quay,
   // generators and racks in the refinery, ferns and camp tables in the forest...), room round each ──
   for (const pl of PLACES) {
-    const mine = PROPS.flatMap((q, i) => (q.built && q.at.includes(PROPS_OF[pl.id] ?? pl.id) ? [i] : []));
+    const mine = PROPS.flatMap((q, i) => (propPlaced(q) && q.at.includes(PROPS_OF[pl.id] ?? pl.id) ? [i] : []));
     const want = Math.round(pl.r * 0.45);
     for (let k = 0, put = 0; mine.length && k < want * 6 && put < want; k++) {
       const a = rng.range(0, Math.PI * 2);

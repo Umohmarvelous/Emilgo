@@ -57,6 +57,20 @@ export interface Part {
 
 const box = (x: number, z: number, w: number, d: number, y0: number, y1: number, surface: Surface = "concrete"): Part => ({ x, z, hx: w / 2, hz: d / 2, y0, y1, surface });
 
+/**
+ * v6 (the owner: "remove all old cars"; "I do not want players to be able to run into anything"): props the worlds
+ * may place (built, and no cars), and which stop you: the table's solid ones, and anything else up past a step
+ * (0.45 m) that isn't a plant, since a body passing through it looks wrong. Low things you step over.
+ */
+const NO_PLACE: ReadonlySet<string> = new Set(["covered_car"]);
+const SOFT: ReadonlySet<string> = new Set(["fern_02", "shrub_03", "shrub_sorrel_01", "weed_plant_02", "dead_quiver_branch_01", "dry_branches_medium_01"]);
+export function propPlaced(q: PropDef): boolean {
+  return q.built && !NO_PLACE.has(q.id);
+}
+export function propSolid(q: PropDef): boolean {
+  return q.solid || (q.h >= 0.45 && !SOFT.has(q.id));
+}
+
 /** A prop placement's table row (its variant's low byte). */
 export function propOf(v: number): PropDef {
   return PROPS[(v & 255) % PROPS.length];
@@ -514,7 +528,7 @@ export function parts(id: PrefabId, v: number): Part[] {
       break;
     case "prop": {
       const q = propOf(v);
-      if (q.solid) out.push(box(0, 0, q.w, q.d, 0, q.h, "metal"));
+      if (propSolid(q)) out.push(box(0, 0, q.w, q.d, 0, q.h, "metal"));
       break;
     }
     case "rock": {
