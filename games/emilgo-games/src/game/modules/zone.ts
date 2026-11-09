@@ -1,7 +1,8 @@
 // The zone (SPEC-V3 §7, §9; v5): a safe circle that closes in phase by phase.
 // In the open world you may stay outside for ZONE.grace seconds (the meter
-// fills over that time); then health falls slowly, and the sky laser takes the
-// last of it. Back inside, the meter empties. A mode on part of a world (the
+// fills over that time); then, COD-style (v6), the gas takes health every
+// second, more each circle, and at 0 you're out (a mode without health: the
+// sky laser after ZONE.bleed). Back inside, the meter empties. A mode on part of a world (the
 // Flag Duel's market) keeps a hard edge: the meter fills by the phase's rate
 // and the laser comes as soon as it's full.
 //
@@ -169,9 +170,16 @@ export class ZoneModule implements RuleModule {
       }
       if (t < this.tickAt[i]) continue;
       this.tickAt[i] = t + ZONE.every;
-      if (guns.hp[i] + guns.armour[i] <= ZONE.tick) this.callLaser(m, c, t);
-      else guns.hurt(m, c, ZONE.tick, null, false, "zone");
+      // v6, COD-style: the gas bites harder each circle, through armour; at 0 health you're out at once.
+      guns.hurt(m, c, this.dps(t) * ZONE.every, null, false, "zone", true);
     }
+  }
+
+  /** v6: the gas's health a second now: by how many circles have closed. */
+  dps(t: number): number {
+    let k = 0;
+    while (k < this.phases.length && t >= this.phases[k].start + this.phases[k].over) k++;
+    return ZONE.dps[Math.min(k, ZONE.dps.length - 1)];
   }
 
   private callLaser(m: Match, c: Contestant, t: number): void {

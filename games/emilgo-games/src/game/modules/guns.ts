@@ -438,13 +438,14 @@ export class GunsModule implements RuleModule {
   }
 
   /** Damage on a body (a shot, a blow, a blast): armour first, then health; out at 0. */
-  hurt(m: Match, c: Contestant, amount: number, by: Contestant | null, head: boolean, how: string): void {
+  /** `bare`: through armour and growth (v6: the zone's gas). */
+  hurt(m: Match, c: Contestant, amount: number, by: Contestant | null, head: boolean, how: string, bare = false): void {
     const i = c.index;
     if (c.status !== "alive" || amount <= 0 || m.seated(c)) return;
     // v5: grown on Titan Serum, every hit takes less.
-    amount *= GROWTH.take[m.module<ItemsModule>("items")?.growth[i] ?? 0] ?? 1;
+    if (!bare) amount *= GROWTH.take[m.module<ItemsModule>("items")?.growth[i] ?? 0] ?? 1;
     let left = amount;
-    if (this.armour[i] > 0) {
+    if (this.armour[i] > 0 && !bare) {
       const a = Math.min(this.armour[i], amount * GUNS.armour.share);
       this.armour[i] -= a;
       left -= a;
@@ -456,7 +457,7 @@ export class GunsModule implements RuleModule {
     if (this.hp[i] <= 0) {
       const killer = by ?? (this.lastBy[i] >= 0 ? m.contestants[this.lastBy[i]] : null);
       m.emit({ type: "kill", tg: c.id, by: killer?.id ?? null, how, head });
-      m.eliminate(c, how === "blast" ? "blast" : "shot");
+      m.eliminate(c, how === "blast" ? "blast" : how === "zone" ? "zone" : "shot");
     }
   }
 

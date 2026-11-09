@@ -333,22 +333,26 @@ export const PRACTICE = {
 // ── Shared gameplay for the open worlds (SPEC-V3 §7, Phase 3) ────────────────
 
 /**
- * The zone (SPEC-V3 §7, §9; v5). A mode's zone phases are [start s, radius m,
- * close over s, rate]. In the open world (v5, the owner: "as in COD") you can
- * stay outside the circle for `grace` seconds; then health falls `tick` every
- * `every` s, and the sky laser finishes you at the last of it. A mode played
- * on part of a world (the Flag Duel's market) keeps a hard edge: its rate fills
- * the meter at rate × `fill` a second, so 1.0 takes 10 s and 4 takes 2.5 s.
+ * The zone (SPEC-V3 §7, §9; v5; v6). A mode's zone phases are [start s, radius
+ * m, close over s, rate]. In the open world, COD-style (v6, the owner: "when a
+ * player's life runs low and finishes they die, do not wait until 3 minutes"):
+ * `grace` seconds of warning outside the circle, then the gas takes `dps[k]`
+ * health a second (k: circles closed so far, so it bites harder as the match
+ * goes on), through armour, in pulses `every` s apart; at 0 you're out at once.
+ * A mode played on part of a world (the Flag Duel's market) keeps a hard edge:
+ * its rate fills the meter at rate × `fill` a second, so 1.0 takes 10 s and 4
+ * takes 2.5 s.
  */
 export const ZONE = {
-  /** Seconds outside before it starts to hurt, and how fast back inside it forgets (grace ÷ this). */
-  grace: 210,
+  /** Seconds outside before it starts to hurt (v5: 210), and how fast back inside it forgets (grace ÷ this). */
+  grace: 5,
   forget: 4,
-  /** Health lost per pulse once the grace is gone, and the seconds between pulses. */
-  tick: 3,
-  every: 2,
+  /** v6: health a second outside, by circles closed (0: before the first closes); the last holds after. */
+  dps: [3, 4, 6, 9, 13, 18] as readonly number[],
+  /** Seconds between pulses. */
+  every: 1,
   /** A mode without health (no guns): the laser comes this long after the grace. */
-  bleed: 60,
+  bleed: 15,
   /** The next circle shows this long before it starts closing, seconds. */
   warn: 30,
   fill: 0.1,

@@ -783,7 +783,7 @@ export class FfaMode implements GameMode {
         if (!tg) break;
         if (by === me && tg !== me) this.combat?.killed(tg.name, e.head);
         const how = e.how === "blast" ? t("blew up") : e.how === "melee" ? t("knocked out") : t("dropped");
-        h.hud.pushFeed(by ? `${by === me ? t("You") : by.name} ${how} ${tg === me ? t("you") : tg.name}${e.head ? " · " + t("head") : ""}` : `${tg === me ? t("You") : tg.name} ${t("went down")}`, tg === me ? "out" : by === me ? "safe" : "info");
+        h.hud.pushFeed(by ? `${by === me ? t("You") : by.name} ${how} ${tg === me ? t("you") : tg.name}${e.head ? " · " + t("head") : ""}` : `${tg === me ? t("You") : tg.name} ${e.how === "zone" ? t("fell to the zone") : t("went down")}`, tg === me ? "out" : by === me ? "safe" : "info");
         break;
       }
       case "reload":

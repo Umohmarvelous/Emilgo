@@ -15,6 +15,7 @@ import { Space, STEP } from "../../src/game/core/space";
 import type { AirfallModule } from "../../src/game/modules/airfall";
 import type { ItemsModule } from "../../src/game/modules/items";
 import type { ZoneModule } from "../../src/game/modules/zone";
+import type { GunsModule } from "../../src/game/modules/guns";
 import { buildNaijaWorld, SURFACE_OF } from "../../src/maps/open/naija";
 import { Rng } from "../../src/core/rng";
 
@@ -226,13 +227,48 @@ console.log("the zone:");
   const ic = reach.cell(ix, iz);
   const [sx, sz] = ic >= 0 && reach.ground[ic] ? [ix, iz] : reach.centre(reach.open.find((k) => Math.hypot(reach.centre(k)[0] - ix, reach.centre(k)[1] - iz) < 20)!);
   runTo(m2, m2.elapsed + 2, [], () => put(m2, "p1", sx, sz));
-  check(Math.abs(z2.exposureOf(1) - (e6 - (2 * ZONE.forget) / ZONE.grace)) < 0.01, `inside: it empties in ${ZONE.grace / ZONE.forget} s`);
+  check(Math.abs(z2.exposureOf(1) - Math.max(0, e6 - (2 * ZONE.forget) / ZONE.grace)) < 0.01, `inside: it empties in ${ZONE.grace / ZONE.forget} s`);
   const items = m2.module<ItemsModule>("items")!;
   items.packs[1][0] = "zobo";
   const ez = z2.exposureOf(1);
   m2.setPack("p1", (1 << 5) | 0);
   m2.step(DT);
   check(Math.abs(z2.exposureOf(1) - Math.max(0, ez - 0.4 - DT * ZONE.drain)) < 0.01 && items.packs[1][0] === null, "a Zobo Flask takes 40% off the meter, and is gone");
+}
+{
+  // v6, COD-style with health: after the warning the gas takes ZONE.dps a second through armour; at 0 you're out at once.
+  const s3 = shared();
+  s3.modules.guns = {};
+  const m3 = newMatch(31, 12, s3);
+  const z3 = m3.module<ZoneModule>("zone")!;
+  const g3 = m3.module<GunsModule>("guns")!;
+  // The first circle closed: there's an outside to stand in.
+  runTo(m3, z3.phases[0].start + z3.phases[0].over + 1);
+  let far = reach.open[0];
+  let farD = 0;
+  for (const k of reach.open) {
+    const [x, z] = reach.centre(k);
+    const d = Math.hypot(x - z3.now.x, z - z3.now.z);
+    if (d > farD) {
+      farD = d;
+      far = k;
+    }
+  }
+  const [gx, gz] = reach.centre(far);
+  const c3 = m3.get("p2")!;
+  g3.armour[c3.index] = 50;
+  const ev3: MatchEvent[] = [];
+  // The warning first (the meter may already be part full), with health topped up.
+  runTo(m3, m3.elapsed + ZONE.grace + 0.5, ev3, () => put(m3, "p2", gx, gz));
+  g3.hp[c3.index] = 100;
+  runTo(m3, m3.elapsed + 3, ev3, () => put(m3, "p2", gx, gz));
+  const lost = 100 - g3.hp[c3.index];
+  const dps = z3.dps(m3.elapsed);
+  check(lost >= 2 * dps - 0.01 && lost <= 4 * dps + 0.01 && g3.armour[c3.index] === 50, `after ${ZONE.grace} s of warning the gas takes ${dps} a second here, through armour (lost ${lost.toFixed(0)} in 3 s)`);
+  g3.hp[c3.index] = 2;
+  runTo(m3, m3.elapsed + 1.1, ev3, () => c3.status === "alive" && put(m3, "p2", gx, gz));
+  check(c3.status === "eliminated" && c3.cause === "zone" && !ev3.some((e) => e.type === "laser"), "at 0 health: out at once, by the zone, no laser to wait for");
+  check(z3.dps(0) === ZONE.dps[0] && z3.dps(1e6) === ZONE.dps[Math.min(z3.phases.length, ZONE.dps.length - 1)] && z3.dps(1e6) > z3.dps(0), "it bites harder each circle");
 }
 
 // ── Items ──
