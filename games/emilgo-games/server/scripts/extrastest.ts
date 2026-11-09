@@ -4,7 +4,7 @@
 //
 //   node server/build-tools.mjs && node server/dist/extrastest.mjs
 
-import { AIRFALL, BLACKOUT, ECONOMY, FLAGS, GADGETS, HARMATTAN, MELEE, MOVE, TRAFFIC, ZIPS } from "../../src/config";
+import { FEATURES, AIRFALL, BLACKOUT, ECONOMY, FLAGS, GADGETS, HARMATTAN, MELEE, MOVE, TRAFFIC, ZIPS } from "../../src/config";
 
 const FLAGS_BOUNTY = FLAGS.bounty;
 import type { ItemId } from "../../src/content/items";
@@ -32,6 +32,9 @@ import { matchWorldOf } from "../../src/maps/open/matchWorld";
 import { matchXp } from "../../src/rank/xp";
 import { FfaGame } from "../src/ffa";
 import { buildNaijaWorld, SURFACE_OF } from "../../src/maps/open/naija";
+
+// v6: vehicles are off in every mode (FEATURES.vehicles); this test keeps their code working for when they return.
+FEATURES.vehicles = true;
 
 let failures = 0;
 function check(ok: boolean, label: string): void {

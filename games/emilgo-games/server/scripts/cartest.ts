@@ -6,7 +6,7 @@
 //   node server/build-tools.mjs && node server/dist/cartest.mjs
 
 import { ZONE } from "../../src/config";
-import { VEHICLES, type VehicleKind } from "../../src/config";
+import { FEATURES, VEHICLES, type VehicleKind } from "../../src/config";
 import { BUILTIN_MANIFEST } from "../../src/content/modes";
 import type { Contestant } from "../../src/game/core/body";
 import { Match, settingsOf, type MatchSettings } from "../../src/game/core/match";
@@ -20,6 +20,9 @@ import type { VehiclesModule } from "../../src/game/modules/vehicles";
 import type { ZoneModule } from "../../src/game/modules/zone";
 import { matchWorldOf } from "../../src/maps/open/matchWorld";
 import { buildNaijaWorld, SURFACE_OF } from "../../src/maps/open/naija";
+
+// v6: vehicles are off in every mode (FEATURES.vehicles); this test keeps their code working for when they return.
+FEATURES.vehicles = true;
 
 let failures = 0;
 function check(ok: boolean, label: string): void {

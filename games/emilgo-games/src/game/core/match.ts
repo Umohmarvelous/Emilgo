@@ -27,7 +27,7 @@
 // comes from a second, SECRET seed (`secretRng`) only the server has. The
 // copy learns it from the events, when everyone does.
 
-import { DEFAULT_COURSE, MOVE, RESPAWN, RULES, type Course, type Stance } from "../../config";
+import { DEFAULT_COURSE, FEATURES, MOVE, RESPAWN, RULES, type Course, type Stance } from "../../config";
 import type { ModeDef, ModuleId } from "../../content/modes";
 import { Rng } from "../../core/rng";
 import type { BoostMods } from "../../shop/boosts";
@@ -116,6 +116,8 @@ export function envOf(mu: Mutator | undefined): MoveEnv {
 /** A mode's settings, Ranked or not ("module.key" overrides; "respawn.on"). */
 export function settingsOf(def: Pick<ModeDef, "time" | "respawn" | "modules" | "ranked">, ranked = false, mutator?: Mutator): MatchSettings {
   const modules = JSON.parse(JSON.stringify(def.modules)) as MatchSettings["modules"];
+  // v6: vehicles are off in every mode (config FEATURES.vehicles).
+  if (!FEATURES.vehicles) delete modules.vehicles;
   const respawn = { on: def.respawn.on, delay: def.respawn.delay ?? 6 };
   if (ranked) {
     for (const [path, v] of Object.entries(def.ranked ?? {})) {

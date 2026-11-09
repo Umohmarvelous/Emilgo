@@ -6,7 +6,7 @@
 //
 //   node server/build-tools.mjs && node server/dist/gunstest.mjs
 
-import { GUNS } from "../../src/config";
+import { FEATURES, GUNS } from "../../src/config";
 import { BUILTIN_MANIFEST } from "../../src/content/modes";
 import type { Contestant } from "../../src/game/core/body";
 import { Match, settingsOf, type MatchSettings } from "../../src/game/core/match";
@@ -17,6 +17,9 @@ import type { VehiclesModule } from "../../src/game/modules/vehicles";
 import { matchWorldOf } from "../../src/maps/open/matchWorld";
 import { buildNaijaWorld, SURFACE_OF } from "../../src/maps/open/naija";
 import { decodeEvent, encodeEvent, inflateSnap, packInts, packSnap, unpackInts, type MatchSnap } from "../../src/net/matchWire";
+
+// v6: vehicles are off in every mode (FEATURES.vehicles); this test keeps their code working for when they return.
+FEATURES.vehicles = true;
 
 let failures = 0;
 function check(ok: boolean, label: string): void {

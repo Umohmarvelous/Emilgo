@@ -6,7 +6,7 @@
 // dev/howto-shots.mjs. Re-run it when a mode or a world changes. They only load
 // when the guide opens, so they cost the lobby nothing.
 
-import { familyOn, modeOn } from "../config";
+import { familyOn, FEATURES, modeOn } from "../config";
 import { BUILTIN_MANIFEST, type ModeDef } from "../content/modes";
 import { el, esc } from "./dom";
 import { t, translateTree } from "./i18n";
@@ -166,7 +166,7 @@ function modePage(d: ModeDef): Page {
   return { id: d.id, name: d.name.en, meta: `${players(d)} · ${Math.round(d.time / 60)} min`, text: w.text, win: w.win, tips: w.tips };
 }
 
-const carsIn = (d: ModeDef | undefined) => !!d?.modules.vehicles;
+const carsIn = (d: ModeDef | undefined) => FEATURES.vehicles && !!d?.modules.vehicles;
 
 /** A shown mode: on, its game on, not a test mode; the staked duel only where it can be played. */
 function shown(d: ModeDef, staked: boolean): boolean {

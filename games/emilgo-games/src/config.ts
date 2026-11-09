@@ -36,9 +36,15 @@ export const DOLL_Z = -131;
  * game out of every menu, the lobby and the server. How to use them: README,
  * "Showing and hiding a mode". Leave at least one of the three on.
  */
-export const FEATURES: { ballHaunt: boolean; freeForAll: boolean; deadStreets: boolean } = {
+export const FEATURES: { ballHaunt: boolean; freeForAll: boolean; deadStreets: boolean; vehicles: boolean } = {
   ballHaunt: false,
   freeForAll: true,
+  /**
+   * v6 (the owner: "remove all old cars, bus, keke in the game"): no vehicles in any mode, whatever a mode's
+   * manifest says (match.ts settingsOf drops the module), and no wrecks or parked minibuses in the worlds. The
+   * vehicles' code stays: true brings them back (the worlds' props stay out).
+   */
+  vehicles: false,
   deadStreets: true,
 };
 

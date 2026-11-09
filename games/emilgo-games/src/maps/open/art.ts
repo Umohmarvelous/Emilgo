@@ -261,17 +261,34 @@ function pole(k: PrefabKit, night: boolean): void {
   k.lamps.push([0, 7.6, 1.55]);
 }
 
-/** A city panel van (the minibus's place, v4 rework): a long box, a windscreen, wheels. */
+/**
+ * v6 (the owner: "remove all old cars, bus, keke in the game"): where a parked van stood, a container shop of
+ * the same size (Lagos turns old containers into shops): ribbed steel, a roll-up shutter on its long side, a
+ * painted sign band and a little awning. The collision box is the van's, so nothing in the world moves.
+ */
 function van(k: PrefabKit, at: V3, color: string): void {
   const [x, , z] = at;
   k.box(color, [2.0, 1.9, 5.0], [x, 1.25, z], "mass");
-  k.box(WINDOW, [1.84, 0.7, 0.06], [x, 1.75, z + 2.52], "main");
-  k.box(WINDOW, [0.06, 0.55, 1.4], [x + 1.01, 1.8, z + 1.4], "main");
-  k.box(WINDOW, [0.06, 0.55, 1.4], [x - 1.01, 1.8, z + 1.4], "main");
-  k.box("#1a1a1a", [2.04, 0.3, 5.04], [x, 0.42, z], "main");
-  for (const sx of [-0.92, 0.92]) for (const sz of [-1.7, 1.7]) k.cyl("#141414", 0.36, 0.26, [x + sx, 0.36, z + sz], "main", { r: [0, 0, Math.PI / 2], sides: 10 });
-  k.box("#e8e8d0", [0.4, 0.15, 0.04], [x - 0.7, 0.9, z + 2.53], "detail");
-  k.box("#e8e8d0", [0.4, 0.15, 0.04], [x + 0.7, 0.9, z + 2.53], "detail");
+  // The ribs along both long sides and the ends' corner posts.
+  for (let i = -2; i <= 2; i++) for (const sx of [-1.02, 1.02]) k.box(color, [0.05, 1.8, 0.12], [x + sx, 1.25, z + i * 1.1], "detail", undefined, 0.82);
+  for (const sx of [-0.98, 0.98]) for (const sz of [-2.47, 2.47]) k.box("#2a2c30", [0.1, 1.95, 0.1], [x + sx, 1.27, z + sz], "main");
+  // The shop front: a rolled-up shutter, the open counter, the sign band.
+  k.box("#8a8d90", [0.08, 0.35, 3.2], [x + 1.04, 2.0, z], "main");
+  k.box("#2a2420", [0.06, 1.1, 3.0], [x + 1.03, 1.05, z], "main");
+  k.box("#d8d4c8", [0.4, 0.06, 3.1], [x + 1.22, 0.95, z], "main");
+  k.box(color === "#2a2e32" ? "#c0392b" : "#1d4f9a", [0.04, 0.3, 4.6], [x + 1.05, 2.05, z], "detail");
+  // The awning over the counter.
+  k.box("#e0662a", [0.9, 0.05, 3.4], [x + 1.45, 2.25, z], "main", undefined, 0.9);
+}
+
+/** v6: where a burnt-out car stood, a pallet of cement bags under a strapped tarp (the same box, the same size). */
+function pallet(k: PrefabKit, tarp: string, x = 0, z = 0): void {
+  k.box("#7a5a3a", [1.8, 0.14, 4.2], [x, 0.07, z], "main");
+  for (const sz of [-1.4, 0, 1.4]) k.box("#6a4a2a", [1.8, 0.12, 0.2], [x, 0.18, z + sz], "detail");
+  // Bags, two layers, then the tarp over the top one.
+  for (let y = 0; y < 2; y++) for (const sz of [-1.5, -0.5, 0.5, 1.5]) k.box("#cfc8b8", [1.7, 0.36, 0.92], [x, 0.42 + y * 0.38, z + sz], "main", undefined, y ? 0.95 : 0.88);
+  k.box(tarp, [1.82, 0.42, 4.22], [x, 1.14, z], "mass");
+  for (const sz of [-1.2, 1.2]) k.box("#e8b020", [1.86, 0.06, 0.06], [x, 1.36, z + sz], "detail");
 }
 
 // ── Each prefab ───────────────────────────────────────────────────────────────
@@ -609,14 +626,10 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
       }
       break;
     }
-    case "wreck": {
-      // A burnt-out car on its rims.
-      const c = r.pick(["#5a3a2a", "#4a4a4a", "#6a5040"]);
-      k.box(c, [1.8, 0.7, 4.2], [0, 0.55, 0], "mass");
-      k.box(c, [1.6, 0.55, 2.2], [0, 1.15, -0.2], "main", undefined, 0.8);
-      k.box("#1a1a1a", [1.64, 0.4, 2.0], [0, 1.15, -0.2], "detail");
+    case "wreck":
+      // v6: no car wrecks (the owner: "remove all old cars"): building materials waiting under a tarp.
+      pallet(k, r.pick(["#2a5a8a", "#3a6a3a", "#8a5a2a"]));
       break;
-    }
     case "danfo":
       van(k, [0, 0, 0], r.pick(["#e8e8e8", "#c8ccd0", "#3a4048", "#7a1e22"]));
       break;
@@ -719,11 +732,10 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
     case "mechanic": {
       allParts(k, ps.slice(0, 4), () => ({ color: "#4a4e52" }));
       solidPart(k, ps[4], { tex: "zinc", color: "#8a8e92", tile: 2 });
-      // Cars on blocks, a bonnet up, tyres in a pile, a spray of oil.
-      k.box("#3a5a8a", [1.8, 0.7, 4.2], [-3.5, 0.75, 3.5], "mass");
-      k.box("#3a5a8a", [1.6, 0.5, 2.2], [-3.5, 1.35, 3.3], "main");
-      k.box("#8a2a2a", [1.8, 0.7, 4.2], [3.5, 0.75, 4.5], "mass");
-      k.box("#8a2a2a", [1.7, 0.06, 1.3], [3.5, 1.7, 6.0], "main", [-0.9, 0, 0]);
+      // v6: no cars on blocks (the owner: "remove all old cars"): the yard's stock under tarps, tyres in a pile,
+      // a spray of oil.
+      pallet(k, "#2a5a8a", -3.5, 3.5);
+      pallet(k, "#8a5a2a", 3.5, 4.5);
       for (let i = 0; i < 4; i++) k.cyl("#1a1a1a", 0.4, 0.25, [6.5, 0.15 + i * 0.26, -3.5], "main", { sides: 10 });
       k.box("#1a1a1a", [3, 0.01, 2], [0, 0.005, 0], "detail");
       break;
@@ -754,13 +766,16 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
       break;
     }
     case "okada":
-      // Parked motorbikes.
+      // v6: no parked motorbikes (the owner: "remove all old cars, bus, keke"): a water seller's stand of blue
+      // drums and jerrycans, in the motorbikes' places.
       for (let i = 0; i < 4; i++) {
         const x = -3 + i * 2;
-        k.box(r.pick(["#1a1c1e", "#2a2e32", "#5a6068", "#8a1e22"]), [0.3, 0.45, 1.3], [x, 0.75, 0], "main");
-        k.cyl("#1a1a1a", 0.32, 0.12, [x, 0.32, 0.65], "main", { r: [0, 0, Math.PI / 2], sides: 10 });
-        k.cyl("#1a1a1a", 0.32, 0.12, [x, 0.32, -0.65], "main", { r: [0, 0, Math.PI / 2], sides: 10 });
-        k.box("#3a3a3a", [0.7, 0.05, 0.05], [x, 1.1, 0.6], "detail");
+        for (const sz of [-0.48, 0.48]) {
+          k.cyl("#1f5fa8", 0.29, 0.92, [x, 0.46, sz], "main", { sides: 10 });
+          k.cyl("#174a84", 0.3, 0.05, [x, 0.3, sz], "detail", { sides: 10 });
+          k.cyl("#174a84", 0.3, 0.05, [x, 0.66, sz], "detail", { sides: 10 });
+        }
+        k.box(r.pick(["#e8c020", "#e8e4dc", "#c0392b"]), [0.32, 0.36, 0.2], [x + 0.12, 1.1, 0], "main");
       }
       break;
     case "genalley":
