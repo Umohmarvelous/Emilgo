@@ -16,6 +16,15 @@
 //   above them the interact prompt; the weapon panel bottom right (tap: swap)
 // The circles: the move stick bottom left, FIRE right, aim (ADS) by it, a
 // second FIRE on the left above the stick.
+//
+// v6 (the owner: "remove every control button by default except the jump,
+// sprint, bend, backpack, aim, walk, speed walk, shoot ... allow players to
+// remove any control buttons or add any"): only the stick, FIRE, aim, jump,
+// sprint, crouch and the backpack show at first (DEFAULT_OFF are hidden; a
+// magazine reloads itself when it runs dry). In Arrange buttons each control
+// has a switch; the choice is kept in the same settings string (`vis`), for
+// both orientations. The stick, the interact prompt and the weapon panel
+// always show (they're how you move and what you're holding).
 
 import { gameSize } from "../ui/rotate";
 import { icon } from "../ui/icons";
@@ -76,8 +85,20 @@ export const CTL = Object.fromEntries(CTLS.map((c) => [c.id, c])) as Record<CtlI
 const UPPER: CtlId[] = ["fist", "slap", "push", "grab", "brace", "emote", "quick", "chat"];
 const LOWER: CtlId[] = ["sprint", "crouch", "jump", "reload", "pack", "radio"];
 
-/** The defaults for a game area of w × h (px), right-handed. */
-function defaults(w: number, h: number): Record<CtlId, CtlSpot> {
+/** v6: hidden until the player adds them in Arrange buttons. */
+export const DEFAULT_OFF: ReadonlySet<CtlId> = new Set<CtlId>(["fireL", "reload", "radio", "fist", "slap", "push", "grab", "brace", "emote", "quick", "chat"]);
+/** v6: always shown: no switch. */
+export const ALWAYS_ON: ReadonlySet<CtlId> = new Set<CtlId>(["move", "interact", "weapon"]);
+
+/** Is this control shown, by the player's choice or the default. */
+export function ctlOn(json: string, id: CtlId): boolean {
+  if (ALWAYS_ON.has(id)) return true;
+  const v = parse(json).vis?.[id];
+  return v === undefined ? !DEFAULT_OFF.has(id) : v;
+}
+
+/** The defaults for a game area of w × h (px), right-handed; `on`: which controls show (the rows close up round them). */
+function defaults(w: number, h: number, on: (id: CtlId) => boolean = (id) => !DEFAULT_OFF.has(id)): Record<CtlId, CtlSpot> {
   const portrait = h > w;
   const out = {} as Record<CtlId, CtlSpot>;
   const at = (id: CtlId, px: number, py: number) => (out[id] = { x: px / w, y: py / h, s: 1 });
@@ -91,9 +112,14 @@ function defaults(w: number, h: number): Record<CtlId, CtlSpot> {
       out[id].s = Math.min(1, step / (BW + GAP));
     });
   };
+  // v6: the shown boxes close up into the rows; hidden ones keep a spot in the same rows for when they're added.
+  const lower = LOWER.filter(on);
+  const upper = UPPER.filter(on);
+  const spare = [...LOWER, ...UPPER].filter((id) => !on(id));
+  const rows: CtlId[][] = upper.length ? [lower, [...upper, ...spare]] : [lower, spare];
   if (portrait) {
-    row(LOWER, rowY[0]);
-    row(UPPER, rowY[1]);
+    row(rows[0], rowY[0]);
+    if (rows[1].length) row(rows[1], rowY[1]);
     at("move", 24 + 60, rowY[1] - BH / 2 - 26 - 60);
     at("fire", w - 24 - 37, rowY[1] - BH / 2 - 60 - 37);
     at("ads", w - 24 - 37 - 72, rowY[1] - BH / 2 - 60 - 70);
@@ -101,8 +127,8 @@ function defaults(w: number, h: number): Record<CtlId, CtlSpot> {
     at("interact", w / 2, rowY[1] - BH / 2 - 150);
     at("weapon", w - 14 - 75, rowY[1] - BH / 2 - 34);
   } else {
-    row(LOWER, rowY[0]);
-    row(UPPER, rowY[1]);
+    row(rows[0], rowY[0]);
+    if (rows[1].length) row(rows[1], rowY[1]);
     at("move", 40 + 60, h - 40 - 60);
     at("fire", w - 92 - 37, h * 0.6);
     at("ads", w - 92 - 37 - 70, h * 0.6 - 62);
@@ -113,7 +139,7 @@ function defaults(w: number, h: number): Record<CtlId, CtlSpot> {
   return out;
 }
 
-type Saved = { land?: Partial<Record<CtlId, CtlSpot>>; port?: Partial<Record<CtlId, CtlSpot>> };
+type Saved = { land?: Partial<Record<CtlId, CtlSpot>>; port?: Partial<Record<CtlId, CtlSpot>>; vis?: Partial<Record<CtlId, boolean>> };
 
 function parse(json: string): Saved {
   try {
@@ -130,7 +156,9 @@ function parse(json: string): Saved {
       }
       return r;
     };
-    return { land: clean(o.land), port: clean(o.port) };
+    const vis: Partial<Record<CtlId, boolean>> = {};
+    if (o.vis && typeof o.vis === "object") for (const [k, v] of Object.entries(o.vis)) if (k in CTL && typeof v === "boolean" && !ALWAYS_ON.has(k as CtlId)) vis[k as CtlId] = v;
+    return { land: clean(o.land), port: clean(o.port), vis };
   } catch {
     return {};
   }
@@ -138,17 +166,19 @@ function parse(json: string): Saved {
 
 /** Every control's spot now (the player's, else the default), right-handed as saved. */
 export function spotsFor(json: string, w: number, h: number): Record<CtlId, CtlSpot> {
-  const d = defaults(w, h);
+  const d = defaults(w, h, (id) => ctlOn(json, id));
   const own = parse(json)[h > w ? "port" : "land"] ?? {};
   for (const id of Object.keys(own) as CtlId[]) d[id] = own[id]!;
   return d;
 }
 
-/** Save one orientation's arrangement (null: back to the defaults). */
-export function saveSpots(json: string, portrait: boolean, spots: Partial<Record<CtlId, CtlSpot>> | null): string {
+/** Save one orientation's arrangement (null: back to the defaults), and which controls show (null: the defaults). */
+export function saveSpots(json: string, portrait: boolean, spots: Partial<Record<CtlId, CtlSpot>> | null, vis?: Partial<Record<CtlId, boolean>> | null): string {
   const o = parse(json);
   if (spots) o[portrait ? "port" : "land"] = spots;
   else delete o[portrait ? "port" : "land"];
+  if (vis === null) delete o.vis;
+  else if (vis) o.vis = vis;
   return JSON.stringify(o);
 }
 
@@ -159,6 +189,8 @@ export function applySpots(root: ParentNode, json: string, lefty: boolean): Reco
   for (const el of root.querySelectorAll<HTMLElement>("[data-ctl]")) {
     const id = el.dataset.ctl as CtlId;
     const s = spots[id];
+    // v6: a control the player took off (or one off by default) isn't drawn and can't be pressed.
+    el.classList.toggle("ctl-off", !ctlOn(json, id));
     if (!s || id === "move") continue;
     el.style.setProperty("--cx", `${((lefty ? 1 - s.x : s.x) * g.w).toFixed(1)}px`);
     el.style.setProperty("--cy", `${(s.y * g.h).toFixed(1)}px`);
@@ -172,19 +204,22 @@ export function applySpots(root: ParentNode, json: string, lefty: boolean): Reco
 
 /**
  * Arrange the buttons: every control drawn where it is; drag one to move it,
- * tap to pick it, − / + to resize it; Reset puts the defaults back; Save keeps
- * it for this orientation. Resolves with the new settings string (or null:
- * cancelled).
+ * tap to pick it, − / + to resize it, its corner switch to add or remove it
+ * (v6; removed ones show faded); Reset puts the defaults back; Save keeps
+ * the places for this orientation and the switches for both. Resolves with
+ * the new settings string (or null: cancelled).
  */
 export function editSpots(host: HTMLElement, json: string, lefty: boolean): Promise<string | null> {
   return new Promise((done) => {
     const g = gameSize();
     const portrait = g.h > g.w;
     let spots = spotsFor(json, g.w, g.h);
+    const vis: Partial<Record<CtlId, boolean>> = {};
+    for (const d of CTLS) if (!ALWAYS_ON.has(d.id)) vis[d.id] = ctlOn(json, d.id);
     const wrap = document.createElement("div");
     wrap.className = "ctl-editor";
     wrap.innerHTML = `<div class="ce-bar">
-        <b>Arrange the buttons</b><small>${portrait ? "Portrait" : "Landscape"} · drag to move, tap then − / + to resize</small>
+        <b>Arrange the buttons</b><small>${portrait ? "Portrait" : "Landscape"} · drag to move, tap then − / + to resize, the corner to add or remove</small>
         <span class="grow"></span>
         <button class="ce-b" data-ce="smaller" aria-label="Smaller">−</button><button class="ce-b" data-ce="bigger" aria-label="Bigger">+</button>
         <button class="ce-b" data-ce="reset">Reset</button><button class="ce-b" data-ce="cancel">Cancel</button><button class="ce-b ce-save" data-ce="save">Save</button>
@@ -200,12 +235,31 @@ export function editSpots(host: HTMLElement, json: string, lefty: boolean): Prom
         el.style.width = `${d.w * s.s}px`;
         el.style.height = `${d.h * s.s}px`;
         el.classList.toggle("picked", id === picked);
+        el.classList.toggle("off", vis[id] === false);
+        const x = el.querySelector<HTMLElement>(".ce-x");
+        if (x) {
+          x.textContent = vis[id] === false ? "+" : "×";
+          x.setAttribute("aria-label", `${vis[id] === false ? "Add" : "Remove"} ${CTL[id].name}`);
+        }
       }
     };
     for (const d of CTLS) {
       const el = document.createElement("div");
       el.className = `ce-ctl ${d.round ? "round" : "box"}`;
       el.innerHTML = `${d.icon ? icon(d.icon, "", d.round ? 24 : 20) : `<i class="ce-dot"></i>`}<span>${d.name}</span>`;
+      if (!ALWAYS_ON.has(d.id)) {
+        // v6: the switch: × takes the control off the screen, + puts it back.
+        const x = document.createElement("button");
+        x.className = "ce-x";
+        x.addEventListener("pointerdown", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          vis[d.id] = vis[d.id] === false;
+          picked = d.id;
+          place();
+        });
+        el.append(x);
+      }
       el.addEventListener("pointerdown", (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -247,11 +301,17 @@ export function editSpots(host: HTMLElement, json: string, lefty: boolean): Prom
         spots[picked] = { ...s, s: Math.min(1.8, Math.max(0.6, s.s + (a === "bigger" ? 0.1 : -0.1))) };
         place();
       } else if (a === "reset") {
+        for (const d of CTLS) if (!ALWAYS_ON.has(d.id)) vis[d.id] = !DEFAULT_OFF.has(d.id);
         spots = defaults(g.w, g.h);
         picked = null;
         place();
       } else if (a === "cancel") finish(null);
-      else if (a === "save") finish(saveSpots(json, portrait, spots));
+      else if (a === "save") {
+        // Only what differs from the defaults is kept, so a later change to the defaults still reaches this player.
+        const diff: Partial<Record<CtlId, boolean>> = {};
+        for (const [id, v] of Object.entries(vis) as [CtlId, boolean][]) if (v === DEFAULT_OFF.has(id)) diff[id] = v;
+        finish(saveSpots(json, portrait, spots, Object.keys(diff).length ? diff : null));
+      }
     });
     place();
     host.append(wrap);
