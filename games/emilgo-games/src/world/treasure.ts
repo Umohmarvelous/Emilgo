@@ -318,6 +318,8 @@ export class TreasureView {
   private readonly panelNote = el("small");
   private panelSig = "";
   private beepAt = 0;
+  /** v6: rivals already called out as carrying all but one (once each). */
+  private readonly warned = new Set<number>();
 
   constructor(o: TreasureViewOptions) {
     this.o = o;
@@ -624,6 +626,17 @@ export class TreasureView {
         if (l && l.status === "alive") aim(l.x, l.z, "goal", -500);
       }
       if (up && tm.uploader !== me.index) marks.push({ x: p.x, z: p.z, kind: "ping" });
+      // v6 (the owner said yes to the suggestion): a rival one treasure short of all of them shows on everyone's
+      // map and compass, so the end of a match always has a fight. Called out once in the feed.
+      for (const c of m.contestants) {
+        if (c === me || c.status !== "alive" || m.sameSquad(c, me) || tm.count[c.index] < tm.need - 1) continue;
+        marks.push({ x: c.x, z: c.z, kind: "ping", label: c.name });
+        aim(c.x, c.z, "hot", -200);
+        if (!this.warned.has(c.index)) {
+          this.warned.add(c.index);
+          this.o.hud?.pushFeed(`${c.name} ${t("holds")} ${tm.count[c.index]}/${tm.need} ${t("treasures: on your compass")}`, "out");
+        }
+      }
       // A beep as the upload goes (yours, or near you).
       if (up && this.time - this.beepAt > 0.5 && (tm.uploader === me.index || d < 40)) {
         this.beepAt = this.time;
