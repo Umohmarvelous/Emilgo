@@ -305,6 +305,9 @@ export class Screens {
     this.current = name;
     this.root.innerHTML = `<div class="screen ${variant}" data-screen="${name}">${html}</div>`;
     this.root.classList.add("visible");
+    // v6 (the owner: "make the settings be in front while in the game"): Settings and the pause menu sit over
+    // the match's HUD (the watch, the crosshair, the ammo), not under it.
+    this.root.classList.toggle("over-hud", name === "settings" || name === "pause");
     translateTree(this.root);
     const focus = this.root.querySelector<HTMLElement>("[autofocus]");
     focus?.focus({ preventScroll: true });
