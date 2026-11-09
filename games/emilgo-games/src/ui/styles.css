@@ -501,6 +501,10 @@ input { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) { .pm-rewards .rw { animation-duration: .01s; animation-delay: 0s; } }
 .pm-xp { display: flex; align-items: center; gap: 8px; font-size: 10px; }
 .pm-xp .bar { flex: 1; }
+/* v6: the CP a match paid. */
+.pm-cp { display: flex; align-items: baseline; gap: 8px; margin-top: 4px; font-size: 10px; }
+.pm-cp b { color: #ffb23a; font: 800 13px var(--mono, "JetBrains Mono", monospace); }
+.pm-cp small { color: #b8b39a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pm-actions { display: flex; gap: 8px; }
 .pm-actions .btn { flex: 1; }
 .pm-best { font: 700 9px var(--head); letter-spacing: 0.12em; background: var(--yellow); color: var(--black); padding: 2px 5px; border-radius: 3px; }

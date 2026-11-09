@@ -108,6 +108,9 @@ export interface FfaResultView {
   /** The rewards, line by line (online: the XP each earned), and your kills. */
   rewards?: { label: string; xp: number; note?: string }[];
   kills?: number;
+  /** v6: the CP this match paid, line by line (shop/boosts cpForMatch). */
+  cp?: number;
+  cpParts?: { label: string; cp: number }[];
 }
 
 /** Honour's cosmetic title (§10.12) for this many commends, or null. */
@@ -597,7 +600,7 @@ export class Screens {
           </span>
         </div>`;
       };
-      body = `<div class="cp-bar glass"><span class="label">Your CP</span><b class="num">${st.cp}</b><span class="small grow">Earned only by playing: every round, more for crossing, more for first.</span></div>
+      body = `<div class="cp-bar glass"><span class="label">Your CP</span><b class="num">${st.cp}</b><span class="small grow">Earned only by playing: every match, more for a win, a high place, kills and your rank.</span></div>
         <p class="note">Switch on up to ${BOOST_SLOTS}. Each one switched on uses a round when a round starts, in Solo and free matches. Boosts are always off in staked Lagos Life matches, and cost no money: CP only.</p>
         <div class="grid wide">${BOOSTS.map(tile).join("")}</div>`;
     } else {
@@ -972,6 +975,7 @@ export class Screens {
          ${r.trail && r.trail.length > 4 && !r.runMap ? `<div class="pm-heat"><span class="label">${t("Where you went")}</span><canvas width="120" height="120" data-heat></canvas></div>` : ""}
          ${rewardsHtml(r)}
          <div class="pm-xp" data-rank-line>${r.online ? rankLine(r) : `<span class="small">Practice: no XP. Play online to rank up.</span>`}</div>
+         ${r.cp ? `<div class="pm-cp"><b>+${r.cp} CP</b><small>${esc((r.cpParts ?? []).map((p) => `${t(p.label)} +${p.cp}`).join(" · "))}</small></div>` : ""}
          ${r.online === "match" ? `<div class="status" data-match-outcome>${esc(r.matchNote ?? "Sending the result to Lagos Life…")}</div>` : ""}
          ${r.completed?.length ? `<div class="status ok">${icon("check", "", 14)} Daily done: ${r.completed.map((c) => esc(t(c))).join(", ")}</div>` : ""}
          <div class="pm-actions">

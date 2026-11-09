@@ -54,7 +54,7 @@ import type { HouseInfo } from "../world/billboards";
 import type { Host, MatchView } from "../platform/types";
 import { errorCode, errorText } from "../platform/vatarErrors";
 import { DEFAULT_WHEEL, LOOK_PRESETS, resetPrefs, saveSettings, type Settings } from "../settings";
-import { BOOST_BY_ID, BOOST_ROUNDS, BOOST_SLOTS, boostsFromWire, boostsToWire, cpForRound, type BoostId } from "../shop/boosts";
+import { BOOST_BY_ID, BOOST_ROUNDS, BOOST_SLOTS, boostsFromWire, boostsToWire, cpForMatch, cpForRound, type BoostId } from "../shop/boosts";
 import { Friends, type Notice } from "../social/friends";
 import { fmtTime, ordinal } from "../ui/dom";
 import { getLang, setLang, t, translateTree } from "../ui/i18n";
@@ -3894,6 +3894,11 @@ export class Game {
     this.pendingGain = null;
     // The rewards, line by line (the server's total is the one that counts: it adds the day's first match).
     this.ffaRes.kills = r.kills ?? 0;
+    // v6: CP for every match, COD-style: more for a win, a high place, kills, and a higher rank.
+    const pay = cpForMatch({ won: r.won, place: me?.place ?? 0, sides: this.ffaRes.sides, kills: r.kills ?? 0, online: !!online, division: rankOf(this.rankXp).k, seconds: r.seconds });
+    this.settings.cp += pay.cp;
+    this.ffaRes.cp = pay.cp;
+    this.ffaRes.cpParts = pay.parts;
     if (online && !r.run && me) {
       this.ffaRes.rewards = xpParts({
         players: this.ffaRes.sides,

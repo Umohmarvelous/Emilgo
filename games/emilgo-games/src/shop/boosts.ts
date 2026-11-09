@@ -129,6 +129,33 @@ export function boostsFromWire(v: unknown): BoostId[] {
   return Array.isArray(v) ? cleanBoostList(v.map((i) => (Number.isInteger(i) ? BOOST_IDS[i as number] : undefined))) : [];
 }
 
+/**
+ * CP for a Free For All match (v6, the owner: "player's money to increase depending on if they win the game or
+ * their level of the game just like cod ... keep the cp system intact"). Earned only by playing, as always:
+ * a match played, a place in the top half and the top three, a win, kills, online; then your rank multiplies it
+ * (+4% a division from Rookie I, at most ×2), as COD pays more at a higher level. Lagos Life money can't be paid
+ * by the game: only Lagos Life moves Naira (a staked match's signed result).
+ */
+export const CP_MATCH = { minSeconds: 60, played: 10, topHalf: 5, top3: 10, win: 25, kill: 2, killsMax: 15, online: 5, perDivision: 0.04, maxMult: 2 } as const;
+
+export function cpForMatch(r: { won: boolean; place: number; sides: number; kills: number; online: boolean; division: number; seconds: number }): { cp: number; parts: { label: string; cp: number }[] } {
+  const K = CP_MATCH;
+  // A match left in its first minute pays nothing (quitting at once can't farm CP).
+  if (r.seconds < K.minSeconds && !r.won) return { cp: 0, parts: [] };
+  const parts: { label: string; cp: number }[] = [{ label: "Match played", cp: K.played }];
+  if (r.won) parts.push({ label: "Victory", cp: K.win });
+  else if (r.place > 0 && r.place <= 3 && r.sides > 3) parts.push({ label: "Top 3", cp: K.top3 });
+  else if (r.place > 0 && r.place <= Math.ceil(r.sides / 2) && r.sides > 1) parts.push({ label: "Top half", cp: K.topHalf });
+  const kills = Math.min(K.killsMax, Math.max(0, Math.floor(r.kills)));
+  if (kills) parts.push({ label: `Kills ×${kills}`, cp: kills * K.kill });
+  if (r.online) parts.push({ label: "Online", cp: K.online });
+  const base = parts.reduce((a, p) => a + p.cp, 0);
+  const mult = Math.min(K.maxMult, 1 + K.perDivision * Math.max(0, r.division));
+  const bonus = Math.round(base * mult) - base;
+  if (bonus > 0) parts.push({ label: `Rank bonus ×${mult.toFixed(2)}`, cp: bonus });
+  return { cp: base + bonus, parts };
+}
+
 /** CP for one round (§7.7: earned only by playing). The tutorial earns none. */
 export function cpForRound(r: { finished: boolean; first: boolean; online: boolean }): number {
   return 10 + (r.finished ? 15 : 0) + (r.first ? 10 : 0) + (r.online ? 5 : 0);
