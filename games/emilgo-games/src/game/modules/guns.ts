@@ -93,6 +93,9 @@ export class GunsModule implements RuleModule {
   /** Seconds of play: the reload finishes (−1: none); the next shot can go; last hurt; last fired or aimed. */
   reloadAt: number[] = [];
   nextAt: number[] = [];
+  /** v6: the trigger as it was last step (a semi-automatic fires on each new press), and when a held one fires next. */
+  private trigWas: boolean[] = [];
+  private holdAt: number[] = [];
   hurtAt: number[] = [];
   aimedAt: number[] = [];
   bloom: number[] = [];
@@ -128,6 +131,8 @@ export class GunsModule implements RuleModule {
       this.slot.push(0);
       this.reloadAt.push(-1);
       this.nextAt.push(0);
+      this.trigWas.push(false);
+      this.holdAt.push(0);
       this.hurtAt.push(-99);
       this.aimedAt.push(-99);
       this.bloom.push(0);
@@ -270,7 +275,11 @@ export class GunsModule implements RuleModule {
       if (a.trigger || a.ads) this.aimedAt[i] = t;
       // Aiming or firing, the body turns to the aim (not mid-swing: a blow keeps its own facing).
       if (t - this.aimedAt[i] < 0.8 && c.act <= 0) c.heading = a.yaw + Math.PI;
-      if (a.trigger && this.reloadAt[i] < 0 && this.mag[i][s] > 0 && t >= this.nextAt[i]) {
+      // v6: semi-automatic guns (the pistol, the shotgun) fire once a press; held, single shots at their `hold` rate.
+      const pressed = a.trigger && !this.trigWas[i];
+      this.trigWas[i] = a.trigger;
+      const ready = K.hold <= 0 || pressed || t >= this.holdAt[i];
+      if (a.trigger && ready && this.reloadAt[i] < 0 && this.mag[i][s] > 0 && t >= this.nextAt[i]) {
         const melee = m.module<MeleeModule>("melee");
         // Knocked down or held: no shooting.
         if (!melee || (!melee.isDown(i) && melee.heldBy[i] < 0)) this.fire(m, c, kind, s);
@@ -303,6 +312,7 @@ export class GunsModule implements RuleModule {
     const K = GUNS.kinds[kind];
     const a = m.aims[i];
     this.nextAt[i] = t + 1 / K.rate;
+    if (K.hold > 0) this.holdAt[i] = t + 1 / K.hold;
     this.mag[i][s]--;
     const moving = Math.hypot(c.vx, c.vz) > 0.6;
     const spread = (a.ads ? K.ads : K.hip) * (c.stance === 1 ? 0.8 : c.stance === 2 ? 0.6 : 1) + (moving ? K.move : 0) + (c.y > 0.05 ? K.move * 2 : 0) + this.bloom[i];

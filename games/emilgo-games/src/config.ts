@@ -566,11 +566,16 @@ export const GUNS = {
   shoulder: 0.5,
   /** A body: a cylinder of `r` (prone: `proneR`) up to its head, a head ball of `head` m round. */
   body: { r: 0.34, proneR: 0.5, head: 0.17 },
+  /**
+   * `rate`: the most shots a second. `hold` (v6, the owner: "machine guns shoot faster and rapidly, while hand gun
+   * shot once once"): 0 is automatic (hold to keep firing at `rate`); otherwise semi-automatic: each new press
+   * fires as fast as `rate` allows, and held down (or auto-shoot) it fires single shots `hold` a second.
+   */
   kinds: {
-    pistol: { dmg: 24, head: 1.8, rate: 4, mag: 12, reserve: 48, reload: 1.3, range: 50, near: 12, far: 35, low: 0.6, hip: 0.03, ads: 0.008, move: 0.025, bloom: 0.012, most: 0.07, drain: 0.12, pellets: 1, recoil: 0.02, zoom: 0.82, speed: 1 },
-    rifle: { dmg: 26, head: 1.6, rate: 10, mag: 30, reserve: 120, reload: 2.2, range: 100, near: 30, far: 75, low: 0.7, hip: 0.04, ads: 0.004, move: 0.03, bloom: 0.006, most: 0.06, drain: 0.1, pellets: 1, recoil: 0.016, zoom: 0.62, speed: 0.93 },
-    smg: { dmg: 19, head: 1.4, rate: 14, mag: 32, reserve: 160, reload: 1.8, range: 45, near: 10, far: 30, low: 0.55, hip: 0.032, ads: 0.012, move: 0.015, bloom: 0.004, most: 0.06, drain: 0.14, pellets: 1, recoil: 0.011, zoom: 0.76, speed: 0.98 },
-    shotgun: { dmg: 13, head: 1.25, rate: 1.4, mag: 6, reserve: 30, reload: 2.6, range: 24, near: 5, far: 16, low: 0.3, hip: 0.085, ads: 0.065, move: 0.02, bloom: 0, most: 0.09, drain: 0.2, pellets: 8, recoil: 0.06, zoom: 0.86, speed: 0.95 },
+    pistol: { dmg: 24, head: 1.8, rate: 4, mag: 12, reserve: 48, reload: 1.3, range: 50, near: 12, far: 35, low: 0.6, hip: 0.03, ads: 0.008, move: 0.025, bloom: 0.012, most: 0.07, drain: 0.12, pellets: 1, recoil: 0.02, zoom: 0.82, speed: 1, hold: 2.2 },
+    rifle: { dmg: 26, head: 1.6, rate: 10, mag: 30, reserve: 120, reload: 2.2, range: 100, near: 30, far: 75, low: 0.7, hip: 0.04, ads: 0.004, move: 0.03, bloom: 0.006, most: 0.06, drain: 0.1, pellets: 1, recoil: 0.016, zoom: 0.62, speed: 0.93, hold: 0 },
+    smg: { dmg: 19, head: 1.4, rate: 14, mag: 32, reserve: 160, reload: 1.8, range: 45, near: 10, far: 30, low: 0.55, hip: 0.032, ads: 0.012, move: 0.015, bloom: 0.004, most: 0.06, drain: 0.14, pellets: 1, recoil: 0.011, zoom: 0.76, speed: 0.98, hold: 0 },
+    shotgun: { dmg: 13, head: 1.25, rate: 1.4, mag: 6, reserve: 30, reload: 2.6, range: 24, near: 5, far: 16, low: 0.3, hip: 0.085, ads: 0.065, move: 0.02, bloom: 0, most: 0.09, drain: 0.2, pellets: 8, recoil: 0.06, zoom: 0.86, speed: 0.95, hold: 1.1 },
   },
   /** Rarities: Common, Uncommon, Rare, Epic, Legendary, Mythic. Damage × `dmg`, magazine × (1 + `mag`). */
   rarity: { dmg: [1, 1.05, 1.1, 1.17, 1.25, 1.35], mag: [0, 0, 0.15, 0.25, 0.4, 0.5], odds: [36, 26, 18, 11, 6, 3] },

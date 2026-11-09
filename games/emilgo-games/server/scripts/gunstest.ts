@@ -6,7 +6,7 @@
 //
 //   node server/build-tools.mjs && node server/dist/gunstest.mjs
 
-import { FEATURES, GUNS } from "../../src/config";
+import { FEATURES, GUN_KINDS, GUNS } from "../../src/config";
 import { BUILTIN_MANIFEST } from "../../src/content/modes";
 import type { Contestant } from "../../src/game/core/body";
 import { Match, settingsOf, type MatchSettings } from "../../src/game/core/match";
@@ -363,6 +363,35 @@ console.log("the phone's copy (mirror):");
   check(JSON.stringify(a.p) === JSON.stringify(base.p) && JSON.stringify(a.v) === JSON.stringify(cars), "a snapshot through the wire is the same");
   const b = inflateSnap(JSON.parse(JSON.stringify(packSnap({ ...base, v: cars }, false))), cars);
   check(b.v === cars, "cars left out: the phone keeps the last it had");
+}
+
+// ── v6: each gun's rhythm ──
+console.log("rhythm:");
+{
+  const m = newMatch(9, bare("find-the-flag"));
+  toPlay(m);
+  const g = m.module<GunsModule>("guns")!;
+  const c = put(m, "p0", YARD[0], YARD[1]);
+  clear(m, ["p0"]);
+  const count = (kind: "pistol" | "rifle", seconds: number, each: (k: number) => boolean): number => {
+    const s = g.slot[c.index];
+    g.gun[c.index][s] = GUN_KINDS.indexOf(kind);
+    g.mag[c.index][s] = 99;
+    let k = 0;
+    const ev = run(m, seconds, [], () => {
+      m.setAim("p0", 0, -0.6, each(k++), false, m.aims[c.index].reload, m.aims[c.index].swap);
+      g.mag[c.index][s] = 99;
+    });
+    m.setAim("p0", 0, -0.6, false, false, m.aims[c.index].reload, m.aims[c.index].swap);
+    run(m, 0.6);
+    return ev.filter((e) => e.type === "fire" && e.id === "p0").length;
+  };
+  const pistolHeld = count("pistol", 3, () => true);
+  const pistolTaps = count("pistol", 3, (k) => k % 16 < 3);
+  const rifleHeld = count("rifle", 3, () => true);
+  check(pistolHeld >= 6 && pistolHeld <= 8, `the pistol held down: single shots, ${pistolHeld} in 3 s (${GUNS.kinds.pistol.hold} a second)`);
+  check(pistolTaps > pistolHeld + 2 && pistolTaps <= 12, `the pistol tapped: one shot a press, faster (${pistolTaps} in 3 s)`);
+  check(rifleHeld >= 28 && rifleHeld <= 31, `the rifle held down: automatic, ${rifleHeld} in 3 s`);
 }
 
 console.log(failures ? `\n${failures} FAILED` : "\nall passed");

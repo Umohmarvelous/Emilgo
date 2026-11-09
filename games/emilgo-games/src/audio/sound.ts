@@ -877,7 +877,8 @@ export class Sound {
   /** A shot: a crack and a body by gun; far off, only the low thump; yours is fullest. */
   gunshot(kind: "pistol" | "rifle" | "smg" | "shotgun", near: number, mine: boolean): void {
     if (near <= 0.03 || this.busy(mine ? VOICE_CAP : VOICE_CAP - 8)) return;
-    if (this.sample(`gun-${kind}`, (mine ? 1 : 0.75) * near)) return;
+    // v6: no two shots quite alike: a few percent of pitch either way (a rifle's burst stops sounding like a loop).
+    if (this.sample(`gun-${kind}`, (mine ? 1 : 0.75) * near, 1 + (Math.random() - 0.5) * (kind === "shotgun" ? 0.06 : 0.1))) return;
     const t = this.now;
     const g = (mine ? 1 : 0.75) * near;
     const far = 1 - near;
@@ -943,12 +944,13 @@ export class Sound {
   }
 
   /** A recorded sound from the sample layer (samples.ts), if it's there: true when it played. */
-  private sample(name: string, gain: number): boolean {
+  private sample(name: string, gain: number, rate = 1): boolean {
     const ctx = this.ctx;
     const buf = sampleBuffer(name);
     if (!ctx || !buf || !this.sfx) return false;
     const src = ctx.createBufferSource();
     src.buffer = buf;
+    if (rate !== 1) src.playbackRate.value = rate;
     const g = ctx.createGain();
     g.gain.value = gain;
     src.connect(g).connect(this.sfx);
