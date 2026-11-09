@@ -38,6 +38,9 @@ import { BillboardView } from "../world/billboards";
 import { DeadView } from "../world/deadView";
 import type { SurvivalModule } from "../game/modules/survival";
 import type { ItemsModule } from "../game/modules/items";
+import type { ZoneModule } from "../game/modules/zone";
+import type { FlagsModule as FlagsRules } from "../game/modules/flags";
+import type { LineId } from "../audio/voice";
 import { gunStats, type GunsModule } from "../game/modules/guns";
 import { CombatHud } from "../ui/combat";
 import { FieldKit, leftLine, type ZombieBar } from "../ui/fieldkit";
@@ -161,6 +164,9 @@ export class FfaMode implements GameMode {
   /** v5: grown bodies' fiercer look; the Map Print (whether it opened the full map). */
   private readonly growth: GrowthView;
   private printOpened = false;
+  /** The announcer's last look: seconds left, and whether you were outside the circle. */
+  private lastLeft = Infinity;
+  private wasOut = false;
   /** Rivals you killed this match. */
   private kills = 0;
   /** Dead Streets' screen side (a run only). */
@@ -287,6 +293,7 @@ export class FfaMode implements GameMode {
     h.scene.add(this.modes6.group);
     this.treasure = m.module("treasure") ? new TreasureView({ hud: h.hud, sound: h.sound, me: me.index, layer: h.ui }) : null;
     this.growth = new GrowthView(h.crowd);
+    h.sound.voice.prepare();
     h.scene.add(this.growth.group);
     if (this.treasure) h.scene.add(this.treasure.group);
     const guns = m.module<GunsModule>("guns");
@@ -608,6 +615,7 @@ export class FfaMode implements GameMode {
     switch (e.type) {
       case "phase":
         if (e.phase === "play") {
+          h.sound.voice.say(startLine(m), true);
           const b = this.src.def.blurb;
           h.hud.pushFeed(getLang() === "pcm" && b.pcm ? b.pcm : b.en, "info");
           const mu = m.settings.mutator;
@@ -624,6 +632,28 @@ export class FfaMode implements GameMode {
           const line = displacement(e.why, by?.name ?? null, c.name, c.h < -0.3);
           if (line) this.best = { score, text: `${line} (${fmtTime(m.elapsed)})` };
         }
+        break;
+      }
+      case "eliminated": {
+        // The announcer: who is out (you, in her words; anyone else by name).
+        const c = m.get(e.id);
+        if (c && !(m.module("survival") && c.bot)) h.sound.voice.eliminated(c.name, c === me);
+        break;
+      }
+      case "flag":
+        if (e.how === "take" || e.how === "found") {
+          const c = e.id ? m.get(e.id) : null;
+          if (c === me) h.sound.voice.say("flag_taken");
+          else if (c && !m.sameSquad(c, me)) h.sound.voice.say("flag_enemy");
+        }
+        break;
+      case "flare":
+        if (m.phase === "play") h.sound.voice.say("airdrop");
+        break;
+      case "zone": {
+        // A new circle: closing (the last one said as the final circle). Not the first, set as play starts.
+        const z = m.module<ZoneModule>("zone");
+        if (z && m.elapsed > 5) h.sound.voice.say(e.phase >= z.phases.length - 1 ? "zone_final" : "zone_closing");
         break;
       }
       case "won": {
@@ -670,7 +700,9 @@ export class FfaMode implements GameMode {
           const lv = c && items ? items.growth[c.index] : 0;
           if (c === me) h.hud.pushFeed(`${t("Titan Serum")}: ${t("level")} ${lv} · ${Math.round((1 - GROWTH.take[lv]) * 100)}% ${t("less damage")}`, "safe");
           else if (c && lv >= GROWTH.max && Math.hypot(c.x - me.x, c.z - me.z) < 80) h.hud.pushFeed(`${c.name} ${t("is fully grown: it takes twice the shots")}`, "out");
+          if (c === me) h.sound.voice.say("serum");
         } else if (e.kind === "map-print" && e.id === me.id) {
+          h.sound.voice.say("print");
           h.hud.pushFeed(t("Map Print: everyone and everything, for 20 s"), "safe");
           if (!h.hud.map.expanded) {
             h.hud.map.expand(true);
@@ -949,6 +981,17 @@ export class FfaMode implements GameMode {
     h.hud.setMap({ x: target.x, z: target.z, heading: target.heading, out: me.status !== "alive" }, this.marks, null, h.rig.yaw);
     h.hud.setCompass(h.rig.yaw, target, null, this.world.layout.landmarks, pin, goal);
     h.hud.setTimer(m.phase === "play" ? m.timeLeft : m.settings.time, m.phase === "play" && m.timeLeft <= 30);
+    // The announcer: the time, and stepping outside the circle.
+    if (m.phase === "play" && !this.over) {
+      const left = m.timeLeft;
+      if (this.lastLeft > 120 && left <= 120 && m.settings.time > 240) h.sound.voice.say("time_two");
+      if (this.lastLeft > 30 && left <= 30) h.sound.voice.say("time_thirty");
+      this.lastLeft = left;
+      const z = m.module<ZoneModule>("zone");
+      const out = !!z && me.status === "alive" && !z.inside(me.x, me.z);
+      if (out && !this.wasOut) h.sound.voice.say("zone_outside");
+      this.wasOut = out;
+    }
 
     // The countdown.
     if (m.phase === "countdown") {
@@ -1287,6 +1330,7 @@ export class FfaMode implements GameMode {
       ...(this.dead ? { run: runResult(m.module<SurvivalModule>("survival")!, this.trace) } : {}),
     };
     this.sendBoards();
+    this.host.sound.voice.say(r.won ? "victory" : "defeat", true);
     this.host.onEnd(r);
   }
 
@@ -1334,6 +1378,7 @@ export class FfaMode implements GameMode {
       h.scene.remove(this.treasure.group);
       this.treasure.dispose();
     }
+    h.sound.voice.hush();
     h.scene.remove(this.growth.group);
     this.growth.dispose(this.src.match);
     h.hud.map.print = 0;
@@ -1363,6 +1408,19 @@ export class FfaMode implements GameMode {
 
 /** The weekly mutators' names (§10.13). */
 export { MUTATOR_NAME };
+
+/** The announcer's first order of a match, by what the mode is. */
+function startLine(m: Match): LineId {
+  if (m.module("treasure")) return "start_treasure";
+  if (m.module("survival")) return "start_generic";
+  const f = m.module<FlagsRules>("flags");
+  if (m.module("dropzones")) return "start_deliver";
+  if (m.module("capture")) return "start_rally";
+  if (f && f.claimHold > 0) return "start_flag";
+  if (f) return "start_hold";
+  if (m.module<GunsModule>("guns")?.royale) return "start_royale";
+  return "start_generic";
+}
 
 /** What the mode's measure is called on the results ("" when it has none). */
 function measureName(m: Match): string {

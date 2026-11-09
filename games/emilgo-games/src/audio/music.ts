@@ -51,6 +51,8 @@ export class Music {
   private now: Track | null = null;
   private cur: Playing | null = null;
   private filter: BiquadFilterNode | null = null;
+  /** v5: the score dips under the announcer's voice. */
+  private ducker: GainNode | null = null;
   private low = false;
   private hushed = false;
   private gen = 0;
@@ -89,7 +91,8 @@ export class Music {
       this.filter = g.ctx.createBiquadFilter();
       this.filter.type = "lowpass";
       this.filter.frequency.value = 18000;
-      this.filter.connect(g.music);
+      this.ducker = g.ctx.createGain();
+      this.filter.connect(this.ducker).connect(g.music);
     }
     return this.filter;
   }
@@ -175,6 +178,13 @@ export class Music {
       }
     }
     setTimeout(() => c.gain.disconnect(), (over + 0.4) * 1000);
+  }
+
+  /** The announcer speaks (on) and is done (off): the score dips to 35% and comes back. */
+  duck(on: boolean): void {
+    const g = this.sound.graph;
+    if (!g || !this.ducker) return;
+    this.ducker.gain.setTargetAtTime(on ? 0.35 : 1, g.ctx.currentTime, on ? 0.08 : 0.4);
   }
 
   /** Under 30 health: muffle whatever plays. */

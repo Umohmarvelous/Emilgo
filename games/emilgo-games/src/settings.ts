@@ -26,6 +26,8 @@ export interface Settings {
   /** Sound effects on/off; their volume. */
   sound: boolean;
   sfxVol: number;
+  /** v5 (3.6): the announcer's voice (directions, who is eliminated). */
+  voice: boolean;
   /** The songs on/off (her warning hum stays); their volume. */
   music: boolean;
   musicVol: number;
@@ -176,6 +178,7 @@ export function defaults(host: Host): Settings {
   return {
     sound: true,
     sfxVol: 1,
+    voice: true,
     music: true,
     musicVol: 0.8,
     master: 1,

@@ -16,6 +16,7 @@ import { loadSamples, sampleBuffer } from "./samples";
 import type { Surface } from "../maps/registry";
 import { RADIO_TRACK, type RadioId } from "./radio";
 import { Music } from "./music";
+import { Voice as Announcer } from "./voice";
 import type { Hit, Song, SungNote, VoiceKind } from "./songs";
 
 type Ctx = AudioContext;
@@ -172,6 +173,16 @@ export class Sound {
 
   private hushed = false;
 
+  /** v5: nothing would be heard (paused, hidden, master at 0): the announcer stays quiet too. */
+  get muted(): boolean {
+    return this.hushed || this.hidden || this.levels.master <= 0;
+  }
+
+  /** How loud a kind of sound plays now (master × its own), 0…1: the announcer's speech volume follows the effects'. */
+  levelOf(kind: "sfx" | "music"): number {
+    return (this.levels.master / 0.9) * this.levels[kind];
+  }
+
   /**
    * Paused online (SPEC-V3: nothing plays during pause): the round goes on
    * underneath, so the clock can't stop — the whole mix fades out instead,
@@ -319,6 +330,8 @@ export class Sound {
 
   /** The score: the downloaded tracks (v4 rework R8). */
   readonly score = new Music(this);
+  /** v5 (3.6): the announcer. */
+  readonly voice = new Announcer(this, this.score);
 
   private radioOn: RadioId | null = null;
   get radioPlaying(): boolean {

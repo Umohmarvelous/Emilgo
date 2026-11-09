@@ -380,7 +380,10 @@ export class TreasureView {
         if (e.found >= 0 && b) {
           this.flashes.push({ x: b.x, y: b.h, z: b.z, at: this.time, life: 2.2, r: 0.7 });
           this.o.sound?.treasure(c === me, near(b.x, b.z, 70));
-          if (c === me) hud.pushFeed(`${t("Treasure found")}! ${tm.count[me.index]}/${tm.need}`, "safe");
+          if (c === me) {
+            hud.pushFeed(`${t("Treasure found")}! ${tm.count[me.index]}/${tm.need}`, "safe");
+            this.o.sound?.voice.say(tm.count[me.index] >= tm.need ? "tre_all" : "tre_found");
+          }
           else if (c) hud.pushFeed(`${c.name} ${t("found a treasure")}`, m.sameSquad(c, me) ? "safe" : "info");
         } else if (c === me) {
           this.o.sound?.empty();
@@ -398,6 +401,7 @@ export class TreasureView {
           if (c === me) {
             this.o.sound?.treasure(true);
             hud.pushFeed(`${t("Treasure taken")}! ${tm.count[me.index]}/${tm.need}`, "safe");
+            if (tm.count[me.index] >= tm.need) this.o.sound?.voice.say("tre_all");
           }
         } else if (e.how === "give") {
           if (c === me) hud.pushFeed(t("A squad mate handed you a treasure"), "safe");
@@ -408,6 +412,7 @@ export class TreasureView {
         if (!c) continue;
         if (e.how === "start") {
           this.o.sound?.zoneAlert();
+          this.o.sound?.voice.say(c === me ? "tre_upload" : m.sameSquad(c, me) ? "tre_upload" : "tre_enemy_upload");
           if (c === me) hud.pushFeed(t("Uploading: stay in the ring"), "safe");
           else hud.pushFeed(`${m.sameSquad(c, me) ? t("Your leader") : c.name} ${t("is uploading the treasures")}${m.sameSquad(c, me) ? "" : `: ${t("stop them")}`}`, m.sameSquad(c, me) ? "safe" : "out");
         } else if (e.how === "stop") {
@@ -418,6 +423,7 @@ export class TreasureView {
     }
     if (dropped) {
       this.o.sound?.treasure(false, 0.6);
+      if (dropped.mine) this.o.sound?.voice.say("tre_lost");
       hud.pushFeed(dropped.mine ? t("You dropped your treasures") : `${dropped.name} ${t("dropped")} ${dropped.n} ${dropped.n === 1 ? t("treasure") : t("treasures")}`, dropped.mine ? "out" : "info");
     }
   }

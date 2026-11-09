@@ -1139,6 +1139,7 @@ export class Screens {
         ${range("musicVol", "Music volume", "Songs and the car radio", !s.music)}
         ${sw("sound", "Sound effects")}
         ${range("sfxVol", "Sound effects volume", "Lasers, hits, footsteps, the drum", !s.sound)}
+        ${sw("voice", "Announcer", "A voice for your orders and for who is eliminated (your phone's own speech voice until recorded lines arrive)")}
         ${ads ? `${sw("adsAudio", "Ads audio", "Sound from a billboard's film, when its advertiser allows it. Off: always silent")}
         ${range("adsVol", "Ads volume", "Billboard films", !s.adsAudio)}` : ""}
         ${sw("haptics", "Vibration")}

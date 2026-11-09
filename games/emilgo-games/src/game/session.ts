@@ -4075,6 +4075,7 @@ export class Game {
     this.rig.sensV = s.sensV * s.sens;
     this.stage?.setLightMode(s.lightMode);
     this.controls.oneThumb = s.oneThumb;
+    this.sound.voice.enabled = s.voice && s.sound;
     this.controls.setLayout(s.leftHanded, s.moveStick === "fixed", s.ctlLayout);
     // Touch look: "Camera sensitivity" scales both axes; the horizontal and vertical sliders (0.3 = 1×) each axis.
     this.controls.setPad(s.sens, s.sensH / 0.3, (s.sensV / 0.3) * 0.8, s.lookAccel, s.lookDead, s.lookDot, s.fireAim);
