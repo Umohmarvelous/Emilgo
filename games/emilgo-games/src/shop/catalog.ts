@@ -67,6 +67,8 @@ export interface WireLook {
   ht?: number;
   /** Gold name badge. */
   b?: 1;
+  /** v5: the closed mask (the eyes alone); absent, the open face. */
+  mk?: 1;
   /** Wins in a row (SPEC-V3 §10.18), 3 or more: the streak glow. Only ever set by the server, from the profile. */
   st?: number;
 }
@@ -92,11 +94,12 @@ export function allowedLook(want: WireLook | null | undefined, owned: ReadonlySe
   const x = look.extras.filter((e) => !EXTRA_BY_ID[e].product || owned.has(EXTRA_BY_ID[e].product!));
   if (x.length) out.x = x;
   if (want.b && owned.has("badge_gold")) out.b = 1;
+  if (look.mask === "closed") out.mk = 1;
   return out;
 }
 
 export function toWireLook(look: Look, badge: boolean): WireLook {
-  return { hd: look.hoodie, ds: look.design, o: look.outfit, g: look.body, s: look.skin, h: look.hair, hc: look.hairColor, x: look.extras.length ? look.extras : undefined, ht: Math.round(look.height * 100), b: badge ? 1 : undefined };
+  return { hd: look.hoodie, ds: look.design, o: look.outfit, g: look.body, s: look.skin, h: look.hair, hc: look.hairColor, x: look.extras.length ? look.extras : undefined, ht: Math.round(look.height * 100), b: badge ? 1 : undefined, mk: look.mask === "closed" ? 1 : undefined };
 }
 
 /** A look from the wire (anything missing → the default). */
@@ -112,6 +115,7 @@ export function fromWire(w: WireLook | undefined): Look {
     hairColor: w.hc,
     extras: Array.isArray(w.x) ? (w.x.filter((e) => typeof e === "string") as ExtraId[]) : [],
     height: typeof w.ht === "number" ? w.ht / 100 : undefined,
+    ...(w.mk === 1 ? { mask: "closed" as const } : {}),
   });
 }
 

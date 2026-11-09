@@ -112,11 +112,153 @@ function readBody(head: any, buf: ArrayBuffer, at: number): OpBody {
   return { pos, nor, reg, ji, jw, pal, acc, levels, rest, built: [] };
 }
 
+/** BONES index of a name. */
+const BI = (b: BoneName) => BONES.indexOf(b);
+
+/**
+ * v5 (3.5, the owner: "the thigh is too small, add some muscles to the thigh
+ * and legs to match the entire body"): fuller thighs and calves, and a nose
+ * for the open face. Done once on the body's own numbers, before any level is
+ * built, so every level, every pose and every clip gets the same body.
+ */
+export function shapeBody(b: OpBody): OpBody {
+  thickenLegs(b);
+  return addNose(b);
+}
+
+/**
+ * Each vertex on a leg bone moves out from the bone's line, by its weight on
+ * that bone: the thighs most (fuller at the top and in front: the quads), the
+ * calves bulging behind, the knee and the ankle left as they are.
+ */
+function thickenLegs(b: OpBody): void {
+  const N = b.pos.length / 3;
+  const segs: { bone: number; a: V3; z: V3; f: (t: number, front: number) => number }[] = [];
+  for (const s of ["L", "R"] as const) {
+    const thigh = b.rest[`thigh${s}`];
+    const shin = b.rest[`shin${s}`];
+    const foot = b.rest[`foot${s}`];
+    // Thigh: +22% at the top, easing to +8% at the knee; +5% more in front (the quads).
+    segs.push({ bone: BI(`thigh${s}`), a: thigh, z: shin, f: (t, front) => 0.22 - 0.14 * t + 0.05 * Math.max(0, front) });
+    // Calf: a bulge behind, highest a third of the way down; the ankle untouched.
+    segs.push({ bone: BI(`shin${s}`), a: shin, z: foot, f: (t, front) => (0.06 + 0.12 * Math.max(0, -front)) * Math.sin(Math.PI * Math.min(1, t * 1.15)) });
+  }
+  for (let k = 0; k < N; k++) {
+    let dx = 0;
+    let dy = 0;
+    let dz = 0;
+    const px = b.pos[k * 3];
+    const py = b.pos[k * 3 + 1];
+    const pz = b.pos[k * 3 + 2];
+    for (let c = 0; c < 4; c++) {
+      const w = b.jw[k * 4 + c] / 255;
+      if (w <= 0) continue;
+      const seg = segs.find((s) => s.bone === b.ji[k * 4 + c]);
+      if (!seg) continue;
+      const ax = seg.z.x - seg.a.x;
+      const ay = seg.z.y - seg.a.y;
+      const az = seg.z.z - seg.a.z;
+      const l2 = ax * ax + ay * ay + az * az || 1;
+      const t = Math.max(0, Math.min(1, ((px - seg.a.x) * ax + (py - seg.a.y) * ay + (pz - seg.a.z) * az) / l2));
+      const rx = px - (seg.a.x + ax * t);
+      const ry = py - (seg.a.y + ay * t);
+      const rz = pz - (seg.a.z + az * t);
+      const rl = Math.hypot(rx, ry, rz) || 1;
+      const k2 = seg.f(t, rz / rl) * w;
+      dx += rx * k2;
+      dy += ry * k2;
+      dz += rz * k2;
+    }
+    b.pos[k * 3] = px + dx;
+    b.pos[k * 3 + 1] = py + dy;
+    b.pos[k * 3 + 2] = pz + dz;
+  }
+}
+
+/**
+ * A nose (the mannequin's head has none): a small wedge on the face, on the
+ * head bone, its own vertices added to every level. Painted as the suit
+ * paints the face: skin where the face is open (suit.ts), the mask's knit
+ * where it is closed, so the shape shows through the fabric either way.
+ */
+function addNose(b: OpBody): OpBody {
+  const e = b.rest.eyeL;
+  const f = b.rest.eyeR;
+  const cx = (e.x + f.x) / 2;
+  const cy = (e.y + f.y) / 2;
+  // The face's surface on the midline under the eyes (the head's own vertices there sit ~9 mm before the eyeballs' centres).
+  const cz = Math.max(e.z, f.z) + 0.009;
+  // Bridge top, ridge, tip, the base under it, the wings (left, right), the sides of the ridge, under the base.
+  const V: [number, number, number][] = [
+    [0, -0.006, 0.0],
+    [0, -0.026, 0.01],
+    [0, -0.046, 0.021],
+    [0, -0.056, 0.008],
+    [0.013, -0.05, -0.003],
+    [-0.013, -0.05, -0.003],
+    [0.008, -0.03, 0.002],
+    [-0.008, -0.03, 0.002],
+    [0, -0.058, -0.002],
+  ];
+  // Faces: left side, right side, the underside; each both ways round (20 triangles: no culling surprises on a face this small).
+  const one = [
+    [0, 6, 1], [0, 1, 7], [1, 6, 4], [1, 4, 2], [1, 5, 7], [1, 2, 5],
+    [2, 4, 3], [2, 3, 5], [3, 4, 8], [3, 8, 5],
+  ];
+  const T = [...one, ...one.map(([a2, b2, c2]) => [a2, c2, b2])];
+  const N0 = b.pos.length / 3;
+  const n = V.length;
+  const grow = <A extends Float32Array | Int8Array | Uint8Array>(a: A, per: number, make: (len: number) => A): A => {
+    const out = make(a.length + n * per);
+    out.set(a);
+    return out;
+  };
+  const pos = grow(b.pos, 3, (l) => new Float32Array(l));
+  const nor = grow(b.nor, 3, (l) => new Int8Array(l));
+  const reg = grow(b.reg, 1, (l) => new Uint8Array(l));
+  const ji = grow(b.ji, 4, (l) => new Uint8Array(l));
+  const jw = grow(b.jw, 4, (l) => new Uint8Array(l));
+  const pal = grow(b.pal, 4, (l) => new Uint8Array(l));
+  const acc = grow(b.acc, 1, (l) => new Uint8Array(l));
+  // A head vertex's palette (the mask's colour and roughness) for the new ones.
+  let src = 0;
+  for (let k = 0; k < N0; k++) if (b.reg[k] === REGION.head) src = k;
+  const head = BI("head");
+  V.forEach(([x, y, z], i) => {
+    const k = N0 + i;
+    pos[k * 3] = cx + x;
+    pos[k * 3 + 1] = cy + y;
+    pos[k * 3 + 2] = cz + z;
+    // Normals: forward, leaning to the side the vertex is on, down under the tip.
+    const nx = x * 40;
+    const ny = i === 3 || i === 8 ? -0.8 : 0.1;
+    const nz = 0.8;
+    const l = Math.hypot(nx, ny, nz);
+    nor[k * 3] = Math.round((nx / l) * 127);
+    nor[k * 3 + 1] = Math.round((ny / l) * 127);
+    nor[k * 3 + 2] = Math.round((nz / l) * 127);
+    reg[k] = REGION.head;
+    ji[k * 4] = head;
+    jw[k * 4] = 255;
+    for (let c = 0; c < 4; c++) pal[k * 4 + c] = b.pal[src * 4 + c];
+    acc[k] = 0;
+  });
+  // Every level gets the nose (it's 10 triangles); a level's indices grow by it.
+  const levels = b.levels.map((lv) => {
+    const wide = N0 + n > 65535 || lv instanceof Uint32Array;
+    const out = wide ? new Uint32Array(lv.length + T.length * 3) : new Uint16Array(lv.length + T.length * 3);
+    out.set(lv);
+    T.forEach((tri, j) => tri.forEach((v, c) => (out[lv.length + j * 3 + c] = N0 + v)));
+    return out;
+  });
+  return { ...b, pos, nor, reg, ji, jw, pal, acc, levels, built: [] };
+}
+
 let loading: Promise<void> | null = null;
 /** Both bodies and the clips. Safe to call more than once. */
 export function loadOperators(): Promise<void> {
   loading ??= Promise.all([
-    bodyUrl().then((url) => fetchBin(url).then(({ head, buf, at }) => void (bodies.f = readBody(head, buf, at)))),
+    bodyUrl().then((url) => fetchBin(url).then(({ head, buf, at }) => void (bodies.f = shapeBody(readBody(head, buf, at))))),
     fetchBin(urlClips).then(({ head, buf, at }) => {
       KEEP = head.keep;
       KEEP.forEach((b, j) => (SLOT[b] = j));

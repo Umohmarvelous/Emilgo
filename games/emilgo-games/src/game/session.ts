@@ -2918,6 +2918,10 @@ export class Game {
         else if (key === "hairColor") next.hairColor = Number(val);
         else if (key === "outfit") next.outfit = val;
         else if (key === "height") next.height = Number(val) / 100;
+        else if (key === "mask") {
+          if (val === "closed") next.mask = "closed";
+          else delete next.mask;
+        }
         else if (key === "extra") {
           const id = val as ExtraId;
           next = { ...base, extras: base.extras.includes(id) ? base.extras.filter((e) => e !== id) : [...base.extras.filter((e) => !conflicts(e, id)), id] };

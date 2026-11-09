@@ -76,7 +76,8 @@ console.log("\nrank rewards (§2.4):");
   check(allowedLook(want, new Set(), 0).ds === undefined, "a Rookie can't wear the Armour design (the server strips it)");
   check(allowedLook(want, new Set(), xpAt("master-1")).ds === "armour", "from Master I it shows");
   check(allowedLook({ ...want, ds: "plain" }, new Set(), 0).ds === "plain", "the plain hoodie for everyone");
-  check(HOODIE_DESIGNS.filter((d) => d.rank).length === 8, "eight rank designs, Rookie to Titan");
+  check(HOODIE_DESIGNS.filter((d) => d.rank).length === 10, "ten rank designs, Rookie to Titan (v5: Hex weave and Multi-terrain)");
+  check(allowedLook({ ...want, mk: 1 }, new Set(), 0).mk === 1 && allowedLook(want, new Set(), 0).mk === undefined, "the closed mask goes out to everyone; the open face is the default");
 }
 
 console.log("\nEMILGO tokens:");

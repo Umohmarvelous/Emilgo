@@ -98,6 +98,8 @@ export function suitMaterial(look: Look, tier: Tier, rest: Record<BoneName, V3>)
     eyeHalf: { value: new Vector2(Math.abs(eyeL.x - eyeR.x) * 0.5 + 0.024, 0.0145) },
     // v5 (3.2): growth, 0 … 3: the eyes burn red, then red veins open in a darker suit.
     fierce: { value: 0 },
+    // v5 (3.5): the face open round the eyes and the nose (1), or the closed mask, the eyes alone (0).
+    faceOpen: { value: look.mask === "closed" ? 0 : 1 },
   };
   const lit = tier === 0;
   const mat = lit ? new MeshLambertMaterial({ color: 0xffffff }) : new MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, metalness: 0 });
@@ -111,7 +113,7 @@ export function suitMaterial(look: Look, tier: Tier, rest: Record<BoneName, V3>)
         "#include <common>",
         `#include <common>
         flat varying int vReg; varying float vRS, vRS2; varying vec3 vBind; varying vec3 vBindN; varying vec4 vPal; varying float vAcc;
-        uniform sampler2D weaveMap; uniform vec3 skinCol, bandCol, eyeC, suitA, suitB; uniform vec2 eyeHalf; uniform int design; uniform float fierce;
+        uniform sampler2D weaveMap; uniform vec3 skinCol, bandCol, eyeC, suitA, suitB; uniform vec2 eyeHalf; uniform int design; uniform float fierce; uniform float faceOpen;
         float fglow = 0.0;
         // The suit's pattern, on the bind pose in metres, so it never swims (order: HOODIE_DESIGNS).
         float hash2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -136,6 +138,10 @@ export function suitMaterial(look: Look, tier: Tier, rest: Record<BoneName, V3>)
           else if (design == 10) m = step(0.5, fract((q.x + q.y) * 80.0)) * 0.55; // Carbon weave
           else if (design == 11) m = step(1.2, y) * step(y, 1.24) + step(0.8, abs(n.x)) * step(y, 0.95) * 0.0 + step(0.965, y) * step(y, 0.995); // Gold trim: chest and hip lines
           else if (design == 12) m = step(0.56, vnoise(q * 9.0)) * step(0.5, fract(p.y * 16.0)) + step(1.2, y) * step(y, 1.24); // Titan
+          else if (design == 13) m = max(step(0.58, vnoise(q * 5.0)), step(0.64, vnoise(q * 9.0 + 7.3)) * 0.6); // Woodland camo
+          else if (design == 14) m = step(1.02, y) * step(y, 1.36) * step(ax, 0.15) + step(0.55, y) * step(y, 0.8) * step(0.05, ax) * step(ax, 0.15) * step(0.0, n.z); // Ballistic plates: the chest and the thighs' fronts
+          else if (design == 15) { vec2 h = q * 24.0; vec2 rr = vec2(1.0, 1.7320508); vec2 ha = mod(h, rr) - rr * 0.5; vec2 hb = mod(h - rr * 0.5, rr) - rr * 0.5; vec2 hg = dot(ha, ha) < dot(hb, hb) ? ha : hb; float hd = max(dot(abs(hg), vec2(0.5, 0.8660254)), abs(hg.x)); m = smoothstep(0.42, 0.47, hd) * 0.85; } // Hex weave: thin lines round each cell
+          else if (design == 16) m = smoothstep(0.44, 0.56, vnoise(q * 4.0 + vnoise(q * 13.0) * 0.7)) * 0.75 + step(0.7, vnoise(q * 17.0)) * 0.25; // Multi-terrain
           return mix(suitA, suitB, clamp(m, 0.0, 1.0));
         }
         vec3 tri(vec3 p, vec3 n) {
@@ -185,8 +191,8 @@ export function suitMaterial(look: Look, tier: Tier, rest: Record<BoneName, V3>)
           } else if (r == 5) {
             c *= 0.9 + 0.15 * wv.g; hgt = wv.g * 0.5;
           } else if (r == 6) {
-            c *= 0.9 + 0.2 * wv.r;
-            if (abs(vBind.x) < 0.032 && vBindN.z > 0.6) { c = vec3(0.16, 0.165, 0.17); rough = 0.32; metal = 0.85; }
+            // The mannequin's hip piece: the suit itself (v5: its buckle read as a pale, then a dark, patch at the front of the hips).
+            c = suitPattern(vBind, vBindN) * (0.82 + 0.36 * wv.r); rough = 0.88;
           } else if (r == 2 || r == 10) {
             c *= 0.9 + 0.2 * wear.g; hgt = r == 10 ? 0.7 : wear.g * 0.3;
           } else if (r == 11) {
@@ -198,15 +204,30 @@ export function suitMaterial(look: Look, tier: Tier, rest: Record<BoneName, V3>)
             if (vBindN.z > 0.55 && vBind.y > 0.05 && vBind.y < 0.24) { c = mix(c, vec3(0.012), lace); hgt = lace; }
             if (vBind.z > 0.1 && vBind.y < 0.07) c *= 0.7;
           } else if (r == 4) {
-            // The balaclava: one slit (the eyes and the bridge of the nose).
+            // The balaclava: open round the eyes and the nose, or (the closed mask) one slit for the eyes.
             vec3 d = vBind - eyeC;
             float e = (d.x * d.x) / (eyeHalf.x * eyeHalf.x);
             bool slit = abs(d.x) < eyeHalf.x && abs(d.y + 0.002) < eyeHalf.y * (1.0 - 0.45 * e) && d.z > -0.06;
             bool bridge = abs(d.x) < 0.010 && d.y < 0.0 && d.y > -0.03 && d.z > -0.02;
-            if (slit || bridge) { c = mix(skinCol, vec3(dot(skinCol, vec3(0.33))), 0.3) * (0.24 + 0.2 * smoothstep(-0.03, 0.01, d.z)) * (0.75 + 0.25 * smoothstep(eyeHalf.y, 0.0, d.y)); rough = 0.6; hgt = 0.0; }
-            // Grown: the eyes burn.
-            if (slit && fierce > 0.5) fglow = 0.55 + 0.25 * fierce;
+            // v5 (3.5): the open face (the default): an upside-down shield from the brows to under the nose,
+            // across the eyes to past their corners, narrowing to the nose. The closed mask keeps the slit.
+            float top = 0.022, bot = -0.066;
+            float yy = clamp((d.y - bot) / (top - bot), 0.0, 1.0);
+            float halfW = mix(0.022, eyeHalf.x + 0.006, smoothstep(0.3, 0.72, yy));
+            bool face = faceOpen > 0.5 && d.z > -0.02 && d.y < top && d.y > bot && abs(d.x) < halfW;
+            if (face) {
+              c = mix(skinCol, vec3(dot(skinCol, vec3(0.33))), 0.12);
+              // In the fabric's shadow at the edge; the sockets deeper round the eyes; the nose's tip a little warmer.
+              float edge = min(min(halfW - abs(d.x), top - d.y), d.y - bot);
+              c *= 0.5 + 0.5 * smoothstep(0.0, 0.009, edge);
+              float sock = exp(-((abs(d.x) - 0.03) * (abs(d.x) - 0.03)) / 0.00035 - (d.y * d.y) / 0.00018);
+              c *= 1.0 - 0.28 * sock;
+              if (d.y < -0.034 && abs(d.x) < 0.016) c = mix(c, c * vec3(1.06, 0.9, 0.86), 0.45);
+              rough = 0.55; hgt = 0.0;
+            } else if (slit || bridge) { c = mix(skinCol, vec3(dot(skinCol, vec3(0.33))), 0.3) * (0.24 + 0.2 * smoothstep(-0.03, 0.01, d.z)) * (0.75 + 0.25 * smoothstep(eyeHalf.y, 0.0, d.y)); rough = 0.6; hgt = 0.0; }
             else { c *= 0.85 + 0.3 * wv.g; hgt = wv.g; }
+            // Grown: the eyes burn (the band across them, open face or closed).
+            if (slit && fierce > 0.5) fglow = 0.55 + 0.25 * fierce;
           } else if (r == 9) {
             vec3 en = normalize(vBindN);
             float z = en.z;

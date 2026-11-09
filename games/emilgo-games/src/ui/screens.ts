@@ -524,7 +524,12 @@ export class Screens {
         </button>`;
       }).join("");
       const current = HOODIE_COLORS[look.hoodie]?.name ?? "";
-      body = `<div class="label" style="margin-bottom:8px">${t("Suit colour")} · ${esc(current)}</div><div class="col-row">${colours}</div>
+      // v5 (3.5): the face cover: open round the eyes and the nose (the default), or closed but for the eyes.
+      const masks = [["open", "Open face", "Eyes, nose and round them"], ["closed", "Closed mask", "The eyes alone"]]
+        .map(([id, name, sub]) => `<button class="tile ${(look.mask === "closed") === (id === "closed") ? "on" : ""}" data-act="look" data-key="mask" data-val="${id}"><span class="t">${esc(t(name))}</span><span class="s">${esc(t(sub))}</span></button>`)
+        .join("");
+      body = `<div class="label" style="margin-bottom:8px">${t("Face cover")}</div><div class="grid" style="grid-template-columns:1fr 1fr">${masks}</div>
+        <div class="label" style="margin:14px 0 8px">${t("Suit colour")} · ${esc(current)}</div><div class="col-row">${colours}</div>
         <div class="label" style="margin:14px 0 8px">${t("Suit design")}</div><div class="grid wide">${designs}</div>
         ${canBuy ? "" : `<p class="note" style="margin-top:10px">${t("Locked colours and designs can be tried on. Tap one to see it.")}</p>`}`;
     }
@@ -1544,6 +1549,14 @@ function designSwatch(id: HoodieDesign, main: string, alt: string): string {
       return `radial-gradient(circle at 50% 40%, #d4a017 0 12%, transparent 14%), #3a1f5c`;
     case "titan":
       return `linear-gradient(180deg, #4a4236 0 30%, #d4a017 30% 36%, #5a5040 36%)`;
+    case "woodland":
+      return `radial-gradient(ellipse at 25% 30%, ${alt} 0 22%, transparent 24%), radial-gradient(ellipse at 70% 65%, ${alt} 0 20%, transparent 22%), radial-gradient(ellipse at 60% 20%, ${alt} 0 12%, transparent 14%), ${main}`;
+    case "plates":
+      return `linear-gradient(90deg, ${main} 0 32%, ${alt} 32% 68%, ${main} 68%) 0 20% / 100% 40% no-repeat, ${main}`;
+    case "hex":
+      return `radial-gradient(circle, transparent 0 55%, ${alt} 57% 66%, transparent 68%) 0 0 / 9px 9px, ${main}`;
+    case "multicam":
+      return `radial-gradient(ellipse at 30% 40%, ${alt} 0 18%, transparent 20%), radial-gradient(ellipse at 72% 30%, ${alt} 0 14%, transparent 16%), radial-gradient(ellipse at 55% 75%, rgba(255,255,255,.12) 0 16%, transparent 18%), ${main}`;
     default:
       return main;
   }

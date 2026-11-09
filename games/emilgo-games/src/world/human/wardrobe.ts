@@ -308,6 +308,8 @@ export interface Look {
   /** Hoodie colour (HOODIE_COLORS index) and design: the only clothes there are. */
   hoodie: number;
   design: HoodieDesign;
+  /** v5 (3.5): the face cover. Absent: open round the eyes and the nose; "closed": the eyes alone. */
+  mask?: "closed";
 }
 
 // ── The hoodie (the only clothes: everyone, everywhere) ─────────────────────────
@@ -338,9 +340,15 @@ export const HOODIE_COLORS: readonly HoodieColor[] = [
   { id: "plum", name: "Plum", hex: "#4a3a72" },
   { id: "gold", name: "Gold", hex: "#d9ab3c", product: "outfit_gold", satin: true },
   { id: "midnight", name: "Midnight", hex: "#1c1733", product: "outfit_midnight", satin: true },
+  // v5 (3.5): field colours.
+  { id: "olive", name: "Olive drab", hex: "#4f5638" },
+  { id: "coyote", name: "Coyote", hex: "#8a7254" },
+  { id: "gunmetal", name: "Gunmetal", hex: "#43474d" },
+  { id: "arctic", name: "Arctic", hex: "#cdd5da" },
+  { id: "crimson", name: "Crimson", hex: "#7c1a1f" },
 ];
 
-export type HoodieDesign = "plain" | "twotone" | "stripe" | "ankara" | "block" | "tracksuit" | "adire" | "bomber" | "tactical" | "armour" | "asooke" | "royal" | "titan";
+export type HoodieDesign = "plain" | "twotone" | "stripe" | "ankara" | "block" | "tracksuit" | "adire" | "bomber" | "tactical" | "armour" | "asooke" | "royal" | "titan" | "woodland" | "plates" | "hex" | "multicam";
 /**
  * The hoodie's designs. `rank`: a reward of the rank ladder (SPEC-V3 §2.4), worn
  * from that division on (the game server strips it from anyone below):
@@ -360,6 +368,11 @@ export const HOODIE_DESIGNS: { id: HoodieDesign; name: string; product?: string;
   { id: "asooke", name: "Carbon weave", rank: "grandmaster-1" },
   { id: "royal", name: "Gold trim", rank: "mythic-1" },
   { id: "titan", name: "Titan", rank: "titan-1" },
+  // v5 (3.5): more suits (the shader's order: suit.ts suitPattern).
+  { id: "woodland", name: "Woodland camo" },
+  { id: "plates", name: "Ballistic plates" },
+  { id: "hex", name: "Hex weave", rank: "pro-2" },
+  { id: "multicam", name: "Multi-terrain", rank: "legendary-3" },
 ];
 export const DESIGN_BY_ID = Object.fromEntries(HOODIE_DESIGNS.map((d) => [d.id, d])) as Record<HoodieDesign, (typeof HOODIE_DESIGNS)[number]>;
 const FREE_HOODIES = HOODIE_COLORS.map((c, i) => (c.product ? -1 : i)).filter((i) => i >= 0);
@@ -436,6 +449,7 @@ export function cleanLook(raw: Partial<Look> | null | undefined, base: Look = DE
     outfit,
     extras,
     height,
+    ...(r.mask === "closed" ? { mask: "closed" as const } : {}),
   };
 }
 
