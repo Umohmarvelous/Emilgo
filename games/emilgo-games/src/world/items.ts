@@ -77,6 +77,11 @@ const GLOW: Partial<Record<ItemId, readonly [number, number, number]>> = {
 };
 const GLOW_DEFAULT = [0.2, 0.85, 1.25] as const;
 
+/** v6: an item's light colour (its glow on the ground, its pickup light). */
+export function glowOf(kind: ItemId): readonly [number, number, number] {
+  return GLOW[kind] ?? GLOW_DEFAULT;
+}
+
 // ── The things themselves: small, low-poly, coloured per vertex ───────────────
 
 function itemGeometry(l: Look): BufferGeometry {

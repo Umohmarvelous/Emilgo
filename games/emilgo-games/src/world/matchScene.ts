@@ -26,7 +26,8 @@ import { itemName, type PlayHud, type PlayHudState } from "../ui/play";
 import { t } from "../ui/i18n";
 import type { Crowd } from "./crowd";
 import { Footprints, type Ground } from "./footprints";
-import { ItemsView, type ItemsState } from "./items";
+import { glowOf, ItemsView, type ItemsState } from "./items";
+import { PickupFx } from "./pickupFx";
 import { SkyLaser } from "./skyLaser";
 import { ZoneWall } from "./zone";
 import type { VehiclesModule } from "../game/modules/vehicles";
@@ -55,6 +56,8 @@ export class MatchScene {
   readonly wall: ZoneWall;
   readonly items: ItemsView;
   readonly prints: Footprints;
+  /** v6: the pickup light round whoever picks something up. */
+  readonly pickFx: PickupFx;
   private readonly o: MatchSceneOptions;
   /** Each body's beam, from its laser event to its fall. */
   private readonly beams = new Map<string, { fromYaw: number; lean: number }>();
@@ -68,8 +71,9 @@ export class MatchScene {
     this.wall = new ZoneWall(o.view, o.tier === 0 ? 64 : 96);
     this.items = new ItemsView(o.tier);
     this.prints = new Footprints(o.ground);
+    this.pickFx = new PickupFx(o.tier);
     // v5: no footprints (the owner: "remove foot prints that traces any player"). `prints` stays for its callers' wipes.
-    this.group.add(this.laser.group, this.wall.mesh, this.items.group);
+    this.group.add(this.laser.group, this.wall.mesh, this.items.group, this.pickFx.group);
     this.laser.setViewport(innerHeight);
     // Everyone alive wears their backpack.
     o.crowd.setPacks(true);
@@ -121,13 +125,22 @@ export class MatchScene {
           break;
         }
         case "take":
-        case "loot":
+        case "loot": {
+          // v6: everyone who picks something up bends for it (the COD-style scoop on the move).
+          const who = m.get(e.id);
+          if (who) {
+            this.o.crowd.human(who.index)?.act("grab");
+            // The light, in the item's colour, for anyone near enough to see it.
+            const kind = e.type === "take" ? e.kind : e.kinds[0];
+            if (kind && near(who.x, who.z, 70) > 0) this.pickFx.spawn(who.index, glowOf(kind));
+          }
           if (e.id === me.id) {
             this.o.sound?.pickup();
             if (e.type === "take") this.o.hud.pushFeed(`+ ${itemName(e.kind)}`, "safe");
             else this.o.hud.pushFeed(`+ ${e.kinds.map(itemName).join(", ")}`, "safe");
           }
           break;
+        }
         case "use":
           if (e.id === me.id) this.o.sound?.useItem(e.kind);
           break;
@@ -175,6 +188,12 @@ export class MatchScene {
     this.state.bags = items?.bags ?? [];
     this.state.crates = air?.crates ?? [];
     this.items.update(dt, this.state, cam);
+    this.pickFx.update(dt, (who, out) => {
+      const c = m.contestants[who];
+      if (!c || c.status !== "alive") return false;
+      this.o.crowd.chest(c, out);
+      return true;
+    });
     this.laser.update(dt, cam);
 
     // ── The zone on the HUD ──
@@ -275,6 +294,7 @@ export class MatchScene {
     this.laser.dispose();
     this.wall.dispose();
     this.items.dispose();
+    this.pickFx.dispose();
     this.prints.dispose();
   }
 }
