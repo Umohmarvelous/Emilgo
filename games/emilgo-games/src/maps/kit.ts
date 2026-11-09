@@ -54,6 +54,35 @@ const CYL16 = new CylinderGeometry(1, 1, 1, 16);
 const CONE6 = new ConeGeometry(1, 1, 6);
 const CONE10 = new ConeGeometry(1, 1, 10);
 const BLOB = new DodecahedronGeometry(1, 0);
+
+/**
+ * v5 (3.7): a spruce's bough tier, 1 across and 1 tall (scaled like a cone):
+ * the rim is jagged, branch tips out and drooping between shorter ones, and it
+ * is closed underneath, so a crown reads as branches, not a stack of cones.
+ */
+const BOUGH = (() => {
+  const N = 14;
+  const pos: number[] = [];
+  const apex = [0, 0.5, 0];
+  const under = [0, -0.28, 0];
+  const rim: number[][] = [];
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2;
+    const out = i % 2 === 0;
+    const r = out ? 1 : 0.6;
+    rim.push([Math.cos(a) * r, out ? -0.62 : -0.38, Math.sin(a) * r]);
+  }
+  for (let i = 0; i < N; i++) {
+    const a = rim[i];
+    const b = rim[(i + 1) % N];
+    pos.push(...apex, ...b, ...a);
+    pos.push(...under, ...a, ...b);
+  }
+  const g = new BufferGeometry();
+  g.setAttribute("position", new Float32BufferAttribute(pos, 3));
+  g.computeVertexNormals();
+  return g;
+})();
 const BLOB1 = new IcosahedronGeometry(1, 1);
 const BALL = new SphereGeometry(1, 10, 8);
 
@@ -114,6 +143,11 @@ export class Kit {
 
   cone(color: string | number, radius: number, height: number, p: V3, level: Level = "main", r?: V3, sides: 6 | 10 = 10): void {
     this.put(part(sides === 6 ? CONE6 : CONE10, color, { p, r, s: [radius, height, radius] }), level, p[2]);
+  }
+
+  /** A spruce's bough tier (BOUGH): radius, height, like `cone`. */
+  bough(color: string | number, radius: number, height: number, p: V3, level: Level = "foliage", r?: V3): void {
+    this.put(part(BOUGH, color, { p, r, s: [radius, height, radius] }), level, p[2]);
   }
 
   blob(color: string | number, s: V3, p: V3, level: Level = "foliage", smooth = false): void {

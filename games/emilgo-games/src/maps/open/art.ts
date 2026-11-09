@@ -802,7 +802,9 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
         const t = i / (n - 1);
         const rad = (2.7 - t * 2.15) * r.range(0.88, 1.08);
         const th = h * (0.26 - t * 0.1);
-        k.cone(r.pick(greens), rad, th, [r.range(-0.1, 0.1), h * (0.2 + t * 0.66), r.range(-0.1, 0.1)], "foliage", [r.range(-0.07, 0.07), r.range(0, 6.28), r.range(-0.07, 0.07)], hi ? 10 : 6);
+        // v5: Medium and up, jagged drooping boughs (kit.ts BOUGH); Low, the light cones.
+        if (hi) k.bough(r.pick(greens), rad * 1.08, th * 1.15, [r.range(-0.1, 0.1), h * (0.2 + t * 0.66), r.range(-0.1, 0.1)], "foliage", [r.range(-0.06, 0.06), r.range(0, 6.28), r.range(-0.06, 0.06)]);
+        else k.cone(r.pick(greens), rad, th, [r.range(-0.1, 0.1), h * (0.2 + t * 0.66), r.range(-0.1, 0.1)], "foliage", [r.range(-0.07, 0.07), r.range(0, 6.28), r.range(-0.07, 0.07)], 6);
       }
       break;
     }

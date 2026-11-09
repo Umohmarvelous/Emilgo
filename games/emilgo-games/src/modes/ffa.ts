@@ -291,7 +291,7 @@ export class FfaMode implements GameMode {
     h.scene.add(this.gadgets.group);
     this.modes6 = new ModesView({ crowd: h.crowd, hud: h.hud, sound: h.sound, me: me.index });
     h.scene.add(this.modes6.group);
-    this.treasure = m.module("treasure") ? new TreasureView({ hud: h.hud, sound: h.sound, me: me.index, layer: h.ui }) : null;
+    this.treasure = m.module("treasure") ? new TreasureView({ hud: h.hud, sound: h.sound, me: me.index, layer: h.ui, tier: h.spec.tier }) : null;
     this.growth = new GrowthView(h.crowd);
     h.sound.voice.prepare();
     h.scene.add(this.growth.group);

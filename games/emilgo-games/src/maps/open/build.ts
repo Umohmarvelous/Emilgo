@@ -260,6 +260,72 @@ export async function loadWorldLibrary(spec: TierSpec, night: boolean, L?: OpenL
 }
 
 /**
+ * v5 (3.7, the realism pass): the trees' crowns (the flat green parts of the
+ * world) get clumps of needles and leaves from their position in the world,
+ * with no texture and no new draw: dark gaps, lit tips, the surface bumped so
+ * light falls through unevenly. Only the leaves pay for it (two noise
+ * lookups a pixel). High and Max only: it cost Medium a quarter of its frame
+ * rate on a slowed phone (48 → 35 fps), so Medium keeps flat leaves.
+ */
+function detailed(m: MeshStandardMaterial): MeshStandardMaterial {
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader
+      .replace("#include <common>", "#include <common>\nvarying vec3 vWorldD;")
+      .replace("#include <worldpos_vertex>", "#include <worldpos_vertex>\nvWorldD = (modelMatrix * vec4(transformed, 1.0)).xyz;");
+    sh.fragmentShader = sh.fragmentShader
+      .replace(
+        "#include <common>",
+        `#include <common>
+        varying vec3 vWorldD;
+        float dHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+        float dNoise(vec3 x) {
+          vec3 i = floor(x), f = fract(x);
+          f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(mix(dHash(i), dHash(i + vec3(1,0,0)), f.x), mix(dHash(i + vec3(0,1,0)), dHash(i + vec3(1,1,0)), f.x), f.y),
+                     mix(mix(dHash(i + vec3(0,0,1)), dHash(i + vec3(1,0,1)), f.x), mix(dHash(i + vec3(0,1,1)), dHash(i + vec3(1,1,1)), f.x), f.y), f.z);
+        }
+        float dLeafy = 0.0; float dH = 0.0;`,
+      )
+      .replace(
+        "#include <color_fragment>",
+        `#include <color_fragment>
+        {
+          vec3 c0 = diffuseColor.rgb;
+          // Leaves: green over red and blue, and not too bright (paint is brighter and greyer).
+          // (Linear colours: a dark green is tiny numbers, so by ratio, not by difference.)
+          dLeafy = smoothstep(1.2, 1.55, c0.g / max(max(c0.r, c0.b), 0.002)) * step(max(c0.r, max(c0.g, c0.b)), 0.45);
+          vec3 p = vWorldD;
+          if (dLeafy > 0.0) {
+            float clump = dNoise(p * 2.3);
+            float fine = dNoise(p * 9.0 + clump * 2.0);
+            dH = clump * 0.6 + fine * 0.4;
+            // Gaps between the clumps go dark; the tips catch the sun, a touch yellower.
+            vec3 leaf = c0 * (0.45 + 0.95 * smoothstep(0.25, 0.85, dH));
+            leaf = mix(leaf, leaf * vec3(1.12, 1.1, 0.8), smoothstep(0.7, 0.95, fine) * 0.6);
+            diffuseColor.rgb = mix(c0, leaf, dLeafy);
+          }
+        }`,
+      )
+      .replace(
+        "#include <normal_fragment_maps>",
+        `#include <normal_fragment_maps>
+        if (dLeafy > 0.0) {
+          // The clumps' bump (screen-space derivatives of the height): light falls unevenly through a crown.
+          vec3 sp = -vViewPosition;
+          vec3 sx = normalize(dFdx(sp)), sy = normalize(dFdy(sp));
+          vec3 r1 = cross(sy, normal), r2 = cross(normal, sx);
+          float det = dot(sx, r1);
+          vec2 dh = vec2(dFdx(dH), dFdy(dH)) * 0.9 * dLeafy;
+          vec3 g = sign(det) * (dh.x * r1 + dh.y * r2);
+          normal = normalize(abs(det) * normal - g);
+        }`,
+      );
+  };
+  m.customProgramCacheKey = () => "open-vc-detail-2";
+  return m;
+}
+
+/**
  * The atlas material: the UV's integer part over TEX_STRIDE picks the tile,
  * its fraction repeats inside it. Gradients come from the unwrapped UV, so the
  * tile edges don't show a seam of the wrong mip level.
@@ -1025,7 +1091,7 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }, lib: W
   group.add(water);
 
   // Merge each cell into its LOD and its atlas, foliage and glow draws.
-  const vc = spec.pbr ? new MeshStandardMaterial({ vertexColors: true, roughness: 0.88, metalness: 0, side: DoubleSide }) : new MeshLambertMaterial({ vertexColors: true, side: DoubleSide });
+  const vc = spec.pbr ? (spec.tier >= 2 ? detailed : (m: MeshStandardMaterial) => m)(new MeshStandardMaterial({ vertexColors: true, roughness: 0.88, metalness: 0, side: DoubleSide })) : new MeshLambertMaterial({ vertexColors: true, side: DoubleSide });
   const at = yield* atlasTexture(lib ? texSize(spec.tier) : spec.tier === 0 ? 256 : 512, lib);
   const atlas = atlasMaterial(spec, at.map, at.normal);
   const glowMat = new MeshBasicMaterial({ vertexColors: true });

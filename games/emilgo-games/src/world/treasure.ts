@@ -51,6 +51,8 @@ import type { MapMark } from "../ui/minimap";
 import type { PlayHudState } from "../ui/play";
 import type { Hud } from "../ui/hud";
 import { el } from "../ui/dom";
+import { cdnOn, modelFor } from "../assets/cdn";
+import type { Tier } from "../graphics/tiers";
 import { t } from "../ui/i18n";
 import { merge, part } from "./geo";
 
@@ -61,6 +63,8 @@ export interface TreasureViewOptions {
   me: number;
   /** The UI layer (the upload panel goes there). */
   layer: HTMLElement;
+  /** Graphics tier: Medium and up draw the boxes as a scanned CC0 chest (the site's model library). */
+  tier: Tier;
 }
 
 const _m = new Matrix4();
@@ -302,6 +306,9 @@ export class TreasureView {
   private readonly flashes: Flash[] = [];
   private readonly falls = new Map<number, Fall>();
   private placed = false;
+  /** v5 (3.7): the boxes are the scanned chest (an opened one is gone: you can't see into a scan). */
+  private scanned = false;
+  private gone = false;
   private time = 0;
   /** The upload panel (middle of the screen) and what it shows now. */
   private readonly panel = el("div", "tr-upload");
@@ -325,6 +332,22 @@ export class TreasureView {
     this.columns = instanced(new CylinderGeometry(1, 1, 1, 16, 1, true).translate(0, 0.5, 0), col, MAX_GLOWS, true);
     this.glowRings = instanced(new RingGeometry(0.9, 1, 40, 1).rotateX(-Math.PI / 2), ring, MAX_GLOWS, true);
     this.group.add(this.closed, this.opened, this.gems, this.columns, this.glowRings);
+    // v5 (3.7, realism): Medium and up, the scanned metal chest from the model library (CC0, Poly Haven) when the site has it.
+    if (o.tier >= 1 && cdnOn()) {
+      void modelFor("prop", 1, o.tier, "metal_tool_chest").then((m) => {
+        if (!m || this.gone) return;
+        const g = m.geometry.clone();
+        g.computeBoundingBox();
+        const bb = g.boundingBox!;
+        const k = 0.78 / Math.max(0.05, bb.max.x - bb.min.x, bb.max.z - bb.min.z);
+        g.translate(-(bb.min.x + bb.max.x) / 2, -bb.min.y, -(bb.min.z + bb.max.z) / 2);
+        g.scale(k, k, k);
+        this.closed.geometry.dispose();
+        this.closed.geometry = g;
+        this.closed.material = m.material;
+        this.scanned = true;
+      });
+    }
 
     // The machine.
     const body = new Mesh(machineGeometry(), new MeshLambertMaterial({ vertexColors: true }));
@@ -492,8 +515,8 @@ export class TreasureView {
       const dz = b.z - cam.z;
       if (dx * dx + dz * dz > BOX_RANGE * BOX_RANGE) continue;
       _m.compose(_p.set(b.x, b.h, b.z), _q.setFromAxisAngle(_up, b.index * 2.39), _s.set(1, 1, 1));
-      if (b.opened) this.opened.setMatrixAt(no++, _m);
-      else this.closed.setMatrixAt(nc++, _m);
+      if (!b.opened) this.closed.setMatrixAt(nc++, _m);
+      else if (!this.scanned) this.opened.setMatrixAt(no++, _m);
     }
     this.closed.count = nc;
     this.opened.count = no;
@@ -653,11 +676,13 @@ export class TreasureView {
   }
 
   dispose(): void {
+    this.gone = true;
     for (const mesh of [this.closed, this.opened, this.gems, this.columns, this.glowRings]) {
       mesh.geometry.dispose();
       mesh.dispose();
     }
-    (this.closed.material as Material).dispose();
+    // The chests' own material (the scanned chest's belongs to the model library's cache: not ours to free).
+    (this.opened.material as Material).dispose();
     (this.gems.material as Material).dispose();
     this.machine.traverse((o) => {
       const mesh = o as Mesh;
