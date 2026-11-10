@@ -612,6 +612,10 @@ const PCM: Record<string, string> = {
   "Silo Zone, your rank and your look on every phone": "Silo Zone, your rank and your look for every phone",
   "Get EMILGO": "Get EMILGO",
   "Advertise on our billboards": "Put your advert for our billboard",
+  Advertisement: "Advert",
+  "Your brand on a billboard in Silo Zone": "Put your brand for billboard inside Silo Zone",
+  "Numbered billboards across the city, seen by every player who passes. Book one for 1 or 2 weeks.":
+    "Billboard wey get number everywhere for the city; every player wey pass go see am. Book one for 1 or 2 weeks.",
   "Tap to rotate": "Tap make e turn",
   // Chat and moderation
   Chat: "Chat",

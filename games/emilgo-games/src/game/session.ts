@@ -68,6 +68,7 @@ import { Scoreboard } from "../ui/scoreboard";
 import type { TerrainShot } from "../ui/minimap";
 import { Screens, honourTitle, naira, payoutOf, type FfaResultView, type LobbyState, type LobbyTab, type OnlineAvailability, type PlayMode, type ResultInfo } from "../ui/screens";
 import { NetStatus } from "../ui/netstatus";
+import { showInterstitial } from "../ui/interstitial";
 import { artForMap, nextDrop } from "../ui/places";
 import { KITS } from "../world/human/gear";
 
@@ -854,6 +855,23 @@ export class Game {
     }
   }
   private contentAsked = false;
+
+  /** v6: a guard against a second ad over the first; the purchase itself (after the ad). */
+  private adShowing = false;
+
+  private buyBoost(id: BoostId): void {
+    const b = BOOST_BY_ID[id];
+    if (!b || this.settings.cp < b.cp) return;
+    this.settings.cp -= b.cp;
+    this.settings.boosts[b.id] = Math.min(999, (this.settings.boosts[b.id] ?? 0) + BOOST_ROUNDS);
+    // Bought with a slot free: switched on for the next round.
+    if (!this.settings.boostsOn.includes(b.id) && this.settings.boostsOn.length < BOOST_SLOTS) this.settings.boostsOn.push(b.id);
+    saveSettings(this.host, this.settings);
+    this.sendPrefs();
+    this.haptic("success");
+    this.screens.toast(t(`${b.name}: ${BOOST_ROUNDS} rounds`));
+    this.showStore();
+  }
 
   private setAvatar(pick: string): void {
     this.settings.avatar = pick;
@@ -2996,15 +3014,18 @@ export class Game {
       case "buy-boost": {
         const b = BOOST_BY_ID[d.id as BoostId];
         if (!b || this.settings.cp < b.cp) break;
-        this.settings.cp -= b.cp;
-        this.settings.boosts[b.id] = Math.min(999, (this.settings.boosts[b.id] ?? 0) + BOOST_ROUNDS);
-        // Bought with a slot free: switched on for the next round.
-        if (!this.settings.boostsOn.includes(b.id) && this.settings.boostsOn.length < BOOST_SLOTS) this.settings.boostsOn.push(b.id);
-        saveSettings(this.host, this.settings);
-        this.sendPrefs();
-        this.haptic("success");
-        this.screens.toast(t(`${b.name}: ${BOOST_ROUNDS} rounds`));
-        this.showStore();
+        // v6: an ad first (the web and the app; never in Lagos Life), then the purchase.
+        if (this.host.kind === "lagoslife") {
+          this.buyBoost(b.id);
+          break;
+        }
+        // A tap while the ad is up buys nothing more (it would skip the ad).
+        if (this.adShowing) break;
+        this.adShowing = true;
+        void showInterstitial(this.uiRoot, () => this.sound.hush(true), () => this.sound.hush(false)).then(() => {
+          this.adShowing = false;
+          this.buyBoost(b.id);
+        });
         break;
       }
       case "boost-on": {
