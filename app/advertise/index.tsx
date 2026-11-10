@@ -43,6 +43,9 @@ import {
   myAccount,
   myBillboards,
   startCheckout,
+  listBoards,
+  bookBoard,
+  type NumberedBoard,
   submitBillboard,
   uploadAdMedia,
   verifyPayment,
@@ -133,7 +136,13 @@ export default function AdvertiseScreen() {
   const [bizEmail, setBizEmail] = React.useState("");
   // Paying.
   const [amount, setAmount] = React.useState("");
-  const [provider, setProvider] = React.useState<PayProvider>("paystack");
+  // v6: Flutterwave first on the web (the web game's billing), Paystack in the app.
+  const [provider, setProvider] = React.useState<PayProvider>(Platform.OS === "web" ? "flutterwave" : "paystack");
+  // v6: booking one numbered board for 1 or 2 weeks.
+  const [boards, setBoards] = React.useState<NumberedBoard[]>([]);
+  const [board, setBoard] = React.useState<string | null>(null);
+  const [weeks, setWeeks] = React.useState<"1" | "2">("1");
+  const [bookAd, setBookAd] = React.useState<string | null>(null);
   // The billboard.
   const [headline, setHeadline] = React.useState("");
   const [website, setWebsite] = React.useState("https://");
@@ -152,6 +161,7 @@ export default function AdvertiseScreen() {
   const load = React.useCallback(async () => {
     try {
       const [a, s, m] = await Promise.all([myAccount(), listSlots(), myBillboards()]);
+      listBoards().then(setBoards).catch(() => setBoards([]));
       setAccount(a.account);
       setPrices(a.prices);
       setSlots(s);
@@ -215,6 +225,34 @@ export default function AdvertiseScreen() {
       }
     } catch (e: any) {
       iosAlert("Couldn't start the payment", e?.message ?? "Please try again.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  /** v6: book the picked board for 1 or 2 weeks with the picked ad. */
+  const book = async () => {
+    const b = boards.find((x) => x.id === board);
+    const ad = bookAd ?? mine[0]?.id ?? null;
+    if (!b) return iosAlert("Which billboard?", "Pick a numbered billboard from the list.");
+    if (!ad) return iosAlert("Which ad?", "Make a billboard ad first (below): it's what goes on the board.");
+    setBusy("book");
+    try {
+      const c = await bookBoard(provider, b.id, weeks === "2" ? 2 : 1, ad);
+      if (c.checkout_url) {
+        if (Platform.OS === "web") window.location.href = c.checkout_url;
+        else {
+          await WebBrowser.openBrowserAsync(c.checkout_url);
+          const r = await verifyPayment(c.reference);
+          iosAlert(r.ok ? "Billboard booked" : "Not paid yet", r.ok ? `Billboard ${b.number} is yours for ${weeks === "2" ? "2 weeks" : "1 week"} once your ad is approved.` : "If you paid, it can take a minute.");
+          load();
+        }
+      } else {
+        iosAlert("Test mode", c.settled ? `No money moved (test mode). Billboard ${b.number} is booked.` : "No money moved: the server has no key for this provider yet.");
+        load();
+      }
+    } catch (e: any) {
+      iosAlert("Couldn't book it", e?.message ?? "Please try again.");
     } finally {
       setBusy(null);
     }
@@ -344,6 +382,67 @@ export default function AdvertiseScreen() {
           </View>
           <Pressable disabled={busy === "pay"} onPress={pay} style={[styles.primaryBtn, { backgroundColor: t.tint }]}>
             {busy === "pay" ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Pay</Text>}
+          </Pressable>
+        </View>
+
+        <View style={card}>
+          <Text style={[styles.cardTitle, { color: t.label }]}>Book a billboard</Text>
+          <Text style={[styles.fieldHint, { color: t.tertiaryLabel }]}>
+            One board, yours alone, for 1 or 2 weeks. Each is numbered with the place it stands in the game's world.
+            {boards.some((b) => b.placeholder) ? " Test prices: real prices are set before billboards go on sale." : ""}
+          </Text>
+          <View style={{ maxHeight: 280, marginTop: 8 }}>
+            <ScrollView nestedScrollEnabled>
+              {boards.map((b) => {
+                const on = board === b.id;
+                const free = new Date(b.free_from).getTime() <= Date.now() + 60_000;
+                return (
+                  <Pressable key={b.id} onPress={() => setBoard(b.id)} style={[styles.boardRow, { borderColor: on ? t.tint : "transparent", backgroundColor: on ? "rgba(0,154,67,0.08)" : "transparent" }]}>
+                    <Text style={[styles.boardNum, { color: t.tint }]}>{b.number ?? "–"}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: t.label, fontFamily: "Poppins_500Medium", fontSize: 13 }} numberOfLines={2}>{b.label}</Text>
+                      <Text style={{ color: t.tertiaryLabel, fontSize: 11 }}>
+                        1 week {naira(b.week1)} · 2 weeks {naira(b.week2)} · {free ? "free now" : `free from ${new Date(b.free_from).toLocaleDateString()}`}
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+              {!boards.length ? <Text style={[styles.fieldHint, { color: t.tertiaryLabel }]}>The numbered list appears once the v6 billboard migration has been run.</Text> : null}
+            </ScrollView>
+          </View>
+          <View style={{ marginTop: 10 }}>
+            <IOSSegmentedTabs<"1" | "2">
+              segments={[
+                { key: "1", label: "1 week" },
+                { key: "2", label: "2 weeks" },
+              ]}
+              active={weeks}
+              onChange={setWeeks}
+              variant="capsule"
+            />
+          </View>
+          {mine.length > 1 ? (
+            <View style={{ marginTop: 10 }}>
+              <Text style={[styles.groupTitle, { color: t.secondaryLabel }]}>WHICH AD</Text>
+              {mine.map((m) => (
+                <Pressable key={m.id} onPress={() => setBookAd(m.id)} style={[styles.boardRow, { borderColor: (bookAd ?? mine[0].id) === m.id ? t.tint : "transparent" }]}>
+                  <Text style={{ color: t.label, fontSize: 13 }}>{m.headline}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+          <Pressable disabled={busy === "book" || !board} onPress={book} style={[styles.primaryBtn, { backgroundColor: t.tint, opacity: board ? 1 : 0.5 }]}>
+            {busy === "book" ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.primaryBtnText}>
+                {(() => {
+                  const b = boards.find((x) => x.id === board);
+                  return b ? `Book billboard ${b.number} · ${naira(weeks === "2" ? b.week2 : b.week1)}` : "Pick a billboard";
+                })()}
+              </Text>
+            )}
           </Pressable>
         </View>
 
@@ -527,6 +626,9 @@ const styles = StyleSheet.create({
   statLabel: { ...IOSAppFont.caption2, textTransform: "uppercase", letterSpacing: 0.4 },
   primaryBtn: { height: 46, borderRadius: 12, alignItems: "center", justifyContent: "center", marginTop: 14 },
   primaryBtnText: { ...IOSAppFont.body, fontFamily: "Poppins_600SemiBold", color: "#fff" },
+  // v6: the numbered billboards.
+  boardRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, paddingHorizontal: 8, borderRadius: 10, borderWidth: 1.5, marginBottom: 4 },
+  boardNum: { width: 34, textAlign: "center", fontFamily: "Poppins_700Bold", fontSize: 18 },
   mediaBtn: { height: 44, borderRadius: 10, alignItems: "center", justifyContent: "center", marginTop: 8 },
   thumbs: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 },
   thumb: { width: 120, height: 60, borderRadius: 6 },

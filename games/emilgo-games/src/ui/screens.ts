@@ -337,6 +337,7 @@ export class Screens {
       ${tabsHtml("lobby")}
       <div class="lb-tr">
         <button class="ibtn" data-act="tutorial" aria-label="Tutorial">${icon("help")}</button>
+        ${host.kind !== "lagoslife" ? `<button class="ibtn adv" data-act="advertise" aria-label="${esc(t("Advertise on our billboards"))}" title="${esc(t("Advertise on our billboards"))}">${icon("billboard", "", 18)}<span>${esc(t("Advertise"))}</span></button>` : ""}
 
         <button class="ibtn" data-act="settings" aria-label="Settings">${icon("gear", "ico-spin")}</button>
         ${exit}

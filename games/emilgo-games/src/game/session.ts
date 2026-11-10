@@ -3281,6 +3281,12 @@ export class Game {
       case "tutorial":
         this.cards.hub();
         break;
+      case "advertise":
+        // v6 (the owner: "ads purchase in a place players can see it"): the advertiser portal, where a business
+        // books a numbered billboard for 1 or 2 weeks. The app opens its own; the web its site's. Never in Lagos Life.
+        if (this.host.kind === "emilgo") (this.host as unknown as { advertise(): void }).advertise();
+        else if (this.host.kind === "web") window.open((import.meta.env.VITE_ADVERTISE_URL as string | undefined) ?? "https://emilgo.app/advertise", "_blank", "noopener");
+        break;
       case "money":
         this.screens.toast(this.moneyNow === null ? "Your Lagos Life money shows here once Lagos Life shares it with games." : "Your Lagos Life money.", 3200);
         break;

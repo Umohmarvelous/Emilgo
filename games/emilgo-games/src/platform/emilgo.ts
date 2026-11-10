@@ -163,6 +163,11 @@ class EmilgoHost implements Host {
   exit(): void {
     this.post({ type: "exit" });
   }
+
+  /** v6: open the app's advertiser portal (the lobby's Advertise button). */
+  advertise(): void {
+    this.post({ type: "advertise" });
+  }
 }
 
 export function createEmilgoHost(boot: EmilgoBoot): Host {

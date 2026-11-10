@@ -611,6 +611,7 @@ const PCM: Record<string, string> = {
   "Get the EMILGO app": "Get the EMILGO app",
   "Silo Zone, your rank and your look on every phone": "Silo Zone, your rank and your look for every phone",
   "Get EMILGO": "Get EMILGO",
+  "Advertise on our billboards": "Put your advert for our billboard",
   "Tap to rotate": "Tap make e turn",
   // Chat and moderation
   Chat: "Chat",

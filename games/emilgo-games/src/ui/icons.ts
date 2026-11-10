@@ -122,6 +122,8 @@ const P: Record<string, string> = {
   // v4 guns: a reticle (fire), a sight (aim down sights), a magazine going in (reload).
   // v6 (the owner: "change all the control buttons, use cod-type icons"): the game screen's controls as bold, solid
   // tactical silhouettes (our own drawings). Filled shapes and thick strokes, readable at 20 px under a thumb.
+  // v6: the lobby's Advertise button: a billboard on its post.
+  billboard: `<rect x="3" y="4" width="18" height="10" rx="1"/><path d="M12 14v6.5M8.5 20.5h7M6.5 8h7M6.5 10.8h4.5"/>`,
   "c-fire": `<g fill="currentColor" stroke="none"><path d="M12 2.2c2.3 1.9 3.3 4.4 3.3 7.4v1.6H8.7V9.6c0-3 1-5.5 3.3-7.4z"/><rect x="8.7" y="12.2" width="6.6" height="7.4" rx=".6"/><rect x="8" y="20.3" width="8" height="1.8" rx=".5"/></g>`,
   "c-ads": `<circle cx="12" cy="12" r="7.2" stroke-width="2.4"/><path d="M12 1.8v5.2M12 17v5.2M1.8 12H7M17 12h5.2" stroke-width="2.4"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/>`,
   "c-jump": `<g fill="currentColor" stroke="none"><path d="M12 3.2 20 11l-2.5 2.4L12 8l-5.5 5.4L4 11z"/><path d="M12 10.6 20 18.4 17.5 20.8 12 15.4l-5.5 5.4L4 18.4z"/></g>`,

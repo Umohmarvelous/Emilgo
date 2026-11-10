@@ -243,6 +243,32 @@ export function startCheckout(provider: PayProvider, amountNaira: number, creati
   return serverCall<Checkout>("/api/ads/checkout", { method: "POST", body: { provider, amount_naira: amountNaira, creative_id: creativeId ?? null, return_url: returnUrl } });
 }
 
+/** v6: one numbered billboard, its place, its 1- and 2-week prices, and the first moment it's free. */
+export interface NumberedBoard {
+  id: string;
+  number: number | null;
+  label: string;
+  kind: string;
+  premium: boolean;
+  week1: number;
+  week2: number;
+  placeholder: boolean;
+  free_from: string;
+}
+
+/** v6: every board, numbered, in the world's order (migration_game_billboards_v6.sql). */
+export async function listBoards(): Promise<NumberedBoard[]> {
+  const { data, error } = await supabase.rpc("billboard_boards");
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as NumberedBoard[]).map((b) => ({ ...b, week1: Number(b.week1), week2: Number(b.week2) }));
+}
+
+/** v6: book one board for 1 or 2 weeks with one of your ads: the database prices it; the server opens the checkout. */
+export function bookBoard(provider: PayProvider, slotId: string, weeks: 1 | 2, creativeId: string): Promise<Checkout> {
+  const returnUrl = Platform.OS === "web" && typeof window !== "undefined" ? `${window.location.origin}/advertise` : null;
+  return serverCall<Checkout>("/api/ads/checkout", { method: "POST", body: { provider, slot_id: slotId, weeks, creative_id: creativeId, return_url: returnUrl } });
+}
+
 /** Ask the server to check a payment with its provider (and settle it if it went through). */
 export function verifyPayment(reference: string, sessionId?: string | null): Promise<{ ok: boolean; reason: string }> {
   const q = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : "";

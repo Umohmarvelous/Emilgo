@@ -37,6 +37,7 @@ function world(opts: { payStatus?: string; provider?: string; providerPaid?: boo
     const json = (status: number, j: unknown) => ({ ok: status < 400, status, json: async () => j }) as Response;
     if (url === `${SB}/auth/v1/user`) return headers.Authorization === "Bearer user-jwt" ? json(200, { id: "u1", email: "ads@example.com" }) : json(401, {});
     if (url === `${SB}/rest/v1/rpc/open_ad_payment`) return json(200, { reference: REF, amount: body.p_amount_naira });
+    if (url === `${SB}/rest/v1/rpc/book_billboard`) return json(200, { reference: REF, amount: body.p_weeks === 2 ? 45000 : 25000, booking: "b1" });
     if (url === `${SB}/rest/v1/rpc/settle_ad_payment`) return json(200, { ok: true, reason: "paid" });
     if (url.startsWith(`${SB}/rest/v1/ad_payments`)) return json(200, [{ id: REF, provider: opts.provider ?? "paystack", amount_naira: 10000, status: opts.payStatus ?? "pending" }]);
     if (url === "https://api.paystack.co/transaction/initialize") return json(200, { data: { authorization_url: "https://checkout.paystack.com/abc" } });
@@ -100,6 +101,15 @@ async function main(): Promise<void> {
     const f = await b.checkout("user-jwt", { provider: "flutterwave", amount_naira: 10000 });
     const fc = w.calls.find((c) => c.url === "https://api.flutterwave.com/v3/payments");
     check(f.body.checkout_url === "https://checkout.flutterwave.com/x" && fc?.body.tx_ref === REF && fc.body.amount === 10000 && fc.body.redirect_url === `https://play.example/advertise?ref=${REF}`, "Flutterwave: our reference, naira, back to the portal");
+    // v6: booking one board for 2 weeks: the database prices it; Flutterwave gets that amount.
+    const w6 = world();
+    const b6 = new AdBilling(env, w6.fetchFn);
+    const k6 = await b6.checkout("user-jwt", { provider: "flutterwave", slot_id: "mx-17", weeks: 2, creative_id: "3f2504e0-4f89-11d3-9a0c-0305e82c3301", amount_naira: 1 });
+    const bk = w6.calls.find((c) => c.url.endsWith("/rpc/book_billboard"));
+    const fk = w6.calls.find((c) => c.url === "https://api.flutterwave.com/v3/payments");
+    check(k6.status === 200 && bk?.body.p_slot === "mx-17" && bk.body.p_weeks === 2 && !w6.calls.some((c) => c.url.endsWith("/rpc/open_ad_payment")) && fk?.body.amount === 45000, "a 2-week booking: the database's price (not the phone's), through Flutterwave");
+    const bad = await b6.checkout("user-jwt", { provider: "flutterwave", slot_id: "mx-17", weeks: 3, creative_id: "3f2504e0-4f89-11d3-9a0c-0305e82c3301" });
+    check(bad.status === 400, "a booking is 1 or 2 weeks");
     const s = await b.checkout("user-jwt", { provider: "stripe", amount_naira: 10000, return_url: "https://evil.example/advertise" });
     const sc = w.calls.find((c) => c.url === "https://api.stripe.com/v1/checkout/sessions");
     const form = new URLSearchParams(String(sc?.body ?? ""));

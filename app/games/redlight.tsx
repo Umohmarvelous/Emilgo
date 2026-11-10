@@ -94,6 +94,10 @@ export default function RedLightScreen() {
       case "save":
         AsyncStorage.setItem(GAMES_STORAGE_PREFIX + m.key, m.value).catch(() => {});
         break;
+      case "advertise":
+        // v6: the game's Advertise button: the app's own advertiser portal (numbered billboards, 1 or 2 weeks).
+        router.push("/advertise");
+        break;
       case "exit":
         if (router.canGoBack()) router.back();
         else router.replace("/(main)");

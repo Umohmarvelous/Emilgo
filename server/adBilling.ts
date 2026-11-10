@@ -144,11 +144,17 @@ export class AdBilling {
     const provider = body.provider as Provider;
     const amount = Number(body.amount_naira);
     const creative = typeof body.creative_id === "string" && UUID.test(body.creative_id) ? body.creative_id : null;
-    if (!PROVIDERS.includes(provider) || !Number.isFinite(amount) || amount <= 0) return { status: 400, body: { error: "provider and amount_naira are required" } };
+    // v6: booking one board for 1 or 2 weeks (migration_game_billboards_v6.sql): the database sets the price.
+    const slot = typeof body.slot_id === "string" && /^[a-z]{2}-[0-9]{2}$/.test(body.slot_id) ? body.slot_id : null;
+    const weeks = Number(body.weeks);
+    const booking = slot !== null && (weeks === 1 || weeks === 2) && creative !== null;
+    if (!PROVIDERS.includes(provider) || (!booking && (!Number.isFinite(amount) || amount <= 0))) return { status: 400, body: { error: "provider and amount_naira (or a booking: slot_id, weeks, creative_id) are required" } };
     const me = await this.user(jwt);
     if (!me) return { status: 401, body: { error: "Sign in again." } };
-    // The payment is opened AS the advertiser: the database checks it's their account and the minimum.
-    const opened = await this.sbFetch("/rest/v1/rpc/open_ad_payment", jwt, { method: "POST", body: { p_provider: provider, p_amount_naira: amount, p_creative: creative } });
+    // The payment is opened AS the advertiser: the database checks it's their account, the minimum, a booking's board is free.
+    const opened = booking
+      ? await this.sbFetch("/rest/v1/rpc/book_billboard", jwt, { method: "POST", body: { p_slot: slot, p_weeks: weeks, p_creative: creative, p_provider: provider } })
+      : await this.sbFetch("/rest/v1/rpc/open_ad_payment", jwt, { method: "POST", body: { p_provider: provider, p_amount_naira: amount, p_creative: creative } });
     if (!opened.ok || typeof opened.json?.reference !== "string") return { status: 400, body: { error: opened.json?.message ?? "Couldn't start the payment." } };
     const reference: string = opened.json.reference;
     const kobo = Math.round(Number(opened.json.amount) * 100);
