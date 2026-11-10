@@ -1291,6 +1291,15 @@ export class Sound {
     this.score.sting("defeat");
   }
 
+  /** v6: the daily chest: the lid's wooden knock, then a bright chime and coins. */
+  chestOpen(): void {
+    const t = this.now;
+    this.noise(t, 0.09, { gain: 0.16, freq: 380, type: "lowpass" });
+    this.tone(150, t, 0.14, { type: "sine", gain: 0.22, to: 85 });
+    for (const [k, f] of [784, 988, 1175, 1568].entries()) this.tone(f, t + 0.42 + k * 0.06, 0.45, { type: "triangle", gain: 0.13 * (1 - k * 0.12), attack: 0.004 });
+    for (let k = 0; k < 6; k++) this.tone(2300 + k * 190, t + 0.46 + k * 0.05, 0.05, { type: "square", gain: 0.022 });
+  }
+
   ui(): void {
     const t = this.now;
     this.tone(880, t, 0.05, { type: "sine", gain: 0.08 });

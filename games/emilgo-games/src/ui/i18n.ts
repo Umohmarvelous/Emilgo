@@ -613,6 +613,11 @@ const PCM: Record<string, string> = {
   "Get EMILGO": "Get EMILGO",
   "Advertise on our billboards": "Put your advert for our billboard",
   Advertisement: "Advert",
+  "Daily chest": "Daily chest",
+  Day: "Day",
+  "Tap to open": "Tap am make e open",
+  "Come back tomorrow": "Come back tomorrow",
+  "Open the daily chest": "Open the daily chest",
   "Your brand on a billboard in Silo Zone": "Put your brand for billboard inside Silo Zone",
   "Numbered billboards across the city, seen by every player who passes. Book one for 1 or 2 weeks.":
     "Billboard wey get number everywhere for the city; every player wey pass go see am. Book one for 1 or 2 weeks.",

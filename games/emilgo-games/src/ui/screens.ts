@@ -9,6 +9,7 @@
 import { AVATARS, avatarInner } from "./avatars";
 import { DISTANCES, FEATURES, FLOW, MODES, MODE_NAME, NET, PRACTICE, SQUAD_COLORS, STAKED, TIME_LIMIT, ballCount } from "../config";
 import { CONTROLS, RLGL_CONTROLS, unusedReason } from "../input/actions";
+import { CHEST_CP } from "../game/chest";
 import type { ChallengeDef } from "../game/progress";
 import { CATEGORIES, MAPS, SKY_LABEL, SKY_STATES, mapOf, thumbSvg, type MapCategory, type SkyState } from "../maps/registry";
 import type { GameEntry, ModeEntry } from "../content/catalog";
@@ -110,6 +111,8 @@ export interface FfaResultView {
   kills?: number;
   /** v6: the CP this match paid, line by line (shop/boosts cpForMatch). */
   cp?: number;
+  /** v6: today's chest, while unopened today (game/chest.ts), and whether it was opened on this screen. */
+  chest?: { day: number; cp: number; opened?: boolean };
   cpParts?: { label: string; cp: number }[];
 }
 
@@ -119,6 +122,32 @@ export function honourTitle(n: number): string | null {
 }
 
 /** The results' XP line: what the round earned toward your rank, and where the rank stands. */
+/** v6: our own drawing of the daily chest: a wooden box with gold bands, the lid its own group (it opens). */
+const CHEST_SVG = `<svg viewBox="0 0 64 60" width="52" height="49" aria-hidden="true">
+  <g class="ch-box">
+    <rect x="8" y="27" width="48" height="27" rx="3" fill="#7a4a22" stroke="#2c1a0b" stroke-width="2"/>
+    <rect x="8" y="34" width="48" height="4" fill="#d9a53c"/>
+    <rect x="15" y="27" width="4" height="27" fill="#d9a53c"/><rect x="45" y="27" width="4" height="27" fill="#d9a53c"/>
+    <rect x="27" y="31" width="10" height="12" rx="2" fill="#f5c542" stroke="#2c1a0b" stroke-width="1.5"/>
+    <circle cx="32" cy="36" r="1.6" fill="#2c1a0b"/><rect x="31.3" y="36.5" width="1.4" height="3.5" fill="#2c1a0b"/>
+  </g>
+  <g class="ch-lid">
+    <path d="M8 28V19Q8 8 32 8Q56 8 56 19V28Z" fill="#94592a" stroke="#2c1a0b" stroke-width="2" stroke-linejoin="round"/>
+    <rect x="8" y="23" width="48" height="4" fill="#d9a53c"/>
+    <path d="M15 27V12.5M49 27V12.5" stroke="#d9a53c" stroke-width="4"/>
+  </g>
+</svg>`;
+
+/** v6: today's chest on the results card: the 7-day ladder, then a tap opens it. */
+function chestHtml(c: { day: number; cp: number; opened?: boolean }): string {
+  const pips = CHEST_CP.map((cp, i) => `<i class="${i + 1 < c.day ? "got" : i + 1 === c.day ? "now" : ""}${i === CHEST_CP.length - 1 ? " big" : ""}" title="${cp} CP"></i>`).join("");
+  return `<button class="pm-chest${c.opened ? " open" : ""}" data-act="chest" ${c.opened ? "disabled" : ""} aria-label="${esc(t("Open the daily chest"))}">
+      <span class="ch-art"><i class="ch-glow"></i>${CHEST_SVG}<b class="ch-cp">+${c.cp}</b></span>
+      <span class="ch-txt"><span class="k">${esc(t("Daily chest"))} · ${esc(t("Day"))} ${c.day}/${CHEST_CP.length}</span><span class="pips">${pips}</span>
+        <span class="ch-cta">${esc(t("Tap to open"))}</span><span class="ch-got">+${c.cp} CP · ${esc(t("Come back tomorrow"))}</span></span>
+    </button>`;
+}
+
 function rankLine(r: Pick<ResultInfo, "rank" | "xp" | "rankUp" | "xpNote"> & { cp?: number }): string {
   const k = r.rank;
   const xp = r.xp === null ? `<span class="label">Counting XP…</span>` : `<span class="label">+${r.xp} XP${r.cp !== undefined ? ` · +${r.cp} CP` : ""}</span>`;
@@ -967,6 +996,7 @@ export class Screens {
       "results",
       `${cine}<div class="pm-head"><span class="h">${esc(r.mode)}</span><span class="sub ${r.won ? "win" : "lose"}">${head}</span></div>
        <div class="pm-return glass" data-return>${returnIn > 0 ? `Returning to lobby in <span class="num">${returnIn}</span>` : ""}</div>
+       ${r.chest ? chestHtml(r.chest) : ""}
        <div class="pm-plates">${plates
          .map((p, i) => `<div class="plate glass" data-plate="${i}" style="left:-999px"><span class="pl">${i + 1}</span><span class="pn"><b>${esc(p.name)}${p.me ? " · You" : ""}</b><small class="num">${esc(p.line)}</small></span></div>`)
          .join("")}</div>
@@ -1004,6 +1034,14 @@ export class Screens {
     if (heat && r.trail) this.drawHeat(heat, r.trail);
     const rm = this.root.querySelector<HTMLCanvasElement>("canvas[data-runmap]");
     if (rm && r.runMap) this.drawRunMap(rm, r.runMap);
+  }
+
+  /** v6: the daily chest opens (its CP is already paid): it shakes, the lid flies up, the CP rises out. */
+  openChest(): void {
+    const b = this.root.querySelector<HTMLButtonElement>(".pm-chest");
+    if (!b) return;
+    b.disabled = true;
+    b.classList.add("open");
   }
 
   /** The rewards' numbers count up, each after its line comes in. */

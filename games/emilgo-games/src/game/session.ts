@@ -89,6 +89,7 @@ import type { PropsView } from "../world/props";
 import { setTextureAnisotropy } from "../world/tex";
 import type { buildAtlas } from "../world/textures";
 import type { BotBrain } from "./bots";
+import { chestOffer, openChest } from "./chest";
 import { addProgress, ensureDaily } from "./progress";
 import { DIVISIONS, rankOf, rankUp } from "../rank/ladder";
 import { xpParts } from "../rank/xp";
@@ -3269,6 +3270,21 @@ export class Game {
         this.showPlay();
         break;
       }
+      case "chest": {
+        // v6: the daily chest: its CP paid now, the lid opened on screen.
+        const f = this.ffaRes;
+        if (!f?.chest || f.chest.opened) break;
+        const cp = openChest(this.settings.chest);
+        f.chest.opened = true;
+        if (cp > 0) this.settings.cp += cp;
+        saveSettings(this.host, this.settings);
+        this.sound.chestOpen();
+        this.haptic("success");
+        this.screens.openChest();
+        // Time to see it: the trip back to the lobby waits a moment more.
+        if (this.returnAt) this.returnAt = Math.max(this.returnAt, performance.now() + 5000);
+        break;
+      }
       case "commend": {
         const id = node.dataset.id;
         const f = this.ffaRes;
@@ -3927,6 +3943,9 @@ export class Game {
     this.settings.cp += pay.cp;
     this.ffaRes.cp = pay.cp;
     this.ffaRes.cpParts = pay.parts;
+    // v6: the day's chest, until it's opened (on this screen or the next match's).
+    const chest = chestOffer(this.settings.chest);
+    if (chest) this.ffaRes.chest = chest;
     if (online && !r.run && me) {
       this.ffaRes.rewards = xpParts({
         players: this.ffaRes.sides,

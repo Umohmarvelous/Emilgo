@@ -518,6 +518,33 @@ input { font: inherit; color: inherit; }
 .pm-cp { display: flex; align-items: baseline; gap: 8px; margin-top: 4px; font-size: 10px; }
 .pm-cp b { color: #ffb23a; font: 800 13px var(--mono, "JetBrains Mono", monospace); }
 .pm-cp small { color: #b8b39a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* v6: the daily reward chest (screens.ts chestHtml): tap, it shakes, the lid flies up, the CP rises out. */
+.pm-chest { position: absolute; top: calc(var(--safe-t) + var(--gap) + 38px); right: calc(var(--safe-r) + var(--gap)); max-width: calc(100% - 2 * var(--gap)); display: flex; align-items: center; gap: 10px; padding: 3px 12px 3px 4px; border: 1px solid rgba(255, 178, 58, 0.6); border-radius: 8px; background: linear-gradient(90deg, rgba(74, 48, 14, 0.94), rgba(22, 20, 14, 0.9)); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45); color: inherit; font: inherit; text-align: left; cursor: pointer; pointer-events: auto; }
+.pm-chest:disabled { cursor: default; opacity: 1; }
+.pm-chest .ch-art { position: relative; flex: none; width: 52px; height: 49px; }
+.pm-chest .ch-art svg { position: relative; display: block; overflow: visible; }
+.pm-chest:not(.open) .ch-art svg { animation: ch-bob 1.6s ease-in-out infinite; }
+.pm-chest .ch-lid { transform-box: fill-box; transform-origin: 0% 100%; transition: transform 0.35s cubic-bezier(0.2, 1.6, 0.4, 1) 0.42s; }
+.pm-chest .ch-glow { position: absolute; left: 50%; top: 45%; width: 72px; height: 72px; margin: -36px 0 0 -36px; border-radius: 50%; background: radial-gradient(circle, rgba(255, 214, 96, 0.95), rgba(255, 178, 58, 0.35) 40%, transparent 70%); opacity: 0; transform: scale(0.3); transition: opacity 0.3s 0.42s, transform 0.5s 0.42s; pointer-events: none; }
+.pm-chest .ch-cp { position: absolute; left: 50%; top: 4px; transform: translate(-50%, 0) scale(0.5); opacity: 0; color: #ffd76a; font: 900 15px var(--mono, monospace); text-shadow: 0 1px 3px #000, 0 0 8px rgba(255, 178, 58, 0.9); transition: transform 0.6s cubic-bezier(0.2, 0.9, 0.3, 1) 0.5s, opacity 0.25s 0.5s; pointer-events: none; white-space: nowrap; }
+.pm-chest.open .ch-art svg { animation: ch-shake 0.42s ease-in-out; }
+.pm-chest.open .ch-lid { transform: translate(-3px, -9px) rotate(-22deg); }
+.pm-chest.open .ch-glow { opacity: 1; transform: scale(1); }
+.pm-chest.open .ch-cp { opacity: 1; transform: translate(-50%, -22px) scale(1); }
+.pm-chest .ch-txt { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.pm-chest .k { font: 800 10px var(--head); letter-spacing: 0.12em; text-transform: uppercase; color: #ffb23a; }
+.pm-chest .pips { display: flex; gap: 4px; }
+.pm-chest .pips i { width: 9px; height: 9px; border-radius: 2px; background: rgba(255, 255, 255, 0.14); }
+.pm-chest .pips i.big { width: 14px; }
+.pm-chest .pips i.got { background: #b8873a; }
+.pm-chest .pips i.now { background: #ffb23a; box-shadow: 0 0 6px rgba(255, 178, 58, 0.9); }
+.pm-chest .ch-cta { font-size: 11px; font-weight: 700; color: #f2ecdc; }
+.pm-chest .ch-got { display: none; font-size: 11px; font-weight: 700; color: #ffd76a; }
+.pm-chest.open .ch-cta { display: none; }
+.pm-chest.open .ch-got { display: inline; }
+@keyframes ch-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px) rotate(-2deg); } }
+@keyframes ch-shake { 0%, 100% { transform: none; } 20% { transform: rotate(-7deg); } 40% { transform: rotate(6deg); } 60% { transform: rotate(-5deg); } 80% { transform: rotate(3deg); } }
+@media (prefers-reduced-motion: reduce) { .pm-chest .ch-art svg { animation: none !important; } .pm-chest .ch-lid, .pm-chest .ch-glow, .pm-chest .ch-cp { transition-delay: 0s; } }
 .pm-actions { display: flex; gap: 8px; }
 .pm-actions .btn { flex: 1; }
 .pm-best { font: 700 9px var(--head); letter-spacing: 0.12em; background: var(--yellow); color: var(--black); padding: 2px 5px; border-radius: 3px; }
@@ -1347,8 +1374,8 @@ input { font: inherit; color: inherit; }
 .cine.lose .p { color: #ff8a7a; }
 @keyframes cine-word { from { opacity: 0; transform: scale(1.6); letter-spacing: 0.5em; filter: blur(6px); } }
 @keyframes cine-fade { from { opacity: 0; transform: translateY(8px); } }
-.screen .pm-head, .screen .pm-card, .screen .pm-return, .screen .pm-plates { transition: opacity 0.5s ease 0.15s, transform 0.5s ease 0.15s; }
-.screen.cined .pm-head, .screen.cined .pm-card, .screen.cined .pm-return, .screen.cined .pm-plates { opacity: 0; pointer-events: none; }
+.screen .pm-head, .screen .pm-card, .screen .pm-return, .screen .pm-plates, .screen .pm-chest { transition: opacity 0.5s ease 0.15s, transform 0.5s ease 0.15s; }
+.screen.cined .pm-head, .screen.cined .pm-card, .screen.cined .pm-return, .screen.cined .pm-plates, .screen.cined .pm-chest { opacity: 0; pointer-events: none; }
 .screen.cined .pm-card { transform: translate(-50%, 24px); }
 @media (prefers-reduced-motion: reduce) { .cine .lb, .cine b, .cine .k, .cine .p, .cine::after, .ld-drop { animation: none; } }
 

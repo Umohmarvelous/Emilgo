@@ -4,6 +4,7 @@
 
 import type { SongChoice } from "./audio/songs";
 import { DEFAULT_DISTANCE, DISTANCES, MODES, type Distance, type Mode } from "./config";
+import { cleanChest, type ChestState } from "./game/chest";
 import { levelOf } from "./game/progress";
 import { EMOTE_IDS, type EmoteId } from "./social/emotes";
 import type { Host } from "./platform/types";
@@ -164,6 +165,8 @@ export interface Settings {
   streak: number;
   /** Today's challenges: the day they were set and progress on each. */
   daily: { day: string; progress: number[] };
+  /** v6: the daily reward chest (game/chest.ts): the day it was last opened and the days in a row. */
+  chest: ChestState;
   /** People you've played online with lately, newest first. `seat` reaches them while they're still online. */
   recent: { name: string; at: number; seat?: string }[];
   /** Your friend id in this copy of the game: random, never sent to Lagos Life or EMILGO, unknown to the other copy. */
@@ -243,6 +246,7 @@ export function defaults(host: Host): Settings {
     form: "",
     streak: 0,
     daily: { day: "", progress: [] },
+    chest: { day: "", streak: 0 },
     recent: [],
     mode: "classic",
     distance: DEFAULT_DISTANCE,
@@ -281,7 +285,7 @@ export function defaults(host: Host): Settings {
 export const KEPT_ON_RESET: readonly (keyof Settings)[] = [
   "look", "avatar", "avatarSet", "suitV5", "badge", "lobbyPose", "wheel", "map", "mode", "distance", "tutorialSeen", "best", "played", "wins", "xp",
   "rankXp", "rankKnown", "deviceXp", "founder", "honour", "form", "streak", "runBest", "runWeapon", "runPerks", "runCharms", "runMods", "runDaily", "runDeaths",
-  "daily", "recent", "fid", "friends", "cp", "boosts", "boostsOn", "song",
+  "daily", "chest", "recent", "fid", "friends", "cp", "boosts", "boostsOn", "song",
 ];
 
 export function resetPrefs(host: Host, s: Settings): Settings {
@@ -385,6 +389,7 @@ export function loadSettings(host: Host): Settings {
     if (saved.quality === "sharp") out.graphics = "high";
     out.wheel = Array.isArray(saved.wheel) && saved.wheel.length >= 1 && saved.wheel.length <= 8 && saved.wheel.every((e) => EMOTE_IDS.includes(e)) ? saved.wheel : base.wheel;
     out.daily = saved.daily && typeof saved.daily.day === "string" && Array.isArray(saved.daily.progress) ? saved.daily : base.daily;
+    out.chest = cleanChest(saved.chest);
     out.recent = Array.isArray(saved.recent) ? saved.recent.filter((r) => r && typeof r.name === "string").slice(0, 30) : [];
     if (!FID_RE.test(out.fid)) out.fid = newFid();
     return out;
