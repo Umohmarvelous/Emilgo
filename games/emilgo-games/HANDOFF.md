@@ -1,5 +1,25 @@
 # EMILGO Games: session handoff
 
+> **10 Nov 2026: v6 Tiers 1 and 2 are built** (the brief: [SPEC-V6-ORIGINAL.md](SPEC-V6-ORIGINAL.md);
+> in build order with each row's Status: [SPEC-V6.md](SPEC-V6.md); v6 wins over v5). Silo Zone, PLAY
+> NOW, six kept items, no vehicles, COD-style zone, CP pay by win and level, walk-through pickups and
+> the pickup light, the tactical sprint, gun rhythms, body sounds, COD-type icons, solid props, the
+> Lagos Life avatar, numbered billboards for sale (71) with an Advertise button, an ad before store
+> purchases, the daily chest, the kill cam, the recorded announcer's pipeline, clean suit colours,
+> [ADS-NETWORKS.md](ADS-NETWORKS.md). Protocol 20. **Tier 3 waits for the owner's go-ahead.**
+> **Left, in part:** 2.3 (no body lean or sprint clip of its own), 2.5 (body sounds synthesised:
+> no CC0 woman's effort pack found; "Female Gruntwork" is CC BY 4.0, the owner's call).
+> **The owner's steps:** `fly deploy` and `scripts/deploy-site.sh` (the test site still serves a
+> pre-v5 build); the billboard migrations (`migration_game_billboards.sql`, then `_v6.sql`), real
+> prices, the payment keys (`server/adBilling.ts`); the announcer, once:
+> `AUDITION=1 tools/audio/voice.sh` to choose the voice, then `VOICE=… tools/audio/voice.sh`, then
+> deploy (the clips go to `assets-site/voice/`, not `public/voice/` as the v5 note below says);
+> AdSense and the H5 Games Ads beta, and Playgama/Anzu for unsold boards (ADS-NETWORKS.md); the
+> Party emote pack off in the Lagos Life dashboard; store links (`VITE_APP_*`); a trademark check
+> on "Silo Zone"; SPEC-V6's three questions (speed walk, the zone, real-life meetings).
+> **Not mine, left alone:** `FEATURES.deadStreets: false` in `src/config.ts`, the Play screen's
+> start-button CSS, SPEC-V5's table layout, and this file's renumbered reading list and `++` marks.
+>
 > **9 Nov 2026: v5 is built, Tiers 1–3.** The owner's brief ([SPEC-V5-ORIGINAL.md](SPEC-V5-ORIGINAL.md))
 > is in build order in [SPEC-V5.md](SPEC-V5.md), each row with what was built, measured and left.
 > Tier 3 went ahead on 9 Nov with my recommended answers (health bars only while shot; the
