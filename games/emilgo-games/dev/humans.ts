@@ -6,7 +6,7 @@ import { ACESFilmicToneMapping, AmbientLight, Color, DirectionalLight, Hemispher
 import { Human, loadOperators, loadScans, type Tier } from "../src/world/human";
 import { newHold } from "../src/world/human/hold";
 import { loadScanLevel } from "../src/world/human/scanbody";
-import { FREE_OUTFITS, HAIRS, OUTFITS, cleanLook, uniformLook, type Look } from "../src/world/human/wardrobe";
+import { FREE_OUTFITS, HAIRS, HOODIE_COLORS, OUTFITS, cleanLook, uniformLook, type Look } from "../src/world/human/wardrobe";
 
 const q = new URLSearchParams(location.search);
 if (!q.get("gen")) {
@@ -60,6 +60,11 @@ if (set === "outfits") {
   for (let i = 0; i < 5; i++) looks.push(uniformLook(base({ body: i % 2 ? "f" : "m", hair: hs[i], skin: (i * 3) % 8 }), [7, 18, 3, 12, 20][i]));
 } else if (set === "eight") {
   for (let i = 0; i < 8; i++) looks.push(base({ body: i % 3 === 1 ? "f" : "m", hair: (["lowcut", "afro", "braids", "fade"] as const)[i % 4], skin: (i * 3) % 8 }));
+} else if (set === "suits") {
+  // v6 2.13: the suit's colours and designs (with &gear=0: the operator's body), e.g. &colors=white,mustard&designs=plain,stripe.
+  const cols = (q.get("colors") ?? "white,mustard,green,sky,crimson,rose").split(",");
+  const des = (q.get("designs") ?? "plain,twotone,stripe,block,tracksuit,plates").split(",");
+  cols.forEach((c, i) => looks.push(base({ body: "f", hoodie: Math.max(0, HOODIE_COLORS.findIndex((h) => h.id === c)), design: des[i % des.length] as never })));
 } else if (set === "poses") {
   for (const p of ["relaxed", "hip", "hair", "hero", "arms"]) looks.push(base({ body: p === "hero" || p === "arms" ? "m" : "f", hair: "afro", outfit: p === "hero" ? "hero" : "patch_dress", skin: 3 }));
 }

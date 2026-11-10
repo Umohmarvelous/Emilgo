@@ -17,11 +17,20 @@
 //
 // Medium and up: a bump from a tiled weave texture (tri-planar on the rest
 // pose, so it never swims) and roughness per region. Low: Lambert, colours only.
+//
+// v6 2.13 (the owner: "any colour picked by the user will properly baked and
+// applied ... without having colours mixed weirdly"): the body is low-poly, so
+// the regions' own edges cut through big triangles: ragged black drips under
+// the mask, black blotches spilling round the knees and thighs, smudged cuffs
+// and armband. The edges are now drawn from the skeleton's joints instead (a
+// level hem, rings at the cuffs, level boot tops, oval pads over the knees and
+// elbows, a squared, stitched thigh pocket, a crisp armband), and the pads and
+// pockets take a darker tone of the picked colour, not a fixed black.
 
 import { CanvasTexture, Color, MeshLambertMaterial, MeshStandardMaterial, RepeatWrapping, SRGBColorSpace, Vector2, Vector3, type Material } from "three";
 
 import type { Tier } from "./mesh";
-import type { BoneName, V3 } from "./skeleton";
+import { BONES, type BoneName, type V3 } from "./skeleton";
 import { HOODIE_COLORS, HOODIE_DESIGNS, type Look } from "./wardrobe";
 
 /** v5: one skin tone for everyone, fair (the owner); only the eyes and nose show it. */
@@ -82,10 +91,30 @@ function suitAlt(look: Look): Color {
   return lin(HOODIE_COLORS[look.hoodie]?.hex ?? "#1d1d20").multiplyScalar(0.18);
 }
 
+/** v6 2.13: how much of a vertex rides the arms, and the legs (its skin weights): the cuffs and elbow pads only on an arm, the knee pads and pockets only on a leg. */
+const limbGlsl = (() => {
+  const of = (re: RegExp) =>
+    BONES.map((n, i) => (re.test(n) ? `b == ${i}` : ""))
+      .filter(Boolean)
+      .join(" || ");
+  const arm = of(/^(upperArm|foreArm|hand|thumb|index|middle|ring|pinky)/);
+  const leg = of(/^(thigh|shin)[LR]$/);
+  return `vLimb = vec2(1.0);
+    #ifdef USE_SKINNING
+    vLimb = vec2(0.0);
+    for (int k = 0; k < 4; k++) { int b = int(skinIndex[k] + 0.5); float wk = skinWeight[k]; if (${arm}) vLimb.x += wk; if (${leg}) vLimb.y += wk; }
+    #endif`;
+})();
+
 /** The suit's material for one body (its skin shows only in the slit; its armband in its colour). */
 export function suitMaterial(look: Look, tier: Tier, rest: Record<BoneName, V3>): Material {
   const eyeL = rest.eyeL;
   const eyeR = rest.eyeR;
+  // v6 2.13: where the suit's parts meet, from the joints (the left side; the shader mirrors x). The offsets are
+  // where the bake put each part on the body (measured: the mask from 1.423 m, the cuff 5 cm up from the wrist…).
+  const hand = rest.handL;
+  const fore = rest.foreArmL;
+  const knee = rest.shinL;
   const u = {
     weaveMap: { value: weave() },
     skinCol: { value: lin(FAIR) },
@@ -100,20 +129,30 @@ export function suitMaterial(look: Look, tier: Tier, rest: Record<BoneName, V3>)
     fierce: { value: 0 },
     // v5 (3.5): the face open round the eyes and the nose (1), or the closed mask, the eyes alone (0).
     faceOpen: { value: look.mask === "closed" ? 0 : 1 },
+    hemY: { value: rest.neck.y + 0.038 },
+    wristP: { value: new Vector3(Math.abs(hand.x), hand.y, hand.z) },
+    armD: { value: new Vector3(Math.abs(fore.x) - Math.abs(hand.x), fore.y - hand.y, fore.z - hand.z).normalize() },
+    bootY: { value: rest.footL.y + 0.137 },
+    // The pads' centres, on the surface: before the knee, behind the elbow (the mesh's own pads sit there).
+    kneeP: { value: new Vector3(Math.abs(knee.x), knee.y + 0.021, knee.z + 0.074) },
+    elbowP: { value: new Vector3(Math.abs(fore.x), fore.y - 0.006, fore.z - 0.052) },
+    pocketY: { value: new Vector2(knee.y + 0.115, knee.y + 0.218) },
+    bandY: { value: new Vector2(rest.upperArmL.y - 0.121, rest.upperArmL.y - 0.082) },
   };
   const lit = tier === 0;
   const mat = lit ? new MeshLambertMaterial({ color: 0xffffff }) : new MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, metalness: 0 });
   mat.onBeforeCompile = (s) => {
     Object.assign(s.uniforms, u);
     s.vertexShader = s.vertexShader
-      .replace("#include <common>", "#include <common>\nattribute float region;\nattribute vec4 pal;\nattribute float accent;\nflat varying int vReg;\nvarying float vRS;\nvarying float vRS2;\nvarying vec3 vBind;\nvarying vec3 vBindN;\nvarying vec4 vPal;\nvarying float vAcc;")
-      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvBind = position; vBindN = normal; vReg = int(region + 0.5); vRS = region; vRS2 = region * region; vPal = pal; vAcc = accent;");
+      .replace("#include <common>", "#include <common>\nattribute float region;\nattribute vec4 pal;\nattribute float accent;\nflat varying int vReg;\nvarying float vRS;\nvarying float vRS2;\nvarying vec3 vBind;\nvarying vec3 vBindN;\nvarying vec4 vPal;\nvarying float vAcc;\nvarying vec2 vLimb;")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvBind = position; vBindN = normal; vReg = int(region + 0.5); vRS = region; vRS2 = region * region; vPal = pal; vAcc = accent;\n" + limbGlsl);
     s.fragmentShader = s.fragmentShader
       .replace(
         "#include <common>",
         `#include <common>
-        flat varying int vReg; varying float vRS, vRS2; varying vec3 vBind; varying vec3 vBindN; varying vec4 vPal; varying float vAcc;
+        flat varying int vReg; varying float vRS, vRS2; varying vec3 vBind; varying vec3 vBindN; varying vec4 vPal; varying float vAcc; varying vec2 vLimb;
         uniform sampler2D weaveMap; uniform vec3 skinCol, bandCol, eyeC, suitA, suitB; uniform vec2 eyeHalf; uniform int design; uniform float fierce; uniform float faceOpen;
+        uniform float hemY, bootY; uniform vec3 wristP, armD, kneeP, elbowP; uniform vec2 pocketY, bandY;
         float fglow = 0.0;
         // The suit's pattern, on the bind pose in metres, so it never swims (order: HOODIE_DESIGNS).
         float hash2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -170,6 +209,41 @@ export function suitMaterial(look: Look, tier: Tier, rest: Record<BoneName, V3>)
               if (d / span > 0.5) r = clamp(int(floor(a + span + 0.5)), 0, 11);
             }
           }
+          vec3 q = vec3(abs(vBind.x), vBind.yz);
+          float bandM = 0.0;
+          {
+            // v6 2.13: the suit's edges from the joints, not the mesh (see the top of the file).
+            float y = vBind.y;
+            // A part far from where it lives (an eye on a shin; a boot up the shin, where a long triangle reaches from
+            // the boot to the knee) is the suit.
+            if ((r == 9 && y < 1.45) || (r == 4 && y < hemY - 0.1) || ((r == 3 || r == 11) && y > bootY + 0.08) || ((r == 2 || r == 10) && vLimb.x < 0.5)) r = 0;
+            // The mask's hem: level round the neck.
+            bool done = false;
+            if ((r <= 1 || r == 4) && q.x < 0.11 && y > hemY - 0.08 && y < hemY + 0.06) { r = y > hemY ? 4 : 0; done = true; }
+            // The gloves' cuffs: a ring 5 cm up the forearm from the wrist.
+            vec3 w = q - wristP;
+            float t = dot(w, armD);
+            if ((r <= 1 || r == 2) && vLimb.x > 0.5 && t > -0.03 && t < 0.12 && length(w - armD * t) < 0.08) { r = t < 0.05 ? 2 : 0; done = true; }
+            // The boots' tops: level.
+            if ((r <= 1 || r == 3) && y > bootY - 0.08 && y < bootY + 0.08) { r = y < bootY ? 3 : 0; done = true; }
+            // Oval pads on the knees' fronts and the elbows' backs; a squared pocket on each thigh's outside.
+            // (A triangle touching three regions can guess a fourth: its own region counts too.)
+            bool fam = r <= 1 || r == 5 || r == 6 || r == 7 || r == 8;
+            bool famV = vReg <= 1 || vReg == 5 || vReg == 6 || vReg == 7 || vReg == 8;
+            if ((fam || famV) && !done) {
+              if (r != 8 && r != 6) r = r == 1 ? 1 : 0;
+              if (!fam) r = 0;
+              // Positions only (the low-poly mesh's normals step from triangle to triangle): ellipsoids on the surface.
+              vec3 dk = (q - kneeP) / vec3(0.05, 0.062, 0.05);
+              if (vLimb.y > 0.5 && dot(dk, dk) < 1.0) r = 5;
+              vec3 de = (q - elbowP) / vec3(0.045, 0.05, 0.045);
+              if (vLimb.x > 0.5 && dot(de, de) < 1.0) r = 5;
+              if (vLimb.y > 0.5 && q.x > kneeP.x + 0.045 && y > pocketY.x && y < pocketY.y && abs(q.z - kneeP.z + 0.074) < 0.062) r = 7;
+              // The armband: level edges, on the left arm only (the triangles that touch its ring).
+              bandM = vBind.x > 0.0 && y > bandY.x && y < bandY.y && vAcc > 0.001 && r != 5 && r != 7 ? 1.0 : 0.0;
+              if (r == 8) r = 0;
+            }
+          }
           // The blended palette: colour (×0.1) and roughness per vertex.
           vec3 c = vPal.rgb * 0.1;
           rough = vPal.a;
@@ -177,7 +251,15 @@ export function suitMaterial(look: Look, tier: Tier, rest: Record<BoneName, V3>)
           if (r == 0 || r == 1 || r == 7) {
             // One black for the suit and the mannequin's joint gussets (no darker V at the hips,
             // no outlined shoulder caps): the suit reads as one garment.
-            if (r <= 1) { c = suitPattern(vBind, vBindN); rough = 0.88; }
+            c = suitPattern(vBind, vBindN); rough = 0.88;
+            if (r == 7) {
+              // The cargo pocket (v6 2.13): the suit's own colour a shade down, stitched round, a flap across the top.
+              float e = min(min(vBind.y - pocketY.x, pocketY.y - vBind.y), 0.062 - abs(q.z - kneeP.z + 0.074));
+              float flap = abs(vBind.y - (pocketY.y - 0.03));
+              c *= 0.86;
+              c *= 1.0 - 0.45 * (1.0 - smoothstep(0.002, 0.005, min(e, flap)));
+              rough = 0.84;
+            }
             if (fierce > 0.5) {
               // Grown: darker, and from level 2 red veins that glow through it.
               c *= 1.0 - 0.12 * fierce;
@@ -189,7 +271,8 @@ export function suitMaterial(look: Look, tier: Tier, rest: Record<BoneName, V3>)
             c *= 0.82 + 0.36 * wv.r;
             c = mix(c, vec3(0.075, 0.072, 0.068), smoothstep(0.35, 0.9, wear.b) * 0.16);
           } else if (r == 5) {
-            c *= 0.9 + 0.15 * wv.g; hgt = wv.g * 0.5;
+            // Cordura pads in a darker tone of the suit under them (black on the black suit, as before; camo stays camo).
+            c = (suitPattern(vBind, vBindN) * 0.55 + 0.03) * (0.9 + 0.15 * wv.g); rough = 0.72; hgt = wv.g * 0.5;
           } else if (r == 6) {
             // The mannequin's hip piece: the suit itself (v5: its buckle read as a pale, then a dark, patch at the front of the hips).
             c = suitPattern(vBind, vBindN) * (0.82 + 0.36 * wv.r); rough = 0.88;
@@ -239,7 +322,7 @@ export function suitMaterial(look: Look, tier: Tier, rest: Record<BoneName, V3>)
             float lid = en.y > 0.36 + 0.1 * abs(en.x) || en.y < -0.3 - 0.08 * abs(en.x) ? 1.0 : 0.0;
             if (lid > 0.5) { c = mix(skinCol, vec3(dot(skinCol, vec3(0.33))), 0.3) * 0.3; rough = 0.6; }
           }
-          c = mix(c, bandCol * (0.8 + 0.25 * wv.r), vAcc);
+          c = mix(c, bandCol * (0.8 + 0.25 * wv.r), bandM);
           diffuseColor.rgb = c;
         }`,
       )
@@ -264,7 +347,7 @@ export function suitMaterial(look: Look, tier: Tier, rest: Record<BoneName, V3>)
         );
     }
   };
-  mat.customProgramCacheKey = () => `suit3:${lit ? "l" : "s"}`;
+  mat.customProgramCacheKey = () => `suit4:${lit ? "l" : "s"}`;
   // The growth level, set per body (Human.setFierce).
   mat.userData.fierce = u.fierce;
   return mat;
