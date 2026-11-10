@@ -249,8 +249,20 @@ export class PickupFx {
     }
   }
 
-  /** A body picked something up: its light, in `rgb` (the item's colour; values over 1 burn hotter). */
-  spawn(who: number, rgb: readonly [number, number, number]): void {
+  /**
+   * A body picked something up: its light, in `rgb` (the item's colour; values over 1 burn hotter). v6 max:
+   * `power` (a booster's rise): a vortex: twice the streaks (two slots), wider and faster.
+   */
+  spawn(who: number, rgb: readonly [number, number, number], power = false): void {
+    if (power) {
+      this.one(who, rgb, 1.25, 1.6);
+      this.one(who, rgb, 0.85, 2.1);
+      return;
+    }
+    this.one(who, rgb, 1, 1);
+  }
+
+  private one(who: number, rgb: readonly [number, number, number], wide: number, fast: number): void {
     // A free slot, or the oldest.
     let k = 0;
     for (let i = 1; i < MAX_FX; i++) if (this.slots[i].start < this.slots[k].start) k = i;
@@ -264,9 +276,9 @@ export class PickupFx {
       const i = k * MAX_STREAKS + j;
       const on = j < this.per;
       seed[i * 4] = (j / this.per) * Math.PI * 2 + Math.random() * 0.6;
-      seed[i * 4 + 1] = 0.3 + Math.random() * 0.22;
+      seed[i * 4 + 1] = (0.3 + Math.random() * 0.22) * wide;
       // Most turn one way (a vortex), a few the other (the weave).
-      seed[i * 4 + 2] = (j % 4 === 3 ? -1 : 1) * (4 + Math.random() * 2.5);
+      seed[i * 4 + 2] = (j % 4 === 3 ? -1 : 1) * (4 + Math.random() * 2.5) * fast;
       seed[i * 4 + 3] = Math.random();
       // Some streaks whiter, some deeper: the colour breathes.
       const w = 0.75 + Math.random() * 0.5;

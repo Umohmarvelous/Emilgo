@@ -132,7 +132,8 @@ export class MatchScene {
             this.o.crowd.human(who.index)?.act("grab");
             // The light, in the item's colour, for anyone near enough to see it.
             const kind = e.type === "take" ? e.kind : e.kinds[0];
-            if (kind && near(who.x, who.z, 70) > 0) this.pickFx.spawn(who.index, glowOf(kind));
+            // (A booster's light is its rise's vortex: power.ts.)
+            if (kind && !ITEM_DEFS[kind].instant && near(who.x, who.z, 70) > 0) this.pickFx.spawn(who.index, glowOf(kind));
           }
           if (e.id === me.id) {
             this.o.sound?.pickup();
@@ -142,7 +143,7 @@ export class MatchScene {
           break;
         }
         case "use":
-          if (e.id === me.id) this.o.sound?.useItem(e.kind);
+          if (e.id === me.id && !ITEM_DEFS[e.kind].instant) this.o.sound?.useItem(e.kind);
           break;
         case "full":
           if (e.id === me.id) {

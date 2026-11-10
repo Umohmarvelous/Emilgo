@@ -547,6 +547,17 @@ export const GROWTH = {
   take: [1, 0.8, 0.65, 0.5],
 } as const;
 
+/**
+ * v6 max (3.2): the boosters. Strength: guns × `gun`, blows × `melee` (movement the same). Speed: run and sprint
+ * × `mult`, the sprint lasts × `stamina`. Taking one: `rise` s of the power-up (rooted, taking × `riseTake`).
+ */
+export const POWER = {
+  strength: { gun: 1.35, melee: 1.5 },
+  speed: { mult: 1.35, stamina: 2 },
+  rise: 1.5,
+  riseTake: 0.3,
+} as const;
+
 /** Map Print (v5, 3.2): the whole map, everyone and everything on it, live, for this long. Once a match. */
 export const MAP_PRINT = { seconds: 20 } as const;
 

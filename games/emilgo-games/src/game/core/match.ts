@@ -27,7 +27,7 @@
 // comes from a second, SECRET seed (`secretRng`) only the server has. The
 // copy learns it from the events, when everyone does.
 
-import { DEFAULT_COURSE, FEATURES, MOVE, RESPAWN, RULES, type Course, type Stance } from "../../config";
+import { DEFAULT_COURSE, FEATURES, MOVE, POWER, RESPAWN, RULES, type Course, type Stance } from "../../config";
 import type { ModeDef, ModuleId } from "../../content/modes";
 import { Rng } from "../../core/rng";
 import type { BoostMods } from "../../shop/boosts";
@@ -475,7 +475,9 @@ export class Match {
     this.fx[c.index].set(key, { until: this.elapsed + seconds, v });
     if (key === "speed") {
       const b = this.base[c.index];
-      this.fast[c.index] = { ...b, speed: b.speed * v, sprint: b.sprint * v };
+      // v6 max: the Speed Booster (v ≥ 1.3) also makes the sprint last longer and refill sooner.
+      const st = v >= 1.3 ? POWER.speed.stamina : 1;
+      this.fast[c.index] = { ...b, speed: b.speed * v, sprint: b.sprint * v, stamina: b.stamina * st, refill: b.refill * st };
     }
   }
 

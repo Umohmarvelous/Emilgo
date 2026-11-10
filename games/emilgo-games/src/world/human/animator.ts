@@ -33,9 +33,9 @@ import { deathPose, mocapPose, stepMocap } from "./mocapPose";
 
 export type { EmoteId } from "../../social/emotes";
 export type PoseId = "relaxed" | "hip" | "hair" | "hero" | "arms";
-export type ActionId = "fist" | "slap" | "push" | "grab" | "claw" | "lunge" | "emerge";
+export type ActionId = "fist" | "slap" | "push" | "grab" | "claw" | "lunge" | "emerge" | "powerup";
 /** How long each action takes to play, seconds. */
-export const ACTION_SECONDS: Record<ActionId, number> = { fist: 0.45, slap: 0.4, push: 0.5, grab: 0.55, claw: 0.5, lunge: 0.6, emerge: 2.5 };
+export const ACTION_SECONDS: Record<ActionId, number> = { fist: 0.45, slap: 0.4, push: 0.5, grab: 0.55, claw: 0.5, lunge: 0.6, emerge: 2.5, powerup: 1.6 };
 const HIT_SECONDS = 0.6;
 export const POSES: { id: PoseId; label: string }[] = [
   { id: "relaxed", label: "Relaxed" },
@@ -786,6 +786,30 @@ function actionPose(id: ActionId, t: number, out: Pose): void {
       out.add("chest", 0.25 * w);
       out.add("head", -0.3 * w);
       out.curlL = out.curlR = lerp(out.curlL, 0.45, w);
+      break;
+    }
+    case "powerup": {
+      // v6 max (3.2): the power-up, a cinematic stance. A gather (0–0.3 s: shoulders in, head down, fists to the
+      // hips), then the surge: legs planted wide, knees bent, fists clenched down and out from the body, the chest
+      // thrown up and the head back to the sky, trembling with the power; released at the end.
+      const gather = bell(t, 0, 0.12, 0.22, 0.34);
+      const surge = bell(t, 0.24, 0.42, 1.3, 1.6);
+      const shake = Math.sin(t * 61) * 0.025 * surge;
+      for (const [b, s] of [["L", 1], ["R", -1]] as const) {
+        out.set(`upperArm${b}`, lerp(lerp(out.get(`upperArm${b}`, 0), -0.35, gather), 0.3 + shake, surge), lerp(0, -0.3 * s, surge), lerp(lerp(out.get(`upperArm${b}`, 2), 0.05 * s, gather), 0.88 * s, surge));
+        out.set(`foreArm${b}`, lerp(lerp(out.get(`foreArm${b}`, 0), -1.6, gather), -0.8, surge));
+        out.set(`thigh${b}`, lerp(out.get(`thigh${b}`, 0), -0.22, surge), lerp(out.get(`thigh${b}`, 1), 0.12 * s, surge), lerp(out.get(`thigh${b}`, 2), 0.24 * s, surge));
+        out.set(`shin${b}`, lerp(out.get(`shin${b}`, 0), 0.42, surge));
+        out.set(`foot${b}`, lerp(out.get(`foot${b}`, 0), -0.2, surge), 0, lerp(out.get(`foot${b}`, 2), -0.2 * s, surge));
+      }
+      out.hipsY = lerp(out.hipsY, -0.09, surge);
+      // (On the clips' bodies, the operators', a forward pitch is negative: the gather bows, the surge arches back.)
+      out.add("spine", -0.12 * gather + 0.14 * surge + shake);
+      out.add("chest", -0.18 * gather + 0.24 * surge);
+      // (The neck and head the other way round: measured on the operators.)
+      out.add("neck", 0.1 * gather - 0.2 * surge);
+      out.add("head", 0.25 * gather - 0.45 * surge + shake * 2);
+      out.curlL = out.curlR = lerp(out.curlL, 1, Math.max(gather, surge));
       break;
     }
     case "emerge": {

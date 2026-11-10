@@ -809,6 +809,50 @@ export class Sound {
   }
   private lastJump = "";
 
+  /**
+   * v6 max (3.2): a booster taken: the surge as the power rises (1.5 s). Strength: a deep roar climbing under a
+   * rush of fire; speed: an electric whine climbing, crackling.
+   */
+  powerUp(kind: number): void {
+    const t = this.now;
+    if (kind === 1) {
+      this.tone(55, t, 1.5, { type: "sawtooth", gain: 0.09, to: 110, attack: 0.3 });
+      this.tone(82, t, 1.5, { type: "sine", gain: 0.12, to: 165, attack: 0.25 });
+      this.noise(t, 1.5, { gain: 0.06, freq: 500, type: "lowpass" });
+      this.noise(t + 0.6, 0.9, { gain: 0.05, freq: 1800, type: "bandpass" });
+    } else {
+      this.tone(220, t, 1.5, { type: "square", gain: 0.025, to: 1320, attack: 0.2 });
+      this.tone(440, t, 1.5, { type: "sine", gain: 0.04, to: 1760, attack: 0.2 });
+      for (let k = 0; k < 10; k++) this.noise(t + 0.15 * k + Math.random() * 0.08, 0.03, { gain: 0.05, freq: 4000 + Math.random() * 3000, type: "bandpass" });
+    }
+  }
+
+  /** v6 max (3.2): the rise's shockwave: a deep boom and a blast of air (`near` 0…1). */
+  powerShock(kind: number, near: number): void {
+    const t = this.now;
+    if (this.sample("explosion", 0.35 * near, kind === 1 ? 0.7 : 1.1)) {
+      this.tone(kind === 1 ? 50 : 90, t, 0.6, { type: "sine", gain: 0.25 * near, to: 30 });
+      return;
+    }
+    this.tone(kind === 1 ? 50 : 90, t, 0.7, { type: "sine", gain: 0.35 * near, to: 28 });
+    this.noise(t, 0.6, { gain: 0.2 * near, freq: 700, type: "lowpass" });
+    if (kind === 2) this.noise(t, 0.25, { gain: 0.08 * near, freq: 5000, type: "highpass" });
+  }
+
+  /** v6 max (3.2): a booster wearing off: the power winding down. */
+  powerDown(): void {
+    const t = this.now;
+    this.tone(330, t, 0.6, { type: "sine", gain: 0.05, to: 90 });
+    this.noise(t, 0.4, { gain: 0.02, freq: 900, type: "bandpass" });
+  }
+
+  /** v6 max (3.2): a heavy footfall under yours on the Strength Booster: a thud through the ground. */
+  heavyStep(pace: number): void {
+    const t = this.now;
+    this.tone(62, t, 0.16, { type: "sine", gain: 0.14 + 0.06 * pace, to: 38 });
+    this.noise(t, 0.05, { gain: 0.05, freq: 300, type: "lowpass" });
+  }
+
   /** v6 max (2.3): the tactical sprint's burst: a rush of air past the ears and a sharp breath in. */
   tacSprint(): void {
     const t = this.now;

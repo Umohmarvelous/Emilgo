@@ -22,7 +22,7 @@
 // Pure and shared, like every module: the server referees; the phone's copy
 // (Match.mirror) applies the server's events and works out only the regen.
 
-import { GROWTH, GUN_KINDS, GUNS, VEHICLES, type GunKind } from "../../config";
+import { GROWTH, GUN_KINDS, GUNS, POWER, VEHICLES, type GunKind } from "../../config";
 import type { ItemsModule } from "./items";
 import { SpotGrid } from "../core/spotgrid";
 import type { Contestant } from "../core/body";
@@ -454,6 +454,10 @@ export class GunsModule implements RuleModule {
     if (c.status !== "alive" || amount <= 0 || m.seated(c)) return;
     // v5: grown on Titan Serum, every hit takes less.
     if (!bare) amount *= GROWTH.take[m.module<ItemsModule>("items")?.growth[i] ?? 0] ?? 1;
+    // v6 max (3.2): the Strength Booster's harder hits (guns and blows, not blasts or the zone); the power-up's rise
+    // takes little.
+    if (!bare && by && by !== c && how !== "blast" && how !== "zone" && m.effect(by, "strength") > 0) amount *= how === "melee" ? POWER.strength.melee : POWER.strength.gun;
+    if (!bare && m.effect(c, "rise") > 0) amount *= POWER.riseTake;
     let left = amount;
     if (this.armour[i] > 0 && !bare) {
       const a = Math.min(this.armour[i], amount * GUNS.armour.share);

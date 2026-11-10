@@ -393,6 +393,15 @@ export class Hud {
     this.vignette.className = "vignette hit";
   }
 
+  /** v6 max (3.2): a flash of colour over the whole screen (a booster's shockwave), gone in half a second. */
+  flash(color: string): void {
+    const f = document.createElement("div");
+    f.className = "pflash";
+    f.style.setProperty("--pf", color);
+    this.vignette.after(f);
+    setTimeout(() => f.remove(), 700);
+  }
+
   clearVerdict(): void {
     this.verdict.className = "verdict";
     this.vignette.className = "vignette";

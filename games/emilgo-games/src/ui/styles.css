@@ -1497,3 +1497,8 @@ input { font: inherit; color: inherit; }
 /* 2.3: the tactical sprint, on a double push: the sprint button burns orange while it lasts. */
 .abtn.sprint.tac { border-color: #ff8a1f; box-shadow: 0 0 0 2px #ff8a1f88, 0 0 16px #ff8a1f99; }
 .abtn.sprint.tac svg:not(.stam-ring) { color: #ffb15a; }
+/* 3.2: a booster's shockwave: the screen flashes its colour, from the middle out. */
+.pflash { position: absolute; inset: 0; pointer-events: none; z-index: 6;
+  background: radial-gradient(circle at 50% 55%, color-mix(in srgb, var(--pf) 65%, #fff) 0%, color-mix(in srgb, var(--pf) 40%, transparent) 38%, transparent 75%);
+  mix-blend-mode: screen; animation: pflash 0.6s ease-out forwards; }
+@keyframes pflash { 0% { opacity: 0.95; } 100% { opacity: 0; } }

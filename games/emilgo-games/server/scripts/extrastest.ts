@@ -4,7 +4,7 @@
 //
 //   node server/build-tools.mjs && node server/dist/extrastest.mjs
 
-import { FEATURES, AIRFALL, BLACKOUT, ECONOMY, FLAGS, GADGETS, HARMATTAN, MELEE, MOVE, TRAFFIC, ZIPS } from "../../src/config";
+import { FEATURES, AIRFALL, BLACKOUT, ECONOMY, FLAGS, GADGETS, HARMATTAN, MELEE, MOVE, POWER, TRAFFIC, ZIPS } from "../../src/config";
 
 const FLAGS_BOUNTY = FLAGS.bounty;
 import type { ItemId } from "../../src/content/items";
@@ -14,6 +14,7 @@ import { Match, settingsOf, weeklyMutator, type MatchSettings, type Mutator } fr
 import type { MatchEvent } from "../../src/game/core/module";
 import { Space } from "../../src/game/core/space";
 import type { GadgetsModule } from "../../src/game/modules/gadgets";
+import type { GunsModule } from "../../src/game/modules/guns";
 import type { ItemsModule } from "../../src/game/modules/items";
 import type { MeleeModule } from "../../src/game/modules/melee";
 import type { BlackoutModule } from "../../src/game/modules/blackout";
@@ -287,6 +288,58 @@ console.log("the §10 items:");
   const b = gad(ph);
   const same = a.placed.length === b.placed.length && a.placed.every((p, i) => b.placed[i] && p.kind === b.placed[i].kind && Math.abs(p.x - b.placed[i].x) < 1e-3 && (p.until <= srv.elapsed) === (b.placed[i].until <= srv.elapsed + 0.05));
   check(same && a.placed.length > 4, `30 s of 8 people using them: the copy agrees on every cloud, peel and decoy (${a.placed.length}, ${n} events)`);
+}
+
+console.log("v6 max, the boosters (3.2):");
+{
+  const m = fresh(31, 4);
+  clear(m, ["p0", "p1"]);
+  const items = m.module<ItemsModule>("items")!;
+  const guns = m.module<GunsModule>("guns")!;
+  const me = put(m, "p0", YX, YZ, EAST);
+  const rival = put(m, "p1", YX + 6, YZ, -EAST);
+  // Walk into a Strength Booster: taken at once, never in the pack, even a full one.
+  items.packs[me.index].fill("smoke-pot");
+  items.add(m, "strength-booster", YX + 1.2, YZ, me.h, null);
+  m.setInput("p0", 1, 0);
+  const ev = runFor(m, 0.6);
+  m.setInput("p0", 0, 0);
+  check(ev.some((e) => e.type === "use" && e.id === "p0" && e.kind === "strength-booster") && !items.packs[me.index].includes("strength-booster"), "walked into, a booster works at once (even with a full backpack)");
+  check(m.effect(me, "strength") > 20 && m.effect(me, "rise") > 0, "strength for 25 s, and the rise");
+  // The rise: rooted.
+  const x0 = me.x;
+  m.setInput("p0", 1, 0);
+  runFor(m, 0.4);
+  m.setInput("p0", 0, 0);
+  check(Math.abs(me.x - x0) < 0.05, `rooted while it rises (${(me.x - x0).toFixed(2)} m)`);
+  // Harder hits: the same shot, with and without.
+  runFor(m, 1.5);
+  const hp0 = guns.hp[rival.index];
+  guns.hurt(m, rival, 20, me, false, "rifle");
+  const hit = hp0 - guns.hp[rival.index];
+  check(Math.abs(hit - 20 * POWER.strength.gun) < 0.5 || guns.armour[rival.index] > 0, `a 20-point shot hits for ${hit.toFixed(1)} (×${POWER.strength.gun})`);
+  // Taken while rising: little.
+  const m2 = fresh(32, 4);
+  clear(m2, ["p0", "p1"]);
+  const a = put(m2, "p0", YX, YZ);
+  const b = put(m2, "p1", YX + 6, YZ);
+  const it2 = m2.module<ItemsModule>("items")!;
+  const g2 = m2.module<GunsModule>("guns")!;
+  it2.add(m2, "speed-booster", YX, YZ, a.h, null);
+  runFor(m2, 0.1);
+  const h0 = g2.hp[a.index];
+  g2.hurt(m2, a, 20, b, false, "rifle");
+  check(Math.abs(h0 - g2.hp[a.index] - 20 * POWER.riseTake) < 0.5 || g2.armour[a.index] > 0, `rising, a 20-point shot takes ${(h0 - g2.hp[a.index]).toFixed(1)}`);
+  // The Speed Booster: faster, once risen.
+  runFor(m2, 1.6);
+  const tops: number[] = [];
+  runFor(m2, 2, [], () => {
+    m2.setInput("p0", 1, 0);
+    m2.setButtons("p0", true, 0, 0);
+    tops.push(Math.hypot(a.vx, a.vz));
+  });
+  const top = Math.max(...tops);
+  check(top > MOVE.sprint * 1.25, `a Speed Booster's sprint: ${top.toFixed(1)} m/s (plain ${MOVE.sprint})`);
 }
 
 console.log("Ranked:");

@@ -64,6 +64,7 @@ import { GadgetView } from "../world/gadgets";
 import { ModesView } from "../world/modesView";
 import { TreasureView } from "../world/treasure";
 import { GrowthView } from "../world/growth";
+import { PowerView, RISE_SECONDS } from "../world/power";
 import { VehicleView } from "../world/vehicles";
 import type { GameMode, ModeHost, ModeResult } from "./types";
 
@@ -166,6 +167,10 @@ export class FfaMode implements GameMode {
   private readonly treasure: TreasureView | null;
   /** v5: grown bodies' fiercer look; the Map Print (whether it opened the full map). */
   private readonly growth: GrowthView;
+  /** v6 max (3.2): the boosters' transformation, and camouflage. */
+  private readonly power: PowerView;
+  /** v6 max: your rise's camera: where it started (yaw, arm), or null. */
+  private powerCam: { yaw: number; arm: number } | null = null;
   private printOpened = false;
   /** The announcer's last look: seconds left, and whether you were outside the circle. */
   private lastLeft = Infinity;
@@ -303,6 +308,24 @@ export class FfaMode implements GameMode {
     h.scene.add(this.modes6.group);
     this.treasure = m.module("treasure") ? new TreasureView({ hud: h.hud, sound: h.sound, me: me.index, layer: h.ui, tier: h.spec.tier }) : null;
     this.growth = new GrowthView(h.crowd);
+    this.power = new PowerView(h.crowd, this.ms.pickFx, h.spec.tier);
+    h.scene.add(this.power.group);
+    this.power.onShock = (who, kind) => {
+      const mm = this.src.match;
+      const c = mm.contestants[who];
+      const mine = who === this.src.me?.index;
+      const d = c && this.src.me ? Math.hypot(c.x - this.src.me.x, c.z - this.src.me.z) : 99;
+      if (mine || d < 45) h.sound.powerShock(kind, mine ? 1 : Math.max(0.15, 1 - d / 45));
+      if (mine) {
+        h.hud.flash(kind === 1 ? "#ff7a1a" : "#5ccfff");
+        h.haptic("heavy");
+      }
+    };
+    this.power.onFade = (who) => {
+      if (who !== this.src.me?.index) return;
+      h.sound.powerDown();
+      h.hud.pushFeed(t("Your power fades"), "info");
+    };
     h.sound.voice.prepare();
     h.scene.add(this.growth.group);
     if (this.treasure) h.scene.add(this.treasure.group);
@@ -604,6 +627,7 @@ export class FfaMode implements GameMode {
     this.view.events(events, m, cam);
     this.cars?.events(events, m, cam);
     this.gadgets.events(events, m, cam);
+    this.power.events(events, m, cam);
     this.modes6.events(events, m);
     this.treasure?.events(events, m, cam);
     this.dead?.events(events, m);
@@ -719,6 +743,12 @@ export class FfaMode implements GameMode {
         if (e.id === me.id) h.hud.pushFeed(t("Too fast for the sky"), "safe");
         break;
       case "use": {
+        // v6 max (3.2): a booster: the surge, and what it does.
+        if ((e.kind === "strength-booster" || e.kind === "speed-booster") && e.id === me.id) {
+          const str = e.kind === "strength-booster";
+          h.sound.powerUp(str ? 1 : 2);
+          h.hud.pushFeed(str ? t("STRENGTH: guns +35%, blows +50%, 25 s") : t("SPEED: much faster, sprint twice as long, 20 s"), "safe");
+        }
         // v5: growth and the Map Print, said.
         const items = m.module<ItemsModule>("items");
         if (e.kind === "titan-serum") {
@@ -922,9 +952,28 @@ export class FfaMode implements GameMode {
     // The kill cam: the bodies as they were, from behind whoever took you out.
     const kc = this.killCam?.frame(m) ?? null;
     if (!kc && this.kcOn) this.kcShow(false);
-    if (c.enabled && !kc) {
-      h.rig.orbit(c.look.x, c.look.y, dt, md.x, md.y);
-      h.rig.turn(pd.x, pd.y);
+    // v6 max (3.2): your rise: the camera swings once round you (the rig's arm keeps it out of walls), in and up
+    // to look at you, then settles back where it was (a full turn: no snap). Your look waits till it's done.
+    const rise = !kc && me.status === "alive" ? this.power.riseOf(me.index) : -1;
+    if (rise >= 0 && rise <= RISE_SECONDS) {
+      if (!this.powerCam) this.powerCam = { yaw: h.rig.yaw, arm: h.rig.arm };
+      const u = rise / RISE_SECONDS;
+      const e = 0.5 - 0.5 * Math.cos(Math.PI * u);
+      const bump = Math.sin(Math.PI * u);
+      h.rig.yaw = this.powerCam.yaw + e * Math.PI * 2;
+      h.rig.pitch = 0.12 - 0.2 * bump;
+      h.rig.arm = this.powerCam.arm * (1 - 0.38 * bump);
+      h.rig.adsWant = 0;
+    } else {
+      if (this.powerCam) {
+        h.rig.arm = this.powerCam.arm;
+        h.rig.yaw = this.powerCam.yaw;
+        this.powerCam = null;
+      }
+      if (c.enabled && !kc) {
+        h.rig.orbit(c.look.x, c.look.y, dt, md.x, md.y);
+        h.rig.turn(pd.x, pd.y);
+      }
     }
     h.crowd.update(kc ? dt * kc.k : dt, kc ? kc.people : m.contestants, cam);
     if (!kc) this.killCam?.record(dt, m, me.index, this.gunsView?.myAiming ?? false);
@@ -982,6 +1031,7 @@ export class FfaMode implements GameMode {
     this.soundFrame(dt, m, me);
     const trPin = this.treasure?.update(dt, m, h.camera, this.marks).pin ?? null;
     this.growth.update(dt, m, cam, me.index, h.rig.firstPerson);
+    this.power.update(dt, m, cam, me.index, h.rig.firstPerson);
     this.printFrame(m, me);
     const goal = trPin ?? flagGoal ?? deadPin ?? this.modes6.update(dt, m, this.marks).pin;
     // The Harmattan: the siren, then the dust; footprints gone; headlights on (or in a power cut).
@@ -1109,6 +1159,8 @@ export class FfaMode implements GameMode {
       const surface = m.world.space.surfaceAt(c.x, c.z, c.h + c.y) ?? "concrete";
       if (c === me) {
         h.sound.step(surface, pace);
+        // v6 max (3.2): on the Strength Booster your steps land heavy.
+        if (m.effect(me, "strength") > 0) h.sound.heavyStep(pace);
         continue;
       }
       const dx = c.x - me.x;
@@ -1515,6 +1567,7 @@ export class FfaMode implements GameMode {
     h.sound.voice.hush();
     h.scene.remove(this.growth.group);
     this.growth.dispose(this.src.match);
+    this.power.dispose(this.src.match);
     h.hud.map.print = 0;
     if (this.dimmed) this.world.setDim(0);
     if (this.dustSet) this.world.setDust(0, HARMATTAN.see);

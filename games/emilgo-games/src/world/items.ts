@@ -53,8 +53,8 @@ const ITEM_VIEW = [40, 55, 70] as const;
 const FALL_S = 8;
 const FALL_H = 70;
 
-type Look = "kola" | "zobo" | "big-bag" | "zone-shield" | "titan-serum" | "map-print" | "smoke-pot" | "decoy-flag" | "talking-drum" | "aso-ebi" | "bundle";
-const LOOKS: Look[] = ["kola", "zobo", "big-bag", "zone-shield", "titan-serum", "map-print", "smoke-pot", "decoy-flag", "talking-drum", "aso-ebi", "bundle"];
+type Look = "kola" | "zobo" | "big-bag" | "zone-shield" | "titan-serum" | "map-print" | "smoke-pot" | "decoy-flag" | "talking-drum" | "aso-ebi" | "strength-booster" | "speed-booster" | "bundle";
+const LOOKS: Look[] = ["kola", "zobo", "big-bag", "zone-shield", "titan-serum", "map-print", "smoke-pot", "decoy-flag", "talking-drum", "aso-ebi", "strength-booster", "speed-booster", "bundle"];
 const lookOf = (k: ItemId): Look => ((LOOKS as string[]).includes(k) ? (k as Look) : "bundle");
 
 /**
@@ -68,6 +68,9 @@ const GLOW: Partial<Record<ItemId, readonly [number, number, number]>> = {
   "aso-ebi": [0.9, 0.3, 1.45],
   "titan-serum": [1.55, 0.14, 0.1],
   "map-print": [1.5, 0.95, 0.15],
+  // v6 max (3.2): fire for strength, electric blue for speed.
+  "strength-booster": [1.7, 0.42, 0.05],
+  "speed-booster": [0.3, 0.85, 1.8],
   bandage: [0.25, 1.35, 0.45],
   medkit: [0.25, 1.35, 0.45],
   ammo: [1.35, 0.8, 0.2],
@@ -172,6 +175,32 @@ function itemGeometry(l: Look): BufferGeometry {
         part(new BoxGeometry(0.3, 0.03, 0.08), 0x4d1d72, { p: [0, 0.08, -0.08] }),
         part(new BoxGeometry(0.08, 0.012, 0.06), 0xf2c230, { p: [0.08, 0.075, 0.05] }),
       ]);
+    case "strength-booster": {
+      // v6 max: a heavy hexagonal power cell standing up: black armoured caps, a molten orange core behind
+      // its bars, a fist stamped on the cap.
+      const parts = [
+        part(new CylinderGeometry(0.075, 0.075, 0.2, 6), 0xff6a10, { p: [0, 0.15, 0] }, 1.7),
+        part(new CylinderGeometry(0.095, 0.095, 0.05, 6), 0x1c1d20, { p: [0, 0.035, 0] }),
+        part(new CylinderGeometry(0.095, 0.09, 0.05, 6), 0x1c1d20, { p: [0, 0.27, 0] }),
+        part(new BoxGeometry(0.06, 0.04, 0.06), 0xc23a12, { p: [0, 0.31, 0] }),
+      ];
+      for (let k = 0; k < 3; k++) {
+        const a = (k / 3) * Math.PI * 2;
+        parts.push(part(new BoxGeometry(0.018, 0.21, 0.018), 0x2c2e33, { p: [Math.cos(a) * 0.082, 0.15, Math.sin(a) * 0.082] }));
+      }
+      return merge(parts);
+    }
+    case "speed-booster": {
+      // v6 max: a slim electric cell, its blue-white core, a lightning fin down one side, chrome caps.
+      return merge([
+        part(new CylinderGeometry(0.05, 0.05, 0.22, 10), 0x55c8ff, { p: [0, 0.15, 0] }, 1.7),
+        part(new CylinderGeometry(0.062, 0.062, 0.035, 10), 0xc8ccd2, { p: [0, 0.03, 0] }),
+        part(new CylinderGeometry(0.062, 0.055, 0.035, 10), 0xc8ccd2, { p: [0, 0.275, 0] }),
+        part(new BoxGeometry(0.012, 0.09, 0.05), 0xf2f6ff, { p: [0.06, 0.2, 0], r: [0, 0, 0.35] }, 1.4),
+        part(new BoxGeometry(0.012, 0.09, 0.05), 0xf2f6ff, { p: [0.06, 0.11, 0], r: [0, 0, -0.35] }, 1.4),
+        part(new ConeGeometry(0.02, 0.05, 6), 0xc8ccd2, { p: [0, 0.32, 0] }),
+      ]);
+    }
     default:
       // A cloth bundle, tied at the top.
       return merge([

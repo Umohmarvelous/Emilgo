@@ -15,7 +15,9 @@ export type ItemId =
   | "golden-slipper" | "zone-shield" | "jerrycan" | "danfo-key"
   | "zanku" | "shaku" | "odogwu" | "breakdance"
   | "bandage" | "medkit" | "ammo" | "armour" | "battery" | "nv"
-  | "titan-serum" | "map-print";
+  | "titan-serum" | "map-print"
+  // v6 max (3.2): the boosters, taken the moment you touch them.
+  | "strength-booster" | "speed-booster";
 
 export type ItemEffect =
   /** Faster for a while: run and sprint × mult. */
@@ -41,7 +43,9 @@ export type ItemEffect =
   /** v5: one level of growth (config GROWTH): less damage taken, a fiercer look. */
   | { kind: "grow" }
   /** v5: the whole map, live, for `s` seconds; once a match. */
-  | { kind: "print"; s: number };
+  | { kind: "print"; s: number }
+  /** v6 max (3.2): a booster: strength (more damage) or speed (much faster), for `s` seconds (config POWER). */
+  | { kind: "power"; power: "strength" | "speed"; s: number };
 
 export interface ItemDef {
   id: ItemId;
@@ -56,6 +60,8 @@ export interface ItemDef {
   needs?: ModuleId;
   /** How to beat it (SPEC-V3 §10.1: "every item has a counter"), shown on its first use. */
   counter?: Text;
+  /** v6 max: used the moment it's picked up (the boosters), never carried. */
+  instant?: boolean;
 }
 
 const def = (id: ItemId, en: string, pcm: string, what: string, whatPcm: string, effect: ItemEffect | null, rare = false, needs?: ModuleId): ItemDef => ({
@@ -102,6 +108,9 @@ export const ITEM_DEFS: Record<ItemId, ItemDef> = {
   // v5 (3.2): growth, and the Map Print.
   "titan-serum": { ...def("titan-serum", "Titan Serum", "Titan Serum", "Grow one level (to 3): you take less damage and look fiercer. Lost when you go down", "Grow one level (reach 3): bullet no go do you like before, you go look strong. E go go when you fall", { kind: "grow" }), counter: { en: "Shoot them more, or knock them down: they lose it all", pcm: "Shoot dem more, or knock dem down: everything go comot" } },
   "map-print": { ...def("map-print", "Map Print", "Map Print", "The whole map for 20 s: everyone and everything hidden, live. Once a match", "The whole map for 20 seconds: everybody and everything wey hide, live. Once for one match", { kind: "print", s: 20 }, true), counter: { en: "Keep moving: it shows where you are, not where you'll be", pcm: "Dey move: e dey show where you dey now, no be where you go reach" } },
+  // v6 max (3.2): the boosters: walked into, they transform you at once (the pose, the camera round you, the aura).
+  "strength-booster": { ...def("strength-booster", "Strength Booster", "Strength Booster", "Taken at once: 25 s of power. Your guns hit 35% harder, your blows 50%; heavy steps", "E go work sharp sharp: 25 seconds of power. Your gun go hit 35% harder, your hand 50%", { kind: "power", power: "strength", s: 25 }), instant: true, counter: { en: "Keep your distance: their speed is the same, and the fire shows where they are", pcm: "Stay far: dem no fast pass before, and the fire dey show where dem dey" } },
+  "speed-booster": { ...def("speed-booster", "Speed Booster", "Speed Booster", "Taken at once: 20 s much faster, sprinting twice as long", "E go work sharp sharp: 20 seconds you go fast well well, sprint go last double", { kind: "power", power: "speed", s: 20 }), instant: true, counter: { en: "Lead your shots: the sparks show where they're going", pcm: "Shoot for front of dem: the spark dey show where dem dey go" } },
   // Vehicles' (Phase 5).
   jerrycan: def("jerrycan", "Fuel Jerrycan", "Fuel Jerrycan", "+15 s of fuel for the car you're in or beside", "+15 seconds fuel for the motor wey you dey inside or near", { kind: "fuel" }, true, "vehicles"),
   "danfo-key": def("danfo-key", "Van Key", "Van Key", "Calls a minibus to the road nearby", "E go call minibus come the road wey near", { kind: "call" }, true, "vehicles"),
@@ -116,8 +125,9 @@ export const LOOT_TABLES: Record<string, LootTable> = {
   // v6 (the owner: "leave only these items"): Smoke Canister, Decoy Flag, Pulse Scanner, Squad Disguise, with v5's
   // Titan Serum and Map Print. Out: Adrenaline Shot, Field Flask, Big Bag, Zone Shield, Fuel Jerrycan, Van Key.
   // Their rules stay in the code, unused (a mode could still name them in its own table).
-  "ffa-core": [["smoke-pot", 3], ["decoy-flag", 1.2], ["talking-drum", 2.4], ["aso-ebi", 1.6], ["titan-serum", 2], ["map-print", 0.5]],
-  airfall: [["titan-serum", 1.4], ["map-print", 1], ["talking-drum", 0.5], ["smoke-pot", 0.5]],
+  // v6 max: the two boosters join (3.2).
+  "ffa-core": [["smoke-pot", 3], ["decoy-flag", 1.2], ["talking-drum", 2.4], ["aso-ebi", 1.6], ["titan-serum", 2], ["map-print", 0.5], ["strength-booster", 1.1], ["speed-booster", 1.3]],
+  airfall: [["titan-serum", 1.4], ["map-print", 1], ["talking-drum", 0.5], ["smoke-pot", 0.5], ["strength-booster", 0.9], ["speed-booster", 0.9]],
   "ds-core": [["bandage", 5], ["medkit", 1.5], ["ammo", 6], ["armour", 1.2], ["battery", 3], ["nv", 0.8]],
 };
 

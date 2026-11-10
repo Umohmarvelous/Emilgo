@@ -18,7 +18,7 @@
 //   Death     the backpack drops as a loot bag (it glows LOOT.bagGlow s on
 //             phones); you come back with an empty one.
 
-import { GROWTH, LOOT } from "../../config";
+import { GROWTH, LOOT, POWER } from "../../config";
 import { SpotGrid } from "../core/spotgrid";
 
 /** The items' lookup grid (m). */
@@ -134,6 +134,15 @@ export class ItemsModule implements RuleModule {
     }
   }
 
+  /** v6 max: the power-up's rise: rooted while it plays (the phone's copy too: it predicts its own body). */
+  pre(m: Match): void {
+    for (const c of m.contestants) if (c.status === "alive" && m.effect(c, "rise") > 0) m.slow(c, 0);
+  }
+
+  view(m: Match): void {
+    this.pre(m);
+  }
+
   step(m: Match): void {
     for (const c of m.contestants) {
       const act = m.takePackAct(c);
@@ -153,9 +162,10 @@ export class ItemsModule implements RuleModule {
       const it = this.items[own];
       if (!it || it.taken || Math.hypot(it.x - c.x, it.z - c.z) > LOOT.auto * 2.2) this.noAuto[i] = -1;
     }
-    if (!this.packs[i].includes(null)) return;
     const t = this.target(c, LOOT.auto);
     if (!t || (t.item && t.item.index === this.noAuto[i])) return;
+    // A full backpack still takes a booster (it's used, not carried).
+    if (!this.packs[i].includes(null) && !(t.item && ITEM_DEFS[t.item.kind].instant)) return;
     this.interact(m, c, t);
   }
 
@@ -244,6 +254,13 @@ export class ItemsModule implements RuleModule {
     const t = found ?? this.target(c);
     if (!t) return;
     const pack = this.packs[c.index];
+    if (t.item && ITEM_DEFS[t.item.kind].instant) {
+      // v6 max: a booster works the moment it's touched (slot −1: it never enters the backpack).
+      t.item.taken = true;
+      m.emit({ type: "take", id: c.id, item: t.item.index, kind: t.item.kind, slot: -1 });
+      this.power(m, c, t.item.kind);
+      return;
+    }
     if (t.item) {
       const slot = pack.indexOf(null);
       if (slot < 0) {
@@ -343,6 +360,14 @@ export class ItemsModule implements RuleModule {
     m.emit({ type: "use", id: c.id, kind, slot });
   }
 
+  /** v6 max (3.2): a booster taken: its effect, the rise, and the "use" every phone hears (slot −1). */
+  private power(m: Match, c: Contestant, kind: ItemId): void {
+    const fx = ITEM_DEFS[kind].effect;
+    if (fx?.kind !== "power") return;
+    powerOn(m, c, fx);
+    m.emit({ type: "use", id: c.id, kind, slot: -1 });
+  }
+
   /** Put an item on the ground (a drop from slot `slot`, a crate's overflow). */
   add(m: Match, kind: ItemId, x: number, z: number, h: number, by: string | null, slot = -1): GroundItem {
     const it: GroundItem = { index: this.items.length, kind, x, z, h, taken: false };
@@ -359,7 +384,7 @@ export class ItemsModule implements RuleModule {
     switch (e.type) {
       case "take":
         if (e.item >= 0 && this.items[e.item]) this.items[e.item].taken = true;
-        if (pack) {
+        if (pack && e.slot >= 0) {
           while (pack.length <= e.slot) pack.push(null);
           pack[e.slot] = e.kind;
         }
@@ -373,8 +398,9 @@ export class ItemsModule implements RuleModule {
         break;
       case "use": {
         if (!pack || !c) break;
-        pack[e.slot] = null;
+        if (e.slot >= 0) pack[e.slot] = null;
         const fx = ITEM_DEFS[e.kind].effect;
+        if (fx?.kind === "power") powerOn(m, c, fx);
         if (fx?.kind === "slots") for (let i = 0; i < fx.add; i++) pack.push(null);
         else if (fx?.kind === "speed") m.setEffect(c, "speed", fx.s, fx.mult);
         else if (fx?.kind === "shield" || fx?.kind === "pepper" || fx?.kind === "iron") m.setEffect(c, fx.kind, fx.s);
@@ -432,6 +458,13 @@ export class ItemsModule implements RuleModule {
   carries(i: number, kind: ItemId): boolean {
     return this.packs[i]?.includes(kind) ?? false;
   }
+}
+
+/** v6 max (3.2): a booster's effects on c: its power (the HUD's chip, the look), the speed, the rise. */
+function powerOn(m: Match, c: Contestant, fx: { power: "strength" | "speed"; s: number }): void {
+  m.setEffect(c, fx.power, fx.s);
+  if (fx.power === "speed") m.setEffect(c, "speed", fx.s, POWER.speed.mult);
+  m.setEffect(c, "rise", POWER.rise);
 }
 
 /** A weighted pick from a table, with u uniform in [0, 1). */
