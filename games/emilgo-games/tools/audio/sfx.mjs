@@ -193,7 +193,7 @@ const P = (f) => join(IN, f);
 const L = async (f) => to44k(await decode(f));
 
 const made = {};
-const credits = ["EMILGO Games: recorded sound effects, all CC0 (public domain) from OpenGameArt.org.", ""];
+const credits = ["EMILGO Games: recorded sound effects, all CC0 (public domain) from OpenGameArt.org.", "Thanks to cicifyre for the voice lines (credit appreciated, not required).", ""];
 const put = (name, a, src, kbps) => {
   const b = mp3(a, kbps);
   writeFileSync(join(OUT, `${name}.mp3`), b);
@@ -230,6 +230,47 @@ const wind = await L(P("park_ambience_wind.wav"));
 put("loop-turbine", loop(wind, 2, 16, 0.12), SRC.wind[2], 64);
 const crowd = await L(P("applause-clapping-church-crowd-immersive.wav"));
 put("loop-crowd", loop(crowd, 1, 14, 0.12), SRC.crowd[2], 64);
+// v6 max: the body's effort sounds (the owner: "the sound a human makes when they jump, like they are using
+// their energy"). A woman's short "hah!" shouts, CC0: cicifyre's Female RPG Voice Starter Pack (OpenGameArt),
+// its "attack" lines. Pitched down (and so a touch longer) from a light voice to an adult soldier's. The host
+// throttles the 8.8 MB zip, so the lines are taken from whatever part of it arrived (a zip's files come in
+// order, each whole): tools/audio/in/sfx/rpgvoice/attack{1,2,3}.wav.
+const VOICE_PAGE = "https://opengameart.org/content/female-rpg-voice-starter-pack (cicifyre, CC0)";
+/** Resample by k (< 1: lower and longer), as a tape played slower. */
+function slower(a, k) {
+  const n = Math.floor(a.d.length / k);
+  const d = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const x = i * k;
+    const j = Math.floor(x);
+    d[i] = a.d[j] + ((a.d[j + 1] ?? a.d[j]) - a.d[j]) * (x - j);
+  }
+  return { rate: a.rate, d };
+}
+/** Trim the silence before the voice and after it (−40 dB), a 4 ms lead kept. */
+function trimVoice(a) {
+  let pk = 0;
+  for (const v of a.d) pk = Math.max(pk, Math.abs(v));
+  const th = pk * 0.01;
+  let i0 = 0;
+  while (i0 < a.d.length && Math.abs(a.d[i0]) < th) i0++;
+  let i1 = a.d.length - 1;
+  while (i1 > i0 && Math.abs(a.d[i1]) < th) i1--;
+  return { rate: a.rate, d: a.d.slice(Math.max(0, i0 - Math.round(0.004 * a.rate)), i1 + 1) };
+}
+const rpg = (f) => join(IN, "rpgvoice", f);
+if (existsSync(rpg("attack1.wav"))) {
+  // Three takes, each lower by its own amount so they don't sound like one clip.
+  const ks = { "voice-jump": ["attack1.wav", 0.78], "voice-jump2": ["attack3.wav", 0.9], "voice-jump3": ["attack2.wav", 0.8] };
+  for (const [name, [f, k]] of Object.entries(ks)) {
+    const a = slower(trimVoice(await L(rpg(f))), k);
+    put(name, cut(a, 0, a.d.length / a.rate, 0.3), VOICE_PAGE, 64);
+  }
+  // The melee swing's grunt: the deepest take, shorter.
+  const sw = slower(trimVoice(await L(rpg("attack3.wav"))), 0.82);
+  put("voice-swing", cut(sw, 0, Math.min(0.36, sw.d.length / sw.rate), 0.4), VOICE_PAGE, 64);
+}
+
 // The club: a stretch of a downloaded track (the music tool's), mono.
 const club = join(here, "../../assets-site/music/rush.mp3");
 if (existsSync(club)) put("loop-club", loop(await L(club), 30, 32, 0.16), "music/rush.mp3 (Vitalezzz, Virtual Rush, CC0)", 64);

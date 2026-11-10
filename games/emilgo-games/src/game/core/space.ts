@@ -41,6 +41,11 @@ export interface Solid {
 
 /** Highest step a body takes without jumping, metres. */
 export const STEP = 0.45;
+/**
+ * v6 max: in the air you land on a top at most this far above your feet. The jump went from 1.15 m to 1.45 m;
+ * this keeps what it can land on at 1.6 m (1.45 + 0.15), as before, so a 1.8 m fence still stops you.
+ */
+export const AIR_STEP = 0.15;
 /** A body's height by stance (standing, crouching, prone). */
 export const HEAD: readonly [number, number, number] = [1.75, 1.15, 0.55];
 /** Water deeper than this at your feet slows you to a wade. */
@@ -322,7 +327,8 @@ export class Space {
    * a lower floor, or into the air off a ledge (gravity takes it from there).
    */
   resolve(c: Mover, radius: number): void {
-    const feet = c.h + c.y;
+    // In the air: a lower reach up (AIR_STEP), so the higher jump lands on no more than it did.
+    const feet = c.h + c.y - (c.y > 0 ? STEP - AIR_STEP : 0);
     const head = feet + (HEAD[c.stance as 0 | 1 | 2] ?? HEAD[0]);
     for (let pass = 0; pass < 2; pass++) {
       for (const i of this.near(c.x, c.z, radius + 0.1, _ids)) {

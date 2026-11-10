@@ -343,6 +343,8 @@ export class FfaView {
           if (!c) break;
           crowd.act(c.index, SWING_ANIM[e.kind]);
           if (near(c.x, c.z, 30) > 0) this.o.sound?.strike(e.kind === "fist" || e.kind === "slap" ? e.kind : "push", false);
+          // v6 max: your own swing, with a grunt now and then.
+          if (c === me) this.o.sound?.effort();
           break;
         }
         case "hit": {

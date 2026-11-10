@@ -224,9 +224,11 @@ export const MOVE = {
   /**
    * Jump: take-off speed √(2gh). v6 (the owner: "jumping should take a little shorter time"): 1.15 m under
    * 27 m/s², 0.58 s in the air (it was 1.2 m under 20 m/s², 0.69 s): snappier, still over anything waist-high.
+   * v6 max (10 Nov, "jump a little higher"): 1.45 m under 31 m/s², 0.61 s in the air. What a jump can land
+   * on stays 1.6 m (space.ts AIR_STEP), so a 1.8 m fence still stops you.
    */
-  gravity: 27,
-  jumpHeight: 1.15,
+  gravity: 31,
+  jumpHeight: 1.45,
   /**
    * v6, the tactical sprint (the owner: "create and build the sprint moves like cod-style"): a sprint begun with
    * at least `tacFrom` stamina opens with `tacFor` s at `tac` m/s, then runs on at `sprint`. Free For All only
@@ -933,7 +935,8 @@ export const NET = {
   // 18 (v5): Treasure Hunt; snapshots in packed bytes.
   // 19 (v5): Titan Serum and the Map Print in the loot (the scatter changed), a seat's own events ("reveal").
   // 20 (v6): only the kept items in the loot, spread wider (the scatter changed).
-  protocol: 20,
+  // 21 (v6 max): the higher jump (the body kernel changed), the boosters, the decoy and disguise in every mode.
+  protocol: 21,
   tickHz: 60,
   /** Server → client state broadcasts per second. */
   snapshotHz: 15,

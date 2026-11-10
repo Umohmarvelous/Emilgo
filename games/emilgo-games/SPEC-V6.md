@@ -13,6 +13,32 @@ old items, the vehicles and the 3-minute zone the owner saw are partly that old
 build. Nothing new reaches the site until `scripts/deploy-site.sh` and
 `fly deploy` run.
 
+## v6 max build (the owner's go-ahead, 10 Nov 2026)
+
+The owner, 10 Nov: finish 2.3 and 2.5 (a real human jump effort, not a synth), jump a little higher, focus
+on Free For All's first mode (**Treasure Hunt**, "the hunt") until everything in it works, every item
+with a real effect (body items on the body), and build all of Tier 3 at full stretch, plus whatever it
+needs: CP, ad revenue, billboards, performance. Then list what only the owner can set up.
+
+| # | Work | Status |
+|---|---|---|
+| M1 | Jump 1.45 m (0.61 s), landing reach kept at 1.6 m; recorded CC0 effort sounds | Done. 1.45 m under 31 m/s², 0.61 s in the air; in the air you land on at most 1.6 m (`AIR_STEP`), so 1.8 m fences still stop you. The jump: a woman's "hah!" from three CC0 takes (cicifyre's Female RPG Voice Starter Pack, its attack lines, pitched down to an adult's), never the same twice running, over the boots' push-off; a grunt on some of your own swings. Landing, hurt and breath stay synthesised: the pack's host throttles the download and only its first lines arrived. Protocol 21 |
+| M2 | 2.3 finished: the sprinting body leans, a sprint clip of its own (arms pumping), the tactical burst on a double push | — |
+| M3 | Treasure Hunt: every item works there (the Decoy as a fake treasure, the Disguise solo, smoke hides you from aim and tags, the scanner, the Map Print, the Serum) | — |
+| M4 | 3.2 Strength and Speed Boosters with the transformation | — |
+| M5 | 3.7 Growth: the robotic helmet and armour by level | — |
+| M6 | 3.5 Rivers: swim, splashes, sound, the water | — |
+| M7 | 3.6 Two-sided and portrait lit billboards | — |
+| M8 | 3.10 Awards, badges, achievements, milestones | — |
+| M9 | 3.11 The profile, chat, direct messages (with the safety rules) | — |
+| M10 | 3.12 The services split (profile, leaderboard, chat, analytics) | — |
+| M11 | 3.8 Five figurines for CP | — |
+| M12 | 3.9 International dances | — |
+| M13 | 3.1 The runner mode | — |
+| M14 | 3.3 + 3.4 The places rebuilt, realistic props, KTX2 | — |
+| M15 | 3.13 Performance: interest-managed snapshots, animation LOD | — |
+| M16 | The owner's manual steps, in one list | — |
+
 ## The owner's answers (9 Nov 2026)
 
 | # | Question | Answer | Built as |
@@ -72,7 +98,7 @@ can show the balance; it can't pay into it. What grows with wins and level is CP
 | 2.2 | The pickup light: 10–20 glowing streaks orbit the body for 1.5 s, then snap into the chest in a burst. One instanced mesh, the orbit worked out in the vertex shader, additive blending, no lights || Done. The body bends to scoop; 9–18 streaks in the item's colour spiral up for 1.5 s, then snap into the chest in a flash and a ring. One instanced draw for every streak on screen; Low has fewer streaks and no flash |
 | 2.3 | COD-style sprint: a faster tactical sprint on a double push, the body leaning, the camera's field of view kicking out, its own animation and breathing || Done in part. Free For All: a sprint begun with stamina to spare opens with a 1.6 s burst at 10.5 m/s, then runs at 9; the view widens (more in the burst) and bobs to the stride; out of breath after (2.5). Ball Haunt and Dead Streets keep a plain sprint. **Not built:** the body's lean and a sprint clip of its own (the motion library has no tactical sprint); the burst starts on any sprint, not a double push |
 | 2.4 | Every gun its own sound and rhythm: machine guns fast and rapid, the pistol one shot a press || Done. Pistol and shotgun one shot a press (held, or on auto-shoot: 2.2 and 1.1 a second); rifle 10 a second and SMG 14, automatic. Each shot a few percent higher or lower, so a burst never sounds like a loop |
-| 2.5 | Body sounds: a jump effort, the landing, hard breathing after a sprint, hurt, the pickup || Done in part. Synthesised: the jump effort, the landing, a pained breath when hit (harder for a heavy hit), hard breathing when a sprint runs your stamina dry; the pickup's sound. Each has a recorded slot (`voice-jump`, `voice-land`, `voice-hurt`, `voice-breath`) that takes over once recordings are in the sound library. **No CC0 woman's effort pack found**; "Female Gruntwork" (OpenGameArt) is CC BY 4.0, so a credit is needed: the owner's call |
+| 2.5 | Body sounds: a jump effort, the landing, hard breathing after a sprint, hurt, the pickup || Done (M1: the jump is a recorded woman's effort, CC0). Before: Synthesised: the jump effort, the landing, a pained breath when hit (harder for a heavy hit), hard breathing when a sprint runs your stamina dry; the pickup's sound. Each has a recorded slot (`voice-jump`, `voice-land`, `voice-hurt`, `voice-breath`) that takes over once recordings are in the sound library. **No CC0 woman's effort pack found**; "Female Gruntwork" (OpenGameArt) is CC BY 4.0, so a credit is needed: the owner's call |
 | 2.6 | COD-type icons on every control || Done. Our own drawings: fire (a cartridge), aim (a scope reticle), jump (a double chevron), crouch and sprint (soldiers), the backpack, reload (a magazine in a turning arrow), emote, ping, chat; on the game screen and in Arrange buttons |
 | 2.7 | No walking through buildings or solid props; low things (under about 1 m) can be jumped onto || Done. Buildings were already solid (steps up to 0.45 m; a jump lands on tops up to about 1.6 m). Now every street prop taller than a step stops you too (plants stay soft); the covered car prop is never placed |
 | 2.8 | The lobby avatar defaults to the player's Lagos Life avatar, name and money; still changeable || Done. The player's Lagos Life picture beside their Lagos Life name and the money slot; a preset only where the platform has none; still changeable, the Lagos Life picture one of the choices |
