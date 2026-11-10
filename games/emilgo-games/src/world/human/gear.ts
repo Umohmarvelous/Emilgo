@@ -416,3 +416,170 @@ function buildZombie(fit: Fit, kind: string, level: Detail): Acc {
 export function zombieGeometry(body: BufferGeometry, rest: Record<BoneName, V3>, kind: string, level: Detail): BufferGeometry {
   return mergeInto(body, `${body.uuid}|z:${kind}`, () => buildZombie(fitOf(body, rest), kind, level));
 }
+
+// ── v6 max (3.7): growth's armour on the operators ─────────────────────────────
+//
+// The owner: "same size, no giant; make the armour fiercer, like a real robotic
+// sci-fi helmet, and more as they keep getting more". Each Titan Serum level
+// adds to it, on the operator's own bones (its own skinned mesh: Human.setArmour):
+//
+//   level 1  a robotic half-helmet: a faceted gunmetal crown, cheek plates, and
+//            a red T-visor glowing across the eyes; small shoulder caps
+//   level 2  the full helmet: a jaw guard, ear pods with glowing rings, a fin at
+//            the back; a chest plate with a red reactor core; gauntlets with
+//            light strips; bigger pauldrons
+//   level 3  the war crest: swept-back horn fins and a ridge of plates, red light
+//            lines along the helmet; spiked pauldrons; thigh and knee plates
+//
+// Colours above 1 glow (the material adds them as light: no real lights).
+
+const GUN = lin("#4d535c");
+const CARBON = lin("#26282d");
+const EDGE = lin("#8f98a3");
+const RED = lin("#ff1408", 3.2);
+const RED_DIM = lin("#ff2410", 2.2);
+
+/** A curved plate: an arc of an open cylinder (radius r, `arc` radians wide, `h` tall), its middle facing +z. */
+function shellArc(r: number, h: number, arc: number, seg = 6): CylinderGeometry {
+  return new CylinderGeometry(r, r, h, seg, 1, true, -arc / 2, arc);
+}
+
+function buildGrowth(fit: Fit, lv: number, level: Detail): Acc {
+  const a = new Acc();
+  const R = fit.rest;
+  const hb = fit.box.head;
+  const cb = fit.box.chest;
+  if (!hb || !cb || lv <= 0) return a;
+  const far = level === 0;
+  const seg = far ? 6 : 8;
+  const hc = new Vector3().addVectors(hb.min, hb.max).multiplyScalar(0.5);
+  const hr = new Vector3().subVectors(hb.max, hb.min).multiplyScalar(0.5);
+  const eyeY = (R.eyeL.y + R.eyeR.y) / 2;
+  const eyeZ = Math.max(R.eyeL.z, R.eyeR.z);
+  const rx = hr.x * 1.18;
+  const rz = hr.z * 1.14;
+  const top = hb.max.y + 0.02;
+  const ry = (top - eyeY) * 1.0;
+  const cy = top - ry;
+  // ── Level 1: the half-helmet and the T-visor. ──
+  // A faceted crown (few segments: the hard, machined look), down to the brow at the front.
+  a.add(new SphereGeometry(1, seg, 4, 0, Math.PI * 2, 0, Math.PI * (lv >= 2 ? 0.66 : 0.56)), M(hc.x, cy + 0.006, hc.z - 0.006, -0.14, 0, 0, rx, ry * 1.06, rz), "head", GUN);
+  const vz = eyeZ + 0.026;
+  // The visor: a band across the eyes, glowing, and its stem down the nose (the T).
+  a.add(new BoxGeometry(rx * 1.62, 0.022, 0.018), M(hc.x, eyeY + 0.002, vz), "head", RED);
+  if (!far) {
+    a.add(new BoxGeometry(0.014, 0.034, 0.016), M(hc.x, eyeY - 0.026, vz - 0.002), "head", RED_DIM);
+    // The visor's frame, above and below the light.
+    a.add(new BoxGeometry(rx * 1.72, 0.012, 0.022), M(hc.x, eyeY + 0.02, vz - 0.002, 0.1), "head", CARBON);
+    // Cheek plates.
+    for (const s of [-1, 1]) a.add(new BoxGeometry(0.018, 0.06, 0.07), M(hc.x + s * rx * 0.86, eyeY - 0.03, hc.z + rz * 0.45, 0, s * 0.35, s * 0.08), "head", EDGE);
+  }
+  // Shoulder caps.
+  for (const side of ["L", "R"] as const) {
+    const sh = R[`upperArm${side}`];
+    const s = side === "L" ? 1 : -1;
+    const big = lv >= 3 ? 1.45 : lv >= 2 ? 1.25 : 1;
+    a.add(new SphereGeometry(0.07 * big, 6, 3, 0, Math.PI * 2, 0, Math.PI * 0.5), M(sh.x + s * 0.028, sh.y + 0.008, sh.z, 0, 0, -s * 0.38, 1, 0.7, 1.05), `upperArm${side}`, GUN);
+    if (!far && lv >= 2) a.add(new BoxGeometry(0.008, 0.008, 0.11 * big), M(sh.x + s * 0.06 * big, sh.y + 0.03, sh.z, 0, 0, -s * 0.38), `upperArm${side}`, RED_DIM);
+    if (!far && lv >= 3) for (let k = 0; k < 2; k++) a.add(new ConeGeometry(0.014, 0.075, 5), M(sh.x + s * (0.05 + k * 0.03), sh.y + 0.075 - k * 0.01, sh.z - 0.02 + k * 0.035, 0, 0, -s * (0.55 + k * 0.2)), `upperArm${side}`, EDGE);
+  }
+  if (lv < 2) return a;
+  // ── Level 2: the full helmet, the reactor, the gauntlets. ──
+  // The jaw guard: an angled wedge under the visor, round to the ears.
+  a.add(new CylinderGeometry(rx * 0.92, rx * 0.72, 0.075, seg, 1, true, -Math.PI * 0.62, Math.PI * 1.24), M(hc.x, eyeY - 0.06, hc.z + 0.01, 0.12, 0, 0, 1, 1, rz / rx), "head", GUN);
+  if (!far) {
+    // Ear pods with a glowing ring.
+    for (const s of [-1, 1]) {
+      a.add(new CylinderGeometry(0.034, 0.034, 0.03, 8), M(hc.x + s * (hr.x + 0.016), eyeY - 0.005, hc.z - 0.008, 0, 0, Math.PI / 2), "head", CARBON);
+      a.add(new TorusGeometry(0.024, 0.004, 3, 10), M(hc.x + s * (hr.x + 0.033), eyeY - 0.005, hc.z - 0.008, 0, Math.PI / 2, 0), "head", RED_DIM);
+    }
+    // A fin down the back of the head.
+    a.add(new BoxGeometry(0.012, 0.05, rz * 1.3), M(hc.x, top - 0.012, hc.z - rz * 0.25, -0.25), "head", EDGE);
+  }
+  // The chest plate and its reactor core.
+  const cx = (cb.min.x + cb.max.x) / 2;
+  const zF = cb.max.z + 0.016;
+  const pw = (cb.max.x - cb.min.x) * 0.66;
+  const py = R.neck.y - 0.13;
+  // Curved round the front of the chest (an arc of a cylinder its own depth), the core set in it.
+  const cr = (cb.max.z - cb.min.z) * 0.62;
+  const ccz = zF - cr;
+  a.add(shellArc(cr, 0.16, pw / cr, 8), M(cx, py, ccz, -0.08), "chest", GUN);
+  a.add(new CylinderGeometry(0.03, 0.03, 0.012, 10), M(cx, py + 0.005, zF + 0.012, Math.PI / 2 - 0.08), "chest", RED);
+  if (!far) {
+    a.add(new TorusGeometry(0.038, 0.006, 3, 12), M(cx, py + 0.005, zF + 0.011, -0.08), "chest", EDGE);
+    // Its edge, top and bottom.
+    a.add(shellArc(cr + 0.004, 0.012, pw / cr, 8), M(cx, py + 0.08, ccz, -0.08), "chest", EDGE);
+    // Gauntlets with a light strip along each.
+    for (const side of ["L", "R"] as const) {
+      const e = R[`foreArm${side}`];
+      const hnd = R[`hand${side}`];
+      const mid = new Vector3((e.x + hnd.x) / 2, (e.y + hnd.y) / 2, (e.z + hnd.z) / 2);
+      const dir = new Vector3(hnd.x - e.x, hnd.y - e.y, hnd.z - e.z);
+      const len = dir.length() * 0.8;
+      dir.normalize();
+      const q = new Quaternion().setFromUnitVectors(new Vector3(0, 1, 0), dir);
+      a.add(new CylinderGeometry(0.045, 0.038, len, 6, 1, true), new Matrix4().compose(mid, q, new Vector3(1, 1, 1)), `foreArm${side}`, GUN);
+      const strip = mid.clone().add(new Vector3(0, 0, 0.044).applyQuaternion(q));
+      a.add(new BoxGeometry(0.008, len * 0.85, 0.006), new Matrix4().compose(strip, q, new Vector3(1, 1, 1)), `foreArm${side}`, RED_DIM);
+    }
+  }
+  if (lv < 3) return a;
+  // ── Level 3: the war crest, the light lines, thigh and knee plates. ──
+  for (const s of [-1, 1]) {
+    // Swept-back horn fins from the temples.
+    a.add(new ConeGeometry(0.02, 0.17, 5), M(hc.x + s * rx * 0.78, cy + ry * 0.62, hc.z - 0.03, -0.9, 0, -s * 0.5), "head", EDGE);
+    if (!far) a.add(new BoxGeometry(0.006, 0.006, rz * 1.5), M(hc.x + s * rx * 0.55, cy + ry * 0.78, hc.z - 0.01, -0.2, 0, -s * 0.3), "head", RED_DIM);
+  }
+  if (!far) {
+    // A ridge of plates over the crown.
+    for (let k = 0; k < 4; k++) a.add(new BoxGeometry(0.016, 0.03 - k * 0.004, 0.035), M(hc.x, top + 0.008 - k * 0.012, hc.z + 0.04 - k * 0.04, -0.3 - k * 0.25), "head", GUN);
+    for (const side of ["L", "R"] as const) {
+      const th = fit.box[`thigh${side}`];
+      const shin = fit.box[`shin${side}`];
+      if (th) {
+        // A curved plate round the front of the thigh.
+        const tr = Math.max(th.max.x - th.min.x, th.max.z - th.min.z) * 0.5;
+        const tz = (th.min.z + th.max.z) / 2;
+        a.add(shellArc(tr, (th.max.y - th.min.y) * 0.3, 1.3, 6), M((th.min.x + th.max.x) / 2, (th.min.y + th.max.y) / 2 + 0.02, tz, 0.05), `thigh${side}`, GUN);
+      }
+      if (shin) {
+        // A knee cop: a small curved shell with a red slit.
+        const kx = (shin.min.x + shin.max.x) / 2;
+        const kr = (shin.max.x - shin.min.x) * 0.55;
+        const kz = (shin.min.z + shin.max.z) / 2;
+        a.add(shellArc(kr, 0.09, 1.8, 6), M(kx, shin.max.y - 0.02, kz + 0.006), `shin${side}`, EDGE);
+        a.add(new BoxGeometry(0.03, 0.006, 0.006), M(kx, shin.max.y - 0.02, kz + kr + 0.01), `shin${side}`, RED);
+      }
+    }
+  }
+  return a;
+}
+
+const growthCache = new Map<string, BufferGeometry>();
+
+/**
+ * v6 max (3.7): growth level `lv`'s armour for an operator's body (its own geometry, the body's bones and skin
+ * attributes; colours per vertex, those above 1 glowing). Cached by the body and the level.
+ */
+export function growthGeometry(body: BufferGeometry, rest: Record<BoneName, V3>, lv: number, level: Detail): BufferGeometry {
+  const key = `${body.uuid}|${lv}`;
+  let g = growthCache.get(key);
+  if (g) return g;
+  const a = buildGrowth(fitOf(body, rest), lv, level);
+  g = new (body.constructor as new () => BufferGeometry)();
+  g.setAttribute("position", new Float32BufferAttribute(a.pos, 3));
+  g.setAttribute("normal", new Float32BufferAttribute(a.nor, 3));
+  g.setAttribute("color", new Float32BufferAttribute(a.col, 3));
+  g.setAttribute("skinIndex", new Uint16BufferAttribute(a.si, 4));
+  g.setAttribute("skinWeight", new Float32BufferAttribute(a.sw, 4));
+  g.setIndex(a.idx);
+  g.boundingSphere = new Sphere(new Vector3(0, 0.9, 0), 1.3);
+  growthCache.set(key, g);
+  if (growthCache.size > 48) {
+    const first = growthCache.keys().next().value!;
+    growthCache.get(first)!.dispose();
+    growthCache.delete(first);
+  }
+  return g;
+}

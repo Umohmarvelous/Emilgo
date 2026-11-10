@@ -96,6 +96,9 @@ looks.forEach((l, i) => {
   // v6 max: the tactical sprint's pose (?tac=1, with &speed=10.5).
   if (q.get("tac")) h.anim.tacWant = 1;
   // v6 max: the suit's effects (?camo=1; ?power=1 strength | 2 speed).
+  // v6 max (3.7): growth (?fierce=1..3, or ladder: 0–3 across).
+  const fq2 = q.get("fierce");
+  if (fq2) h.setFierce(fq2 === "ladder" ? i % 4 : Number(fq2));
   // v6 max: an action over and over (?action=powerup).
   if (q.get("action")) {
     h.act(q.get("action") as never);

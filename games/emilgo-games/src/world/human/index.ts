@@ -39,7 +39,7 @@ import { packMesh } from "./pack";
 import { armbandMesh } from "./armband";
 import { BONES, PARENT, type BoneName } from "./skeleton";
 import { applyHold, type Hold } from "./hold";
-import { dressedGeometry, zombieGeometry, type Kit } from "./gear";
+import { dressedGeometry, growthGeometry, zombieGeometry, type Kit } from "./gear";
 import { dress } from "./dress";
 import { rot } from "./rot";
 import { normalMapFor } from "./normals";
@@ -263,6 +263,26 @@ export function warmLook(look: Look, tier: Tier, featured = false): void {
 const _e = new Euler(0, 0, 0, "ZYX");
 /** Bodies heavier than this cast their shadow through a stand-in (castShadows). */
 const STAND_IN_ABOVE = 8000;
+
+/**
+ * v6 max (3.7): growth's armour material, one for every body (per tier): machined gunmetal by vertex colour;
+ * colours above 1 are light (the red visor, the reactor, the strips), so it glows without a real light.
+ */
+const armourMats: Partial<Record<number, Material>> = {};
+function armourMaterial(tier: Tier): Material {
+  const lit = tier === 0 ? 0 : 1;
+  const have = armourMats[lit];
+  if (have) return have;
+  const mat = lit ? new MeshStandardMaterial({ vertexColors: true, metalness: 0.4, roughness: 0.38 }) : new MeshLambertMaterial({ vertexColors: true });
+  mat.onBeforeCompile = (sh) => {
+    sh.fragmentShader = sh.fragmentShader
+      .replace("#include <color_fragment>", "#include <color_fragment>\nvec3 armourGlow = max(vColor.rgb - 1.0, 0.0);\ndiffuseColor.rgb = min(diffuseColor.rgb, vec3(1.0));")
+      .replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\ntotalEmissiveRadiance += armourGlow * 0.55;");
+  };
+  mat.customProgramCacheKey = () => `armour1:${lit}`;
+  armourMats[lit] = mat;
+  return mat;
+}
 const _c1 = new Vector3();
 const _c2 = new Vector3();
 const _c3 = new Vector3();
@@ -300,6 +320,9 @@ export class Human {
   private shadow = false;
   /** At the High level the shadow comes from a Low stand-in that only the sun's shadow camera sees. */
   private standIn: SkinnedMesh | null = null;
+  /** v6 max (3.7): growth's armour (an operator's), on the body's bones; its level. */
+  private armour: SkinnedMesh | null = null;
+  private armourLv = 0;
   /** The backpack on the chest bone (open worlds), or null. */
   private pack: import("three").Mesh | null = null;
   /** v6: the captain's armband (the squad leader), and the body it was fitted to. */
@@ -543,6 +566,7 @@ export class Human {
     this.body = this.bodyAt(level);
     this.mesh.geometry = this.geometryFor(this.body, level);
     if (this.shadow) this.castShadows(true);
+    if (this.armourLv > 0) this.showArmour();
   }
 
   /** Bone by name (camera eye, effects). */
@@ -729,6 +753,30 @@ export class Human {
     const u = (this.opMat?.userData as { fierce?: { value: number } } | undefined)?.fierce;
     if (u) u.value = level;
     if (!this.op) this.tint(level > 0 ? 0xb8a8a8 : null, level > 0 ? 0x1a0402 * level : 0);
+    // v6 max (3.7): and the robotic armour, more of it each level.
+    this.armourLv = this.op ? level : 0;
+    this.showArmour();
+  }
+
+  /** v6 max (3.7): growth's armour for the body's level now (or none). */
+  private showArmour(): void {
+    const lv = this.armourLv;
+    if (lv <= 0 || !this.op) {
+      if (this.armour) this.armour.visible = false;
+      return;
+    }
+    const geo = growthGeometry(this.body.geometry, this.body.rest, lv, this.level);
+    if (!this.armour) {
+      const s = new SkinnedMesh(geo, armourMaterial(this.tier));
+      s.bind(this.mesh.skeleton, new Matrix4());
+      s.bindMode = DetachedBindMode;
+      s.frustumCulled = false;
+      s.castShadow = false;
+      this.mesh.add(s);
+      this.armour = s;
+    }
+    this.armour.geometry = geo;
+    this.armour.visible = true;
   }
 
   /**
