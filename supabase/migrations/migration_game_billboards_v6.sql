@@ -1,5 +1,5 @@
 -- EMILGO Games v6: numbered billboards, and booking one board for 1 or 2 weeks.
--- Needs migration_game_billboards.sql (and _max.sql) first. Safe to run again.
+-- Needs migration_game_billboards.sql first (not _max.sql: the big world's boards are here too). Safe to run again.
 --
 -- ── What it adds ────────────────────────────────────────────────────────────
 --   * Every board gets a number and a name with its place, in the world's own

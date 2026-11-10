@@ -13,6 +13,11 @@
 # purchases and profiles databases) belongs to one machine. It never sleeps:
 # a stopped machine would drop every match in play.
 #
+# Deploy the site with the server: when NET.protocol (src/config.ts) changes,
+# run scripts/deploy-site.sh right after `fly deploy`. A page built for an older
+# protocol is refused at its hello ("Update the game to play online.") the
+# moment a player starts an online match.
+#
 # Secrets (VATAR_*, TICKET_SECRET, ADMIN_TOKEN, SUPABASE_*) live only in
 # `fly secrets`, never here.
 
