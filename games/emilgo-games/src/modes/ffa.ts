@@ -652,9 +652,9 @@ export class FfaMode implements GameMode {
         break;
       }
       case "eliminated": {
-        // The announcer: who is out (you, in her words; anyone else by name).
+        // The announcer: who is out (you, a teammate, an enemy; the name is on screen).
         const c = m.get(e.id);
-        if (c && !(m.module("survival") && c.bot)) h.sound.voice.eliminated(c.name, c === me);
+        if (c && !(m.module("survival") && c.bot)) h.sound.voice.eliminated(c === me ? "you" : m.sameSquad(c, me) ? "mate" : "enemy");
         break;
       }
       case "flag":

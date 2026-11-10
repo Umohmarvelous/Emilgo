@@ -635,6 +635,7 @@ export class TreasureView {
         if (!this.warned.has(c.index)) {
           this.warned.add(c.index);
           this.o.hud?.pushFeed(`${c.name} ${t("holds")} ${tm.count[c.index]}/${tm.need} ${t("treasures: on your compass")}`, "out");
+          this.o.sound?.voice.say("tre_carrier");
         }
       }
       // A beep as the upload goes (yours, or near you).

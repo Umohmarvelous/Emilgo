@@ -3,17 +3,21 @@
 // eliminated"). Settled: English with a Mandarin accent, an adult woman's voice.
 //
 // How it speaks, best first:
-//   1. Recorded lines, if the site has them: <site>/voice/index.json lists the
-//      line ids it has, each <id>.mp3 beside it (played through the game's own
-//      audio, so the volume and the pause apply). None are shipped yet: making
-//      them needs a speech model run on the owner's computer (HANDOFF).
-//   2. The phone's own speech voice (the Web Speech API), a Mandarin woman's
-//      voice reading the English where the phone has one (iPhones: Tingting,
-//      Meijia; Android: the Google Chinese voice; Windows: Xiaoxiao), else an
-//      English woman's voice. Names ("Ada is eliminated") always come this way:
-//      they can't be recorded ahead.
+//   1. Recorded lines (v6 2.12: one voice on every phone, like COD): the site's
+//      /voice/index.json lists the line ids it has, each <id>.mp3 beside it
+//      (about 30 clips of a few KB, fetched once the lobby shows; played through
+//      the game's own audio, so the volume and the pause apply). The owner makes
+//      them once on the Mac with an open-licence speech model:
+//      tools/audio/voice.sh (Kokoro-82M, Apache-2.0) → assets-site/voice/.
+//   2. The phone's own speech voice (the Web Speech API) for a line the site
+//      hasn't got: a Mandarin woman's voice reading the English where the phone
+//      has one (iPhones: Tingting, Meijia; Android: the Google Chinese voice;
+//      Windows: Xiaoxiao), else an English woman's voice.
 //   3. Nothing (an app's web view without speech): the lines stay as text in
 //      the feed, as before.
+//
+// Names are never spoken (they can't be recorded ahead): she says "Enemy
+// eliminated" and the name shows on screen, as COD does.
 //
 // Lines queue (at most two waiting; a stale one is dropped), the same line not
 // twice within its cooldown, the music ducks while she speaks.
@@ -26,7 +30,7 @@ export type LineId =
   | "zone_closing" | "zone_outside" | "zone_final" | "time_two" | "time_thirty"
   | "tre_found" | "tre_all" | "tre_upload" | "tre_enemy_upload" | "tre_lost"
   | "flag_taken" | "flag_enemy" | "airdrop" | "print" | "serum"
-  | "you_down" | "victory" | "defeat";
+  | "you_down" | "enemy_down" | "mate_down" | "tre_carrier" | "victory" | "defeat";
 
 /** What each line says (the recorded clip says the same). */
 export const LINES: Record<LineId, string> = {
@@ -53,16 +57,19 @@ export const LINES: Record<LineId, string> = {
   print: "Map print active.",
   serum: "Titan serum. You are stronger.",
   you_down: "You have been eliminated.",
+  enemy_down: "Enemy eliminated.",
+  mate_down: "Teammate eliminated.",
+  tre_carrier: "An enemy is one treasure away. Check your compass.",
   victory: "Victory.",
   defeat: "Mission failed.",
 };
 
 /** Seconds before the same line may be said again. */
-const COOLDOWN: Partial<Record<LineId, number>> = { zone_outside: 25, tre_found: 4, airdrop: 20, flag_enemy: 15, tre_enemy_upload: 10 };
+const COOLDOWN: Partial<Record<LineId, number>> = { zone_outside: 25, tre_found: 4, airdrop: 20, flag_enemy: 15, tre_enemy_upload: 10, enemy_down: 2.2, mate_down: 3, tre_carrier: 20 };
 /** A line still waiting after this long isn't worth saying. */
 const STALE_MS = 3500;
-/** Eliminations said at most this often (a big fight would be a list). */
-const ELIM_GAP_MS = 2200;
+/** The clips' fetch waits this long after the lobby shows (the lobby's own downloads first). */
+const PREFETCH_MS = 1500;
 
 /** The site's recorded lines (the app streams them from the site, like the music). */
 const BASE =
@@ -71,7 +78,7 @@ const BASE =
 
 interface Said {
   text: string;
-  clip: LineId | null;
+  clip: LineId;
   at: number;
   /** Interrupts what's being said (the end of a match). */
   urgent: boolean;
@@ -93,10 +100,11 @@ export class Voice {
   private queue: Said[] = [];
   private speaking = false;
   private readonly last = new Map<string, number>();
-  private elimAt = 0;
   private picked: SpeechSynthesisVoice | null = null;
   private clips: Set<string> | null = null;
   private clipsAsked = false;
+  /** Each clip's bytes (fetched after the lobby shows), then its sound (decoded on first use). */
+  private readonly bytes = new Map<string, Promise<ArrayBuffer | null>>();
   private readonly buffers = new Map<string, Promise<AudioBuffer | null>>();
   private readonly synth: SpeechSynthesis | null = typeof window !== "undefined" && "speechSynthesis" in window ? window.speechSynthesis : null;
 
@@ -117,15 +125,9 @@ export class Voice {
     this.push({ text: LINES[id], clip: id, at: now, urgent });
   }
 
-  /** "Ada is eliminated" (names by the phone's voice). `you`: your own fall. */
-  eliminated(name: string, you: boolean): void {
-    if (!this.enabled) return;
-    if (you) return this.say("you_down");
-    const now = performance.now();
-    if (now - this.elimAt < ELIM_GAP_MS || !this.synth) return;
-    this.elimAt = now;
-    const clean = name.replace(/[^\p{L}\p{N} ._-]/gu, "").slice(0, 24) || "A player";
-    this.push({ text: `${clean} is eliminated.`, clip: null, at: now, urgent: false });
+  /** Someone out: you, a teammate, an enemy (the name is on screen; at most one every 2.2 s in a big fight). */
+  eliminated(who: "you" | "mate" | "enemy"): void {
+    this.say(who === "you" ? "you_down" : who === "mate" ? "mate_down" : "enemy_down");
   }
 
   /** Stop everything (leaving a match). */
@@ -136,16 +138,39 @@ export class Voice {
     this.music.duck(false);
   }
 
-  /** Learn which recorded lines the site has (once; a missing list is no clips). */
-  prepare(): void {
+  /**
+   * Learn which recorded lines the site has and fetch them (once; a missing list
+   * is no clips). The lobby calls it, so the clips are in before a match starts.
+   */
+  prepare(delayMs = 0): void {
     if (this.clipsAsked) return;
     this.clipsAsked = true;
-    fetch(`${BASE}index.json`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j: unknown) => {
-        this.clips = new Set(Array.isArray(j) ? j.filter((x): x is string => typeof x === "string") : []);
-      })
-      .catch(() => (this.clips = new Set()));
+    window.setTimeout(() => {
+      fetch(`${BASE}index.json`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j: unknown) => {
+          const ids = Array.isArray(j) ? j.filter((x): x is string => typeof x === "string" && x in LINES) : [];
+          this.clips = new Set(ids);
+          for (const id of ids) this.fetchClip(id);
+        })
+        .catch(() => (this.clips = new Set()));
+    }, delayMs);
+  }
+
+  /** prepare(), a beat after the lobby shows. */
+  prefetch(): void {
+    this.prepare(PREFETCH_MS);
+  }
+
+  private fetchClip(id: string): Promise<ArrayBuffer | null> {
+    let p = this.bytes.get(id);
+    if (!p) {
+      p = fetch(`${BASE}${id}.mp3`)
+        .then((r) => (r.ok ? r.arrayBuffer() : null))
+        .catch(() => null);
+      this.bytes.set(id, p);
+    }
+    return p;
   }
 
   private push(s: Said): void {
@@ -172,7 +197,7 @@ export class Voice {
       if (!this.queue.length) this.music.duck(false);
       this.next();
     };
-    if (s.clip && this.clips?.has(s.clip)) void this.playClip(s.clip).then((ok) => (ok ? done() : this.speak(s!.text, done)));
+    if (this.clips?.has(s.clip)) void this.playClip(s.clip).then((ok) => (ok ? done() : this.speak(s!.text, done)));
     else this.speak(s.text, done);
   }
 
@@ -233,9 +258,9 @@ export class Voice {
     if (!g) return Promise.resolve(false);
     let p = this.buffers.get(id);
     if (!p) {
-      p = fetch(`${BASE}${id}.mp3`)
-        .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
-        .then((b) => g.ctx.decodeAudioData(b))
+      // A copy decoded: decoding takes the bytes over.
+      p = this.fetchClip(id)
+        .then((b) => (b ? g.ctx.decodeAudioData(b.slice(0)) : null))
         .catch(() => null);
       this.buffers.set(id, p);
     }
@@ -246,7 +271,12 @@ export class Voice {
           const src = g.ctx.createBufferSource();
           src.buffer = buf;
           src.connect(g.sfx);
-          src.onended = () => ok(true);
+          // A suspended audio context (a phone call, iOS after an interruption) never ends a clip: the queue moves on anyway.
+          const guard = window.setTimeout(() => ok(true), buf.duration * 1000 + 600);
+          src.onended = () => {
+            clearTimeout(guard);
+            ok(true);
+          };
           src.start();
         }),
     );

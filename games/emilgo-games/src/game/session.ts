@@ -713,6 +713,8 @@ export class Game {
     this.refreshMoney();
     // The lobby's track (v4 rework: a downloaded CC0 track, streamed).
     this.sound.score.play("lobby");
+    // The announcer's recorded lines (v6 2.12), fetched once, a beat after the lobby shows.
+    this.sound.voice.prefetch();
     const daily = ensureDaily(this.settings.daily);
     this.stage.setDummy(false);
     this.screens.lobby({

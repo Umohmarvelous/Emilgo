@@ -19,6 +19,10 @@
   Access-Control-Allow-Origin: *
   Cache-Control: public, max-age=604800
 
+/voice/*
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=86400
+
 /lib/*
   Access-Control-Allow-Origin: *
   Cache-Control: public, max-age=2592000
