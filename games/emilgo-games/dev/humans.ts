@@ -93,6 +93,8 @@ looks.forEach((l, i) => {
     h.hold = hd;
   }
   if (q.get("torch")) h.torch = true;
+  // v6 max: the tactical sprint's pose (?tac=1, with &speed=10.5).
+  if (q.get("tac")) h.anim.tacWant = 1;
   // v4: zombies (?zombie=all: the eight kinds across; ?zombie=<kind>; &blood=1).
   const zq = q.get("zombie");
   if (zq !== null) {

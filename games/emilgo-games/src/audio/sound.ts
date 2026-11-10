@@ -809,6 +809,14 @@ export class Sound {
   }
   private lastJump = "";
 
+  /** v6 max (2.3): the tactical sprint's burst: a rush of air past the ears and a sharp breath in. */
+  tacSprint(): void {
+    const t = this.now;
+    this.noise(t, 0.45, { gain: 0.05, freq: 900, type: "bandpass" });
+    this.noise(t + 0.02, 0.18, { gain: 0.025, freq: 2600, type: "bandpass" });
+    this.tone(160, t, 0.12, { type: "sine", gain: 0.05, to: 90 });
+  }
+
   /** v6 max: your own swing: a grunt with it, now and then (not every swing: it would grate). */
   effort(): void {
     if (Math.random() < 0.45) this.sample("voice-swing", 0.42, 0.92 + Math.random() * 0.14);

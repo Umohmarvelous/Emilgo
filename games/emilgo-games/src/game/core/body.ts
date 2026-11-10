@@ -60,6 +60,9 @@ export interface Contestant {
   sprinting: boolean;
   /** v6: seconds left of the tactical sprint's opening burst (0: none). */
   tac: number;
+  /** v6 max: the tactical sprint asked for (a double push of sprint), and whether this sprint has had its burst. */
+  inTac: boolean;
+  tacDone: boolean;
   /** 0..1. Sprinting spends it; it refills after a short rest. */
   stamina: number;
   /** Seconds since the last sprint (refill delay). */
@@ -99,11 +102,11 @@ export interface Contestant {
 }
 
 /** A fresh contestant's movement state (shared by the referee and the online client). */
-type Motion = "bst" | "grip" | "y" | "vy" | "h" | "stance" | "inStance" | "stanceT" | "inSprint" | "sprinting" | "tac" | "stamina" | "rested" | "inJump" | "jumpSeen" | "inAttack" | "attackSeen" | "inGrab" | "grabSeen" | "ball" | "stun" | "forgive" | "act" | "cool" | "actKind" | "slide";
+type Motion = "bst" | "grip" | "y" | "vy" | "h" | "stance" | "inStance" | "stanceT" | "inSprint" | "sprinting" | "tac" | "inTac" | "tacDone" | "stamina" | "rested" | "inJump" | "jumpSeen" | "inAttack" | "attackSeen" | "inGrab" | "grabSeen" | "ball" | "stun" | "forgive" | "act" | "cool" | "actKind" | "slide";
 
 export function freshMotion(): Pick<Contestant, Motion> {
   return {
-    bst: NO_BOOST, grip: 0, y: 0, vy: 0, h: 0, stance: 0, inStance: 0, stanceT: 0, inSprint: false, sprinting: false, tac: 0, stamina: 1, rested: 9, inJump: 0, jumpSeen: 0,
+    bst: NO_BOOST, grip: 0, y: 0, vy: 0, h: 0, stance: 0, inStance: 0, stanceT: 0, inSprint: false, sprinting: false, tac: 0, inTac: false, tacDone: false, stamina: 1, rested: 9, inJump: 0, jumpSeen: 0,
     inAttack: 0, attackSeen: 0, inGrab: 0, grabSeen: 0, ball: -1, stun: 0, forgive: 0, act: 0, cool: 0, actKind: "", slide: 0,
   };
 }
@@ -226,13 +229,20 @@ export function moveContestant(c: Contestant, dt: number, course: Course = DEFAU
     const can = c.sprinting ? c.stamina > 0 : c.stamina >= MOVE.sprintMin;
     const was = c.sprinting;
     c.sprinting = wantSprint && can;
-    // v6: a fresh sprint with stamina to spare opens with the tactical burst.
-    if (env.tac && c.sprinting && !was && c.stamina >= MOVE.tacFrom) c.tac = MOVE.tacFor;
+    // v6 max (2.3, COD-style): a double push of sprint (inTac) opens the tactical burst, once a sprint, with stamina to spare.
+    void was;
+    if (env.tac && c.sprinting && c.inTac && !c.tacDone && c.stamina >= MOVE.tacFrom) {
+      c.tac = MOVE.tacFor;
+      c.tacDone = true;
+    }
     if (c.sprinting) top = (c.tac > 0 ? MOVE.tac : MOVE.sprint) * bst.sprint;
   } else {
     c.sprinting = false;
   }
-  if (!c.sprinting) c.tac = 0;
+  if (!c.sprinting) {
+    c.tac = 0;
+    c.tacDone = false;
+  }
   else if (c.tac > 0) c.tac = Math.max(0, c.tac - dt);
   if (c.stance > 0 && m > 1e-3) top *= Math.min(1, m / MOVE.runAt + 0.3);
   if (c.sprinting) {

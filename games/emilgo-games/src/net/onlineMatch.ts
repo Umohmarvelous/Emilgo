@@ -131,13 +131,14 @@ export class OnlineMatch {
     this.net.setInput(x, z);
   }
 
-  setButtons(sprint: boolean, stance: 0 | 1 | 2, jump: number): void {
+  setButtons(sprint: boolean, stance: 0 | 1 | 2, jump: number, tac = false): void {
     const me = this.me;
     if (!me) return;
     me.inSprint = sprint;
+    me.inTac = sprint && tac;
     me.inStance = stance;
     me.inJump = jump & 255;
-    this.net.setButtons(sprint, stance, me.inJump);
+    this.net.setButtons(sprint, stance, me.inJump, tac);
   }
 
   setActions(attack: number, grab: number): void {

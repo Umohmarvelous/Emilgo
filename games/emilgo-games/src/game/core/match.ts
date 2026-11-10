@@ -376,10 +376,11 @@ export class Match {
     c.inZ = z * k;
   }
 
-  setButtons(id: string, sprint: boolean, stance: Stance, jump: number): void {
+  setButtons(id: string, sprint: boolean, stance: Stance, jump: number, tac = false): void {
     const c = this.byId.get(id);
     if (!c) return;
     c.inSprint = !!sprint;
+    c.inTac = !!sprint && !!tac;
     c.inStance = stance === 1 || stance === 2 ? stance : 0;
     if (Number.isInteger(jump)) c.inJump = jump & 255;
   }

@@ -350,6 +350,28 @@ export function mocapPose(a: AnimState, out: Pose): boolean {
     out.rot[i * 3 + 1] = _e.y;
     out.rot[i * 3 + 2] = _e.z;
   }
+  // v6 max (2.3): the tactical sprint, COD-style, over the sprint clip: the body pitched into it from the hips,
+  // the head kept up and looking ahead, the arms driving harder (a bigger swing, elbows nearer 90°, flat
+  // "blade" hands) and the knees coming up higher. Not while aiming, sliding or in the air.
+  const tk = a.tac * (1 - a.aimW) * (1 - a.slide) * (1 - air);
+  if (tk > 0.01) {
+    const R = out.rot;
+    const B = BONE_INDEX;
+    // (In the clips' angles a forward pitch is negative.)
+    R[B.spine * 3] -= 0.13 * tk;
+    R[B.chest * 3] -= 0.09 * tk;
+    R[B.neck * 3] += 0.09 * tk;
+    R[B.head * 3] += 0.12 * tk;
+    for (const s of ["L", "R"] as const) {
+      const ua = B[`upperArm${s}` as BoneName] * 3;
+      const fa = B[`foreArm${s}` as BoneName] * 3;
+      const th = B[`thigh${s}` as BoneName] * 3;
+      R[ua] *= 1 + 0.38 * tk;
+      R[fa] += (Math.min(R[fa], -1.45) - R[fa]) * 0.6 * tk;
+      R[th] *= 1 + 0.08 * tk;
+    }
+    out.curlL = out.curlR = 0.05 + (out.curlL - 0.05) * (1 - tk);
+  }
   // The clips' hips height is the body's own; the ground solver keeps the feet down.
   out.hipsX = HB.x;
   out.hipsY = HB.y;

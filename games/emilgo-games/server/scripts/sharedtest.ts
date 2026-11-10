@@ -481,15 +481,29 @@ console.log("the tactical sprint:");
   c5.x = at[0];
   c5.z = at[1];
   c5.stamina = 1;
-  const speeds: number[] = [];
-  runTo(m5, m5.elapsed + 3, [], () => {
+  // v6 max: the burst needs the double push (inTac); a plain sprint has none.
+  const plain: number[] = [];
+  runTo(m5, m5.elapsed + 1.5, [], () => {
     m5.setInput("p5", 0, -1);
     m5.setButtons("p5", true, 0, 0);
+    plain.push(Math.hypot(c5.vx, c5.vz));
+  });
+  check(Math.max(...plain) <= MOVE.sprint + 0.01, `a plain sprint has no burst (${Math.max(...plain).toFixed(1)} m/s)`);
+  // Stop, rest, then the double push.
+  runTo(m5, m5.elapsed + 4, [], () => {
+    m5.setInput("p5", 0, 0);
+    m5.setButtons("p5", false, 0, 0);
+  });
+  c5.stamina = 1;
+  const speeds: number[] = [];
+  runTo(m5, m5.elapsed + 3, [], () => {
+    m5.setInput("p5", 0, 1);
+    m5.setButtons("p5", true, 0, 0, true);
     speeds.push(Math.hypot(c5.vx, c5.vz));
   });
   const early = Math.max(...speeds.slice(30, 90));
   const late = Math.max(...speeds.slice(140, 170));
-  check(early > MOVE.sprint + 0.5 && early <= MOVE.tac + 0.01, `a fresh sprint opens with the burst (${early.toFixed(1)} m/s)`);
+  check(early > MOVE.sprint + 0.5 && early <= MOVE.tac + 0.01, `a double push opens with the burst (${early.toFixed(1)} m/s)`);
   check(Math.abs(late - MOVE.sprint) < 0.3, `then runs on at a sprint (${late.toFixed(1)} m/s)`);
   // Without Free For All's modules (Ball Haunt, Dead Streets): no burst.
   const m6 = newMatch(52);

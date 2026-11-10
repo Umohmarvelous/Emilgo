@@ -177,7 +177,7 @@ export class FfaGame {
     const m = this.match;
     m.setAim(seat, y / 1000, p / 1000, (w & 1) === 1, (w & 2) === 2, (w >> 2) & 15, (w >> 6) & 15);
     m.setInput(seat, x / 100, z / 100);
-    m.setButtons(seat, (b & 1) === 1, Math.min(2, (b >> 1) & 3) as 0 | 1 | 2, j);
+    m.setButtons(seat, (b & 1) === 1, Math.min(2, (b >> 1) & 3) as 0 | 1 | 2, j, (b & 16) !== 0);
     m.setBrace(seat, (b & 8) !== 0);
     m.setActions(seat, a, g);
     m.setInteract(seat, i & 255, (i & 256) !== 0);

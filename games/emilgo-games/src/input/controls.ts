@@ -124,6 +124,15 @@ export class Controls {
   readonly look: Vec2 = { x: 0, y: 0 };
   /** Sprint toggled on (button, double-tap or Shift). */
   sprint = false;
+  /**
+   * v6 max (2.3, COD-style): the tactical sprint, asked for by a double push: sprint pressed twice quickly (button
+   * or Shift), a second double-tap of the stick while sprinting, or (auto-sprint) the stick pushed full twice.
+   * Ends with the sprint.
+   */
+  tac = false;
+  private sprintPressAt = 0;
+  private fullAt = 0;
+  private wasFull = false;
   /** The stance asked for. */
   stance: Stance = 0;
   /** Bumped on every jump press. */
@@ -353,7 +362,14 @@ export class Controls {
     );
     press(
       this.sprintBtn,
-      () => (this.sprintMode === "hold" ? this.setSprint(true) : this.setSprint(!this.sprint)),
+      () => {
+        const t = performance.now();
+        const dbl = t - this.sprintPressAt < DOUBLE_TAP_MS;
+        this.sprintPressAt = t;
+        if (dbl && this.stance === 0) this.goTac();
+        else if (this.sprintMode === "hold") this.setSprint(true);
+        else this.setSprint(!this.sprint);
+      },
       () => this.sprintMode === "hold" && this.setSprint(false),
     );
     this.quickBtn.addEventListener("click", () => this.onQuick?.());
@@ -759,7 +775,15 @@ export class Controls {
 
   setSprint(on: boolean): void {
     this.sprint = on;
+    if (!on) this.tac = false;
     this.sprintBtn.classList.toggle("on", on);
+    this.sprintBtn.classList.toggle("tac", on && this.tac);
+  }
+
+  /** v6 max: the double push: sprinting, tactically. */
+  private goTac(): void {
+    this.tac = true;
+    this.setSprint(true);
   }
 
   setStance(s: Stance): void {
@@ -828,7 +852,15 @@ export class Controls {
     // Auto-sprint: a full push sprints while stamina lasts (the button still toggles it).
     if (this.autoSprint && this.stance === 0) {
       const full = Math.hypot(mx, my) > 0.95;
+      // Pushed full twice in a moment: the tactical sprint.
+      if (full && !this.wasFull) {
+        const t = performance.now();
+        if (t - this.fullAt < DOUBLE_TAP_MS * 1.5) this.tac = true;
+        this.fullAt = t;
+      }
+      this.wasFull = full;
       if (full !== this.sprint && !this.shiftSprint) this.setSprint(full);
+      else if (full && this.tac) this.setSprint(true);
     }
     // A stop ends a sprint: the next run starts as a run.
     if (!mx && !my && this.sprint && !this.shiftSprint) this.setSprint(false);
@@ -947,7 +979,11 @@ export class Controls {
     s.el.classList.remove("idle");
     s.el.classList.add("on");
     const t = performance.now();
-    if (t - this.lastMoveTap < DOUBLE_TAP_MS && this.stance === 0) this.setSprint(true);
+    if (t - this.lastMoveTap < DOUBLE_TAP_MS && this.stance === 0) {
+      // Already sprinting: the second double-tap is the tactical sprint.
+      if (this.sprint) this.goTac();
+      else this.setSprint(true);
+    }
     this.lastMoveTap = t;
     if (base !== p) this.moveEv(e);
   };
@@ -1035,7 +1071,13 @@ export class Controls {
     if (k === " ") this.jump();
     else if (k === "shift") {
       this.shiftSprint = true;
-      if (this.stance === 0) this.setSprint(true);
+      const t = performance.now();
+      const dbl = t - this.sprintPressAt < DOUBLE_TAP_MS;
+      this.sprintPressAt = t;
+      if (this.stance === 0) {
+        if (dbl) this.goTac();
+        else this.setSprint(true);
+      }
     } else if (k === "c") {
       this.crouchDownAt = performance.now();
       clearTimeout(this.crouchTimer);

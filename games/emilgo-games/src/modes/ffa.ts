@@ -87,7 +87,7 @@ interface Source {
   readonly me: Contestant | null;
   readonly measures?: readonly number[];
   setInput(x: number, z: number): void;
-  setButtons(sprint: boolean, stance: 0 | 1 | 2, jump: number): void;
+  setButtons(sprint: boolean, stance: 0 | 1 | 2, jump: number, tac?: boolean): void;
   setActions(attack: number, grab: number): void;
   setMatchButtons(brace: boolean, interact: number, hold: boolean, pack: number): void;
   /** Guns (v4): the camera's aim and the gun buttons. */
@@ -113,8 +113,8 @@ class LocalSource implements Source {
   setInput(x: number, z: number): void {
     this.match.setInput("me", x, z);
   }
-  setButtons(sprint: boolean, stance: 0 | 1 | 2, jump: number): void {
-    this.match.setButtons("me", sprint, stance, jump);
+  setButtons(sprint: boolean, stance: 0 | 1 | 2, jump: number, tac = false): void {
+    this.match.setButtons("me", sprint, stance, jump, tac);
   }
   setActions(attack: number, grab: number): void {
     this.match.setActions("me", attack, grab);
@@ -201,6 +201,7 @@ export class FfaMode implements GameMode {
   private autoTick = 0;
   private stepAt = new Float32Array(0);
   private wasAir = false;
+  private wasTac = false;
   private winded = false;
   private autoWas = false;
   /** HUD A (v4 Phase 3): the watch, the plates, the edges, the zombies' bars. */
@@ -579,7 +580,7 @@ export class FfaMode implements GameMode {
       const yaw = h.rig.yaw;
       // The stick is camera-relative: up is where the camera looks.
       src.setInput(Math.cos(yaw) * x - Math.sin(yaw) * y, -Math.sin(yaw) * x - Math.cos(yaw) * y);
-      src.setButtons(c.sprint, c.stance as 0 | 1 | 2, c.jumps);
+      src.setButtons(c.sprint, c.stance as 0 | 1 | 2, c.jumps, c.tac);
       src.setActions(c.attacks, c.grabs);
       src.setMatchButtons(c.brace, this.press, this.hold, this.packAct);
       if (this.gunsView) src.setAim(h.rig.aimYaw, h.rig.aimPitch, c.trigger, c.ads, c.reloads, c.swaps);
@@ -1295,6 +1296,10 @@ export class FfaMode implements GameMode {
     h.rig.centre = c.thumbMode && !c.ads && !this.killCam?.busy ? 1 : 0;
     // v6: the sprint's widening view and bob (the burst more).
     h.rig.sprint = live && me.sprinting ? (me.tac > 0 ? 1 : 0.6) : 0;
+    // v6 max: the burst's start: a rush of air and a sharp breath in.
+    const tacNow = live && me.tac > 0;
+    if (tacNow && !this.wasTac) h.sound.tacSprint();
+    this.wasTac = tacNow;
     // Aiming or firing, you face the aim (the server turns your body the same way).
     if (live && (c.ads || c.trigger || m.elapsed - g.aimedAt[i] < 0.8)) me.heading = h.rig.aimYaw + Math.PI;
     h.rig.adsZoom = K.zoom;

@@ -236,8 +236,9 @@ export class NetClient {
   }
 
   /** Sprint held, stance wanted (0–2), jump counter. Sent at once when they change. */
-  setButtons(sprint: boolean, stance: number, jump: number): void {
-    this.wantB = (sprint ? 1 : 0) | ((stance & 3) << 1);
+  setButtons(sprint: boolean, stance: number, jump: number, tac = false): void {
+    // v6 max: 16 is the tactical sprint (8 is the brace, set apart).
+    this.wantB = (sprint ? 1 : 0) | ((stance & 3) << 1) | (sprint && tac ? 16 : 0);
     this.wantJ = jump & 255;
     this.setInput(this.wantX / 100, this.wantZ / 100);
   }

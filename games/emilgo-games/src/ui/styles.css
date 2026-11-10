@@ -1492,3 +1492,8 @@ input { font: inherit; color: inherit; }
 .chip-col { aspect-ratio: 1; border: 1px solid #fff3; border-radius: 0; display: grid; place-items: center; color: #fffc; position: relative; }
 .chip-col.on { outline: 2px solid var(--amber, #f2b632); outline-offset: 2px; }
 .chip-col.locked { opacity: 0.75; }
+
+/* ── v6 max (appended: the max build's own rules) ── */
+/* 2.3: the tactical sprint, on a double push: the sprint button burns orange while it lasts. */
+.abtn.sprint.tac { border-color: #ff8a1f; box-shadow: 0 0 0 2px #ff8a1f88, 0 0 16px #ff8a1f99; }
+.abtn.sprint.tac svg:not(.stam-ring) { color: #ffb15a; }

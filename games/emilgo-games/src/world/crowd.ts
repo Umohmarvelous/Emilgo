@@ -365,6 +365,8 @@ export class Crowd {
       if (fresh || (this.frameNo + i) % stride === 0) {
         // Which way it moves against where it faces (the mocap's strafe and backpedal).
         const mv = speed > 0.3 ? Math.atan2(c.vx, c.vz) - c.heading : 0;
+        // v6 max: the tactical sprint's pose: the body's own burst where it's known (yours, the referee's), else its pace.
+        h.anim.tacWant = c.sprinting && ((c as { tac?: number }).tac ?? 0) > 0 ? 1 : Math.max(0, Math.min(1, (speed - 9.3) / 0.8));
         h.update(this.animDt[i], speed, c.stance ?? 0, (c.y ?? 0) > 0.03 ? 1 : 0, c.slide > 0 ? 1 : 0, Math.atan2(Math.sin(mv), Math.cos(mv)));
         this.animDt[i] = 0;
       }

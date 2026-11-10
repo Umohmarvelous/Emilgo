@@ -132,6 +132,9 @@ export interface AnimState {
   amp: number;
   run: number;
   sprint: number;
+  /** v6 max (2.3): the tactical sprint, 0 … 1 (blended), and what it's heading for (set by the crowd each frame). */
+  tac: number;
+  tacWant: number;
   /** 0 stand … 1 crouch … 2 prone (continuous). */
   stance: number;
   /** 0 grounded … 1 airborne. */
@@ -219,6 +222,8 @@ export function newAnimState(seed: number): AnimState {
     amp: 0,
     run: 0,
     sprint: 0,
+    tac: 0,
+    tacWant: 0,
     stance: 0,
     air: 0,
     dead: -1,
@@ -285,6 +290,8 @@ export function stepGait(a: AnimState, speed: number, dt: number): void {
   a.run += (wantRun - a.run) * (1 - Math.exp(-dt * 6));
   const wantSprint = Math.max(0, Math.min(1, (speed - RUN) / (SPRINT - RUN)));
   a.sprint += (wantSprint - a.sprint) * (1 - Math.exp(-dt * 6));
+  // In fast, out a little slower (the burst runs down into the sprint).
+  a.tac += (a.tacWant * Math.min(1, a.sprint * 1.5) - a.tac) * (1 - Math.exp(-dt * (a.tacWant > a.tac ? 9 : 4)));
   // Metres per stride (both steps): a brisk walk, a 180-a-minute run, a 200-a-minute sprint.
   const stride = (a.stance > 0.5 ? 0.9 : 1.4 + 0.6 * a.run + 0.7 * a.sprint) * (a.narrow ? 0.75 : 1);
   a.phase += (speed / stride) * Math.PI * 2 * dt;
