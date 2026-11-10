@@ -95,6 +95,12 @@ looks.forEach((l, i) => {
   if (q.get("torch")) h.torch = true;
   // v6 max: the tactical sprint's pose (?tac=1, with &speed=10.5).
   if (q.get("tac")) h.anim.tacWant = 1;
+  // v6 max: the suit's effects (?camo=1; ?power=1 strength | 2 speed).
+  if (q.get("camo") || q.get("power")) {
+    const pk = Number(q.get("power") ?? 0);
+    const col = pk === 1 ? [1, 0.35, 0.05] : [0.35, 0.8, 1];
+    setInterval(() => h.setFx(Number(q.get("camo") ?? 0), pk, col[0], col[1], col[2], pk ? 1 : 0, performance.now() / 1000), 16);
+  }
   // v4: zombies (?zombie=all: the eight kinds across; ?zombie=<kind>; &blood=1).
   const zq = q.get("zombie");
   if (zq !== null) {

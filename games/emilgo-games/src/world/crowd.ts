@@ -236,6 +236,11 @@ export class Crowd {
     this.people[i]?.setFierce(level);
   }
 
+  /** v6 max: body i's suit effects (Human.setFx). */
+  setFx(i: number, camo: number, kind: number, r: number, g: number, b: number, a: number, time: number): void {
+    this.people[i]?.setFx(camo, kind, r, g, b, a, time);
+  }
+
   /** In a car (vehicles): seated `lift` metres above the body's floor, the driver's hands on the wheel; null: standing. */
   setSeat(i: number, seat: { lift: number; driver: boolean } | null): void {
     const h = this.people[i];

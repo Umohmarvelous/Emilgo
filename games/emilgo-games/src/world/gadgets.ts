@@ -11,6 +11,11 @@
 //   drum      the rival a Talking Drum found: a red column over them, on
 //             your screen only
 //
+// v6 max: in Treasure Hunt the Decoy is a closed chest like the real ones (on
+// the map as a chest); the Pulse Scanner sends a sweep out from you, and every
+// rival it finds gets a column; whoever springs your decoy is marked the same
+// way.
+//
 // One instanced draw each for the puffs, the peels, the decoys and the rings.
 
 import {
@@ -37,11 +42,13 @@ import type { Sound } from "../audio/sound";
 import { GADGETS } from "../config";
 import type { Match } from "../game/core/match";
 import type { MatchEvent } from "../game/core/module";
-import type { GadgetsModule } from "../game/modules/gadgets";
+import { CAMO, type GadgetsModule } from "../game/modules/gadgets";
+import { t } from "../ui/i18n";
 import type { Hud } from "../ui/hud";
 import type { MapMark } from "../ui/minimap";
 import type { Crowd } from "./crowd";
 import { merge, part } from "./geo";
+import { chestGeometry } from "./treasure";
 
 const PUFFS_PER_CLOUD = 18;
 const MAX_CLOUDS = 6;
@@ -49,6 +56,7 @@ const MAX_PEELS = 24;
 const MAX_DECOYS = 12;
 const MAX_RINGS = 12;
 const MAX_BURSTS = 64;
+const MAX_COLUMNS = 8;
 
 interface Ring {
   x: number;
@@ -110,6 +118,8 @@ export class GadgetView {
   private readonly smoke: InstancedMesh;
   private readonly peels: InstancedMesh;
   private readonly decoys: InstancedMesh;
+  /** v6 max: Treasure Hunt's decoys: chests. */
+  private readonly decoyChests: InstancedMesh;
   private readonly rings: InstancedMesh;
   private readonly bursts: InstancedMesh;
   private readonly column: InstancedMesh;
@@ -131,9 +141,10 @@ export class GadgetView {
     this.smoke = make(new IcosahedronGeometry(1, 1), new MeshLambertMaterial({ color: 0xd8d2c6, transparent: true, opacity: 0.9 }), PUFFS_PER_CLOUD * MAX_CLOUDS);
     this.peels = make(peelGeometry(), new MeshLambertMaterial({ vertexColors: true }), MAX_PEELS);
     this.decoys = make(decoyGeometry(), new MeshLambertMaterial({ vertexColors: true, side: DoubleSide }), MAX_DECOYS);
+    this.decoyChests = make(chestGeometry(false), new MeshLambertMaterial({ vertexColors: true }), MAX_DECOYS);
     this.rings = make(new RingGeometry(0.9, 1, 40, 1).rotateX(-Math.PI / 2), new MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, blending: AdditiveBlending, depthWrite: false, side: DoubleSide, forceSinglePass: true }), MAX_RINGS, true);
     this.bursts = make(new IcosahedronGeometry(1, 0), new MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7, depthWrite: false }), MAX_BURSTS, true);
-    this.column = make(new CylinderGeometry(0.35, 0.35, 1, 10, 1, true).translate(0, 0.5, 0), new MeshBasicMaterial({ color: 0xff3a2a, transparent: true, opacity: 0.45, blending: AdditiveBlending, depthWrite: false, side: DoubleSide, forceSinglePass: true }), 4);
+    this.column = make(new CylinderGeometry(0.35, 0.35, 1, 10, 1, true).translate(0, 0.5, 0), new MeshBasicMaterial({ color: 0xff3a2a, transparent: true, opacity: 0.45, blending: AdditiveBlending, depthWrite: false, side: DoubleSide, forceSinglePass: true }), MAX_COLUMNS);
   }
 
   events(list: readonly MatchEvent[], m: Match, cam: Vector3): void {
@@ -142,12 +153,13 @@ export class GadgetView {
     const s = this.o.sound;
     for (const e of list) {
       if (e.type === "reveal") {
-        if (e.id === me.id) this.o.hud.pushFeed(e.tg ? `${m.get(e.tg)?.name ?? ""}: ${Math.round(GADGETS.drum.s)} s` : "Nobody near enough to hear", "info");
-        else if (e.tg === me.id) this.o.hud.pushFeed("A talking drum found you", "out");
+        if (e.id === me.id && e.tg) this.o.hud.pushFeed(`${t("Marked")}: ${m.get(e.tg)?.name ?? ""}`, "info");
+        else if (e.id === me.id) this.o.hud.pushFeed(t("Pulse: nobody in range"), "info");
+        else if (e.tg === me.id) this.o.hud.pushFeed(t("You've been marked: keep moving"), "out");
         continue;
       }
       if (e.type === "disguise") {
-        if (e.id === me.id) this.o.hud.pushFeed(e.squad >= 0 ? "In disguise" : "Disguise off", "info");
+        if (e.id === me.id) this.o.hud.pushFeed(e.squad >= 0 ? t("In disguise: they see a squad mate") : e.squad === CAMO ? t("Camouflaged: off every sensor") : t("Disguise off"), "info");
         continue;
       }
       if (e.type !== "gadget") continue;
@@ -194,13 +206,30 @@ export class GadgetView {
         case "lost":
           this.ringList.length = Math.max(0, this.ringList.length - 1);
           break;
-        case "pop":
-          for (let k = 0; k < 10; k++) this.burst({ x: e.x, y: e.h + 1.5, z: e.z, vx: (Math.random() - 0.5) * 3, vy: Math.random() * 2, vz: (Math.random() - 0.5) * 3, age: 0, life: 0.7, size: 0.14 }, 0xffc23a);
-          if (e.id === me.id) this.o.hud.pushFeed("A decoy!", "out");
+        case "pop": {
+          // v6 max: a flash of dye and sparks, and a ring: the trap is sprung.
+          const hunt = !!m.module("treasure");
+          for (let k = 0; k < 18; k++) this.burst({ x: e.x, y: e.h + (hunt ? 0.5 : 1.5), z: e.z, vx: (Math.random() - 0.5) * 4, vy: 1 + Math.random() * 3, vz: (Math.random() - 0.5) * 4, age: 0, life: 0.9, size: 0.16 }, k % 3 ? 0xff4fd8 : 0xffc23a);
+          this.ringList.push({ x: e.x, y: e.h + 0.1, z: e.z, age: 0, life: 0.5, r0: 0.4, r1: 4, color: 0xff4fd8, pulse: false });
+          if (e.id === me.id) {
+            this.o.hud.pushFeed(t("A decoy! You're stunned and marked"), "out");
+            this.o.hud.flashRed();
+          }
+          if (near(e.x, e.z, 50) > 0) s?.explosion(0.25 * near(e.x, e.z, 50));
           s?.empty();
           break;
+        }
         case "smoke":
           if (near(e.x, e.z, 40) > 0) s?.crash(0.15);
+          break;
+        // v6 max: the Pulse Scanner's sweep: a ring racing out from the scanner (yours, or one near you).
+        case "pulse":
+          if (e.id === me.id || near(e.x, e.z, 60) > 0) {
+            this.ringList.push({ x: e.x, y: e.h + 0.4, z: e.z, age: 0, life: 1.1, r0: 1, r1: e.id === me.id ? 60 : 25, color: 0x3fe0ff, pulse: false });
+            this.ringList.push({ x: e.x, y: e.h + 0.4, z: e.z, age: 0, life: 1.5, r0: 0.5, r1: e.id === me.id ? 40 : 18, color: 0x9ff3ff, pulse: false });
+            s?.talkingDrum();
+          }
+          if (e.id === me.id && e.n > 0) this.o.hud.pushFeed(`${t("Pulse")}: ${e.n} ${e.n === 1 ? t("rival found") : t("rivals found")}`, "info");
           break;
         default:
           break;
@@ -222,6 +251,8 @@ export class GadgetView {
     let puffs = 0;
     let peels = 0;
     let decoys = 0;
+    let chests = 0;
+    const hunt = !!m.module("treasure");
     let inSmoke = false;
     if (g) {
       for (const p of g.placed) {
@@ -246,19 +277,29 @@ export class GadgetView {
           _m.compose(_v.set(p.x, p.h, p.z), _q, _s.set(1.4, 1.4, 1.4));
           this.peels.setMatrixAt(peels++, _m);
         } else if (p.kind === "decoy" && decoys < MAX_DECOYS) {
-          // Flapping a little, like the real one.
-          _q.setFromAxisAngle(UP, Math.sin(this.time * 1.3 + p.index) * 0.4);
-          _m.compose(_v.set(p.x, p.h, p.z), _q, _s.set(1, 1, 1));
-          this.decoys.setMatrixAt(decoys++, _m);
-          // On the map like any loose flag (it's the compass that tells).
-          marks.push({ x: p.x, z: p.z, kind: "flag" });
+          if (hunt) {
+            // Treasure Hunt: a closed chest like the real ones, on the map as a chest.
+            _q.setFromAxisAngle(UP, p.index * 2.1);
+            _m.compose(_v.set(p.x, p.h, p.z), _q, _s.set(1, 1, 1));
+            this.decoyChests.setMatrixAt(chests++, _m);
+            marks.push({ x: p.x, z: p.z, kind: "chest" });
+            decoys++;
+          } else {
+            // Flapping a little, like the real one.
+            _q.setFromAxisAngle(UP, Math.sin(this.time * 1.3 + p.index) * 0.4);
+            _m.compose(_v.set(p.x, p.h, p.z), _q, _s.set(1, 1, 1));
+            this.decoys.setMatrixAt(decoys++ - chests, _m);
+            // On the map like any loose flag (it's the compass that tells).
+            marks.push({ x: p.x, z: p.z, kind: "flag" });
+          }
         }
       }
     }
     this.smoke.count = puffs;
     this.peels.count = peels;
-    this.decoys.count = decoys;
-    this.smoke.instanceMatrix.needsUpdate = this.peels.instanceMatrix.needsUpdate = this.decoys.instanceMatrix.needsUpdate = true;
+    this.decoys.count = decoys - chests;
+    this.decoyChests.count = chests;
+    this.smoke.instanceMatrix.needsUpdate = this.peels.instanceMatrix.needsUpdate = this.decoys.instanceMatrix.needsUpdate = this.decoyChests.instanceMatrix.needsUpdate = true;
 
     // The Talking Drum's find: a red column over them, and on your map.
     let cols = 0;
@@ -266,7 +307,7 @@ export class GadgetView {
       for (const r of g.reveals) {
         if (r.by !== this.o.me || r.until <= t) continue;
         const c = m.contestants[r.tg];
-        if (!c || c.status !== "alive" || cols >= 4) continue;
+        if (!c || c.status !== "alive" || cols >= MAX_COLUMNS) continue;
         _m.makeScale(1, 40, 1).setPosition(c.x, c.h, c.z);
         this.column.setMatrixAt(cols++, _m);
         marks.push({ x: c.x, z: c.z, kind: "ping" });

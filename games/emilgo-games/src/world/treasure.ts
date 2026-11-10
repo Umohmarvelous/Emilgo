@@ -45,6 +45,7 @@ import { TREASURE } from "../config";
 import type { Sound } from "../audio/sound";
 import type { Match } from "../game/core/match";
 import type { MatchEvent } from "../game/core/module";
+import type { GadgetsModule } from "../game/modules/gadgets";
 import type { TreasureModule } from "../game/modules/treasure";
 import type { ItemPin } from "../ui/hud";
 import type { MapMark } from "../ui/minimap";
@@ -84,7 +85,7 @@ const MAX_GLOWS = 16;
 // ── The things ──────────────────────────────────────────────────────────────
 
 /** A wooden chest with iron bands and a brass lock; `open` lies its lid back. */
-function chestGeometry(open: boolean): BufferGeometry {
+export function chestGeometry(open: boolean): BufferGeometry {
   const wood = 0x6b4426;
   const dark = 0x4a2e19;
   const iron = 0x2a2b2e;
@@ -630,6 +631,8 @@ export class TreasureView {
       // map and compass, so the end of a match always has a fight. Called out once in the feed.
       for (const c of m.contestants) {
         if (c === me || c.status !== "alive" || m.sameSquad(c, me) || tm.count[c.index] < tm.need - 1) continue;
+        // v6 max: camouflage hides even a carrier.
+        if (m.module<GadgetsModule>("gadgets")?.camo(c.index)) continue;
         marks.push({ x: c.x, z: c.z, kind: "ping", label: c.name });
         aim(c.x, c.z, "hot", -200);
         if (!this.warned.has(c.index)) {

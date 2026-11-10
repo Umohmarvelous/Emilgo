@@ -29,6 +29,12 @@
 //   Breakdance Sweep     trips everyone round you (a jump or a brace beats
 //                        it), then you're Dazed.
 //
+// v6 max (the owner: "every item working perfectly", Treasure Hunt first): the Decoy works in every mode
+// (Treasure Hunt: it's a chest; elsewhere a flag) and marks whoever springs it for its owner; the Pulse
+// Scanner finds every rival in range, not only the nearest; the Squad Disguise with no squads to copy (solo)
+// is camouflage: off every sensor (scanner, Map Print, the carrier warning, auto-shoot), no name over your
+// head. Firing ends a disguise, as a swing does. Smoke hides whoever is in it from auto-shoot and name tags.
+//
 // Pure and seeded like every module; the copy on a phone hears it all as events.
 
 import { GADGETS, MOVE } from "../../config";
@@ -40,7 +46,7 @@ import type { MatchEvent, RuleModule } from "../core/module";
 import type { MeleeModule } from "./melee";
 import type { VehiclesModule } from "./vehicles";
 
-export type GadgetKind = "smoke" | "peel" | "powder" | "wave-up" | "wave" | "decoy" | "pop" | "slip" | "sneeze" | "lost" | "zanku" | "shaku" | "odogwu" | "sweep";
+export type GadgetKind = "smoke" | "peel" | "powder" | "wave-up" | "wave" | "decoy" | "pop" | "slip" | "sneeze" | "lost" | "zanku" | "shaku" | "odogwu" | "sweep" | "pulse";
 
 /** Something an item left in the world: a smoke cloud, a peel, a decoy flag. */
 export interface Placed {
@@ -55,12 +61,15 @@ export interface Placed {
   until: number;
 }
 
+/** v6 max: what `wearing` holds for camouflage (a disguise with no squad to copy). */
+export const CAMO = -2;
+
 export class GadgetsModule implements RuleModule {
   readonly id = "gadgets" as const;
   readonly placed: Placed[] = [];
   /** The Talking Drum: who sees whom, until when. */
   readonly reveals: { by: number; tg: number; until: number }[] = [];
-  /** Aso-ebi: the squad each body wears (−1: their own), until when. */
+  /** Aso-ebi: the squad each body wears (−1: their own; CAMO: camouflage, solo), until when. */
   wearing = new Int32Array(0);
   wearUntil = new Float64Array(0);
   /** Megaphones winding up: whose, and when the wave goes. */
@@ -80,8 +89,8 @@ export class GadgetsModule implements RuleModule {
     if (m.seated(c) && kind !== "talking-drum" && kind !== "aso-ebi") return false;
     // One dance at a time.
     if ((kind === "zanku" || kind === "odogwu" || kind === "breakdance" || kind === "shaku") && (m.effect(c, "dance") > 0 || m.effect(c, "pose") > 0 || m.effect(c, "shaku-after") > 0)) return false;
-    if (kind === "decoy-flag") return !!m.module("flags");
-    if (kind === "aso-ebi") return this.rivalSquad(m, c) >= 0 && this.wearing[c.index] < 0;
+    // v6 max: the decoy and the disguise in every mode.
+    if (kind === "aso-ebi") return this.wearing[c.index] === -1;
     if (kind === "megaphone") return !this.waves.some((w) => w.by === c.index);
     return true;
   }
@@ -106,16 +115,17 @@ export class GadgetsModule implements RuleModule {
         }
         break;
       }
-      // A swing ends a disguise.
-      case "swing": {
+      // A swing or a shot ends a disguise.
+      case "swing":
+      case "fire": {
         const c = m.get(e.id);
-        if (c && this.wearing[c.index] >= 0) this.unwear(m, c);
+        if (c && this.wearing[c.index] !== -1) this.unwear(m, c);
         break;
       }
       case "eliminated": {
         const c = m.get(e.id);
         if (!c) break;
-        if (this.wearing[c.index] >= 0) this.unwear(m, c);
+        if (this.wearing[c.index] !== -1) this.unwear(m, c);
         for (let k = this.waves.length - 1; k >= 0; k--) if (this.waves[k].by === c.index) this.waves.splice(k, 1);
         break;
       }
@@ -166,24 +176,24 @@ export class GadgetsModule implements RuleModule {
         m.emit({ type: "gadget", kind: "wave-up", n: -1, id: c.id, x: c.x, z: c.z, h: c.h });
         break;
       case "talking-drum": {
-        // The nearest rival you could find: not in smoke, not driving too fast for anyone to see.
-        let best: Contestant | null = null;
-        let bestD: number = G.drum.range;
+        // v6 max: the Pulse Scanner's sweep finds every rival within range (nearest first), not in smoke, not in
+        // camouflage, not driving too fast for anyone to see.
         const cars = m.module<VehiclesModule>("vehicles");
+        const found: { o: Contestant; d: number }[] = [];
         for (const o of m.contestants) {
           if (o === c || o.status !== "alive" || m.sameSquad(c, o)) continue;
-          if (this.inSmoke(m, o.x, o.z) || cars?.hidden(m, o)) continue;
+          if (this.hidden(m, o.index) || cars?.hidden(m, o)) continue;
           const d = Math.hypot(o.x - c.x, o.z - c.z);
-          if (d < bestD) {
-            bestD = d;
-            best = o;
-          }
+          if (d <= G.drum.range) found.push({ o, d });
         }
-        if (best) {
-          const until = t + G.drum.s;
-          this.reveals.push({ by: c.index, tg: best.index, until });
-          m.emit({ type: "reveal", id: c.id, tg: best.id, until });
-        } else m.emit({ type: "reveal", id: c.id, tg: null, until: t });
+        found.sort((a, b) => a.d - b.d);
+        const until = t + G.drum.s;
+        for (const f of found.slice(0, G.drum.most)) {
+          this.reveals.push({ by: c.index, tg: f.o.index, until });
+          m.emit({ type: "reveal", id: c.id, tg: f.o.id, until });
+        }
+        if (!found.length) m.emit({ type: "reveal", id: c.id, tg: null, until: t });
+        m.emit({ type: "gadget", kind: "pulse", n: found.length, id: c.id, x: c.x, z: c.z, h: c.h });
         break;
       }
       case "zanku": {
@@ -225,11 +235,11 @@ export class GadgetsModule implements RuleModule {
         break;
       }
       case "aso-ebi": {
+        // A rival squad's colour; with none to copy (solo), camouflage.
         const q = this.rivalSquad(m, c);
-        if (q < 0) break;
-        this.wearing[c.index] = q;
+        this.wearing[c.index] = q >= 0 ? q : CAMO;
         this.wearUntil[c.index] = t + G.disguise.s;
-        m.emit({ type: "disguise", id: c.id, squad: q, until: t + G.disguise.s });
+        m.emit({ type: "disguise", id: c.id, squad: q >= 0 ? q : CAMO, until: t + G.disguise.s });
         break;
       }
       default:
@@ -339,12 +349,18 @@ export class GadgetsModule implements RuleModule {
           o.stun = Math.max(o.stun, G.decoy.stun);
           o.sprinting = false;
           if (melee) melee.shove(m, o, 0, 0, 0, G.decoy.stun, G.decoy.wobble);
+          // v6 max: the trap marks them for its owner (on the map and the compass) for a while.
+          if (owner.status === "alive") {
+            const until = t + G.decoy.mark;
+            this.reveals.push({ by: owner.index, tg: o.index, until });
+            m.emit({ type: "reveal", id: owner.id, tg: o.id, until });
+          }
         }
         break;
       }
     }
     // Disguises wearing off.
-    for (const c of m.contestants) if (this.wearing[c.index] >= 0 && t >= this.wearUntil[c.index]) this.unwear(m, c);
+    for (const c of m.contestants) if (this.wearing[c.index] !== -1 && t >= this.wearUntil[c.index]) this.unwear(m, c);
     for (let k = this.reveals.length - 1; k >= 0; k--) if (this.reveals[k].until <= t) this.reveals.splice(k, 1);
   }
 
@@ -357,6 +373,17 @@ export class GadgetsModule implements RuleModule {
   /** The squad body i shows to others (a disguise), or its own. */
   shownSquad(m: Match, i: number): number {
     return this.wearing[i] >= 0 ? this.wearing[i] : m.squads[i];
+  }
+
+  /** v6 max: in camouflage (a solo disguise). */
+  camo(i: number): boolean {
+    return this.wearing[i] === CAMO;
+  }
+
+  /** v6 max: off the sensors and the sights: in camouflage, or inside a smoke cloud. */
+  hidden(m: Match, i: number): boolean {
+    const c = m.contestants[i];
+    return this.wearing[i] === CAMO || (!!c && this.inSmoke(m, c.x, c.z));
   }
 
   // ── The online client's copy ──

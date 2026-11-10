@@ -213,7 +213,11 @@ console.log("the §10 items:");
   items.packs[0][0] = "decoy-flag";
   noFlags.setPack("p0", ((++packN & 511) << 5) | 0);
   runFor(noFlags, DT * 2);
-  check(items.packs[0][0] === "decoy-flag", "in a mode without flags it stays in the pack");
+  // v6 max: the decoy works in every mode.
+  check(items.packs[0][0] !== "decoy-flag" && gad(noFlags).placed.some((p) => p.kind === "decoy"), "v6 max: in a mode without flags it's set down too");
+  // v6 max: whoever springs it is marked for its owner.
+  const marked = ev2.some((e) => e.type === "reveal" && e.id === "p0" && e.tg === "p1") && gad(m).reveals.some((x) => x.by === m.get("p0")!.index && x.tg === m.get("p1")!.index);
+  check(marked, `and is marked for the decoy's owner for ${GADGETS.decoy.mark} s`);
 }
 {
   // Aso-ebi: wear a rival squad's colour; it ends when you swing.
@@ -235,7 +239,19 @@ console.log("the §10 items:");
   it.packs[0][0] = "aso-ebi";
   solo.setPack("p0", ((++packN & 511) << 5) | 0);
   runFor(solo, DT * 2);
-  check(it.packs[0][0] === "aso-ebi", "with nobody in squads it stays in the pack");
+  // v6 max: solo, it's camouflage: off the scanner, until you fire.
+  const sg = gad(solo);
+  check(it.packs[0][0] !== "aso-ebi" && sg.camo(0) && sg.hidden(solo, 0), "v6 max: with nobody in squads it's camouflage");
+  clear(solo, ["p0", "p1", "p2"]);
+  put(solo, "p0", YX, YZ);
+  put(solo, "p1", YX + 20, YZ);
+  put(solo, "p2", YX - 30, YZ);
+  const scan = use(solo, "p1", "talking-drum");
+  const found = scan.filter((e) => e.type === "reveal" && e.id === "p1").map((e) => (e as { tg: string | null }).tg);
+  check(!found.includes("p0") && found.includes("p2"), `the Pulse Scanner finds every rival in range but the camouflaged (${found.join(",")})`);
+  solo.emit({ type: "fire", id: "p0", g: 0, x: 0, y: 0, z: 0, hit: 0, mag: 1 } as never);
+  runFor(solo, DT * 2);
+  check(!sg.camo(0), "firing ends it");
 }
 {
   // The phone's copy agrees.

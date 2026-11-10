@@ -27,7 +27,7 @@
 // elbows, a squared, stitched thigh pocket, a crisp armband), and the pads and
 // pockets take a darker tone of the picked colour, not a fixed black.
 
-import { CanvasTexture, Color, MeshLambertMaterial, MeshStandardMaterial, RepeatWrapping, SRGBColorSpace, Vector2, Vector3, type Material } from "three";
+import { CanvasTexture, Color, MeshLambertMaterial, MeshStandardMaterial, RepeatWrapping, SRGBColorSpace, Vector2, Vector3, Vector4, type Material } from "three";
 
 import type { Tier } from "./mesh";
 import { BONES, type BoneName, type V3 } from "./skeleton";
@@ -127,6 +127,12 @@ export function suitMaterial(look: Look, tier: Tier, rest: Record<BoneName, V3>)
     eyeHalf: { value: new Vector2(Math.abs(eyeL.x - eyeR.x) * 0.5 + 0.024, 0.0145) },
     // v5 (3.2): growth, 0 … 3: the eyes burn red, then red veins open in a darker suit.
     fierce: { value: 0 },
+    // v6 max: the solo Squad Disguise's camouflage (0 … 1), and the effects' clock (set only while one runs).
+    camo: { value: 0 },
+    fxTime: { value: 0 },
+    // v6 max (3.2): a booster's power: the glow's colour (rgb) and strength (a): the eyes, the energy lines.
+    power: { value: new Vector4(1, 0.16, 0.04, 0) },
+    powerKind: { value: 0 },
     // v5 (3.5): the face open round the eyes and the nose (1), or the closed mask, the eyes alone (0).
     faceOpen: { value: look.mask === "closed" ? 0 : 1 },
     hemY: { value: rest.neck.y + 0.038 },
@@ -152,8 +158,10 @@ export function suitMaterial(look: Look, tier: Tier, rest: Record<BoneName, V3>)
         `#include <common>
         flat varying int vReg; varying float vRS, vRS2; varying vec3 vBind; varying vec3 vBindN; varying vec4 vPal; varying float vAcc; varying vec2 vLimb;
         uniform sampler2D weaveMap; uniform vec3 skinCol, bandCol, eyeC, suitA, suitB; uniform vec2 eyeHalf; uniform int design; uniform float fierce; uniform float faceOpen;
+        uniform float camo, fxTime; uniform vec4 power; uniform int powerKind;
         uniform float hemY, bootY; uniform vec3 wristP, armD, kneeP, elbowP; uniform vec2 pocketY, bandY;
         float fglow = 0.0;
+        vec3 fglowC = vec3(1.0, 0.16, 0.04);
         // The suit's pattern, on the bind pose in metres, so it never swims (order: HOODIE_DESIGNS).
         float hash2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
         float vnoise(vec2 p) {
@@ -311,6 +319,12 @@ export function suitMaterial(look: Look, tier: Tier, rest: Record<BoneName, V3>)
             else { c *= 0.85 + 0.3 * wv.g; hgt = wv.g; }
             // Grown: the eyes burn (the band across them, open face or closed).
             if (slit && fierce > 0.5) fglow = 0.55 + 0.25 * fierce;
+            // v6 max (3.2): a booster: light from the sockets round the eyes (the eyes themselves burn: region 9).
+            if (power.a > 0.01 && face) {
+              float sk = exp(-((abs(d.x) - 0.03) * (abs(d.x) - 0.03)) / 0.0005 - (d.y * d.y) / 0.0003);
+              if (sk * power.a > fglow) { fglow = sk * power.a * 0.9; fglowC = power.rgb; }
+            }
+            if (power.a > 0.01 && slit) { fglow = max(fglow, 0.9 + 0.8 * power.a); fglowC = power.rgb; }
           } else if (r == 9) {
             vec3 en = normalize(vBindN);
             float z = en.z;
@@ -321,12 +335,42 @@ export function suitMaterial(look: Look, tier: Tier, rest: Record<BoneName, V3>)
             // The lids over the top and bottom of the ball: an almond opening.
             float lid = en.y > 0.36 + 0.1 * abs(en.x) || en.y < -0.3 - 0.08 * abs(en.x) ? 1.0 : 0.0;
             if (lid > 0.5) { c = mix(skinCol, vec3(dot(skinCol, vec3(0.33))), 0.3) * 0.3; rough = 0.6; }
+            // v6 max (3.2): a booster: the eyes burn in its colour, brightest in the iris, flickering.
+            if (power.a > 0.01 && lid < 0.5) {
+              float fl = 0.85 + 0.15 * sin(fxTime * 23.0 + en.x * 9.0);
+              c = mix(c, power.rgb, 0.7);
+              fglow = (1.2 + 1.4 * smoothstep(0.8, 0.97, z)) * power.a * fl;
+              fglowC = mix(power.rgb, vec3(1.0), 0.35 * smoothstep(0.9, 0.98, z));
+            }
           }
           c = mix(c, bandCol * (0.8 + 0.25 * wv.r), bandM);
+          // v6 max: camouflage: the whole body takes on a mottled earth-and-leaf pattern (the eyes stay), and a faint
+          // heat shimmer runs up it, the look of active camouflage.
+          if (camo > 0.01 && r != 9) {
+            vec2 cq = abs(vBindN.x) > 0.6 ? vBind.zy : vBind.xy;
+            float n1 = vnoise(cq * 6.0 + 3.1), n2 = vnoise(cq * 13.0 + 7.7);
+            vec3 cc = mix(vec3(0.045, 0.043, 0.032), vec3(0.075, 0.085, 0.045), smoothstep(0.45, 0.55, n1));
+            cc = mix(cc, vec3(0.022, 0.02, 0.016), smoothstep(0.58, 0.66, n2));
+            cc = mix(cc, vec3(0.12, 0.11, 0.08), step(0.72, vnoise(cq * 21.0)) * 0.5);
+            float shim = 0.5 + 0.5 * sin(vBind.y * 46.0 - fxTime * 7.0 + n1 * 6.0);
+            cc *= 0.85 + 0.3 * shim * camo;
+            c = mix(c, cc, camo * 0.92);
+            rough = mix(rough, 0.95, camo);
+          }
+          // v6 max (3.2): a booster's energy lines: strength, cracks of fire that pulse; speed, electric lines that crawl.
+          if (power.a > 0.01 && (r <= 1 || r == 5 || r == 6 || r == 7)) {
+            vec2 pq = abs(vBindN.x) > 0.6 ? vBind.zy : vBind.xy;
+            float line;
+            if (powerKind == 1) line = 1.0 - smoothstep(0.0, 0.03, abs(vnoise(pq * 8.0 + vBind.y * 2.0) - 0.5));
+            else line = 1.0 - smoothstep(0.0, 0.02, abs(vnoise(pq * 10.0 + vec2(0.0, fxTime * 1.6)) - 0.5));
+            float pulse = powerKind == 1 ? 0.65 + 0.35 * sin(fxTime * 5.0 + vBind.y * 4.0) : 0.5 + 0.5 * step(0.4, fract(fxTime * 7.0 + vnoise(pq * 3.0) * 4.0));
+            float g = line * pulse * power.a;
+            if (g > fglow) { fglow = g; fglowC = power.rgb; }
+          }
           diffuseColor.rgb = c;
         }`,
       )
-      .replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\ntotalEmissiveRadiance += fglow * vec3(1.0, 0.16, 0.04);");
+      .replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\ntotalEmissiveRadiance += fglow * fglowC;");
     if (!lit) {
       s.fragmentShader = s.fragmentShader
         .replace("#include <roughnessmap_fragment>", "#include <roughnessmap_fragment>\nroughnessFactor = rough;")
@@ -347,8 +391,13 @@ export function suitMaterial(look: Look, tier: Tier, rest: Record<BoneName, V3>)
         );
     }
   };
-  mat.customProgramCacheKey = () => `suit4:${lit ? "l" : "s"}`;
+  mat.customProgramCacheKey = () => `suit5:${lit ? "l" : "s"}`;
   // The growth level, set per body (Human.setFierce).
   mat.userData.fierce = u.fierce;
+  // v6 max: camouflage, the booster's power, the effects' clock.
+  mat.userData.camo = u.camo;
+  mat.userData.fxTime = u.fxTime;
+  mat.userData.power = u.power;
+  mat.userData.powerKind = u.powerKind;
   return mat;
 }

@@ -731,6 +731,19 @@ export class Human {
     if (!this.op) this.tint(level > 0 ? 0xb8a8a8 : null, level > 0 ? 0x1a0402 * level : 0);
   }
 
+  /**
+   * v6 max: the suit's effects (suit.ts): camouflage 0 … 1; a booster's power (kind 1 strength, 2 speed; its
+   * glow colour; strength 0 … 1); the clock their animation runs on. Operators only (the old dress ignores them).
+   */
+  setFx(camo: number, kind: number, r: number, g: number, b: number, a: number, time: number): void {
+    const u = this.opMat?.userData as { camo?: { value: number }; fxTime?: { value: number }; power?: { value: { set(x: number, y: number, z: number, w: number): void } }; powerKind?: { value: number } } | undefined;
+    if (!u?.camo) return;
+    u.camo.value = camo;
+    u.fxTime!.value = time;
+    u.power!.value.set(r, g, b, a);
+    u.powerKind!.value = kind;
+  }
+
   hideHead(on: boolean): void {
     const head = this.bone("head");
     const s = on ? 0.001 : 1;

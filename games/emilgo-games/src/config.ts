@@ -889,8 +889,10 @@ export const GADGETS = {
   powder: { r: 4.5, cone: 0.6, stun: 0.9, wobble: 0.25 },
   /** Winds up, then pushes everyone within r. */
   wave: { windup: 0.8, r: 6, knock: 2.6, stun: 0.5, wobble: 0.15 },
-  decoy: { s: 60, r: 1.1, stun: 1.2, wobble: 0.2 },
-  drum: { s: 5, range: 160 },
+  /** v6 max: the trap stuns longer, and marks whoever springs it for its owner for `mark` s. */
+  decoy: { s: 90, r: 1.3, stun: 2, wobble: 0.3, mark: 8 },
+  /** v6 max: the Pulse Scanner finds every rival within range (up to `most`), each for s. */
+  drum: { s: 6, range: 160, most: 8 },
   disguise: { s: 20 },
   /** The power-emote cards (§10.2). Zanku: rivals within r facing you (within `face` rad) wobble ×more for s; you're rooted for s. */
   zanku: { s: 3, r: 6, face: 1.05, more: 1.2 },

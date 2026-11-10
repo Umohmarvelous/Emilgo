@@ -677,7 +677,9 @@ export class FfaView {
       const d = Math.hypot(c.x - camera.position.x, c.z - camera.position.z);
       const wob = mel ? mel.wobble[c.index] : 0;
       const brace = mel ? mel.brace[c.index] : false;
-      const show = c.status === "alive" && !(firstPerson && c === me) && (d < HEAD_RANGE || ((mate || holder) && d < FAR_RANGE));
+      // v6 max: a rival in smoke or camouflage has no name over their head.
+      const hid = c !== me && !m.sameSquad(c, me) && !!m.module<GadgetsModule>("gadgets")?.hidden(m, c.index);
+      const show = c.status === "alive" && !hid && !(firstPerson && c === me) && (d < HEAD_RANGE || ((mate || holder) && d < FAR_RANGE));
       let on = false;
       if (show) {
         _v.set(c.x, c.h + c.y + (c.stance === 2 ? 0.7 : c.stance === 1 ? 1.5 : 2.05), c.z).project(camera);

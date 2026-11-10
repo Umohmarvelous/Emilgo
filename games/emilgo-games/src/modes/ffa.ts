@@ -19,6 +19,7 @@ import { Match, settingsOf, weeklyMutator, type MatchWorld } from "../game/core/
 import type { MatchEvent } from "../game/core/module";
 import type { CaptureModule } from "../game/modules/capture";
 import type { FlagsModule } from "../game/modules/flags";
+import type { GadgetsModule } from "../game/modules/gadgets";
 import type { MeleeModule } from "../game/modules/melee";
 import type { HarmattanModule } from "../game/modules/harmattan";
 import type { VehiclesModule } from "../game/modules/vehicles";
@@ -543,8 +544,11 @@ export class FfaMode implements GameMode {
     const o = h.camera.position;
     const reach = range + Math.hypot(o.x - me.x, o.z - me.z);
     const space = m.world.space;
+    const gd = m.module<GadgetsModule>("gadgets");
     for (const c of m.contestants) {
       if (c === me || c.status !== "alive" || (!this.dead && m.squads[c.index] === m.squads[me.index]) || m.seated(c)) continue;
+      // v6 max: auto-shoot can't see into smoke or camouflage, and takes a rival in your colours for a mate.
+      if (gd && (gd.hidden(m, c.index) || gd.shownSquad(m, c.index) === m.squads[me.index])) continue;
       const px = c.x - o.x;
       const pz = c.z - o.z;
       const dist = px * dx + pz * dz;
@@ -1235,6 +1239,7 @@ export class FfaMode implements GameMode {
       const list: [number, ZombieBar][] = [];
       for (const c of m.contestants) {
         if (c === me || c.status !== "alive" || m.elapsed - this.zHitAt[c.index] > 3 || m.seated(c)) continue;
+        if (m.module<GadgetsModule>("gadgets")?.hidden(m, c.index)) continue;
         const d = Math.hypot(c.x - me.x, c.z - me.z);
         if (d > 80) continue;
         _bar.set(c.x, c.h + c.y + 2.05, c.z).project(cam);
@@ -1353,8 +1358,11 @@ export class FfaMode implements GameMode {
       }
       return;
     }
+    const gd = m.module<GadgetsModule>("gadgets");
     for (const c of m.contestants) {
       if (c === me || c.status !== "alive") continue;
+      // v6 max: camouflage keeps a rival off the print too.
+      if (gd?.camo(c.index) && !m.sameSquad(c, me)) continue;
       this.marks.push({ x: c.x, z: c.z, kind: m.sameSquad(c, me) ? "mate" : "rival", label: c.name });
     }
     const items = m.module<ItemsModule>("items");

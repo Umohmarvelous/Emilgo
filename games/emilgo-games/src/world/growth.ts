@@ -23,6 +23,7 @@ import {
 
 import { GROWTH } from "../config";
 import type { Match } from "../game/core/match";
+import type { GadgetsModule } from "../game/modules/gadgets";
 import type { ItemsModule } from "../game/modules/items";
 import type { Crowd } from "./crowd";
 
@@ -60,6 +61,8 @@ export class GrowthView {
   private readonly auras: InstancedMesh;
   private readonly mat: ShaderMaterial;
   private readonly shown: number[] = [];
+  /** v6 max: each body's suit effects as last set (camouflage blended in and out), so unchanged ones aren't set again. */
+  private camoNow: number[] = [];
   private time = 0;
 
   constructor(private readonly crowd: Crowd) {
@@ -73,9 +76,10 @@ export class GrowthView {
 
   /** Every frame. */
   update(dt: number, m: Match, cam: Vector3, me: number, firstPerson: boolean): void {
+    this.time += dt;
+    this.suitFx(dt, m);
     const items = m.module<ItemsModule>("items");
     if (!items) return;
-    this.time += dt;
     this.mat.uniforms.time.value = this.time;
     let n = 0;
     for (const c of m.contestants) {
@@ -95,7 +99,22 @@ export class GrowthView {
     if (n) this.auras.instanceMatrix.needsUpdate = true;
   }
 
+  /** v6 max: camouflage (the solo Squad Disguise) on each body's suit, faded in and out over half a second. */
+  private suitFx(dt: number, m: Match): void {
+    const g = m.module<GadgetsModule>("gadgets");
+    for (const c of m.contestants) {
+      const i = c.index;
+      const want = g && c.status === "alive" && g.camo(i) ? 1 : 0;
+      const was = this.camoNow[i] ?? 0;
+      if (want === 0 && was === 0) continue;
+      const v = want > was ? Math.min(1, was + dt * 2) : Math.max(0, was - dt * 2);
+      this.camoNow[i] = v;
+      this.crowd.setFx(i, v, 0, 1, 0.16, 0.04, 0, this.time);
+    }
+  }
+
   dispose(m: Match): void {
+    for (const c of m.contestants) if ((this.camoNow[c.index] ?? 0) > 0) this.crowd.setFx(c.index, 0, 0, 1, 0.16, 0.04, 0, 0);
     for (const c of m.contestants) if (this.shown[c.index] > 0) this.crowd.setFierce(c.index, 0);
     this.auras.geometry.dispose();
     this.mat.dispose();
