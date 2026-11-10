@@ -42,12 +42,14 @@ import type { ZoneModule } from "../game/modules/zone";
 import type { FlagsModule as FlagsRules } from "../game/modules/flags";
 import type { LineId } from "../audio/voice";
 import { gunStats, type GunsModule } from "../game/modules/guns";
-import { CombatHud } from "../ui/combat";
+import { CombatHud, GUN_NAMES } from "../ui/combat";
 import { FieldKit, leftLine, type ZombieBar } from "../ui/fieldkit";
 import { armourTier, KITS } from "../world/human/gear";
 import { WorldSound } from "../audio/world";
 import { emittersOf, Scenery } from "../world/scenery";
 import { GunsView } from "../world/gunsView";
+import { KillCam, type KillCamFrame } from "../world/killCam";
+import { ReplayOverlay } from "../ui/replay";
 import { getLang, t } from "../ui/i18n";
 import { PING_LINES } from "../ui/quickchat";
 import { gameSize } from "../ui/rotate";
@@ -190,6 +192,11 @@ export class FfaMode implements GameMode {
   /** Guns (v4): the guns drawn, and the gun HUD (Free For All's shooter modes only). */
   private readonly gunsView: GunsView | null;
   private readonly combat: CombatHud | null;
+  /** v6 2.11: the kill cam (the shooter modes; Dead Streets' zombies have none), its tag, what it says, and on screen. */
+  private readonly killCam: KillCam | null;
+  private readonly kcUi: ReplayOverlay | null;
+  private kcCard = { who: "", what: "" };
+  private kcOn = false;
   private dryAt = 0;
   private autoTick = 0;
   private stepAt = new Float32Array(0);
@@ -301,6 +308,12 @@ export class FfaMode implements GameMode {
     this.gunsView = guns ? new GunsView({ crowd: h.crowd, sound: h.sound, tier: h.spec.tier, me: me.index, blood: h.settings.blood }) : null;
     this.combat = guns || m.module("survival") ? new CombatHud() : null;
     if (this.gunsView) h.scene.add(this.gunsView.group);
+    this.killCam = guns && !m.module("survival") ? new KillCam(h.crowd) : null;
+    this.kcUi = this.killCam ? new ReplayOverlay(h.ui) : null;
+    this.kcUi?.skipBtn.addEventListener("click", () => {
+      h.sound.ui();
+      this.endKillCam();
+    });
     this.worldSound = new WorldSound(h.sound, h.spec.tier === 0 ? 6 : 12);
     this.worldSound.theme = m.module("survival") ? "dead" : "ffa";
     this.worldSound.setEmitters(emittersOf(world.layout));
@@ -424,6 +437,7 @@ export class FfaMode implements GameMode {
     // Back after a drop: the match rebuilt from the server's log (the screen carries on).
     if (msg.sync.seed !== this.src.match.seed) return false;
     const next = new OnlineMatch({ seed: msg.sync.seed, s: msg.sync.s, roster: msg.sync.roster, init: [], ffa: msg.sync.ffa }, this.online.myId, this.online.net, matchWorldFor(this.world, msg.sync.ffa.map), msg.sync.log, msg.sync.snap);
+    this.endKillCam();
     this.src.dispose();
     this.src = next;
     return true;
@@ -588,7 +602,8 @@ export class FfaMode implements GameMode {
     this.modes6.events(events, m);
     this.treasure?.events(events, m, cam);
     this.dead?.events(events, m);
-    this.gunsView?.events(events, m, cam);
+    this.killCam?.note(events, m);
+    if (!this.killCam?.active) this.gunsView?.events(events, m, cam);
     for (const e of events) this.onEvent(e);
     // Your trail, once a second of play (the heat map).
     if (m.phase === "play" && me.status === "alive" && m.elapsed >= this.trailAt) {
@@ -613,6 +628,7 @@ export class FfaMode implements GameMode {
       const tg = m.get(e.tg);
       if (tg && !m.sameSquad(tg, me)) this.kills++;
     }
+    if (e.type === "kill" && e.tg === me.id && e.by && e.by !== me.id && e.how !== "zone" && m.phase === "play") this.killedBy(m, me, e);
     switch (e.type) {
       case "phase":
         if (e.phase === "play") {
@@ -666,11 +682,15 @@ export class FfaMode implements GameMode {
         break;
       }
       case "ended":
+        this.endKillCam();
         if (this.endAt < 0) this.endAt = performance.now() + RESULTS_AFTER_MS;
         if (!m.winner) h.hud.pushFeed(t("Time"), "info");
         break;
       case "respawn":
-        if (e.id === me.id) h.rig.follow(true, { x: me.x, z: me.z, y: me.y, stance: me.stance, ground: me.h });
+        if (e.id === me.id) {
+          this.endKillCam();
+          h.rig.follow(true, { x: me.x, z: me.z, y: me.y, stance: me.stance, ground: me.h });
+        }
         break;
       // ── Cars ──
       case "wreck":
@@ -894,15 +914,20 @@ export class FfaMode implements GameMode {
     const cam = h.camera.position;
     const md = c.consumeMouse();
     const pd = c.consumePad();
-    if (c.enabled) {
+    // The kill cam: the bodies as they were, from behind whoever took you out.
+    const kc = this.killCam?.frame(m) ?? null;
+    if (!kc && this.kcOn) this.kcShow(false);
+    if (c.enabled && !kc) {
       h.rig.orbit(c.look.x, c.look.y, dt, md.x, md.y);
       h.rig.turn(pd.x, pd.y);
     }
-    h.crowd.update(dt, m.contestants, cam);
+    h.crowd.update(kc ? dt * kc.k : dt, kc ? kc.people : m.contestants, cam);
+    if (!kc) this.killCam?.record(dt, m, me.index, this.gunsView?.myAiming ?? false);
 
-    // Who the camera follows: you; out for good, someone still in (your squad first).
+    // Who the camera follows: you; out for good, someone still in (your squad first); the killer in the kill cam.
     let target = me;
-    if (me.status !== "alive" && m.respawnIn(me) < 0) {
+    if (kc) target = this.killCamFrame(kc);
+    else if (me.status !== "alive" && m.respawnIn(me) < 0) {
       if (this.spectate < 0 || m.contestants[this.spectate]?.status !== "alive") {
         const alive = m.contestants.filter((x) => x.status === "alive");
         const pick = alive.find((x) => m.sameSquad(x, me)) ?? alive[0];
@@ -947,7 +972,7 @@ export class FfaMode implements GameMode {
     const { pin } = this.ms.update(dt, m, cam, this.marks, extra);
     const { goal: flagGoal } = this.view.update(dt, m, h.camera, this.marks, h.rig.firstPerson && target === me);
     const deadPin = this.dead?.update(dt, m, cam, this.marks).pin ?? null;
-    if (this.gunsView) this.gunFrame(dt, m, me);
+    if (this.gunsView) this.gunFrame(dt, m, me, kc);
     this.fieldFrame(m, me);
     this.soundFrame(dt, m, me);
     const trPin = this.treasure?.update(dt, m, h.camera, this.marks).pin ?? null;
@@ -1255,7 +1280,7 @@ export class FfaMode implements GameMode {
   }
 
   /** Guns, each frame: the camera down the sights, the guns drawn, the gun HUD, a dry click. */
-  private gunFrame(dt: number, m: Match, me: Contestant): void {
+  private gunFrame(dt: number, m: Match, me: Contestant, kc: KillCamFrame | null): void {
     const h = this.host;
     const g = m.module<GunsModule>("guns")!;
     const c = h.controls;
@@ -1265,8 +1290,9 @@ export class FfaMode implements GameMode {
     const kind = GUN_KINDS[g.gun[i][s]] ?? "pistol";
     const K = GUNS.kinds[kind];
     h.rig.adsWant = live && c.ads ? 1 : 0;
-    // v6: one-thumb portrait keeps you in the middle of the view (down the sights goes back over the shoulder).
-    h.rig.centre = c.thumbMode && !c.ads ? 1 : 0;
+    // v6: one-thumb portrait keeps you in the middle of the view (down the sights goes back over the shoulder; the
+    // kill cam too, or the killer hides you).
+    h.rig.centre = c.thumbMode && !c.ads && !this.killCam?.busy ? 1 : 0;
     // v6: the sprint's widening view and bob (the burst more).
     h.rig.sprint = live && me.sprinting ? (me.tac > 0 ? 1 : 0.6) : 0;
     // Aiming or firing, you face the aim (the server turns your body the same way).
@@ -1274,7 +1300,8 @@ export class FfaMode implements GameMode {
     h.rig.adsZoom = K.zoom;
     this.gunsView!.myPitch = h.rig.aimPitch;
     this.gunsView!.myAiming = live && (c.ads || c.trigger);
-    this.gunsView!.update(dt, m, h.camera);
+    if (kc?.fires.length) this.gunsView!.events(kc.fires, m, h.camera.position);
+    this.gunsView!.update(kc ? dt * kc.k : dt, m, h.camera, kc ? { people: kc.people, gunUp: kc.gunUp } : undefined);
     // The trigger on nothing at all: a dry click now and then.
     if (live && c.trigger && g.mag[i][s] <= 0 && g.res[i][s] <= 0 && m.elapsed - this.dryAt > 0.4) {
       this.dryAt = m.elapsed;
@@ -1330,6 +1357,66 @@ export class FfaMode implements GameMode {
     this.treasure?.printMarks(m, this.marks);
   }
 
+  /** A rival took you out: the kill cam a beat later, and what its tag says (who, with what, how far, their health). */
+  private killedBy(m: Match, me: Contestant, e: Extract<MatchEvent, { type: "kill" }>): void {
+    const kc = this.killCam;
+    const by = e.by ? m.get(e.by) : null;
+    if (!kc || !by || kc.busy) return;
+    const g = m.module<GunsModule>("guns");
+    const what = [
+      e.how === "blast" ? t("Blast") : e.how === "melee" ? t("Melee") : t(GUN_NAMES[e.how] ?? "Shot"),
+      e.head ? t("Head shot") : "",
+      `${Math.round(Math.hypot(by.x - me.x, by.z - me.z))} m`,
+      g ? `${Math.max(1, Math.ceil(g.hp[by.index]))} ${t("HP left")}` : "",
+    ].filter(Boolean);
+    this.kcCard = { who: by.name || t("A rival"), what: what.join(" · ") };
+    kc.begin(m, by, me);
+  }
+
+  /** A kill cam frame: the screen given over to it, the lens behind the killer, turned towards you. */
+  private killCamFrame(kc: KillCamFrame): Contestant {
+    const h = this.host;
+    const k = kc.killer;
+    const dx = kc.victim.x - k.x;
+    const dz = kc.victim.z - k.z;
+    const d = Math.hypot(dx, dz);
+    const first = !this.kcOn;
+    this.kcShow(true);
+    h.rig.eyeValid = false;
+    h.rig.adsWant = 0;
+    // Facing you (too close to tell, the way they face).
+    const yaw = d > 1.5 ? Math.atan2(-dx, -dz) : k.heading - Math.PI;
+    if (first) h.rig.follow(true, { x: k.x, z: k.z, y: k.y, stance: k.stance, ground: k.h }, yaw, 0.08);
+    else {
+      h.rig.yaw = yaw;
+      h.rig.pitch = 0.08;
+    }
+    if (kc.slowStart) h.rig.push(d > 25 ? 0.5 : d > 8 ? 0.65 : 0.85, 1.4);
+    this.kcUi!.progress(kc.u);
+    return k;
+  }
+
+  /** The kill cam on screen or off: the HUD and the buttons hidden under it, your own head seen (first person hides it). */
+  private kcShow(on: boolean): void {
+    if (this.kcOn === on) return;
+    this.kcOn = on;
+    const h = this.host;
+    if (on) this.kcUi!.show("killcam", this.kcCard.who, this.kcCard.what);
+    else this.kcUi?.hide();
+    if (!this.over) h.hud.show(!on);
+    h.ui.classList.toggle("kc-on", on);
+    this.play.root.style.visibility = on ? "hidden" : "";
+    this.fk.root.style.visibility = on ? "hidden" : "";
+    h.crowd.hideMyHead = !on && h.rig.firstPerson;
+    h.rig.clearZoom();
+  }
+
+  /** The kill cam over (played out, skipped, cut short by a respawn or the end): the bodies back, the screen back. */
+  private endKillCam(): void {
+    this.killCam?.stop(this.src.match);
+    this.kcShow(false);
+  }
+
   /** v5: you left before the end: that's a defeat, and you see it (the owner never saw the end screens). */
   forfeit(): void {
     if (!this.over) this.finish();
@@ -1377,6 +1464,8 @@ export class FfaMode implements GameMode {
     const h = this.host;
     this.sendBoards();
     this.gone = true;
+    this.endKillCam();
+    this.kcUi?.dispose();
     if (this.boards) {
       h.scene.remove(this.boards.group);
       this.boards.dispose();

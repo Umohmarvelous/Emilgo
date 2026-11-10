@@ -851,6 +851,8 @@ input { font: inherit; color: inherit; }
 .replay-line { position: absolute; left: 0; right: 0; bottom: 7%; height: 2px; background: rgba(255, 255, 255, 0.12); }
 .replay-bar { position: absolute; inset: 0; background: rgba(255, 255, 255, 0.7); transform-origin: left center; transform: scaleX(0); }
 .replay-skip { z-index: 21; }
+/* Free For All's kill cam (v6 2.11): no buttons over it, only its skip. */
+.kc-on .touch, .kc-on > .stick { visibility: hidden; }
 /* Beside "Next runner", bottom centre: clear of the chat button bottom right. */
 .results-btn { position: absolute; left: calc(50% + 76px); bottom: calc(var(--safe-b) + 24px); display: none; pointer-events: auto; z-index: 20; }
 .results-btn.visible { display: inline-flex; }
@@ -1383,6 +1385,8 @@ input { font: inherit; color: inherit; }
    defaults, or the player's own arrangement). Circles only for FIRE, aim and the sticks;
    everything else is a box, in two rows along the bottom centre (COD-style). */
 .actions.arranged, .mside.arranged, .vitals.arranged { position: absolute; left: 0; top: 0; right: 0; bottom: 0; width: auto; height: auto; transform: none; display: block; pointer-events: none; }
+/* Hidden still means hidden once arranged (v6: the sprint button stayed up while you were out). */
+.actions.arranged[hidden], .mside.arranged[hidden], .vitals.arranged[hidden] { display: none; }
 [data-ctl].ctl { position: absolute !important; left: var(--cx) !important; top: var(--cy) !important; right: auto !important; bottom: auto !important; margin: 0 !important; transform: translate(-50%, -50%) scale(var(--cs, 1)) !important; }
 [data-ctl].ctl.down, [data-ctl].ctl:active { transform: translate(-50%, -50%) scale(calc(var(--cs, 1) * 0.93)) !important; }
 .abtn.ctl.box { width: 46px; height: 36px; border-radius: 5px; background: rgba(20, 21, 15, 0.62); border: 1px solid rgba(255, 255, 255, 0.5); box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.3); animation: none; }

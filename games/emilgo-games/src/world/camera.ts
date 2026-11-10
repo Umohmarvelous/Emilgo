@@ -157,11 +157,12 @@ export class CameraRig {
     this.mode = "lobby";
   }
 
-  follow(snap = false, target?: Follow): void {
+  /** `yaw`, `pitch`: which way a snap faces (v6, the kill cam: from the killer towards you). */
+  follow(snap = false, target?: Follow, yaw = 0, pitch = 0.12): void {
     this.mode = "follow";
     if (snap && target) {
-      this.yaw = this.viewYaw = 0;
-      this.pitch = this.viewPitch = 0.12;
+      this.yaw = this.viewYaw = yaw;
+      this.pitch = this.viewPitch = pitch;
       this.idle = 10;
       this.dist = DIST;
       this.computeFollow(target, 1);

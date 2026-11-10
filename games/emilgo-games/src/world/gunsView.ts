@@ -30,6 +30,7 @@ import {
 
 import type { Sound } from "../audio/sound";
 import { GUN_KINDS, GUNS, type GunKind } from "../config";
+import type { Contestant } from "../game/core/body";
 import type { Match } from "../game/core/match";
 import type { MatchEvent } from "../game/core/module";
 import { HIT_KINDS, type GunsModule } from "../game/modules/guns";
@@ -454,7 +455,8 @@ export class GunsView {
 
   // ── Frame ──
 
-  update(dt: number, m: Match, camera: Camera): void {
+  /** `replay` (v6, the kill cam): the bodies as recorded and whose gun was raised, in place of the live match. */
+  update(dt: number, m: Match, camera: Camera, replay?: { people: readonly Contestant[]; gunUp: readonly boolean[] }): void {
     this.time += dt;
     const g = m.module<GunsModule>("guns");
     if (!g) return;
@@ -467,7 +469,7 @@ export class GunsView {
 
     // The guns in everyone's hands.
     this.myMuzzleOk = false;
-    for (const c of m.contestants) {
+    for (const c of replay?.people ?? m.contestants) {
       const i = c.index;
       const h = crowd.human(i);
       if (!h) continue;
@@ -476,7 +478,7 @@ export class GunsView {
       const near = Math.hypot(c.x - cam.x, c.z - cam.z) < HELD_VIEW[tier];
       const mine0 = i === this.o.me;
       // v5: no gun in the hands standing or running (the owner): it comes up to aim, fire or reload and goes away after.
-      const up = (mine0 && this.myAiming) || m.elapsed - g.aimedAt[i] < 1.2 || (g.reloadAt[i] ?? -1) >= 0;
+      const up = replay ? !!replay.gunUp[i] : (mine0 && this.myAiming) || m.elapsed - g.aimedAt[i] < 1.2 || (g.reloadAt[i] ?? -1) >= 0;
       const show = gi >= 0 && up && c.status === "alive" && !m.seated(c) && near && c.act <= 0 && c.stun <= 0.2;
       if (!show) {
         if (h.hold) h.hold = null;
@@ -489,9 +491,9 @@ export class GunsView {
         this.holds[i] = hold;
       }
       const mine = i === this.o.me;
-      const aiming = mine ? this.myAiming || m.elapsed - g.aimedAt[i] < 1.2 : m.elapsed - g.aimedAt[i] < 1.2;
+      const aiming = replay ? !!replay.gunUp[i] : mine ? this.myAiming || m.elapsed - g.aimedAt[i] < 1.2 : m.elapsed - g.aimedAt[i] < 1.2;
       hold.mode = aiming ? 1 : c.sprinting ? 2 : 0;
-      hold.pitch = mine ? this.myPitch : 0;
+      hold.pitch = mine && !replay ? this.myPitch : 0;
       // A changed hold is posed by the next animation step (the crowd's), never twice.
       h.hold = hold;
       if (!hold.ready) continue;

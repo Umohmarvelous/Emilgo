@@ -22,7 +22,7 @@ const C = 2 * Math.PI * R;
 const HP_SPAN = 140 / 360;
 const AR_SPAN = 100 / 360;
 
-const GUN_NAMES: Record<string, string> = { pistol: "Pistol", rifle: "Assault rifle", smg: "SMG", shotgun: "Shotgun" };
+export const GUN_NAMES: Record<string, string> = { pistol: "Pistol", rifle: "Assault rifle", smg: "SMG", shotgun: "Shotgun" };
 
 export interface CombatState {
   hp: number;

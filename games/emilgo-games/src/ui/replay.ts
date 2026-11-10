@@ -29,7 +29,7 @@ export class ReplayOverlay {
     this.tag.className = `replay-tag ${kind}`;
     this.tag.innerHTML =
       kind === "killcam"
-        ? `<b>Kill cam</b>`
+        ? `<b>Kill cam</b>${who ? `<span class="who">${esc(who)}</span><span class="what">${esc(what)}</span>` : ""}`
         : `<b>Play of the game</b><span class="who">${esc(who)}</span><span class="what">${esc(what)}</span>`;
     translateTree(this.tag);
     this.root.classList.add("visible");
@@ -44,5 +44,11 @@ export class ReplayOverlay {
   hide(): void {
     this.root.classList.remove("visible");
     this.skipBtn.classList.remove("visible");
+  }
+
+  /** Off the page (a mode's own overlay, at the mode's end). */
+  dispose(): void {
+    this.root.remove();
+    this.skipBtn.remove();
   }
 }
