@@ -465,11 +465,11 @@ export class TreasureView {
         tm.uploader === me.index ? t("Uploading… stay in the ring") :
         lead !== me.index && m.contestants.some((c) => m.squads[c.index] === m.squads[me.index] && c !== me) ? t("Only your leader can upload") :
         tm.count[me.index] < tm.need ? `${t("Need all")} ${tm.need} ${t("treasures")} (${tm.count[me.index]}/${tm.need})` : t("Uploading…");
-      return { kind: "job", label, progress: tm.uploader === me.index ? tm.uploaded / tm.uploadTime : 0, d: 0 };
+      return { kind: "job", label, ico: "upload", progress: tm.uploader === me.index ? tm.uploaded / tm.uploadTime : 0, d: 0 };
     }
     const b = tm.boxFor(me);
     if (!b) return null;
-    return { kind: "job", label: t("Hold to open the box"), progress: tm.opening(me.index), d: Math.hypot(b.x - me.x, b.z - me.z) };
+    return { kind: "job", label: t("Hold to open the box"), ico: "chest", progress: tm.opening(me.index), d: Math.hypot(b.x - me.x, b.z - me.z) };
   }
 
   /** The objective line (top centre). */

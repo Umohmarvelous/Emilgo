@@ -150,8 +150,8 @@ function chestHtml(c: { day: number; cp: number; opened?: boolean }): string {
   const pips = CHEST_CP.map((cp, i) => `<i class="${i + 1 < c.day ? "got" : i + 1 === c.day ? "now" : ""}${i === CHEST_CP.length - 1 ? " big" : ""}" title="${cp} CP"></i>`).join("");
   return `<button class="pm-chest${c.opened ? " open" : ""}" data-act="chest" ${c.opened ? "disabled" : ""} aria-label="${esc(t("Open the daily chest"))}">
       <span class="ch-art"><i class="ch-glow"></i>${CHEST_SVG}<b class="ch-cp">+${c.cp}</b></span>
-      <span class="ch-txt"><span class="k">${esc(t("Daily chest"))} · ${esc(t("Day"))} ${c.day}/${CHEST_CP.length}</span><span class="pips">${pips}</span>
-        <span class="ch-cta">${esc(t("Tap to open"))}</span><span class="ch-got">+${c.cp} CP · ${esc(t("Come back tomorrow"))}</span></span>
+      <span class="ch-txt"><span class="k">${c.day}/${CHEST_CP.length}</span><span class="pips">${pips}</span>
+        <span class="ch-cta" aria-hidden="true">${icon("hand", "", 18)}</span><span class="ch-got">+${c.cp} CP</span></span>
     </button>`;
 }
 

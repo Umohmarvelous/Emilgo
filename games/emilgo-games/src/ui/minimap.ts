@@ -390,21 +390,11 @@ export class Minimap {
         }
       }
     }
-    // A Map Print's labels: who each rival is, what each star is.
-    g.font = `700 ${Math.round(9 * dpr)}px Montserrat, sans-serif`;
-    g.textAlign = "left";
+    // v7 (the owner: icons, no labels): the marks speak for themselves; a Map Print shows only its seconds.
     g.lineWidth = 3 * dpr;
     g.strokeStyle = "rgba(0,0,0,0.75)";
-    for (const m of marks) {
-      if (!m.label) continue;
-      const x = (m.x - x0) * k + 6 * dpr;
-      const y = (m.z - z0) * k + 3 * dpr;
-      g.fillStyle = m.kind === "rival" ? "#ff8a7a" : m.kind === "treasure" ? "#ffd36a" : "#ffffff";
-      g.strokeText(m.label, x, y);
-      g.fillText(m.label, x, y);
-    }
     if (this.print > 0) {
-      const txt = `MAP PRINT · ${Math.ceil(this.print)} s`;
+      const txt = `${Math.ceil(this.print)} s`;
       g.font = `800 ${Math.round(12 * dpr)}px Montserrat, sans-serif`;
       g.textAlign = "center";
       g.strokeText(txt, W / 2, 18 * dpr);

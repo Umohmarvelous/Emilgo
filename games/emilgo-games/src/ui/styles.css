@@ -1641,3 +1641,12 @@ input { font: inherit; color: inherit; }
 .dash-acts { display: flex; gap: 8px; margin-top: 4px; }
 .dash-quit { position: absolute; top: max(10px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); pointer-events: auto; }
 .dash-end { background: rgba(12, 14, 16, 0.78); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45); color: #fff; }
+
+/* ── v7 (appended) ── */
+/* 1.4 icons only: the interact button is a round icon; effects show icon + seconds; the backpack's centre a big icon and two icon buttons. */
+.playhud .pint { width: 56px; height: 56px; padding: 0; justify-content: center; border-radius: 50%; }
+.playhud .pint .ring { border-radius: 50%; }
+.playhud .pfx .chip { padding: 3px 7px; gap: 5px; }
+.playhud .pradial .centre .big { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255, 255, 255, 0.25); }
+.playhud .pradial .centre .big.off { opacity: 0.5; }
+.playhud .pradial .centre .row .ib { width: 46px; height: 40px; padding: 0; display: inline-grid; place-items: center; pointer-events: auto; }

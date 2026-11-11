@@ -31,7 +31,7 @@ export interface PlayHudState {
   graceLeft?: number;
   pack: readonly (ItemId | null)[];
   /** What interact would do now (Free For All adds: search a stash spot, pick up a street prop, named in `label`). */
-  target: { kind: "item" | "bag" | "crate" | "stash" | "prop" | "car" | "job"; item?: ItemId; left?: number; label?: string; progress: number } | null;
+  target: { kind: "item" | "bag" | "crate" | "stash" | "prop" | "car" | "job"; item?: ItemId; left?: number; label?: string; progress: number; /** v7: the icon a job shows (it shows no words): "chest", "upload", "hand"… */ ico?: string } | null;
   effects: readonly { key: string; left: number }[];
   /** Out: seconds until back (−1: not coming back); alive: −2. */
   respawn: number;
@@ -100,7 +100,6 @@ export class PlayHud {
   private readonly expoText = el("span");
   readonly act = el("button", "pint glass");
   private readonly actRing = el("i", "ring");
-  private readonly actText = el("span");
   readonly packBtn = el("button", "ppack ibtn glass");
   private readonly packCount = el("b", "dot-badge");
   private readonly radial = el("div", "pradial");
@@ -134,7 +133,7 @@ export class PlayHud {
     this.root.dataset.ui = "1";
     this.zoneLine.innerHTML = "";
     this.expo.append(this.expoFill, this.expoText);
-    this.act.append(this.actRing, this.actText);
+    this.act.append(this.actRing);
     this.act.dataset.ui = "1";
     this.packBtn.innerHTML = icon("c-pack", "", 20);
     this.packBtn.dataset.ctl = "pack";
@@ -272,7 +271,7 @@ export class PlayHud {
       else if (s.target.kind === "prop") tl = `prop:${t("Pick up")} · ${s.target.label ?? ""}`;
       else if (s.target.kind === "bag") tl = `bag:${t("Take from the bag")}`;
       else if (s.target.kind === "car") tl = `car:${s.target.label ?? ""}`;
-      else if (s.target.kind === "job") tl = `job:${s.target.label ?? ""}`;
+      else if (s.target.kind === "job") tl = `job:${s.target.label ?? ""}:${s.target.ico ?? "hand"}`;
       else tl = `item:${t("Pick up")} · ${itemName(s.target.item!)}:${s.target.item}`;
     }
     if (tl !== this.lastTarget) {
@@ -283,14 +282,15 @@ export class PlayHud {
         const cut = tl.indexOf(":");
         const kind = tl.slice(0, cut);
         const rest = tl.slice(cut + 1);
-        const last = kind === "item" ? rest.lastIndexOf(":") : -1;
+        const last = kind === "item" || kind === "job" ? rest.lastIndexOf(":") : -1;
         const label = last >= 0 ? rest.slice(0, last) : rest;
         const item = last >= 0 ? rest.slice(last + 1) : "";
-        const ico = kind === "crate" ? "crate" : kind === "bag" || kind === "prop" ? "bundle" : kind === "stash" ? "search" : kind === "car" ? "car" : kind === "job" ? "hand" : ITEM_ICON[item as ItemId];
+        const ico = kind === "crate" ? "crate" : kind === "bag" || kind === "prop" ? "bundle" : kind === "stash" ? "search" : kind === "car" ? "car" : kind === "job" ? item || "hand" : ITEM_ICON[item as ItemId];
         this.act.querySelector("svg")?.remove();
-        this.act.insertAdjacentHTML("afterbegin", icon(ico, "", 18));
-        this.actText.textContent = label;
+        // v7 (the owner: "I do not want the labels showing just the icon"): the icon alone; the words stay for screen readers.
+        this.act.insertAdjacentHTML("afterbegin", icon(ico, "", 24));
         this.act.setAttribute("aria-label", label);
+        this.act.title = label;
       }
     }
     const p = s.target?.progress ?? 0;
@@ -320,7 +320,9 @@ export class PlayHud {
           .filter((e) => EFFECT_NAME[e.key])
           .map((e) => {
             const chip = el("span", "chip");
-            chip.innerHTML = `${icon(ITEM_ICON[EFFECT_NAME[e.key].item], "", 12)}<span>${t(EFFECT_NAME[e.key].label)}</span><b>${Math.ceil(e.left)}</b>`;
+            // v7: the item's icon and its seconds, no name.
+            chip.innerHTML = `${icon(ITEM_ICON[EFFECT_NAME[e.key].item], "", 14)}<b>${Math.ceil(e.left)}</b>`;
+            chip.setAttribute("aria-label", t(EFFECT_NAME[e.key].label));
             return chip;
           }),
       );
@@ -367,12 +369,20 @@ export class PlayHud {
     });
     const k = this.picked >= 0 ? pack[this.picked] : null;
     this.centre.replaceChildren();
+    // v7 (the owner: icons, no labels): the picked item's icon, big, and two icon buttons (use, drop).
     if (!k) {
-      this.centre.append(el("span", "nm", t(pack.some((x) => x) ? "Pick an item" : "Your backpack is empty")));
+      const none = el("span", "big off");
+      none.innerHTML = icon("c-pack", "", 40);
+      none.setAttribute("aria-label", t(pack.some((x) => x) ? "Pick an item" : "Your backpack is empty"));
+      this.centre.append(none);
       return;
     }
-    const use = el("button", "btn primary", t("Use")) as HTMLButtonElement;
-    const drop = el("button", "btn secondary", t("Drop")) as HTMLButtonElement;
+    const use = el("button", "btn primary ib") as HTMLButtonElement;
+    use.innerHTML = icon("check", "", 20);
+    use.setAttribute("aria-label", t("Use"));
+    const drop = el("button", "btn secondary ib") as HTMLButtonElement;
+    drop.innerHTML = icon("throw", "", 20);
+    drop.setAttribute("aria-label", t("Drop"));
     use.disabled = !ITEM_DEFS[k].effect;
     use.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -384,6 +394,9 @@ export class PlayHud {
     });
     const row = el("div", "row");
     row.append(use, drop);
-    this.centre.append(el("b", "nm", itemName(k)), el("span", "what", itemWhat(k)), row);
+    const big = el("span", "big");
+    big.innerHTML = icon(ITEM_ICON[k], "", 40);
+    big.setAttribute("aria-label", `${itemName(k)}: ${itemWhat(k)}`);
+    this.centre.append(big, row);
   }
 }
