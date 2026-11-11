@@ -336,6 +336,40 @@ function detailed(m: MeshStandardMaterial): MeshStandardMaterial {
 }
 
 /**
+ * v6 max (3.4, baked light on the walls): the light the sky can't reach at a wall's foot. Every upright face darkens
+ * toward the ground (the ground under it does too: bakeGroundLight's contact shade), most in the sky's light, a
+ * little in the sun's (what the ground would bounce up), gone 2.4 m up. Worked out per pixel from the height, so
+ * it costs the phone nothing to build and a few sums a pixel to draw; floors, roofs and the ground don't take it.
+ * Chained onto the material's own shader changes.
+ */
+function footShade<M extends Material>(m: M, name: string): M {
+  const prev = m.onBeforeCompile.bind(m);
+  m.onBeforeCompile = (sh, r) => {
+    prev(sh, r);
+    sh.vertexShader = sh.vertexShader
+      .replace("#include <common>", "#include <common>\nvarying float vFootY; varying float vFootNy;")
+      .replace(
+        "#include <begin_vertex>",
+        `#include <begin_vertex>
+        vFootY = (modelMatrix * vec4(transformed, 1.0)).y;
+        vFootNy = normalize(mat3(modelMatrix) * objectNormal).y;`,
+      );
+    sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>\nvarying float vFootY; varying float vFootNy;").replace(
+      "#include <aomap_fragment>",
+      `#include <aomap_fragment>
+      {
+        float upright = 1.0 - smoothstep(0.45, 0.85, abs(vFootNy));
+        float foot = 1.0 - (1.0 - smoothstep(0.0, 2.4, vFootY)) * 0.55 * upright;
+        reflectedLight.indirectDiffuse *= foot;
+        reflectedLight.directDiffuse *= mix(1.0, foot, 0.35);
+      }`,
+    );
+  };
+  m.customProgramCacheKey = () => `${name}+foot`;
+  return m;
+}
+
+/**
  * The atlas material: the UV's integer part over TEX_STRIDE picks the tile,
  * its fraction repeats inside it. Gradients come from the unwrapped UV, so the
  * tile edges don't show a seam of the wrong mip level.
@@ -1257,12 +1291,14 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }, lib: W
   group.add(water);
 
   // Merge each cell into its LOD and its atlas, foliage and glow draws.
-  const vc = spec.pbr ? new MeshStandardMaterial({ vertexColors: true, roughness: 0.88, metalness: 0, side: DoubleSide }) : new MeshLambertMaterial({ vertexColors: true, side: DoubleSide });
+  // v6 max (3.4): the walls' foot in shade (footShade) on the plain and the photo walls alike.
+  const vc = footShade(spec.pbr ? new MeshStandardMaterial({ vertexColors: true, roughness: 0.88, metalness: 0, side: DoubleSide }) : new MeshLambertMaterial({ vertexColors: true, side: DoubleSide }), "open-vc");
   // v5 (3.7): High and Max, the leaves in their own material (needle clumps).
   const leafMat = spec.pbr && spec.tier >= 2 ? detailed(new MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0, side: DoubleSide })) : null;
   // v6 max (3.4): the baked KTX2 atlas when it came (compressed on the GPU); else composed here, as before.
   const at = lib?.atlases?.walls ? { map: lib.atlases.walls.a, normal: lib.atlases.walls.n } : yield* atlasTexture(lib ? texSize(spec.tier) : spec.tier === 0 ? 256 : 512, lib);
-  const atlas = atlasMaterial(spec, at.map, at.normal);
+  const atlasM = atlasMaterial(spec, at.map, at.normal);
+  const atlas = footShade(atlasM, atlasM.customProgramCacheKey());
   const glowMat = new MeshBasicMaterial({ vertexColors: true });
   const near = spec.tier === 0 ? 45 : spec.tier === 1 ? 60 : 70;
   const mid = spec.tier === 0 ? 95 : spec.tier === 1 ? 130 : 160;
