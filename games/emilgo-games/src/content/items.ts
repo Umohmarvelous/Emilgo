@@ -126,8 +126,9 @@ export const LOOT_TABLES: Record<string, LootTable> = {
   // Titan Serum and Map Print. Out: Adrenaline Shot, Field Flask, Big Bag, Zone Shield, Fuel Jerrycan, Van Key.
   // Their rules stay in the code, unused (a mode could still name them in its own table).
   // v6 max: the two boosters join (3.2).
-  "ffa-core": [["smoke-pot", 3], ["decoy-flag", 1.2], ["talking-drum", 2.4], ["aso-ebi", 1.6], ["titan-serum", 2], ["map-print", 0.5], ["strength-booster", 1.1], ["speed-booster", 1.3]],
-  airfall: [["titan-serum", 1.4], ["map-print", 1], ["talking-drum", 0.5], ["smoke-pot", 0.5], ["strength-booster", 0.9], ["speed-booster", 0.9]],
+  // v7 (the owner: "Remove the smoke canister item"): out of both tables; its rule and look stay in the code, unused.
+  "ffa-core": [["decoy-flag", 1.2], ["talking-drum", 2.4], ["aso-ebi", 1.6], ["titan-serum", 2], ["map-print", 0.5], ["strength-booster", 1.1], ["speed-booster", 1.3]],
+  airfall: [["titan-serum", 1.4], ["map-print", 1], ["talking-drum", 0.5], ["strength-booster", 0.9], ["speed-booster", 0.9]],
   "ds-core": [["bandage", 5], ["medkit", 1.5], ["ammo", 6], ["armour", 1.2], ["battery", 3], ["nv", 0.8]],
 };
 
