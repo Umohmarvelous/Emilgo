@@ -74,7 +74,9 @@ export interface Manifest {
 }
 
 // v5: the big world's size, closing over a shorter match than the Royale's.
-const ZONE_FFA = { phases: [[60, 1000, 50, 1.0], [170, 560, 50, 1.5], [280, 300, 50, 2.5], [390, 140, 40, 3], [470, 50, 40, 4]] };
+// v7 (the owner: "make safe zone slower than it moves now like cod-style"): each circle closes over 2 minutes or so
+// (v6: 40–50 s), with a longer wait between: the last circle is shut at about 16 minutes (v6: 8½).
+const ZONE_FFA = { phases: [[90, 1000, 130, 1.0], [300, 560, 130, 1.5], [510, 300, 120, 2.5], [700, 140, 100, 3], [870, 50, 90, 4]] };
 /** The big world's zone: from the whole of it down to a street corner. */
 const MAX_ZONE = { phases: [[90, 1000, 60, 0.6], [240, 560, 60, 1.0], [390, 300, 55, 1.6], [540, 140, 45, 2.5], [690, 50, 40, 4]] };
 const ZONE_TIGHT = { phases: [[45, 800, 45, 1.5], [150, 400, 45, 2.5], [270, 160, 40, 4], [390, 40, 30, 6]] };

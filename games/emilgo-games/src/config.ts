@@ -366,11 +366,15 @@ export const PRACTICE = {
  * takes 2.5 s.
  */
 export const ZONE = {
-  /** Seconds outside before it starts to hurt (v5: 210), and how fast back inside it forgets (grace ÷ this). */
-  grace: 5,
+  /** Seconds outside before it starts to hurt (v5: 210; v6: 5), and how fast back inside it forgets (grace ÷ this). */
+  grace: 8,
   forget: 4,
-  /** v6: health a second outside, by circles closed (0: before the first closes); the last holds after. */
-  dps: [3, 4, 6, 9, 13, 18] as readonly number[],
+  /**
+   * v6: health a second outside, by circles closed (0: before the first closes); the last holds after. v7 (the
+   * owner: "health span outside safe zone moves too fast"): about half v6's (3, 4, 6, 9, 13, 18): the first
+   * circle's gas takes 100 health in a minute, the last in 10 s.
+   */
+  dps: [1.5, 2, 3, 5, 7, 10] as readonly number[],
   /** Seconds between pulses. */
   every: 1,
   /** A mode without health (no guns): the laser comes this long after the grace. */
