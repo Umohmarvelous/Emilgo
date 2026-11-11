@@ -26,6 +26,7 @@ import { buildMaxWorld } from "../src/maps/open/max";
 import { buildOpenWorld, buildOpenWorldIdle } from "../src/maps/open/build";
 import { NO_BOOST } from "../src/shop/boosts";
 import { BillboardView } from "../src/world/billboards";
+import { initKtx2 } from "../src/assets/ktx";
 import { CameraRig } from "../src/world/camera";
 import { Crowd } from "../src/world/crowd";
 import { loadScans } from "../src/world/human";
@@ -90,6 +91,7 @@ const boardView = q.get("boards") === "1" && layout.boards?.length
 
 const canvas = document.getElementById("c") as HTMLCanvasElement;
 const r = new WebGLRenderer({ canvas, antialias: false, powerPreference: "high-performance" });
+initKtx2(r);
 r.setPixelRatio(Math.min(spec.maxPixelRatio, devicePixelRatio));
 r.setSize(innerWidth, innerHeight);
 r.outputColorSpace = SRGBColorSpace;

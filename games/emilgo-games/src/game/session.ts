@@ -92,6 +92,7 @@ import type { BotBrain } from "./bots";
 import { chestOffer, openChest } from "./chest";
 import { addProgress, ensureDaily } from "./progress";
 import { badgeOf, recordMatch } from "../rank/awards";
+import { initKtx2 } from "../assets/ktx";
 import { dashCp } from "./runner/dash";
 import { DashMode, type DashResult } from "../modes/dash";
 import { FIGURINE_BY_ID, figurineLook, type FigurineDef } from "../shop/figurines";
@@ -376,6 +377,8 @@ export class Game {
       /* nothing saved */
     }
     this.renderer = new WebGLRenderer({ canvas, antialias: false, alpha: false, stencil: false, powerPreference: "high-performance" });
+    // v6 max (3.4): compressed textures (the worlds' baked atlases) for what this GPU takes.
+    initKtx2(this.renderer);
     this.renderer.toneMapping = ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
     this.renderer.shadowMap.type = PCFSoftShadowMap;

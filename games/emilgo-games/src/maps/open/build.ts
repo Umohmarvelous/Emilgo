@@ -8,6 +8,8 @@
 // Draw calls stay flat however big the city: about three per visible cell,
 // plus the ground, the water and the sky.
 
+import { GROUND_LIB, WALL_LIB } from "./atlasLists";
+import { ktxAtlas } from "../../assets/ktx";
 import { PROPS } from "./propTable";
 import {
   BufferGeometry,
@@ -152,22 +154,17 @@ function* atlasTexture(tile: number, lib: WorldLibrary | null): Generator<void, 
 // ── The library (v4 rework R4): the CC0 photo textures for the walls and the ground ──
 
 /** The wall atlas's eight tiles as library textures (TEX_KINDS order), day and night. */
-const WALL_LIB: Record<"day" | "night", (TexName | null)[]> = {
-  // plaster, concrete, brick, wood, mud (now render), zinc (now steel sheet), glass (a tower's facade), thatch (now roof tiles)
-  day: ["plaster", "concrete", "brick", "planks", "paintedConcrete", "corrugated", "glassTower", "roofTiles"],
-  night: ["plaster", "concrete", "brick", "planks", "paintedConcrete", "rustSheet", "nightOffice", "roofTiles"],
-};
+// (v6 max: WALL_LIB and GROUND_LIB live in atlasLists.ts, shared with the KTX2 bake.)
 /** The ground kinds in the ground atlas's order (4 × 2), their textures, and metres per repeat. */
 export const GROUND_KINDS: GroundKind[] = ["asphalt", "laterite", "paving", "grass", "earth", "sand", "snow"];
-const GROUND_LIB: Record<"day" | "night", TexName[]> = {
-  day: ["asphalt", "gravel", "paving", "grass", "dirt", "sand", "snow"],
-  night: ["roadDamaged", "gravel", "paving", "grassSparse", "mud", "sand", "snow"],
-};
+
 const GROUND_REP = [7, 6, 4, 5, 6, 7, 6];
 /** How much of each kind's own colour shows (the photo dirt and gravel are warm; a city's verges are grey). */
 const GROUND_SAT = [1, 0.45, 1, 0.9, 0.4, 1, 1];
 
 export interface WorldLibrary {
+  /** v6 max (3.4): the wall and ground atlases baked to KTX2 (tools/assets/atlases.ts), when they came. */
+  atlases?: { walls: { a: Texture; n: Texture | null } | null; ground: { a: Texture; n: Texture | null } | null };
   walls: ({ a: HTMLImageElement; n: HTMLImageElement | null } | null)[];
   ground: ({ a: HTMLImageElement; n: HTMLImageElement | null } | null)[];
   /** The scanned CC0 rocks (Poly Haven, the pipeline's) for the "rock" prefab, Medium and up: mossy on grass, bare granite on sand. */
@@ -245,18 +242,29 @@ export async function loadWorldLibrary(spec: TierSpec, night: boolean, L?: OpenL
   // on a slow phone; Medium draws each solid one as a plain crate in the cell's own mesh): the middle LOD.
   const used = spec.tier >= 2 && L ? [...new Set(L.placements.filter((p) => p.prefab === "prop").map((p) => p.v & 255))] : [];
   const propModels = Promise.all(used.map((i) => (PROPS[i] ? modelFor("prop", rockLod, spec.tier, PROPS[i].id).catch(() => null) : Promise.resolve(null))));
+  // v6 max (3.4): the baked atlases, compressed, first (all of a set or none of it); the pictures only where they didn't come.
+  const baked = async (what: "walls" | "ground"): Promise<{ a: Texture; n: Texture | null } | null> => {
+    const [a, nm] = await Promise.all([ktxAtlas(`${what}-${key}.a.${size}`, what === "ground" ? 8 : 4), spec.pbr ? ktxAtlas(`${what}-${key}.n.${size}`, what === "ground" ? 8 : 4) : Promise.resolve(null)]);
+    if (!a || (spec.pbr && !nm)) {
+      a?.dispose();
+      nm?.dispose();
+      return null;
+    }
+    return { a, n: nm };
+  };
+  const [bw, bg] = await Promise.all([baked("walls"), baked("ground")]);
   const [walls, ground, sk, grassRock, sandRock, pm] = await Promise.all([
-    Promise.all(WALL_LIB[key].map(get)),
-    Promise.all(GROUND_LIB[key].map(get)),
+    bw ? Promise.resolve(WALL_LIB[key].map(() => null)) : Promise.all(WALL_LIB[key].map(get)),
+    bg ? Promise.resolve(GROUND_LIB[key].map(() => null)) : Promise.all(GROUND_LIB[key].map(get)),
     librarySky(SKY_OF[key], spec.pbr),
     rockOf("rocks"),
     rockOf("rock"),
     propModels,
   ]);
-  if (!ground.some(Boolean) && !walls.some(Boolean)) return null;
+  if (!ground.some(Boolean) && !walls.some(Boolean) && !bw && !bg) return null;
   const props = new Map<number, CdnModel>();
   used.forEach((idx, j) => pm[j]?.meshes.length && props.set(idx, pm[j]!));
-  return { walls, ground, rocks: { grass: grassRock, sand: sandRock }, props, sky: sk.bg ? { bg: sk.bg, env: sk.env, horizon: horizonOf(sk.bg), sun: sunOf(sk.bg) } : null };
+  return { walls, ground, atlases: { walls: bw, ground: bg }, rocks: { grass: grassRock, sand: sandRock }, props, sky: sk.bg ? { bg: sk.bg, env: sk.env, horizon: horizonOf(sk.bg), sun: sunOf(sk.bg) } : null };
 }
 
 /**
@@ -329,7 +337,7 @@ function detailed(m: MeshStandardMaterial): MeshStandardMaterial {
  * its fraction repeats inside it. Gradients come from the unwrapped UV, so the
  * tile edges don't show a seam of the wrong mip level.
  */
-function atlasMaterial(spec: TierSpec, map: CanvasTexture, normal: CanvasTexture | null = null): Material {
+function atlasMaterial(spec: TierSpec, map: Texture, normal: Texture | null = null): Material {
   const m = spec.pbr ? new MeshStandardMaterial({ map, vertexColors: true, roughness: 0.85, metalness: 0 }) : new MeshLambertMaterial({ map, vertexColors: true });
   m.onBeforeCompile = (sh) => {
     if (normal && spec.pbr) {
@@ -558,7 +566,7 @@ function groundAtlas(lib: WorldLibrary, tile: number): { a: CanvasTexture; n: Ca
  * between neighbouring kinds over the kind map's four nearest texels (one on
  * Low), the neutral picture over it for the road lines and the wear.
  */
-function texturedGround(spec: TierSpec, macro: CanvasTexture, kinds: CanvasTexture, atlas: { a: CanvasTexture; n: CanvasTexture | null }, half: number, kpx: number): Material {
+function texturedGround(spec: TierSpec, macro: CanvasTexture, kinds: CanvasTexture, atlas: { a: Texture; n: Texture | null }, half: number, kpx: number): Material {
   const m = spec.pbr ? new MeshStandardMaterial({ map: macro, roughness: 0.93, alphaTest: 0.5 }) : new MeshLambertMaterial({ map: macro, alphaTest: 0.5 });
   const taps = spec.tier === 0 ? 1 : 4;
   m.onBeforeCompile = (sh) => {
@@ -941,7 +949,7 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }, lib: W
 
   // ── Ground ──
   const gpx = spec.tier === 0 ? 1024 : 2048;
-  const textured = !!lib && lib.ground.some(Boolean);
+  const textured = !!lib && (lib.ground.some(Boolean) || !!lib.atlases?.ground);
   const gcan = yield* paintGround(L, gpx, false, textured);
   const gtex = new CanvasTexture(gcan);
   gtex.colorSpace = SRGBColorSpace;
@@ -957,7 +965,7 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }, lib: W
     const kt = new CanvasTexture(kc);
     kt.magFilter = kt.minFilter = NearestFilter;
     kt.generateMipmaps = false;
-    gmat = texturedGround(spec, gtex, kt, groundAtlas(lib!, texSize(spec.tier)), L.half, kpx);
+    gmat = texturedGround(spec, gtex, kt, lib!.atlases?.ground ?? groundAtlas(lib!, texSize(spec.tier)), L.half, kpx);
   } else {
     const grain = canvasTexture("sand", 128, sand);
     grain.wrapS = grain.wrapT = RepeatWrapping;
@@ -1135,7 +1143,8 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }, lib: W
   const vc = spec.pbr ? new MeshStandardMaterial({ vertexColors: true, roughness: 0.88, metalness: 0, side: DoubleSide }) : new MeshLambertMaterial({ vertexColors: true, side: DoubleSide });
   // v5 (3.7): High and Max, the leaves in their own material (needle clumps).
   const leafMat = spec.pbr && spec.tier >= 2 ? detailed(new MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0, side: DoubleSide })) : null;
-  const at = yield* atlasTexture(lib ? texSize(spec.tier) : spec.tier === 0 ? 256 : 512, lib);
+  // v6 max (3.4): the baked KTX2 atlas when it came (compressed on the GPU); else composed here, as before.
+  const at = lib?.atlases?.walls ? { map: lib.atlases.walls.a, normal: lib.atlases.walls.n } : yield* atlasTexture(lib ? texSize(spec.tier) : spec.tier === 0 ? 256 : 512, lib);
   const atlas = atlasMaterial(spec, at.map, at.normal);
   const glowMat = new MeshBasicMaterial({ vertexColors: true });
   const near = spec.tier === 0 ? 45 : spec.tier === 1 ? 60 : 70;
