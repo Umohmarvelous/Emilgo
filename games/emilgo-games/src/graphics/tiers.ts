@@ -61,9 +61,10 @@ export function autoTier(gl?: WebGLRenderingContext | WebGL2RenderingContext | n
   // The low-end class (SPEC-V2 §8: Tecno, Infinix, itel — Helio G and Unisoc
   // chips with Mali-G52 / G57, PowerVR, older Adreno) gets Low and its 30 fps.
   if (LOW_END_GPU.test(gpu)) return 0;
-  // Every other phone or tablet: Medium. High is for computers (or by choice).
-  if (mobile) return 1;
-  return 2;
+  // v7 (the owner: "default graphics to medium on laptops and on mobile will be low"): every phone and tablet starts
+  // on Low, every computer on Medium. High and Max only by choice (Settings → Graphics).
+  if (mobile) return 0;
+  return 1;
 }
 
 /** `cap`: Auto only — the highest tier this phone has shown it can hold (stepped down while playing). */
