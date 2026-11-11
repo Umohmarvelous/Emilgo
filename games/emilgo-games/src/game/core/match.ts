@@ -440,6 +440,8 @@ export class Match {
     const a = this.aims[c.index];
     a.yaw = Math.atan2(Math.sin(yaw), Math.cos(yaw));
     a.pitch = Math.max(-1.1, Math.min(1.1, pitch));
+    // v7: a player's camera: the way the body keeps facing when backpedalling (body.ts).
+    if (!c.bot) c.face = a.yaw + Math.PI;
     a.trigger = !!trigger;
     a.ads = !!ads;
     if (Number.isInteger(reload)) a.reload = reload & 15;

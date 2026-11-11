@@ -32,6 +32,8 @@ export interface Contestant {
   vz: number;
   /** Facing angle: the body faces (sin h, cos h) in x/z. */
   heading: number;
+  /** v7: where a player's camera looks (world yaw the body would face), for the backpedal; unset for bots. */
+  face?: number;
   status: Status;
   /** Seconds of play when they crossed, or -1. */
   finishTime: number;
@@ -226,6 +228,13 @@ export function moveContestant(c: Contestant, dt: number, course: Course = DEFAU
 
   // ── Speed from the stick, the stance and the sprint ──
   const m = Math.hypot(ix, iz);
+  // v7: pushing back from where the camera looks: a backpedal, still facing it (COD-style), slower, no sprint.
+  let back = false;
+  if (c.face !== undefined && m > 0.1 && c.stance < 2) {
+    const d = Math.atan2(ix, iz) - c.face;
+    back = Math.abs(Math.atan2(Math.sin(d), Math.cos(d))) > MOVE.backAt;
+    if (back) wantSprint = false;
+  }
   const bst = c.bst;
   let top: number = c.stance === 2 ? MOVE.prone * bst.crouch : c.stance === 1 ? MOVE.crouch * bst.crouch : (m < MOVE.runAt ? MOVE.walk * (m / MOVE.runAt) : MOVE.run) * bst.speed;
   if (c.stance === 0 && m >= MOVE.runAt) {
@@ -248,6 +257,7 @@ export function moveContestant(c: Contestant, dt: number, course: Course = DEFAU
   }
   else if (c.tac > 0) c.tac = Math.max(0, c.tac - dt);
   if (c.stance > 0 && m > 1e-3) top *= Math.min(1, m / MOVE.runAt + 0.3);
+  if (back) top *= MOVE.back;
   if (c.sprinting) {
     c.stamina = Math.max(0, c.stamina - dt / (MOVE.sprintFor * bst.stamina));
     c.rested = 0;
@@ -279,10 +289,10 @@ export function moveContestant(c: Contestant, dt: number, course: Course = DEFAU
   c.z += c.vz * dt;
   bound(c, course, space);
 
-  // Face where you are going; keep the last facing when standing still (or knocked back).
+  // Face where you are going; keep the last facing when standing still (or knocked back). Backpedalling, face the camera's way.
   const sp = Math.hypot(c.vx, c.vz);
   if (sp > 0.3 && c.stun <= 0) {
-    const want = Math.atan2(c.vx, c.vz);
+    const want = back ? c.face! : Math.atan2(c.vx, c.vz);
     let d = want - c.heading;
     d = Math.atan2(Math.sin(d), Math.cos(d));
     const maxTurn = MOVE.turnRate * dt;

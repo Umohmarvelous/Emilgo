@@ -1033,6 +1033,27 @@ console.log("v7, near death:");
   check(g.weakness(c.index) > 0.8, "and the breath and heart follow it (weakness > 0.8)");
 }
 
+console.log("v7, the backpedal:");
+{
+  const m = newMatch(79, settingsOf(def("treasure-hunt")), 4);
+  runFor(m, 0.1);
+  const c = put(m, "p0", YX, YZ, 0);
+  clear(m, ["p0"]);
+  // The camera looks along +z (the body faces +z: aim yaw = face − π); the stick pulls back (−z).
+  m.setAim("p0", -Math.PI, 0, false, false, 0, 0);
+  m.setInput("p0", 0, -1);
+  m.setButtons("p0", true, 0, 0);
+  runFor(m, 1.2);
+  const sp = Math.hypot(c.vx, c.vz);
+  const facing = Math.atan2(Math.sin(c.heading), Math.cos(c.heading));
+  check(c.z < YZ - 2 && Math.abs(facing) < 0.15, `back: she steps back (${(YZ - c.z).toFixed(1)} m) still facing the camera's way (heading ${facing.toFixed(2)})`);
+  check(Math.abs(sp - MOVE.run * MOVE.back) < 0.3 && !c.sprinting, `at ${MOVE.back} of the run, never sprinting (${sp.toFixed(1)} m/s)`);
+  m.setInput("p0", 1, 0);
+  runFor(m, 1.2);
+  check(Math.abs(Math.atan2(Math.sin(c.heading - Math.PI / 2), Math.cos(c.heading - Math.PI / 2))) < 0.2, "sideways: she turns and runs that way as before");
+  m.setInput("p0", 0, 0);
+}
+
 void MELEE;
 void MOVE;
 console.log(failures ? `\n${failures} FAILED` : "\nall passed");

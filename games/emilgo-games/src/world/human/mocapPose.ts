@@ -125,7 +125,8 @@ export function stepMocap(a: AnimState, speed: number, dt: number): void {
   const knots = a.undead ? ZOMBIE_KNOTS : a.stance > 0.5 ? CROUCH_KNOTS : KNOTS;
   const { rate } = rateFor(knots, speed);
   a.mSpeed += (speed - a.mSpeed) * (1 - Math.exp(-dt * 10));
-  const back = Math.abs(a.moveYaw) > 1.95 && a.aimW > 0.3;
+  // v7: walking backwards plays the walk in reverse whether aiming or not (the backpedal faces the camera).
+  const back = Math.abs(a.moveYaw) > 1.95;
   a.mPhase += rate * dt * (back ? -1 : 1);
   a.mPhase -= Math.floor(a.mPhase);
   // Air and landing.
