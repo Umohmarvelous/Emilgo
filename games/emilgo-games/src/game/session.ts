@@ -92,6 +92,7 @@ import type { BotBrain } from "./bots";
 import { chestOffer, openChest } from "./chest";
 import { addProgress, ensureDaily } from "./progress";
 import { badgeOf, recordMatch } from "../rank/awards";
+import { FIGURINE_BY_ID, figurineLook, type FigurineDef } from "../shop/figurines";
 import { addHistory, myCard, unreadDms } from "../social/profile";
 import { divisionName, type ProfileView } from "../ui/profile";
 import { DIVISIONS, rankOf, rankUp } from "../rank/ladder";
@@ -220,7 +221,9 @@ export class Game {
   private wheelSlot = -1;
   private settingsTab = "graphics";
   private friendsTab: "friends" | "recent" | "invite" = "friends";
-  private storeTab: "boosts" | "cosmetics" = "boosts";
+  private storeTab: "boosts" | "cosmetics" | "figurines" = "boosts";
+  /** v6 max (3.8): the figurine being tried on in the Store ("" none). */
+  private tryFig = "";
   /** Settings, Account: "Reset to default" asked, waiting for the yes. */
   private confirmReset = false;
   private readonly friends: Friends;
@@ -754,6 +757,7 @@ export class Game {
     const drop = nextDrop();
     this.stage.setBackdrop(drop.url);
     this.stage.setOperator(KITS[this.myLook().hoodie % KITS.length]);
+    if (!this.tryFig) this.stage.setFigurine(this.wornFig());
     const pick = this.ffaPick();
     const rotation = (familyOn("ffa") ? this.content.manifest.rotation : [])
       .filter(modeOn)
@@ -769,6 +773,8 @@ export class Game {
   /** Back to the lobby screen without leaving the stage (closing a panel). */
   private closePanel(): void {
     this.tryOn = null;
+    this.tryFig = "";
+    this.stage.setFigurine(this.wornFig());
     this.stage.setLook(this.myLook(), this.settings.lobbyPose);
     this.showLobby();
   }
@@ -1010,7 +1016,7 @@ export class Game {
   private showStore(): void {
     this.frame("left-panel");
     const s = this.settings;
-    this.screens.store({ tab: this.storeTab, owned: this.owned(), badge: s.badge, busy: this.shopBusy, note: this.shopNote, canBuy: !!this.shop, cp: s.cp, boosts: s.boosts, boostsOn: s.boostsOn });
+    this.screens.store({ tab: this.storeTab, owned: this.owned(), badge: s.badge, busy: this.shopBusy, note: this.shopNote, canBuy: !!this.shop, cp: s.cp, boosts: s.boosts, boostsOn: s.boostsOn, figs: { owned: s.figs, worn: s.fig, trying: this.tryFig } });
   }
 
   private showFriends(): void {
@@ -2804,16 +2810,30 @@ export class Game {
 
   // ── Shop and looks ────────────────────────────────────────────────────────
 
-  /** What you look like, keeping only what you own. */
+  /** What you look like, keeping only what you own (and dressed as your figurine, when you wear one you own). */
   private myLook(): Look {
-    return ownedOnly(this.settings.look, this.owned());
+    return figurineLook(ownedOnly(this.settings.look, this.owned()), this.wornFig());
+  }
+
+  /** v6 max (3.8): the figurine you wear (owned), or null. */
+  private wornFig(): FigurineDef | null {
+    const s = this.settings;
+    return s.figs.includes(s.fig) ? (FIGURINE_BY_ID[s.fig] ?? null) : null;
+  }
+
+  /** v6 max (3.8): the lobby shows you as your figurine, or as the one tried on in the Store. */
+  private stageFigurine(): void {
+    const trying = this.tryFig ? FIGURINE_BY_ID[this.tryFig] : null;
+    const fig = trying ?? this.wornFig();
+    this.stage.setFigurine(fig);
+    this.stage.setLook(trying ? figurineLook(ownedOnly(this.settings.look, this.owned()), trying) : this.myLook(), this.settings.lobbyPose);
   }
 
   /** Tell the game server what I look like (and, with the ticket, what I own). */
   private sendLook(): void {
     if (!this.net || this.net.state !== "open") return;
     const badge = this.settings.badge && this.owned().has("badge_gold");
-    this.net.send({ t: "look", ticket: this.shop?.ticket ?? undefined, look: toWireLook(this.myLook(), badge, badgeOf(this.settings.awards)) });
+    this.net.send({ t: "look", ticket: this.shop?.ticket ?? undefined, look: toWireLook(this.myLook(), badge, badgeOf(this.settings.awards), this.wornFig()?.id ?? "") });
   }
 
   private onOwnedChanged(): void {
@@ -3205,9 +3225,53 @@ export class Game {
         this.showStore();
         break;
       case "store-tab":
-        this.storeTab = d.tab === "cosmetics" ? "cosmetics" : "boosts";
+        this.storeTab = d.tab === "cosmetics" ? "cosmetics" : d.tab === "figurines" ? "figurines" : "boosts";
+        if (this.tryFig) {
+          this.tryFig = "";
+          this.stageFigurine();
+        }
         this.showStore();
         break;
+      case "fig-try": {
+        // Anyone can try one on: you stand as it beside the Store (tap again to take it off).
+        const id = d.id ?? "";
+        this.tryFig = this.tryFig === id || !FIGURINE_BY_ID[id] ? "" : id;
+        this.stageFigurine();
+        this.showStore();
+        break;
+      }
+      case "fig-buy": {
+        const f = FIGURINE_BY_ID[d.id ?? ""];
+        const st = this.settings;
+        if (!f || st.figs.includes(f.id)) break;
+        if (st.cp < f.cp) {
+          this.screens.toast(`${t("You need")} ${(f.cp - st.cp).toLocaleString()} ${t("more CP")}`);
+          break;
+        }
+        // CP is earned only by playing; spent here, for good. Worn at once.
+        st.cp -= f.cp;
+        st.figs = [...st.figs, f.id];
+        st.fig = f.id;
+        this.tryFig = "";
+        saveSettings(this.host, st);
+        this.stageFigurine();
+        this.sendLook();
+        this.screens.toast(`${f.name} ${t("is yours")}`);
+        this.showStore();
+        break;
+      }
+      case "fig-wear": {
+        const st = this.settings;
+        const id = d.id ?? "";
+        if (!st.figs.includes(id)) break;
+        st.fig = st.fig === id ? "" : id;
+        this.tryFig = "";
+        saveSettings(this.host, st);
+        this.stageFigurine();
+        this.sendLook();
+        this.showStore();
+        break;
+      }
       case "boosts":
         this.storeTab = "boosts";
         this.showStore();

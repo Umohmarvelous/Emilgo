@@ -17,6 +17,7 @@
 
 import { divisionIndex } from "../content/validate";
 import { parseBadge } from "../rank/awards";
+import { FIGURINE_BY_ID } from "./figurines";
 import { rankOf } from "../rank/ladder";
 import { cleanLook, DEFAULT_LOOK, DESIGN_BY_ID, EXTRA_BY_ID, HOODIE_COLORS, OUTFIT_BY_ID, type ExtraId, type HoodieDesign, type Look } from "../world/human/wardrobe";
 
@@ -77,6 +78,8 @@ export interface WireLook {
   st?: number;
   /** v6 max (3.10): the award badge worn ("veteran.3"; rank/awards.ts), over the head in a match. Cosmetic. */
   aw?: string;
+  /** v6 max (3.8): the figurine worn (shop/figurines.ts), bought with CP. */
+  fg?: string;
 }
 
 /** Keep only what is valid and, for paid items, owned. Used by the server on everything a phone claims. */
@@ -103,11 +106,13 @@ export function allowedLook(want: WireLook | null | undefined, owned: ReadonlySe
   if (look.mask === "closed") out.mk = 1;
   // The awards are kept on the phone (as CP is): a badge is only checked for shape, and only ever drawn.
   if (parseBadge(want.aw)) out.aw = want.aw;
+  // A figurine is bought with CP, kept on the phone as CP is: checked for a known id only.
+  if (typeof want.fg === "string" && FIGURINE_BY_ID[want.fg]) out.fg = want.fg;
   return out;
 }
 
-export function toWireLook(look: Look, badge: boolean, aw = ""): WireLook {
-  return { hd: look.hoodie, ds: look.design, o: look.outfit, g: look.body, s: look.skin, h: look.hair, hc: look.hairColor, x: look.extras.length ? look.extras : undefined, ht: Math.round(look.height * 100), b: badge ? 1 : undefined, mk: look.mask === "closed" ? 1 : undefined, aw: aw || undefined };
+export function toWireLook(look: Look, badge: boolean, aw = "", fg = ""): WireLook {
+  return { hd: look.hoodie, ds: look.design, o: look.outfit, g: look.body, s: look.skin, h: look.hair, hc: look.hairColor, x: look.extras.length ? look.extras : undefined, ht: Math.round(look.height * 100), b: badge ? 1 : undefined, mk: look.mask === "closed" ? 1 : undefined, aw: aw || undefined, fg: fg || undefined };
 }
 
 /** A look from the wire (anything missing → the default). */

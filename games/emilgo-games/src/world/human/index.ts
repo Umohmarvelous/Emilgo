@@ -16,6 +16,7 @@ import {
   type BufferGeometry,
   Matrix4,
   CanvasTexture,
+  Color,
   DetachedBindMode,
   Euler,
   LinearMipmapLinearFilter,
@@ -47,6 +48,7 @@ import { loadScanLevel, onScanLevel, scanReady, scanStamp } from "./scanbody";
 import { OUTFIT_BY_ID, paintKey, scanPaintKey, shapeKey, type Look } from "./wardrobe";
 import { onOperatorsReady, operatorBody, operatorsReady } from "./op";
 import { suitMaterial } from "./suit";
+import type { FigurineDef } from "../../shop/figurines";
 
 export type { Look } from "./wardrobe";
 export type { ActionId, EmoteId, PoseId } from "./animator";
@@ -283,6 +285,38 @@ function armourMaterial(tier: Tier): Material {
   armourMats[lit] = mat;
   return mat;
 }
+/**
+ * v6 max (3.8): a figurine's armour: the same pieces in its own metal (the plates' greys become shades of it) and
+ * its own light in place of growth's red. One material per figurine and tier; one program for all of them.
+ */
+const figMats = new Map<string, Material>();
+function figArmourMaterial(tier: Tier, fig: FigurineDef): Material {
+  const lit = tier === 0 ? 0 : 1;
+  const key = `${fig.id}:${lit}`;
+  const have = figMats.get(key);
+  if (have) return have;
+  const mat = lit ? new MeshStandardMaterial({ vertexColors: true, metalness: fig.metalness, roughness: 0.42 - fig.metalness * 0.22 }) : new MeshLambertMaterial({ vertexColors: true });
+  const tint = new Color(fig.metal);
+  const glow = new Color(fig.glow);
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.figTint = { value: tint };
+    sh.uniforms.figGlow = { value: glow };
+    sh.fragmentShader = `uniform vec3 figTint;\nuniform vec3 figGlow;\n${sh.fragmentShader}`
+      .replace(
+        "#include <color_fragment>",
+        `#include <color_fragment>
+        float figLight = max(max(vColor.r, vColor.g), vColor.b) - 1.0;
+        vec3 armourGlow = figLight > 0.0 ? figGlow * (figLight + 0.4) : vec3(0.0);
+        // The plates' greys (gunmetal ≈ 0.085 in linear) as shades of the figurine's metal.
+        float figL = dot(min(vColor.rgb, vec3(1.0)), vec3(0.3, 0.59, 0.11));
+        diffuseColor.rgb = figLight > 0.0 ? figGlow * 0.55 : min(figTint * clamp(figL / 0.085, 0.25, 2.2), vec3(1.0));`,
+      )
+      .replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\ntotalEmissiveRadiance += armourGlow * 0.6;");
+  };
+  mat.customProgramCacheKey = () => `armourFig1:${lit}`;
+  figMats.set(key, mat);
+  return mat;
+}
 const _c1 = new Vector3();
 const _c2 = new Vector3();
 const _c3 = new Vector3();
@@ -323,6 +357,12 @@ export class Human {
   /** v6 max (3.7): growth's armour (an operator's), on the body's bones; its level. */
   private armour: SkinnedMesh | null = null;
   private armourLv = 0;
+  /** Growth's level (0 … 3) as last set, and the figurine worn (3.8): its armour shows at least its own level. */
+  private growthLv = 0;
+  private fig: FigurineDef | null = null;
+  /** The suit's effects as a booster last set them (setFx), and the figurine's own clock for its signature. */
+  private readonly fxExt = { camo: 0, kind: 0, r: 0, g: 0, b: 0, a: 0, time: 0 };
+  private figTime = 0;
   /** The backpack on the chest bone (open worlds), or null. */
   private pack: import("three").Mesh | null = null;
   /** v6: the captain's armband (the squad leader), and the body it was fitted to. */
@@ -457,6 +497,10 @@ export class Human {
       this.anim.mocap = wantOp || !!this.zkind;
       this.anim.curlBias = wantOp ? 0 : this.scanned ? 0.35 : 0;
       if (this.shadow) this.castShadows(true);
+      // v6 max (3.8): armour and the suit's effects belong to the operator's body: on (or off) with it.
+      this.armourLv = wantOp ? Math.max(this.growthLv, this.fig?.armour ?? 0) : 0;
+      this.showArmour();
+      this.applyFx();
     }
   }
 
@@ -676,6 +720,11 @@ export class Human {
   /** Advance and pose. `speed` m/s on the ground; `stance` 0..2; `air` 0..1 (1: jumping); `slide` 0/1. */
   update(dt: number, speed: number, stance = 0, air = 0, slide = 0, moveYaw = 0): void {
     const a = this.anim;
+    // v6 max (3.8): a figurine's signature runs on its own clock (a booster's, while one lasts, on the booster's).
+    if (this.fig?.fx.kind) {
+      this.figTime += dt;
+      if (this.fxExt.a <= 0.001) this.applyFx();
+    }
     a.moveYaw = moveYaw;
     // What the hands hold (v4 rework): the mocap's upper body follows it.
     const hd = this.hold;
@@ -753,9 +802,27 @@ export class Human {
     const u = (this.opMat?.userData as { fierce?: { value: number } } | undefined)?.fierce;
     if (u) u.value = level;
     if (!this.op) this.tint(level > 0 ? 0xb8a8a8 : null, level > 0 ? 0x1a0402 * level : 0);
-    // v6 max (3.7): and the robotic armour, more of it each level.
-    this.armourLv = this.op ? level : 0;
+    // v6 max (3.7): and the robotic armour, more of it each level (a figurine's own, at least).
+    this.growthLv = level;
+    this.armourLv = this.op ? Math.max(level, this.fig?.armour ?? 0) : 0;
     this.showArmour();
+  }
+
+  /**
+   * v6 max (3.8): wear a figurine (or none): its armour always on in its own metal and light, its signature on
+   * the suit (lines, eyes, shimmer). Its suit colours and height come with the look (shop/figurines figurineLook).
+   */
+  setFigurine(fig: FigurineDef | null): void {
+    if (this.fig === fig) return;
+    this.fig = fig;
+    this.armourLv = this.op ? Math.max(this.growthLv, fig?.armour ?? 0) : 0;
+    if (this.armour) this.armour.material = fig ? figArmourMaterial(this.tier, fig) : armourMaterial(this.tier);
+    this.showArmour();
+    this.applyFx();
+  }
+
+  get figurine(): FigurineDef | null {
+    return this.fig;
   }
 
   /** v6 max (3.7): growth's armour for the body's level now (or none). */
@@ -767,7 +834,7 @@ export class Human {
     }
     const geo = growthGeometry(this.body.geometry, this.body.rest, lv, this.level);
     if (!this.armour) {
-      const s = new SkinnedMesh(geo, armourMaterial(this.tier));
+      const s = new SkinnedMesh(geo, this.fig ? figArmourMaterial(this.tier, this.fig) : armourMaterial(this.tier));
       s.bind(this.mesh.skeleton, new Matrix4());
       s.bindMode = DetachedBindMode;
       s.frustumCulled = false;
@@ -784,12 +851,28 @@ export class Human {
    * glow colour; strength 0 … 1); the clock their animation runs on. Operators only (the old dress ignores them).
    */
   setFx(camo: number, kind: number, r: number, g: number, b: number, a: number, time: number): void {
+    Object.assign(this.fxExt, { camo, kind, r, g, b, a, time });
+    this.applyFx();
+  }
+
+  /** What the suit shows: a booster's power while it lasts, else the figurine's signature; the stronger shimmer. */
+  private applyFx(): void {
     const u = this.opMat?.userData as { camo?: { value: number }; fxTime?: { value: number }; power?: { value: { set(x: number, y: number, z: number, w: number): void } }; powerKind?: { value: number } } | undefined;
     if (!u?.camo) return;
-    u.camo.value = camo;
-    u.fxTime!.value = time;
-    u.power!.value.set(r, g, b, a);
-    u.powerKind!.value = kind;
+    const e = this.fxExt;
+    const f = this.fig?.fx;
+    u.camo.value = Math.max(e.camo, f?.camo ?? 0);
+    if (e.a > 0.001 || !f || !f.kind) {
+      u.fxTime!.value = e.time;
+      u.power!.value.set(e.r, e.g, e.b, e.a);
+      u.powerKind!.value = e.kind;
+    } else {
+      const g = this.fig!.glow;
+      const n = parseInt(g.slice(1), 16);
+      u.fxTime!.value = this.figTime;
+      u.power!.value.set((((n >> 16) & 255) / 255) * 1.4, (((n >> 8) & 255) / 255) * 1.4, ((n & 255) / 255) * 1.4, f.a);
+      u.powerKind!.value = f.kind;
+    }
   }
 
   hideHead(on: boolean): void {

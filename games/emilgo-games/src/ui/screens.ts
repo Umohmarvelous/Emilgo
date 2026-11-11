@@ -27,6 +27,7 @@ import type { FriendState } from "../social/friends";
 import { EMOTES, EMOTE_BY_ID, type EmoteId } from "../social/emotes";
 import { HOODIE_COLORS, HOODIE_DESIGNS, type HoodieDesign, type Look } from "../world/human/wardrobe";
 import { awardsBody, badgeEmblem, unlockedHtml } from "./awards";
+import { FIGURINES, type FigurineDef } from "../shop/figurines";
 import { boardBody, cardBody, inboxBody, profileBody, threadBody, type ProfileView } from "./profile";
 import { esc, fmtTime, ordinal } from "./dom";
 import { SPOOKY_ROUTE } from "../maps/open/route";
@@ -232,7 +233,9 @@ type Action = (name: string, el: HTMLElement, ev: Event) => void;
 type RangeKey = "sensH" | "sensV" | "stickOpacity" | "sens" | "master" | "musicVol" | "sfxVol" | "adsVol" | "lookAccel";
 
 export interface StoreState {
-  tab: "boosts" | "cosmetics";
+  tab: "boosts" | "cosmetics" | "figurines";
+  /** v6 max (3.8): the figurines owned, the one worn, the one being tried on. */
+  figs?: { owned: readonly string[]; worn: string; trying: string };
   owned: ReadonlySet<string>;
   badge: boolean;
   busy: string | null;
@@ -665,9 +668,27 @@ export class Screens {
   store(st: StoreState): void {
     const { owned, badge, busy, note, canBuy } = st;
     const prevScroll = this.current === "store" ? (this.root.querySelector<HTMLElement>(".sheet-body")?.scrollTop ?? 0) : 0;
-    const tabs = `<button class="tab ${st.tab === "boosts" ? "on" : ""}" data-act="store-tab" data-tab="boosts">Boosts · CP</button><button class="tab ${st.tab === "cosmetics" ? "on" : ""}" data-act="store-tab" data-tab="cosmetics">Cosmetics</button>`;
+    const tabs = `<button class="tab ${st.tab === "boosts" ? "on" : ""}" data-act="store-tab" data-tab="boosts">Boosts · CP</button><button class="tab ${st.tab === "figurines" ? "on" : ""}" data-act="store-tab" data-tab="figurines">Figurines · CP</button><button class="tab ${st.tab === "cosmetics" ? "on" : ""}" data-act="store-tab" data-tab="cosmetics">Cosmetics</button>`;
     let body: string;
-    if (st.tab === "boosts") {
+    if (st.tab === "figurines") {
+      // v6 max (3.8): five characters bought with CP. Anyone can try one on (you stand as it beside the Store); only owners play as it.
+      const f = st.figs ?? { owned: [], worn: "", trying: "" };
+      const tile = (d: FigurineDef) => {
+        const has = f.owned.includes(d.id);
+        const worn = f.worn === d.id;
+        const trying = f.trying === d.id;
+        const action = has
+          ? `<button class="btn ${worn ? "secondary on" : "primary"}" style="height:32px;width:100%" data-act="fig-wear" data-id="${d.id}">${worn ? "Worn · take off" : "Wear"}</button>`
+          : `<button class="btn primary" style="height:32px;width:100%" data-act="fig-buy" data-id="${d.id}" ${st.cp < d.cp ? "disabled" : ""}>${d.cp.toLocaleString()} CP</button>`;
+        return `<div class="tile fig-tile${trying ? " on" : ""}" style="min-height:178px;justify-content:space-between;--fg:${d.glow};--fm:${d.metal}">
+          <button data-act="fig-try" data-id="${d.id}" class="fig-try" aria-label="${esc(t("Try on"))} ${esc(d.name)}">
+            <span class="fig-mark"><i></i></span><span class="t">${esc(d.name)}</span><span class="fig-role">${esc(t(d.role)).toUpperCase()}</span><span class="s">${esc(t(d.blurb))}</span>
+          </button>${action}${has ? "" : `<span class="s fig-hint">${trying ? esc(t("Trying on: look beside the Store")) : esc(t("Tap to try on"))}</span>`}</div>`;
+      };
+      body = `<div class="cp-bar glass"><span class="label">Your CP</span><b class="num">${st.cp.toLocaleString()}</b><span class="small grow">${esc(t("Earned only by playing. A figurine is yours for good."))}</span></div>
+        <p class="note">${esc(t("Five characters of our own, each with its own armour, light and signature. Tap one to try it on; buy it with CP to play as it. Nothing here helps you win."))}</p>
+        <div class="grid wide">${FIGURINES.map(tile).join("")}</div>`;
+    } else if (st.tab === "boosts") {
       const on = new Set(st.boostsOn);
       const tile = (b: Boost) => {
         const left = st.boosts[b.id] ?? 0;

@@ -58,6 +58,7 @@ import {
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 
 import type { TierSpec } from "../graphics/tiers";
+import type { FigurineDef } from "../shop/figurines";
 import { Human, operatorsReady, type Look, type PoseId } from "./human";
 import type { EmoteId } from "../social/emotes";
 import { circleRadius, circleSpots } from "../flow/waitingRoom";
@@ -295,6 +296,7 @@ export class LobbyStage {
     this.me = new Human(look, tier, { featured: true, seed: 3, lit: this.spec.pbr ? "standard" : "lambert" });
     this.me.castShadows(this.spec.shadows);
     if (this.operatorKit) this.me.setGear(this.operatorKit, 0);
+    this.me.setFigurine(this.fig);
     this.me.setPose(pose);
     if (old) {
       // Keep the pose timing so a change of clothes doesn't jolt.
@@ -585,6 +587,13 @@ export class LobbyStage {
     this.camera.updateProjectionMatrix();
     if (this.camPos.distanceToSquared(this.lastCam) > 0.0004) this.backDirty = true;
   }
+
+  /** v6 max (3.8): the figurine you stand as (worn, or tried on in the Store), or null. Its suit comes with the look. */
+  setFigurine(fig: FigurineDef | null): void {
+    this.fig = fig;
+    this.me?.setFigurine(fig);
+  }
+  private fig: FigurineDef | null = null;
 
   /** v4: you in the lobby as the operator (your kit), or as you are. */
   setOperator(kit: Kit | null): void {

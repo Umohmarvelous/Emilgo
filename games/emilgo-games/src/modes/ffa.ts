@@ -16,6 +16,7 @@ import { type ModeDef } from "../content/modes";
 import { Rng } from "../core/rng";
 import type { Contestant } from "../game/core/body";
 import { badgeOf, botBadge } from "../rank/awards";
+import { FIGURINE_BY_ID, FIGURINES, figurineLook } from "../shop/figurines";
 import { Match, settingsOf, weeklyMutator, type MatchWorld } from "../game/core/match";
 import type { MatchEvent } from "../game/core/module";
 import type { CaptureModule } from "../game/modules/capture";
@@ -264,7 +265,16 @@ export class FfaMode implements GameMode {
     const h = host;
     // Everyone in their own clothes (Free For All has no match suit); strangers as the seed dresses them.
     const rng = new Rng(m.seed ^ 0x5eed);
-    const looks: Look[] = m.contestants.map((c, i) => (c === me ? h.myLook() : wire[i] ? fromWire(wire[i]!) : randomLook(new Rng((rng.next() * 1e9) ^ (i * 977)))));
+    // v6 max (3.8): the figurines worn: yours (if owned), what the others' phones sent, now and then a bot's.
+    const zombieMatch = !!m.module("survival");
+    const figs = m.contestants.map((c, i) => {
+      if (zombieMatch && c !== me) return null;
+      if (c === me) return h.settings.figs.includes(h.settings.fig) ? (FIGURINE_BY_ID[h.settings.fig] ?? null) : null;
+      if (wire[i]) return FIGURINE_BY_ID[wire[i]!.fg ?? ""] ?? null;
+      const r = new Rng((m.seed ^ 0xf19) + i * 7919);
+      return r.next() < 0.15 ? FIGURINES[Math.floor(r.next() * FIGURINES.length)] : null;
+    });
+    const looks: Look[] = m.contestants.map((c, i) => (c === me ? h.myLook() : wire[i] ? fromWire(wire[i]!) : figurineLook(randomLook(new Rng((rng.next() * 1e9) ^ (i * 977))), figs[i])));
     this.looks = looks;
     h.crowd.setup(looks, me.index);
     // The streak glow (§10.18): 3 wins in a row or more, as the server's profile says.
@@ -277,6 +287,7 @@ export class FfaMode implements GameMode {
     m.contestants.forEach((_c, i) => {
       if (zombies && i !== me.index) return;
       h.crowd.setGear(i, KITS[looks[i].hoodie % KITS.length], 0);
+      h.crowd.setFigurine(i, figs[i]);
     });
 
     // The world, its sky, and the camera's walls.

@@ -236,6 +236,11 @@ export class Crowd {
     this.people[i]?.setFierce(level);
   }
 
+  /** v6 max (3.8): body i's figurine (or none). */
+  setFigurine(i: number, fig: import("../shop/figurines").FigurineDef | null): void {
+    this.people[i]?.setFigurine(fig);
+  }
+
   /** v6 max: body i's suit effects (Human.setFx). */
   setFx(i: number, camo: number, kind: number, r: number, g: number, b: number, a: number, time: number): void {
     this.people[i]?.setFx(camo, kind, r, g, b, a, time);

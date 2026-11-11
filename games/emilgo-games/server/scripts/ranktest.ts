@@ -13,7 +13,9 @@
 //   node server/build-tools.mjs && node server/dist/ranktest.mjs
 //   GAME=ws://localhost:8797 RANK_SECRET=<the server's SUPABASE_JWT_SECRET> node server/dist/ranktest.mjs
 
-import { allowedLook } from "../../src/shop/catalog";
+import { allowedLook, toWireLook } from "../../src/shop/catalog";
+import { cleanFigurines, FIGURINES, figurineLook } from "../../src/shop/figurines";
+import { cleanLook } from "../../src/world/human/wardrobe";
 import { HOODIE_DESIGNS } from "../../src/world/human/wardrobe";
 import { divisionIndex } from "../../src/content/validate";
 import { createHmac } from "node:crypto";
@@ -126,6 +128,22 @@ console.log("\nawards (v6 max, 3.10):");
   check(allowedLook({ aw: "veteran.2" }, new Set()).aw === "veteran.2" && allowedLook({ aw: "veteran.9" }, new Set()).aw === undefined, "the server passes a well-formed badge on the look, drops a bad one");
   const bots = Array.from({ length: 40 }, (_, i) => botBadge(7, i));
   check(bots.every((b) => b === "" || parseBadge(b)) && bots.filter(Boolean).length > 8 && bots.filter(Boolean).length < 32, `bots wear a badge about half the time (${bots.filter(Boolean).length} of 40)`);
+}
+
+console.log("\nfigurines (v6 max, 3.8):");
+{
+  check(FIGURINES.length === 5 && new Set(FIGURINES.map((f) => f.id)).size === 5 && FIGURINES.every((f) => f.cp >= 1000), "five figurines, each its own id, each a real CP goal");
+  // Every phone must show a figurine's suit: its colour and pattern are free ones (the server strips paid or rank ones).
+  const plain = cleanLook({});
+  const kept = FIGURINES.every((f) => {
+    const look = figurineLook(plain, f);
+    const wire = allowedLook(toWireLook(look, false, "", f.id), new Set(), 0);
+    return wire.fg === f.id && wire.hd === look.hoodie && wire.ds === f.design;
+  });
+  check(kept, "a figurine's suit, pattern and id reach everyone (no ticket, no rank needed)");
+  check(allowedLook({ fg: "not-a-fig" }, new Set()).fg === undefined, "an unknown figurine is dropped");
+  const c = cleanFigurines(["vanguard", "nope", "vanguard", 5], "inferno");
+  check(c.figs.join() === "vanguard" && c.fig === "", "a saved list keeps known ids once; a figurine not owned isn't worn");
 }
 
 const GAME = process.env.GAME;

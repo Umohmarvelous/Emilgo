@@ -533,6 +533,9 @@ export function parseClient(raw: string): ClientMsg | null {
       // v6 max (3.10): the award badge worn (allowedLook checks its shape).
       const aw = str(l.aw, 24);
       if (aw) look.aw = aw;
+      // v6 max (3.8): the figurine worn (allowedLook checks the id).
+      const fg = str(l.fg, 16);
+      if (fg) look.fg = fg;
       return { t: "look", ticket: typeof o.ticket === "string" ? o.ticket : undefined, look };
     }
     case "prefs": {

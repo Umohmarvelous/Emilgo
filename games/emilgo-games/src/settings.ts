@@ -11,6 +11,7 @@ import { levelOf } from "./game/progress";
 import { EMOTE_IDS, type EmoteId } from "./social/emotes";
 import type { Host } from "./platform/types";
 import { BOOST_IDS, cleanBoosts, type BoostId } from "./shop/boosts";
+import { cleanFigurines } from "./shop/figurines";
 import { cleanLook, DEFAULT_LOOK, type Look } from "./world/human/wardrobe";
 import type { PoseId } from "./world/human/animator";
 
@@ -180,6 +181,9 @@ export interface Settings {
   cardPublic: boolean;
   /** v6 max (3.11): friend ids blocked from a thread: their requests are ignored on this phone. */
   blockedFids: string[];
+  /** v6 max (3.8): the figurines bought with CP (shop/figurines.ts), and the one worn ("" the operator). */
+  figs: string[];
+  fig: string;
   /** People you've played online with lately, newest first. `seat` reaches them while they're still online. */
   recent: { name: string; at: number; seat?: string }[];
   /** Your friend id in this copy of the game: random, never sent to Lagos Life or EMILGO, unknown to the other copy. */
@@ -266,6 +270,8 @@ export function defaults(host: Host): Settings {
     dmsOn: true,
     cardPublic: true,
     blockedFids: [],
+    figs: [],
+    fig: "",
     recent: [],
     mode: "classic",
     distance: DEFAULT_DISTANCE,
@@ -304,7 +310,7 @@ export function defaults(host: Host): Settings {
 export const KEPT_ON_RESET: readonly (keyof Settings)[] = [
   "look", "avatar", "avatarSet", "suitV5", "badge", "lobbyPose", "wheel", "map", "mode", "distance", "tutorialSeen", "best", "played", "wins", "xp",
   "rankXp", "rankKnown", "deviceXp", "founder", "honour", "form", "streak", "runBest", "runWeapon", "runPerks", "runCharms", "runMods", "runDaily", "runDeaths",
-  "daily", "chest", "awards", "history", "dms", "blockedFids", "recent", "fid", "friends", "cp", "boosts", "boostsOn", "song",
+  "daily", "chest", "awards", "history", "dms", "blockedFids", "figs", "fig", "recent", "fid", "friends", "cp", "boosts", "boostsOn", "song",
 ];
 
 export function resetPrefs(host: Host, s: Settings): Settings {
@@ -414,6 +420,7 @@ export function loadSettings(host: Host): Settings {
     out.dms = cleanDms(saved.dms);
     out.dmsOn = saved.dmsOn !== false;
     out.cardPublic = saved.cardPublic !== false;
+    ({ figs: out.figs, fig: out.fig } = cleanFigurines(saved.figs, saved.fig));
     out.blockedFids = Array.isArray(saved.blockedFids) ? saved.blockedFids.filter((f) => typeof f === "string" && FID_RE.test(f)).slice(0, 200) : [];
     out.recent = Array.isArray(saved.recent) ? saved.recent.filter((r) => r && typeof r.name === "string").slice(0, 30) : [];
     if (!FID_RE.test(out.fid)) out.fid = newFid();

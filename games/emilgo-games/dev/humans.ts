@@ -3,6 +3,7 @@
 // Players are the scanned people; &gen=1 shows the generated ones instead (the fallback).
 import { KITS } from "../src/world/human/gear";
 import { ACESFilmicToneMapping, AmbientLight, Color, DirectionalLight, HemisphereLight, Mesh, MeshStandardMaterial, PerspectiveCamera, PlaneGeometry, Scene, SRGBColorSpace, WebGLRenderer } from "three";
+import { FIGURINES, figurineLook } from "../src/shop/figurines";
 import { Human, loadOperators, loadScans, type Tier } from "../src/world/human";
 import { newHold } from "../src/world/human/hold";
 import { loadScanLevel } from "../src/world/human/scanbody";
@@ -65,6 +66,9 @@ if (set === "outfits") {
   const cols = (q.get("colors") ?? "white,mustard,green,sky,crimson,rose").split(",");
   const des = (q.get("designs") ?? "plain,twotone,stripe,block,tracksuit,plates").split(",");
   cols.forEach((c, i) => looks.push(base({ body: "f", hoodie: Math.max(0, HOODIE_COLORS.findIndex((h) => h.id === c)), design: des[i % des.length] as never })));
+} else if (set === "figs") {
+  // v6 max (3.8): the five figurines (with &gear=0), in their own suits.
+  for (const f of FIGURINES) looks.push(figurineLook(base({ body: "m" }), f));
 } else if (set === "poses") {
   for (const p of ["relaxed", "hip", "hair", "hero", "arms"]) looks.push(base({ body: p === "hero" || p === "arms" ? "m" : "f", hair: "afro", outfit: p === "hero" ? "hero" : "patch_dress", skin: 3 }));
 }
@@ -98,6 +102,8 @@ looks.forEach((l, i) => {
   // v6 max: the suit's effects (?camo=1; ?power=1 strength | 2 speed).
   // v6 max (3.5): swimming (?swim=1, with &speed=2.8&cam=side).
   if (q.get("swim")) h.anim.swimWant = 1;
+  // v6 max (3.8): the figurines (set=figs).
+  if (set === "figs") h.setFigurine(FIGURINES[i % FIGURINES.length]);
   // v6 max (3.7): growth (?fierce=1..3, or ladder: 0–3 across).
   const fq2 = q.get("fierce");
   if (fq2) h.setFierce(fq2 === "ladder" ? i % 4 : Number(fq2));
