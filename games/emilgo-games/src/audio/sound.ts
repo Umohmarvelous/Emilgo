@@ -791,26 +791,18 @@ export class Sound {
   }
 
   /**
-   * Your jump: a woman's short effort shout ("hah!"), a recorded one of three takes (CC0, tools/audio/sfx.mjs),
-   * never the same twice in a row, each a shade higher or lower; under it, the boots pushing off the ground.
-   * The synthesised effort stands in until the library has loaded.
+   * Your jump. v7 (the owner: "only one sound effect for when the player is jumping, the one that sound real"):
+   * one recorded effort, always the same take at its own pitch (the deepest and most natural of v6's three,
+   * CC0, tools/audio/sfx.mjs), nothing layered over it. The synthesised effort stands in until the library has
+   * loaded.
    */
   jump(): void {
+    if (this.sample("voice-jump", 0.5, 1)) return;
     const t = this.now;
-    // The push off: grit under the boots.
-    this.noise(t, 0.05, { gain: 0.035, freq: 700, type: "lowpass" });
-    const takes = ["voice-jump", "voice-jump2", "voice-jump3"].filter((n) => !!sampleBuffer(n));
-    if (takes.length) {
-      let k = Math.floor(Math.random() * takes.length);
-      if (takes.length > 1 && takes[k] === this.lastJump) k = (k + 1) % takes.length;
-      this.lastJump = takes[k];
-      if (this.sample(takes[k], 0.5, 0.95 + Math.random() * 0.1)) return;
-    }
     this.tone(310, t, 0.15, { type: "sawtooth", gain: 0.022, to: 235, attack: 0.012 });
     this.tone(620, t, 0.11, { type: "sine", gain: 0.02, to: 470, attack: 0.012 });
     this.noise(t, 0.13, { gain: 0.035, freq: 1300, type: "bandpass" });
   }
-  private lastJump = "";
 
   /**
    * v6 max (3.2): a booster taken: the surge as the power rises (1.5 s). Strength: a deep roar climbing under a
