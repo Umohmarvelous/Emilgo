@@ -40,6 +40,34 @@ export interface River {
   water: number;
 }
 
+/**
+ * v6 max (3.3): standing water on the ground (the Mangrove Sink's swamp): a sheet of still water a hand deep,
+ * its shore ragged (pondRadius), nothing dug out. You wade through it; dead trees and stilt huts stand in it.
+ */
+export interface Pond {
+  x: number;
+  z: number;
+  /** Its mean radius (m); the shore wanders ±30% round it. */
+  r: number;
+  seed: number;
+}
+
+/** How far a pond's shore lies from its middle toward angle `a` (radians, atan2(dz, dx)). */
+export function pondRadius(p: Pond, a: number): number {
+  const s = p.seed;
+  return p.r * (1 + 0.17 * Math.sin(3 * a + s) + 0.09 * Math.sin(5 * a + s * 1.7) + 0.05 * Math.sin(9 * a + s * 2.3));
+}
+
+/** Is x, z in any of the ponds (`margin` m in from the shore)? */
+export function inPond(ponds: readonly Pond[] | undefined, x: number, z: number, margin = 0): boolean {
+  if (!ponds) return false;
+  for (const p of ponds) {
+    const d = Math.hypot(x - p.x, z - p.z);
+    if (d < p.r * 1.35 && d < pondRadius(p, Math.atan2(z - p.z, x - p.x)) - margin) return true;
+  }
+  return false;
+}
+
 export interface Landmark {
   id: string;
   name: string;
@@ -76,6 +104,8 @@ export interface OpenLayout {
   half: number;
   roads: Road[];
   rivers: River[];
+  /** v6 max (3.3): standing water (the swamp). */
+  ponds?: Pond[];
   landmarks: Landmark[];
   areas: Area[];
   placements: Placement[];

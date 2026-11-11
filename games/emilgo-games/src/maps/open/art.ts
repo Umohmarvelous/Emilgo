@@ -992,6 +992,28 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
       k.blob(r.pick(["#2a4a2a", "#334f2c", "#2b4426"]), [2.6, 1.6, 2.6], [0, 5.2, 0]);
       break;
     }
+    case "deadtree": {
+      // v6 max (3.3, the v4 swamp picture): a drowned tree, bare: a tapering trunk, a few limbs reaching up.
+      const h = 7 + r.range(0, 4);
+      const bark = r.pick(["#2e2924", "#36302a", "#2a2622", "#3a3229"]);
+      k.cyl(bark, 0.32, h, [0, h / 2 - 0.4, 0], "mass", { sides: k.tier >= 1 ? 10 : 6, top: 0.3 });
+      const limbs = 3 + Math.floor(r.range(0, 4));
+      for (let i = 0; i < limbs; i++) {
+        const y = h * r.range(0.5, 0.85);
+        const a = r.range(0, Math.PI * 2);
+        const tilt = r.range(0.4, 0.85);
+        const len = h * r.range(0.2, 0.36);
+        const dx = Math.sin(tilt) * Math.cos(a);
+        const dz = Math.sin(tilt) * Math.sin(a);
+        k.cyl(bark, 0.1, len, [dx * len * 0.5, y + Math.cos(tilt) * len * 0.5, dz * len * 0.5], "main", { sides: 6, top: 0.25, r: [0, -a, -tilt] });
+      }
+      // A broken stub or two lower down.
+      if (r.range(0, 1) < 0.6) {
+        const a = r.range(0, Math.PI * 2);
+        k.cyl(bark, 0.08, 0.9, [Math.cos(a) * 0.35, h * 0.3, Math.sin(a) * 0.35], "detail", { sides: 6, top: 0.5, r: [0, -a, -1.2] });
+      }
+      break;
+    }
     case "stilt":
       allParts(k, ps, () => ({ tex: "wood", color: "#6a5038", tile: 2 }));
       k.box("#4a4038", [6, 0.25, 5], [0, 4.8, -1], "main", [0.15, 0, 0]);

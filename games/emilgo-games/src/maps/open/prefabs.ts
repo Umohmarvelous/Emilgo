@@ -105,6 +105,8 @@ export type PrefabId =
   | "pipes" | "hangar" | "ctower" | "planewreck" | "dune" | "mangrove" | "stilt" | "club" | "stand" | "glasstower"
   // v5: Frostline's spruce, snow on every tier.
   | "snowpine"
+  // v6 max (3.3): the swamp's drowned trees.
+  | "deadtree"
   // v4 rework R9: a CC0 model from the props' table (v & 255 is its index in PROPS).
   | "prop";
 
@@ -205,6 +207,7 @@ export function footprint(id: PrefabId, v: number): [number, number] {
     case "planewreck": return [24, 22];
     case "dune": { const w = 18 + (v % 5) * 4; return [w, 10]; }
     case "mangrove": return [4, 4];
+    case "deadtree": return [1.6, 1.6];
     case "stilt": return [7, 7];
     case "club": return [22, 16];
     case "stand": return [60, 12];
@@ -606,6 +609,9 @@ export function parts(id: PrefabId, v: number): Part[] {
     }
     case "mangrove":
       out.push(box(0, 0, 0.8, 0.8, 0, 6, "wood"));
+      break;
+    case "deadtree":
+      out.push(box(0, 0, 0.6, 0.6, 0, 7, "wood"));
       break;
     case "stilt":
       for (const [x, z] of [[-3, -3], [3, -3], [-3, 3], [3, 3]]) out.push(box(x, z, 0.3, 0.3, 0, 1.6, "wood"));

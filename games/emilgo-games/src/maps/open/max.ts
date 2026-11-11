@@ -23,7 +23,7 @@
 import { Rng } from "../../core/rng";
 import type { Solid } from "../../game/core/space";
 import { placeBoards, type BoardWish } from "./billboards";
-import { buildNaijaWorld, EDGE, type Area, type GroundKind, type Landmark, type OpenLayout, type River, type Road } from "./naija";
+import { buildNaijaWorld, EDGE, inPond, type Area, type GroundKind, type Landmark, type OpenLayout, type Pond, type River, type Road } from "./naija";
 import { footprint, propPlaced, solidsOf, type Placement, type PrefabId } from "./prefabs";
 import { inPatch } from "./patches";
 import { PROPS } from "./propTable";
@@ -267,12 +267,21 @@ export function buildMaxWorld(seed = 1957): OpenLayout {
     return true;
   };
   /** n tries to put `prefab` somewhere in a place's circle (a fraction `inner` of it left clear). */
-  const scatter = (pl: { x: number; z: number; r: number }, prefab: PrefabId, n: number, opts: { inner?: number; rot?: () => number; gap?: number } = {}) => {
+  const scatter = (
+    pl: { x: number; z: number; r: number },
+    prefab: PrefabId,
+    n: number,
+    opts: { inner?: number; rot?: () => number; gap?: number; where?: (x: number, z: number) => boolean } = {},
+  ) => {
     let put = 0;
     for (let k = 0; k < n * 4 && put < n; k++) {
       const a = rng.range(0, Math.PI * 2);
       const d = pl.r * Math.sqrt(rng.range(opts.inner ?? 0, 1));
-      if (place(prefab, pl.x + Math.cos(a) * d, pl.z + Math.sin(a) * d, opts.rot ? opts.rot() : rng.range(0, Math.PI * 2), nextV(), opts.gap)) put++;
+      const x = pl.x + Math.cos(a) * d;
+      const z = pl.z + Math.sin(a) * d;
+      const rot = opts.rot ? opts.rot() : rng.range(0, Math.PI * 2);
+      if (opts.where && !opts.where(x, z)) continue;
+      if (place(prefab, x, z, rot, nextV(), opts.gap)) put++;
     }
   };
   const P = Object.fromEntries(PLACES.map((p) => [p.id, p])) as Record<string, Place>;
@@ -308,10 +317,18 @@ export function buildMaxWorld(seed = 1957): OpenLayout {
   for (const t of [-220, 210]) place("planewreck", RUNWAY.x + rs * t + rc * 70, RUNWAY.z + rc * t - rs * 70, rng.range(0, 6.28));
   scatter(P.airfield, "wreck", 16);
   scatter(P.airfield, "bush", 80, { inner: 0.4 });
-  // ── Mangrove Sink: mangroves by the channel, shacks on stilts, dead trees ──
-  scatter(P.mangrove, "stilt", 18, { inner: 0.05 });
-  scatter(P.mangrove, "mangrove", 260, { gap: 1.2 });
-  scatter(P.mangrove, "bush", 80);
+  // ── Mangrove Sink (v6 max, 3.3, after the v4 picture): standing water with drowned trees in it and huts on
+  // stilts over it, the channel through; on the dry ground between, stones, grass and the living mangroves ──
+  const ponds: Pond[] = [[-95, 40, 60], [70, -70, 55], [-40, 118, 44], [20, -132, 38], [-104, -76, 33]].map(([dx, dz, r], i) => ({ x: P.mangrove.x + dx, z: P.mangrove.z + dz, r, seed: 3 + i * 1.9 }));
+  const wet = (x: number, z: number) => inPond(ponds, x, z, 2);
+  const dry = (x: number, z: number) => !inPond(ponds, x, z, -3);
+  for (const pd of ponds) scatter({ x: pd.x, z: pd.z, r: pd.r * 0.85 }, "stilt", 3, { where: wet });
+  scatter(P.mangrove, "stilt", 5, { inner: 0.05, where: dry });
+  for (const pd of ponds) scatter({ x: pd.x, z: pd.z, r: pd.r * 1.1 }, "deadtree", Math.round(pd.r * 1.5), { where: wet, gap: 2.5 });
+  scatter(P.mangrove, "deadtree", 35, { where: dry, gap: 3 });
+  scatter(P.mangrove, "mangrove", 70, { gap: 1.2, inner: 0.25, where: dry });
+  scatter(P.mangrove, "rock", 45, { where: dry });
+  scatter(P.mangrove, "bush", 120, { where: dry });
   // ── Neon Row: clubs along the road, glass towers behind; the Arena's stands round its pitch ──
   for (let k = 0; k < 8; k++) place("club", P.neon.x - 100 + k * 28, P.neon.z + (k % 2 ? 22 : -22), k % 2 ? Math.PI : 0);
   for (const [dx, dz] of [[-90, -90], [-30, -100], [40, -95], [100, -80], [-100, 80], [90, 90]]) place("glasstower", P.neon.x + dx, P.neon.z + dz, 0);
@@ -346,6 +363,8 @@ export function buildMaxWorld(seed = 1957): OpenLayout {
       const idx = mine[Math.floor(rng.next() * mine.length)];
       const rot = rng.range(0, Math.PI * 2);
       const q = PROPS[idx];
+      // (In the swamp's water only what floats: the buoys and the channel markers.)
+      if (inPond(ponds, x, z, -2) && q.id !== "ocean_buoy" && q.id !== "lateral_sea_marker") continue;
       if (!taken.free(rectOf(x, z, q.w + 4, q.d + 4, rot))) continue;
       if (place("prop", x, z, rot, ((nextV() << 8) | idx) >>> 0)) put++;
     }
@@ -449,6 +468,7 @@ export function buildMaxWorld(seed = 1957): OpenLayout {
     half: H,
     roads,
     rivers: [...city.rivers, ...WATERS],
+    ponds,
     landmarks,
     areas,
     placements: [...city.placements, ...placements],

@@ -55,7 +55,7 @@ import { canvasTexture, concrete, glassFacade, mud, plaster, thatch, wood, zinc,
 import { Sky } from "../sky";
 import type { TexKind } from "../kit";
 import { emptyChunk, PrefabKit, TEX_KINDS, TEX_STRIDE, type OpenChunk, type TreeAt } from "./art";
-import { EDGE, GUTTER, SURFACE_OF, type GroundKind, type OpenLayout } from "./naija";
+import { EDGE, GUTTER, pondRadius, SURFACE_OF, type GroundKind, type OpenLayout, type Pond } from "./naija";
 import { sky as librarySky, texAlbedo, texSet, texSize, type SkyName, type TexName } from "../../assets/library";
 import { modelFor, type CdnModel } from "../../assets/cdn";
 import type { Placement } from "./prefabs";
@@ -624,6 +624,20 @@ function* paintGround(L: OpenLayout, px: number, forMap: boolean, neutral = fals
       rv.pts.forEach(([x, z], i) => (i ? g.lineTo(x, z) : g.moveTo(x, z)));
       g.stroke();
     }
+    // v6 max (3.3): the swamp's standing water, its ragged shore.
+    g.fillStyle = "#4a6e7e";
+    for (const pd of L.ponds ?? []) {
+      g.beginPath();
+      for (let k = 0; k <= 48; k++) {
+        const a = (k / 48) * Math.PI * 2;
+        const rr = pondRadius(pd, a);
+        const x = pd.x + Math.cos(a) * rr;
+        const z = pd.z + Math.sin(a) * rr;
+        if (k) g.lineTo(x, z);
+        else g.moveTo(x, z);
+      }
+      g.fill();
+    }
     return c;
   }
   // Holes: the ground opens where the gutters and the river are (alpha-tested).
@@ -767,6 +781,50 @@ function texturedGround(spec: TierSpec, macro: CanvasTexture, kinds: CanvasTextu
   return m;
 }
 
+/** A pond's water: a fan out to three rings (8 m in, 3 m in, the shore), uv.x 0.5 → 0.1 → 0 toward the shore. */
+function pondGeometry(pd: Pond): BufferGeometry {
+  const N = 64;
+  const Y = 0.14;
+  const rings: [number, number][] = [[-8, 0.5], [-3, 0.1], [0, 0]];
+  const pos: number[] = [];
+  const uv: number[] = [];
+  const at = (k: number, ring: number): [number, number, number, number, number] => {
+    const a = (k / N) * Math.PI * 2;
+    const rr = Math.max(0.5, pondRadius(pd, a) + rings[ring][0]);
+    const x = pd.x + Math.cos(a) * rr;
+    const z = pd.z + Math.sin(a) * rr;
+    return [x, Y, z, rings[ring][1], z];
+  };
+  const push = (v: [number, number, number, number, number]) => {
+    pos.push(v[0], v[1], v[2]);
+    uv.push(v[3], v[4]);
+  };
+  const mid: [number, number, number, number, number] = [pd.x, Y, pd.z, 0.5, pd.z];
+  for (let k = 0; k < N; k++) {
+    // The middle: a fan (wound so the face looks up).
+    push(mid);
+    push(at(k + 1, 0));
+    push(at(k, 0));
+    for (let ring = 0; ring < 2; ring++) {
+      const a0 = at(k, ring);
+      const a1 = at(k + 1, ring);
+      const b0 = at(k, ring + 1);
+      const b1 = at(k + 1, ring + 1);
+      push(a0);
+      push(a1);
+      push(b0);
+      push(a1);
+      push(b1);
+      push(b0);
+    }
+  }
+  const g = new BufferGeometry();
+  g.setAttribute("position", new Float32BufferAttribute(pos, 3));
+  g.setAttribute("uv", new Float32BufferAttribute(uv, 2));
+  g.computeBoundingSphere();
+  return g;
+}
+
 /** Give a geometry's copy (`g`, already filed) a plain colour and normals: the ground beyond the wall. */
 function paintOne(_src: BufferGeometry, g: BufferGeometry, color: string): void {
   g.computeVertexNormals();
@@ -804,7 +862,8 @@ function groundMaterial(spec: TierSpec, map: CanvasTexture, grain: CanvasTexture
 }
 
 /** The river: a slow brown-green ripple with a little sky in it. */
-function riverMaterial(time: { value: number }, sky: Color, sun: Vector3 = new Vector3(0.55, 0.62, 0.35).normalize(), tier = 1): ShaderMaterial {
+function riverMaterial(time: { value: number }, sky: Color, sun: Vector3 = new Vector3(0.55, 0.62, 0.35).normalize(), tier = 1, pond = false): ShaderMaterial {
+  // (v6 max, 3.3: `pond`, the swamp's still water: the ripples laid out over the ground, not down a stream, and calmer.)
   // v6 max (3.5): water that reads as water, faked the way a game engine does: no reflection pass, no
   // refraction. Two layers of waves drift down the river (uv: across 0…1, along in metres) and bend the normal;
   // the sky's colour comes back off it by the Fresnel term (more at a glancing look); the sun leaves a glint;
@@ -831,10 +890,10 @@ function riverMaterial(time: { value: number }, sky: Color, sun: Vector3 = new V
         return h;
       }
       void main() {
-        vec2 p = vec2(vUv.x * 8.0, vUv.y);
+        vec2 p = ${pond ? "vW.xz * 0.45" : "vec2(vUv.x * 8.0, vUv.y)"};
         float e = 0.08;
         float h0 = wav(p);
-        vec3 n = normalize(vec3((wav(p + vec2(e, 0.0)) - h0) / e * 0.35, 1.0, (wav(p + vec2(0.0, e)) - h0) / e * 0.35));
+        vec3 n = normalize(vec3((wav(p + vec2(e, 0.0)) - h0) / e * ${pond ? "0.12" : "0.35"}, 1.0, (wav(p + vec2(0.0, e)) - h0) / e * ${pond ? "0.12" : "0.35"}));
         vec3 v = normalize(cameraPosition - vW);
         float fres = 0.04 + 0.96 * pow(1.0 - max(dot(n, v), 0.0), 5.0);
         // How near a bank (0 in the middle, 1 at the edge): the shallows and the foam.
@@ -847,7 +906,7 @@ function riverMaterial(time: { value: number }, sky: Color, sun: Vector3 = new V
         col += vec3(1.0, 0.96, 0.85) * glint;
         #endif
         float foam = smoothstep(0.86, 0.98, edge + (vn(vec2(vUv.y * 1.3 - uTime * 0.8, vUv.x * 20.0)) - 0.5) * 0.12);
-        col = mix(col, vec3(0.82, 0.85, 0.8), foam * 0.55);
+        col = mix(col, vec3(0.82, 0.85, 0.8), foam * ${pond ? "0.15" : "0.55"});
         gl_FragColor = vec4(col, mix(0.86, 0.97, fres));
         #include <fog_fragment>
       }`,
@@ -1285,6 +1344,14 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }, lib: W
     geo.setAttribute("position", new Float32BufferAttribute(pos, 3));
     geo.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
     const m = new Mesh(geo, wmat);
+    m.renderOrder = 2;
+    water.add(m);
+  }
+  // v6 max (3.3): the swamp's standing water: a sheet a hand over the ground, the river's water material (its
+  // shallows and foam toward the shore: uv.x runs 0.5 in the middle to 0 at the shore).
+  const pmat = L.ponds?.length ? riverMaterial(uTime, haze, sunDir, spec.tier, true) : null;
+  for (const pd of L.ponds ?? []) {
+    const m = new Mesh(pondGeometry(pd), pmat!);
     m.renderOrder = 2;
     water.add(m);
   }
