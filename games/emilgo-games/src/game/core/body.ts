@@ -60,6 +60,8 @@ export interface Contestant {
   sprinting: boolean;
   /** v6: seconds left of the tactical sprint's opening burst (0: none). */
   tac: number;
+  /** v6 max (3.5): swimming (Space.resolve sets it). */
+  swim: boolean;
   /** v6 max: the tactical sprint asked for (a double push of sprint), and whether this sprint has had its burst. */
   inTac: boolean;
   tacDone: boolean;
@@ -102,11 +104,11 @@ export interface Contestant {
 }
 
 /** A fresh contestant's movement state (shared by the referee and the online client). */
-type Motion = "bst" | "grip" | "y" | "vy" | "h" | "stance" | "inStance" | "stanceT" | "inSprint" | "sprinting" | "tac" | "inTac" | "tacDone" | "stamina" | "rested" | "inJump" | "jumpSeen" | "inAttack" | "attackSeen" | "inGrab" | "grabSeen" | "ball" | "stun" | "forgive" | "act" | "cool" | "actKind" | "slide";
+type Motion = "bst" | "grip" | "y" | "vy" | "h" | "stance" | "inStance" | "stanceT" | "inSprint" | "sprinting" | "tac" | "inTac" | "tacDone" | "swim" | "stamina" | "rested" | "inJump" | "jumpSeen" | "inAttack" | "attackSeen" | "inGrab" | "grabSeen" | "ball" | "stun" | "forgive" | "act" | "cool" | "actKind" | "slide";
 
 export function freshMotion(): Pick<Contestant, Motion> {
   return {
-    bst: NO_BOOST, grip: 0, y: 0, vy: 0, h: 0, stance: 0, inStance: 0, stanceT: 0, inSprint: false, sprinting: false, tac: 0, inTac: false, tacDone: false, stamina: 1, rested: 9, inJump: 0, jumpSeen: 0,
+    bst: NO_BOOST, grip: 0, y: 0, vy: 0, h: 0, stance: 0, inStance: 0, stanceT: 0, inSprint: false, sprinting: false, tac: 0, inTac: false, tacDone: false, swim: false, stamina: 1, rested: 9, inJump: 0, jumpSeen: 0,
     inAttack: 0, attackSeen: 0, inGrab: 0, grabSeen: 0, ball: -1, stun: 0, forgive: 0, act: 0, cool: 0, actKind: "", slide: 0,
   };
 }
@@ -208,7 +210,8 @@ export function moveContestant(c: Contestant, dt: number, course: Course = DEFAU
   // ── Jump: standing, on the ground, once per request ──
   if (c.inJump !== c.jumpSeen) {
     c.jumpSeen = c.inJump;
-    if (grounded && c.stance === 0 && c.stanceT === 0) c.vy = Math.sqrt(2 * MOVE.gravity * MOVE.jumpHeight);
+    // (v6 max: not swimming.)
+    if (grounded && c.stance === 0 && c.stanceT === 0 && !c.swim) c.vy = Math.sqrt(2 * MOVE.gravity * MOVE.jumpHeight);
   }
   if (c.y > 0 || c.vy > 0) {
     // Exact for constant gravity, so the peak is the same at any step size.

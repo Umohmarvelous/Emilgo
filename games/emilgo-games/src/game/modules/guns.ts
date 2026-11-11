@@ -279,7 +279,8 @@ export class GunsModule implements RuleModule {
       const pressed = a.trigger && !this.trigWas[i];
       this.trigWas[i] = a.trigger;
       const ready = K.hold <= 0 || pressed || t >= this.holdAt[i];
-      if (a.trigger && ready && this.reloadAt[i] < 0 && this.mag[i][s] > 0 && t >= this.nextAt[i]) {
+      // (v6 max: not while swimming.)
+      if (a.trigger && ready && !c.swim && this.reloadAt[i] < 0 && this.mag[i][s] > 0 && t >= this.nextAt[i]) {
         const melee = m.module<MeleeModule>("melee");
         // Knocked down or held: no shooting.
         if (!melee || (!melee.isDown(i) && melee.heldBy[i] < 0)) this.fire(m, c, kind, s);

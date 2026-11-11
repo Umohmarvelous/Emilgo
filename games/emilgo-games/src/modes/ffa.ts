@@ -65,6 +65,7 @@ import { ModesView } from "../world/modesView";
 import { TreasureView } from "../world/treasure";
 import { GrowthView } from "../world/growth";
 import { PowerView, RISE_SECONDS } from "../world/power";
+import { WaterFx } from "../world/water";
 import { VehicleView } from "../world/vehicles";
 import type { GameMode, ModeHost, ModeResult } from "./types";
 
@@ -169,6 +170,8 @@ export class FfaMode implements GameMode {
   private readonly growth: GrowthView;
   /** v6 max (3.2): the boosters' transformation, and camouflage. */
   private readonly power: PowerView;
+  /** v6 max (3.5): swimming, splashes and ripples. */
+  private readonly water: WaterFx;
   /** v6 max: your rise's camera: where it started (yaw, arm), or null. */
   private powerCam: { yaw: number; arm: number } | null = null;
   private printOpened = false;
@@ -310,6 +313,8 @@ export class FfaMode implements GameMode {
     this.growth = new GrowthView(h.crowd);
     this.power = new PowerView(h.crowd, this.ms.pickFx, h.spec.tier);
     h.scene.add(this.power.group);
+    this.water = new WaterFx(h.crowd, h.sound);
+    h.scene.add(this.water.group);
     this.power.onShock = (who, kind) => {
       const mm = this.src.match;
       const c = mm.contestants[who];
@@ -990,7 +995,8 @@ export class FfaMode implements GameMode {
       if (this.spectate >= 0) target = m.contestants[this.spectate];
     }
     if (h.rig.firstPerson && target === me) h.rig.eyeValid = !!h.crowd.eye(me.index, h.rig.eye);
-    h.rig.update(dt, { x: target.x, z: target.z, y: target.y, stance: target.stance, ground: target.h });
+    // (v6 max, 3.5: a swimmer lies along the water: framed low, as lying down is.)
+    h.rig.update(dt, { x: target.x, z: target.z, y: target.y, stance: target.swim && target.status === "alive" ? 2 : target.stance, ground: target.h });
     this.focus.set(target.x, target.h, target.z);
     this.world.update(dt, this.focus, cam);
     this.boards?.update(dt, h.camera);
@@ -1032,6 +1038,7 @@ export class FfaMode implements GameMode {
     const trPin = this.treasure?.update(dt, m, h.camera, this.marks).pin ?? null;
     this.growth.update(dt, m, cam, me.index, h.rig.firstPerson);
     this.power.update(dt, m, cam, me.index, h.rig.firstPerson);
+    this.water.update(dt, m, cam, me.index);
     this.printFrame(m, me);
     const goal = trPin ?? flagGoal ?? deadPin ?? this.modes6.update(dt, m, this.marks).pin;
     // The Harmattan: the siren, then the dust; footprints gone; headlights on (or in a power cut).
@@ -1568,6 +1575,7 @@ export class FfaMode implements GameMode {
     h.scene.remove(this.growth.group);
     this.growth.dispose(this.src.match);
     this.power.dispose(this.src.match);
+    this.water.dispose();
     h.hud.map.print = 0;
     if (this.dimmed) this.world.setDim(0);
     if (this.dustSet) this.world.setDust(0, HARMATTAN.see);

@@ -758,6 +758,9 @@ export class Sound {
         this.tone(210 * v, t, 0.07, { type: "triangle", gain: 0.06 * k, to: 150, bus });
         this.noise(t, 0.03, { gain: 0.035 * k, freq: 900 * v, type: "bandpass", bus });
         break;
+      case "water":
+        // v6 max: swimming: no footsteps (the strokes are heard instead: stroke()).
+        break;
       case "puddle":
         this.noise(t, 0.08 * v, { gain: 0.06 * k, freq: 1500 * v, type: "bandpass", bus });
         this.tone(900 * v, t + 0.015, 0.05, { type: "sine", gain: 0.02 * k, to: 1400, bus });
@@ -1106,10 +1109,24 @@ export class Sound {
   }
 
   /** A foot in a puddle: a wet slap and a spray. */
-  splash(mine: boolean): void {
+  splash(mine: boolean, big = false): void {
     const t = this.now;
     this.noise(t, 0.16, { gain: mine ? 0.16 : 0.07, freq: 1500, type: "bandpass" });
     this.noise(t + 0.03, 0.22, { gain: mine ? 0.1 : 0.05, freq: 3800, type: "highpass" });
+    if (!big) return;
+    // v6 max (3.5): a body going in: the plunge, the water thrown up and falling back, the bubbles.
+    const k = mine ? 1 : 0.45;
+    this.tone(120, t, 0.22, { type: "sine", gain: 0.2 * k, to: 55 });
+    this.noise(t, 0.5, { gain: 0.14 * k, freq: 700, type: "lowpass" });
+    this.noise(t + 0.18, 0.55, { gain: 0.07 * k, freq: 2600, type: "bandpass" });
+    for (let i = 0; i < 4; i++) this.tone(380 + Math.random() * 400, t + 0.25 + i * 0.07, 0.05, { type: "sine", gain: 0.03 * k, to: 700 + Math.random() * 300 });
+  }
+
+  /** v6 max (3.5): your stroke (swimming) or a step through deep water: a slosh and a little spray. */
+  stroke(swim: boolean): void {
+    const t = this.now;
+    this.noise(t, swim ? 0.3 : 0.2, { gain: swim ? 0.06 : 0.045, freq: 850, type: "bandpass" });
+    this.noise(t + 0.05, 0.18, { gain: 0.025, freq: 3200, type: "highpass" });
   }
 
   /** A ball picked up, or dropped in a basket. */

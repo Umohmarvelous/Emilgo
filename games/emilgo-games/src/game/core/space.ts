@@ -51,6 +51,13 @@ export const HEAD: readonly [number, number, number] = [1.75, 1.15, 0.55];
 /** Water deeper than this at your feet slows you to a wade. */
 export const WADE = 0.3;
 const WADE_SPEED = 2.2;
+/**
+ * v6 max (3.5): water at least this deep at the bottom and you swim: you float at the surface (your feet
+ * FLOAT under it: the swim pose lies along it), at SWIM_SPEED, with no jump and no gun.
+ */
+export const SWIM = 0.8;
+export const SWIM_FLOAT = 0.18;
+const SWIM_SPEED = 2.8;
 
 /** What moves through a Space: the body fields the movement kernel keeps. */
 export interface Mover {
@@ -64,6 +71,8 @@ export interface Mover {
   y: number;
   vy: number;
   stance: number;
+  /** v6 max (3.5): swimming now (resolve sets it). */
+  swim?: boolean;
 }
 
 export interface Floor {
@@ -71,6 +80,8 @@ export interface Floor {
   surface: Surface;
   /** Water depth over that floor (0: dry). */
   water: number;
+  /** v6 max (3.5): deep water: the floor is the swimmer's, floating at the surface. */
+  swim?: boolean;
 }
 
 /** A camera's box: the AABB of a solid, with its bottom and top. */
@@ -318,6 +329,8 @@ export class Space {
       }
     }
     if (best > base) return { h: best, surface: surface!, water: 0 };
+    // v6 max (3.5): deep enough to swim: you float, your feet SWIM_FLOAT under the surface.
+    if (water - base >= SWIM) return { h: water - SWIM_FLOAT, surface: baseSurface ?? this.baseSurface(x, z), water: SWIM_FLOAT, swim: true };
     return { h: base, surface: baseSurface ?? this.baseSurface(x, z), water: Math.max(0, water - base) };
   }
 
@@ -408,8 +421,17 @@ export class Space {
         c.h = f.h;
       }
     }
+    // v6 max (3.5): swimming: a swimmer's pace.
+    c.swim = !!f.swim && c.y <= 0.05;
+    if (c.swim) {
+      const sp = Math.hypot(c.vx, c.vz);
+      if (sp > SWIM_SPEED) {
+        c.vx *= SWIM_SPEED / sp;
+        c.vz *= SWIM_SPEED / sp;
+      }
+    }
     // Wading: deep water holds you back.
-    if (f.water > WADE && c.y <= 0) {
+    else if (f.water > WADE && c.y <= 0) {
       const sp = Math.hypot(c.vx, c.vz);
       if (sp > WADE_SPEED) {
         c.vx *= WADE_SPEED / sp;
@@ -421,7 +443,7 @@ export class Space {
   /** What a footstep at (x, z) lands on (feet at `feet`). */
   surfaceAt(x: number, z: number, feet: number): Surface {
     const f = this.floorAt(x, z, feet);
-    return f.water > 0.05 ? "puddle" : f.surface;
+    return f.swim ? "water" : f.water > 0.05 ? "puddle" : f.surface;
   }
 }
 

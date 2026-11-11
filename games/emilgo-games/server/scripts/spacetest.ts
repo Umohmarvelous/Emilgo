@@ -5,7 +5,7 @@
 
 import { DEFAULT_COURSE } from "../../src/config";
 import { freshMotion, moveContestant, type Contestant } from "../../src/game/core/body";
-import { Space, type Solid } from "../../src/game/core/space";
+import { Space, SWIM_FLOAT, type Solid } from "../../src/game/core/space";
 import { NO_BOOST } from "../../src/shop/boosts";
 
 let failures = 0;
@@ -146,6 +146,26 @@ console.log("\nwater and the edge:");
   const e = body(55, 0);
   run(e, sp, 1, 0, 3);
   check(e.x <= 60 - 0.34 + 1e-9, "nobody leaves the world");
+  // v6 max (3.5): deep water: you swim, floating at the surface, at a swimmer's pace, no jump; and climb out.
+  const deep: Solid = { x: 0, z: -15, hx: 30, hz: 5, rot: 0, y0: -3, y1: -3, kind: "pit", surface: "sand", water: -0.4 };
+  const sp2 = new Space([deep], B);
+  const s = body(0, -12);
+  s.inSprint = true;
+  s.inZ = -1;
+  let top = 0;
+  let jumped = false;
+  for (let t = 0; t < 2.5; t += 1 / 60) {
+    if (Math.abs(t - 2) < 1 / 120) s.inJump = (s.inJump + 1) & 255;
+    moveContestant(s, 1 / 60, DEFAULT_COURSE, sp2);
+    if (s.swim) top = Math.max(top, Math.hypot(s.vx, s.vz));
+    if (t > 2 && s.y > 0.05) jumped = true;
+  }
+  check(s.swim && Math.abs(s.h - (-0.4 - SWIM_FLOAT)) < 1e-6, `deep water: swimming, floating at the surface (feet ${s.h.toFixed(2)} m)`);
+  check(top > 0 && top <= 2.8 + 1e-6, `a swimmer's pace (${top.toFixed(2)} m/s)`);
+  check(!jumped, "no jumping while swimming");
+  check(sp2.surfaceAt(0, -15, s.h) === "water", "and it's water underfoot");
+  run(s, sp2, 0, 1, 4);
+  check(!s.swim && s.h === 0 && s.z > -9.5, "swim to the bank and climb out");
 }
 
 console.log("\nthe field is unchanged:");

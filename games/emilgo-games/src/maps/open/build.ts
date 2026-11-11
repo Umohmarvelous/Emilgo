@@ -653,21 +653,51 @@ function groundMaterial(spec: TierSpec, map: CanvasTexture, grain: CanvasTexture
 }
 
 /** The river: a slow brown-green ripple with a little sky in it. */
-function riverMaterial(time: { value: number }, sky: Color): ShaderMaterial {
+function riverMaterial(time: { value: number }, sky: Color, sun: Vector3 = new Vector3(0.55, 0.62, 0.35).normalize(), tier = 1): ShaderMaterial {
+  // v6 max (3.5): water that reads as water, faked the way a game engine does: no reflection pass, no
+  // refraction. Two layers of waves drift down the river (uv: across 0…1, along in metres) and bend the normal;
+  // the sky's colour comes back off it by the Fresnel term (more at a glancing look); the sun leaves a glint;
+  // the water is a deep green-brown looking down, lighter over the shallows at the banks, with a lip of foam
+  // there that shifts with the flow. Low: one wave layer, no glint.
   return new ShaderMaterial({
-    uniforms: { uTime: time, uSky: { value: sky.clone() }, fogColor: { value: new Color() }, fogNear: { value: 1 }, fogFar: { value: 1000 } },
-    vertexShader: `varying vec3 vW;
+    uniforms: { uTime: time, uSky: { value: sky.clone() }, uSun: { value: sun.clone().normalize() }, fogColor: { value: new Color() }, fogNear: { value: 1 }, fogFar: { value: 1000 } },
+    defines: { HQ: tier > 0 ? 1 : 0 },
+    vertexShader: `varying vec3 vW; varying vec2 vUv;
       #include <fog_pars_vertex>
-      void main() { vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; vec4 mvPosition = viewMatrix * w; gl_Position = projectionMatrix * mvPosition;
+      void main() { vUv = uv; vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; vec4 mvPosition = viewMatrix * w; gl_Position = projectionMatrix * mvPosition;
         #include <fog_vertex>
       }`,
-    fragmentShader: `uniform float uTime; uniform vec3 uSky; varying vec3 vW;
+    fragmentShader: `uniform float uTime; uniform vec3 uSky; uniform vec3 uSun; varying vec3 vW; varying vec2 vUv;
       #include <fog_pars_fragment>
+      float hsh(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float vn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(hsh(i), hsh(i + vec2(1, 0)), f.x), mix(hsh(i + vec2(0, 1)), hsh(i + vec2(1, 1)), f.x), f.y); }
+      // The height of the waves at p (metres), drifting down the river.
+      float wav(vec2 p) {
+        float h = vn(p * 0.55 + vec2(0.0, -uTime * 0.55)) * 0.6;
+        #if HQ
+        h += vn(p * 1.7 + vec2(uTime * 0.12, -uTime * 1.1)) * 0.3 + vn(p * 4.3 + vec2(-uTime * 0.2, -uTime * 1.6)) * 0.1;
+        #endif
+        return h;
+      }
       void main() {
-        float r = sin(vW.x * 0.8 + vW.z * 0.3 - uTime * 1.2) * 0.5 + sin(vW.z * 1.4 - uTime * 0.9) * 0.5;
+        vec2 p = vec2(vUv.x * 8.0, vUv.y);
+        float e = 0.08;
+        float h0 = wav(p);
+        vec3 n = normalize(vec3((wav(p + vec2(e, 0.0)) - h0) / e * 0.35, 1.0, (wav(p + vec2(0.0, e)) - h0) / e * 0.35));
         vec3 v = normalize(cameraPosition - vW);
-        vec3 col = mix(vec3(0.20, 0.22, 0.12), uSky * 0.8, pow(1.0 - v.y, 3.0) * 0.6) + r * 0.025;
-        gl_FragColor = vec4(col, 0.9);
+        float fres = 0.04 + 0.96 * pow(1.0 - max(dot(n, v), 0.0), 5.0);
+        // How near a bank (0 in the middle, 1 at the edge): the shallows and the foam.
+        float edge = abs(vUv.x - 0.5) * 2.0;
+        vec3 deep = mix(vec3(0.05, 0.075, 0.06), vec3(0.16, 0.17, 0.11), smoothstep(0.55, 1.0, edge));
+        vec3 col = mix(deep, uSky * 0.95, clamp(fres * 1.15, 0.0, 0.85));
+        #if HQ
+        vec3 r = reflect(-v, n);
+        float glint = pow(max(dot(r, uSun), 0.0), 220.0) * 6.0 + pow(max(dot(r, uSun), 0.0), 24.0) * 0.18;
+        col += vec3(1.0, 0.96, 0.85) * glint;
+        #endif
+        float foam = smoothstep(0.86, 0.98, edge + (vn(vec2(vUv.y * 1.3 - uTime * 0.8, vUv.x * 20.0)) - 0.5) * 0.12);
+        col = mix(col, vec3(0.82, 0.85, 0.8), foam * 0.55);
+        gl_FragColor = vec4(col, mix(0.86, 0.97, fres));
         #include <fog_fragment>
       }`,
     transparent: true,
@@ -1062,14 +1092,19 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }, lib: W
 
   // The river's water, one plane per stretch.
   const water = new Group();
-  const wmat = riverMaterial(uTime, haze);
+  const wmat = riverMaterial(uTime, haze, sunDir, spec.tier);
   for (const rv of L.rivers) {
     const parts: BufferGeometry[] = [];
+    // v6 max (3.5): uv across the river (0…1) and down it in metres, for the flow and the foam at the banks.
+    let along = 0;
     for (let i = 0; i + 1 < rv.pts.length; i++) {
       const [ax, az] = rv.pts[i];
       const [bx, bz] = rv.pts[i + 1];
       const len = Math.hypot(bx - ax, bz - az) + 2;
-      const g = new PlaneGeometry(rv.w + 0.6, len);
+      const g = new PlaneGeometry(rv.w + 0.6, len, 1, Math.max(1, Math.round(len / 20)));
+      const uv = g.attributes.uv;
+      for (let k = 0; k < uv.count; k++) uv.setY(k, along + (1 - uv.getY(k)) * len);
+      along += len - 2;
       g.rotateX(-Math.PI / 2);
       g.rotateY(Math.atan2(bx - ax, bz - az));
       g.translate((ax + bx) / 2, -rv.depth + rv.water, (az + bz) / 2);
@@ -1079,12 +1114,17 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }, lib: W
     let count = 0;
     for (const p of parts) count += p.attributes.position.count;
     const pos = new Float32Array(count * 3);
+    const uvs = new Float32Array(count * 2);
     let o = 0;
+    let ou = 0;
     for (const p of parts) {
       pos.set(p.attributes.position.array as Float32Array, o);
+      uvs.set(p.attributes.uv.array as Float32Array, ou);
       o += p.attributes.position.array.length;
+      ou += p.attributes.uv.array.length;
     }
     geo.setAttribute("position", new Float32BufferAttribute(pos, 3));
+    geo.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
     const m = new Mesh(geo, wmat);
     m.renderOrder = 2;
     water.add(m);

@@ -132,6 +132,9 @@ export interface AnimState {
   amp: number;
   run: number;
   sprint: number;
+  /** v6 max (3.5): swimming, 0 … 1 (blended), and whether the body is in deep water now (set each frame). */
+  swim: number;
+  swimWant: number;
   /** v6 max (2.3): the tactical sprint, 0 … 1 (blended), and what it's heading for (set by the crowd each frame). */
   tac: number;
   tacWant: number;
@@ -224,6 +227,8 @@ export function newAnimState(seed: number): AnimState {
     sprint: 0,
     tac: 0,
     tacWant: 0,
+    swim: 0,
+    swimWant: 0,
     stance: 0,
     air: 0,
     dead: -1,
@@ -290,6 +295,7 @@ export function stepGait(a: AnimState, speed: number, dt: number): void {
   a.run += (wantRun - a.run) * (1 - Math.exp(-dt * 6));
   const wantSprint = Math.max(0, Math.min(1, (speed - RUN) / (SPRINT - RUN)));
   a.sprint += (wantSprint - a.sprint) * (1 - Math.exp(-dt * 6));
+  a.swim += (a.swimWant - a.swim) * (1 - Math.exp(-dt * 5));
   // In fast, out a little slower (the burst runs down into the sprint).
   a.tac += (a.tacWant * Math.min(1, a.sprint * 1.5) - a.tac) * (1 - Math.exp(-dt * (a.tacWant > a.tac ? 9 : 4)));
   // Metres per stride (both steps): a brisk walk, a 180-a-minute run, a 200-a-minute sprint.
@@ -316,7 +322,8 @@ export function computePose(a: AnimState, out: Pose): void {
 
   const crouch = Math.min(1, a.stance);
   // v4 rework: operators and zombies stand on the mocap clips; everyone else (and a prone crawl) on the gait curves.
-  const mocap = a.mocap && mocapPose(a, out);
+  // (v6 max: swimming is posed here, not from the clips.)
+  const mocap = a.mocap && a.swim < 0.5 && mocapPose(a, out);
   if (!mocap) {
   // ── Legs and body: locomotion with stance ──
   const amp = a.amp * (1 - a.air);
@@ -452,6 +459,43 @@ export function computePose(a: AnimState, out: Pose): void {
     out.set("foreArmL", lerp(out.get("foreArmL", 0), -1.2, prone));
     out.set("foreArmR", lerp(out.get("foreArmR", 0), -1.2, prone));
   }
+  }
+
+  // ── v6 max (3.5): swimming: the front crawl. Lying along the surface; each arm reaches ahead, pulls through
+  // under the water to the hip and recovers over it, elbow high, the other half a stroke behind; a flutter kick;
+  // the head turned to breathe every other stroke. Floating still: a slow scull and a gentle kick. ──
+  if (a.swim > 0.01) {
+    const w = a.swim;
+    const moving = Math.min(1, a.amp * 1.4);
+    const ph = moving > 0.2 ? a.phase * 0.55 : t * 1.6;
+    out.tilt = lerp(out.tilt, (Math.PI / 2) * (0.82 + 0.1 * moving), w);
+    out.tiltYaw = 0;
+    out.rootY = lerp(out.rootY, -0.06, w);
+    out.hipsY = lerp(out.hipsY, 0, w);
+    for (const [b, off] of [["L", 0], ["R", Math.PI]] as const) {
+      const s = b === "L" ? 1 : -1;
+      const c = (ph + off) / TAU;
+      const u = c - Math.floor(c);
+      // 0–0.55: the pull, from overhead down to the hip; 0.55–1: the recovery, back over to the front.
+      const pull = u < 0.55 ? u / 0.55 : 1 - (u - 0.55) / 0.45;
+      const rec = u >= 0.55 ? Math.sin(((u - 0.55) / 0.45) * Math.PI) : 0;
+      const arm = lerp(-0.6, lerp(-3.0, 0.35, pull), moving);
+      const fore = lerp(-0.5, -0.25 - 1.3 * rec - 0.5 * Math.sin(pull * Math.PI) * (1 - rec), moving);
+      out.set(`upperArm${b}`, lerp(out.get(`upperArm${b}`, 0), arm, w), lerp(out.get(`upperArm${b}`, 1), 0.3 * s * rec, w), lerp(out.get(`upperArm${b}`, 2), (0.18 + 0.75 * rec) * s, w));
+      out.set(`foreArm${b}`, lerp(out.get(`foreArm${b}`, 0), fore, w));
+      // The flutter kick: small and quick, the knees nearly straight.
+      const kick = Math.sin(t * (moving > 0.2 ? 9 : 4) + off) * (0.12 + 0.18 * moving);
+      out.set(`thigh${b}`, lerp(out.get(`thigh${b}`, 0), kick, w), 0, lerp(out.get(`thigh${b}`, 2), 0.04 * s, w));
+      out.set(`shin${b}`, lerp(out.get(`shin${b}`, 0), 0.2 + Math.max(0, -kick) * 0.6, w));
+      out.set(`foot${b}`, lerp(out.get(`foot${b}`, 0), 0.75, w));
+    }
+    // Breathe: every other stroke, the head turns to the side as the right arm recovers.
+    const br = Math.max(0, Math.sin(ph * 0.5)) ** 4 * moving;
+    out.set("spine", lerp(out.get("spine", 0), -0.05, w), lerp(out.get("spine", 1), 0.12 * Math.sin(ph), w));
+    out.set("chest", lerp(out.get("chest", 0), 0, w), lerp(out.get("chest", 1), 0.18 * Math.sin(ph), w));
+    out.set("neck", lerp(out.get("neck", 0), -0.45, w), 0);
+    out.set("head", lerp(out.get("head", 0), -0.35, w), lerp(out.get("head", 1), -0.9 * br, w));
+    out.curlL = out.curlR = lerp(out.curlL, 0.15, w);
   }
 
   // ── Finished: arms up, a little bounce ──
