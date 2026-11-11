@@ -9,6 +9,8 @@
 //                                        the backpack, 1–0 use a slot, Shift+1–0 drop it)
 //   &fast=4                              …with the zone and Airfall that many times sooner
 //   &seed=n                              …and this match seed
+//   &boards=1                            the billboards' faces (house boards, no feed)
+//   &eye=x,y,z,tx,ty,tz                  a fixed camera: at x,y,z, looking at tx,ty,tz
 //
 // Twelve people are in it (you and eleven who wander). window.__open holds the
 // numbers: frame rate, draw calls, triangles, cells drawn and cut by the PVS;
@@ -23,6 +25,7 @@ import { buildNaijaWorld } from "../src/maps/open/naija";
 import { buildMaxWorld } from "../src/maps/open/max";
 import { buildOpenWorld, buildOpenWorldIdle } from "../src/maps/open/build";
 import { NO_BOOST } from "../src/shop/boosts";
+import { BillboardView } from "../src/world/billboards";
 import { CameraRig } from "../src/world/camera";
 import { Crowd } from "../src/world/crowd";
 import { loadScans } from "../src/world/human";
@@ -71,6 +74,19 @@ const world = q.get("idle") ? await buildOpenWorldIdle(layout, spec, { night: q.
 setTimeout(() => (building = false), 3000);
 const tWorld = performance.now();
 (window as unknown as { __world: unknown }).__world = world;
+// &boards=1: the billboards' faces, house boards only.
+const boardView = q.get("boards") === "1" && layout.boards?.length
+  ? new BillboardView(layout.boards, {
+      tier: spec.tier,
+      night: q.get("night") === "1",
+      info: { kind: "web", family: "ffa", modes: [{ name: "Treasure Hunt", blurb: "Find the chests before the others do. Keep what you carry." }], daily: { seed: 4242, top: [] }, top: [], runTop: [] },
+      feed: null,
+      space: world.space,
+      cellOn: (x, z) => world.cellOn(x, z),
+      audio: () => ({ on: false, vol: 0 }),
+    })
+  : null;
+(window as unknown as { __boards: unknown }).__boards = boardView;
 
 const canvas = document.getElementById("c") as HTMLCanvasElement;
 const r = new WebGLRenderer({ canvas, antialias: false, powerPreference: "high-performance" });
@@ -85,6 +101,7 @@ const scene = new Scene();
 scene.fog = world.fog;
 scene.background = world.clear;
 scene.add(world.group);
+if (boardView) scene.add(boardView.group);
 
 // The film look (graphics/grade.ts): Naija World's Harmattan grade on every tier.
 const look = LOOKS[(q.get("look") as LookId) ?? "naija"] ?? LOOKS.naija;
@@ -334,6 +351,15 @@ function frame(now: number): void {
   focus.set(me.x, me.h, me.z);
   world.update(dt, focus, camera.position);
   crowd.update(dt, people, camera.position);
+  const eye = q.get("eye")?.split(",").map(Number);
+  if (eye) {
+    camera.position.set(eye[0], eye[1], eye[2]);
+    camera.lookAt(eye[3], eye[4], eye[5]);
+    camera.far = 2000;
+    camera.updateProjectionMatrix();
+    world.update(0, focus.set(eye[3], 0, eye[5]), camera.position);
+  }
+  boardView?.update(dt, camera);
   const sky = q.get("sky");
   if (sky) {
     // An overview: high above a point, looking down at it.

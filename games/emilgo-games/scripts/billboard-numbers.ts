@@ -22,7 +22,9 @@ const boards = w.boards ?? [];
 const rows = boards.map((b, i) => {
   const n = i + 1;
   const map = b.id.startsWith("nw-") ? "naija-world" : "max-world";
-  const label = `Billboard ${n} · ${where(b.x, b.z)} (${KIND[b.kind] ?? b.kind}${b.premium ? ", premium" : ""})`;
+  // v6 max (3.6): what kind of board it is, for the advertiser (a tower shows a creative whole, on a darkened copy).
+  const face = b.portrait ? ", portrait LED tower, two faces, lit at night" : b.back ? ", two-sided" : "";
+  const label = `Billboard ${n} · ${where(b.x, b.z)} (${KIND[b.kind] ?? b.kind}${b.premium ? ", premium" : ""}${face})`;
   return `  ('${b.id}', '${map}', '${b.kind}', ${b.premium ? "TRUE " : "FALSE"}, '${label.replace(/'/g, "''")}', ${n})`;
 });
 const block = `-- BEGIN generated: scripts/billboard-numbers.ts (${boards.length} boards)

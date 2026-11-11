@@ -198,6 +198,15 @@ const MAX_BOARDS: BoardWish[] = [
   { x: 444, z: -344, fx: 400, fz: -330, kind: "road" },
   { x: 500, z: 358, fx: 560, fz: 345, kind: "road" },
   { x: 640, z: 332, fx: 600, fz: 345, kind: "road" },
+  // v6 max (3.6): portrait LED towers, lit at night, where the night-life is (on the end: no id moves).
+  { x: -735, z: -545, fx: -760, fz: -560, kind: "plaza", premium: true, portrait: true },
+  { x: -785, z: -578, fx: -760, fz: -560, kind: "plaza", portrait: true },
+  { x: -540, z: -780, fx: -560, fz: -800, kind: "plaza", premium: true, portrait: true },
+  { x: 312, z: -312, fx: 330, fz: -330, kind: "landmark", premium: true, portrait: true },
+  { x: 736, z: 22, fx: 760, fz: 0, kind: "landmark", portrait: true },
+  { x: 752, z: 330, fx: 772, fz: 345, kind: "landmark", portrait: true },
+  { x: -670, z: 660, fx: -700, fz: 700, kind: "landmark", portrait: true, r: 30 },
+  { x: 668, z: 662, fx: 700, fz: 700, kind: "landmark", portrait: true, r: 30 },
 ];
 
 export function buildMaxWorld(seed = 1957): OpenLayout {

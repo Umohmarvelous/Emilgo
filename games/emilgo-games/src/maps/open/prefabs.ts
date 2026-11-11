@@ -16,6 +16,13 @@ export const BOARD_SIZE = [
   { w: 8, h: 4, y: 5 },
   { w: 6, h: 3, y: 4 },
 ] as const;
+/**
+ * v6 max (3.6): a portrait LED tower (variant bit 4): a tall face on a plinth, lit at night. Variant bit 2: a
+ * two-sided board (the pole under the panel's middle, a face on each side).
+ */
+export const PORTRAIT_SIZE = { w: 3.2, h: 6, y: 1.5 } as const;
+/** A board's face size by its placement variant. */
+export const boardSize = (v: number): { w: number; h: number; y: number } => ((v & 4) !== 0 ? PORTRAIT_SIZE : BOARD_SIZE[v & 1]);
 
 /** A billboard panel's depth (m): the face sits on its front. */
 export const BOARD_DEPTH = 0.5;
@@ -155,7 +162,7 @@ export function footprint(id: PrefabId, v: number): [number, number] {
     case "kiosk": return [2.6, 2.6];
     case "generator": return [1.2, 0.9];
     case "pole": return [0.4, 0.4];
-    case "billboard": return [1.4, 1.4];
+    case "billboard": return (v & 4) !== 0 ? [PORTRAIT_SIZE.w + 0.6, BOARD_DEPTH + 0.5] : [1.4, 1.4];
     case "wreck": return [2, 4.4];
     case "danfo": return [2.1, 4.8];
     case "busstop": return [6, 2.4];
@@ -410,8 +417,14 @@ export function parts(id: PrefabId, v: number): Part[] {
       break;
     case "billboard": {
       // The steel pole behind the panel's middle, and the panel up top (the face is on its +z side).
-      const q = BOARD_SIZE[v & 1];
-      out.push(box(0, -0.45, 0.56, 0.56, 0, q.y + q.h / 2, "metal"));
+      const q = boardSize(v);
+      if ((v & 4) !== 0) {
+        // v6 max: the portrait tower: one solid from the plinth to its top.
+        out.push(box(0, 0, q.w + 0.4, BOARD_DEPTH + 0.2, 0, q.y + q.h + 0.2, "metal"));
+        break;
+      }
+      // v6 max: a two-sided board's pole stands under the panel's middle (a face each side).
+      out.push(box(0, (v & 2) !== 0 ? 0 : -0.45, 0.56, 0.56, 0, (v & 2) !== 0 ? q.y : q.y + q.h / 2, "metal"));
       out.push(box(0, 0, q.w + 0.3, BOARD_DEPTH, q.y - 0.15, q.y + q.h + 0.15, "metal"));
       break;
     }

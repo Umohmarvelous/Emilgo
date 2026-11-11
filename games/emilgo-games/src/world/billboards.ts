@@ -20,6 +20,11 @@
 //   seen     four times a second: is each board on screen (in a drawn cell,
 //            in the frustum, facing you, big enough to read, nothing solid in
 //            the way)? Seconds add up per board and creative. No player id.
+//   v6 max   (3.6) two-sided boards: a second quad on the back, the same ad
+//            (either face counts, once). Portrait LED towers: their own cells,
+//            painted upright and stored turned in the atlas (a creative shown
+//            whole on a darkened copy of itself, the house boards laid out
+//            tall), on their own material, lit at night.
 
 import {
   BufferAttribute,
@@ -43,7 +48,7 @@ import {
 
 import type { Tier } from "../graphics/tiers";
 import type { Space } from "../game/core/space";
-import { faceOf, type BoardSlot } from "../maps/open/billboards";
+import { facesOf, type BoardSlot } from "../maps/open/billboards";
 import type { AdFeed, BoardAd, Seen } from "../net/ads";
 import type { HostKind } from "../platform/types";
 import { TIERS } from "../rank/ladder";
@@ -75,6 +80,13 @@ interface House {
 }
 
 /** What a board shows now: a house board, or a creative's picture. */
+/** One face on screen: board `slot`'s front, or its back. */
+interface Face {
+  slot: number;
+  f: { x: number; y: number; z: number; nx: number; nz: number; back: boolean };
+  r: number;
+}
+
 interface Showing {
   house: House | null;
   ad: BoardAd | null;
@@ -87,8 +99,8 @@ interface Showing {
 }
 
 const COLS = 4;
+/** Rows of cells: twice as many when the world has portrait towers (their own, upright, cells). */
 const ROWS = 4;
-const CELLS = COLS * ROWS;
 /** A slideshow's picture stays this long (s). */
 const SLIDE_S = 5;
 /** House boards change this often (s). */
@@ -140,7 +152,24 @@ function houseList(info: HouseInfo): House[] {
   return out;
 }
 
-/** Paint one house board into a cell (w × h at x, y). */
+/** Words over as many lines as they need (a tall board's blurbs). */
+function wrap(g: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, w: number, color: string, weight = 600): void {
+  g.font = `${weight} ${size}px Poppins, "Helvetica Neue", Arial, sans-serif`;
+  g.fillStyle = color;
+  let row = "";
+  let at = y;
+  for (const word of text.split(" ")) {
+    const next = row ? `${row} ${word}` : word;
+    if (row && g.measureText(next).width > w) {
+      g.fillText(row, x, at);
+      at += size * 1.2;
+      row = word;
+    } else row = next;
+  }
+  if (row) g.fillText(row, x, at);
+}
+
+/** Paint one house board into a cell (w × h at x, y); taller than wide: the portrait tower's layout. */
 function paintHouse(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, b: House, info: HouseInfo, night: boolean): void {
   g.save();
   g.translate(x, y);
@@ -158,7 +187,10 @@ function paintHouse(g: CanvasRenderingContext2D, x: number, y: number, w: number
     g.fillStyle = gr;
     g.fillRect(0, 0, w, h);
   };
-  const footer = (text: string, color = "rgba(255,255,255,0.75)") => line(g, text, pad, h - h * 0.08, h * 0.075, tw, color, 600);
+  const tall = h > w;
+  const footer = (text: string, color = "rgba(255,255,255,0.75)") => line(g, text, pad, h - h * 0.08, tall ? h * 0.04 : h * 0.075, tw, color, 600);
+  // A blurb: one shrinking line on a wide board, wrapped lines on a tall one.
+  const say = (text: string, y: number, size: number, color: string, weight = 600) => (tall ? wrap(g, text, pad, y, size * 0.5, tw, color, weight) : line(g, text, pad, y, size, tw, color, weight));
   switch (b.kind) {
     case "modes": {
       const m = info.modes[b.n % Math.max(1, info.modes.length)];
@@ -167,7 +199,7 @@ function paintHouse(g: CanvasRenderingContext2D, x: number, y: number, w: number
       g.fillRect(0, 0, w * 0.018, h);
       line(g, t("THIS WEEK IN FREE FOR ALL"), pad, h * 0.2, h * 0.08, tw, GOLD, 700);
       line(g, m?.name ?? "Free For All", pad, h * 0.45, h * 0.2, tw, "#ffffff", 800);
-      line(g, m?.blurb ?? "", pad, h * 0.63, h * 0.085, tw, "rgba(255,255,255,0.9)", 500);
+      say(m?.blurb ?? "", h * 0.63, h * 0.085, "rgba(255,255,255,0.9)", 500);
       footer("EMILGO Games");
       break;
     }
@@ -176,7 +208,7 @@ function paintHouse(g: CanvasRenderingContext2D, x: number, y: number, w: number
       line(g, t("TODAY'S DAILY RUN"), pad, h * 0.2, h * 0.08, tw, "#ff8a6a", 700);
       line(g, `${t("Seed")} ${info.daily.seed}`, pad, h * 0.45, h * 0.18, tw, "#ffffff", 800);
       const best = info.daily.top[0];
-      line(g, best ? `${t("Best today")} ${fmtTime(best)}` : t("Same city, same dead, for everyone"), pad, h * 0.63, h * 0.085, tw, "rgba(255,255,255,0.9)", 500);
+      say(best ? `${t("Best today")} ${fmtTime(best)}` : t("Same city, same dead, for everyone"), h * 0.63, h * 0.085, "rgba(255,255,255,0.9)", 500);
       footer("Dead Streets · EMILGO Games");
       break;
     }
@@ -197,7 +229,7 @@ function paintHouse(g: CanvasRenderingContext2D, x: number, y: number, w: number
       g.fillRect(0, h - h * 0.03, w, h * 0.03);
       line(g, t("RANK REWARD"), pad, h * 0.2, h * 0.08, tw, GOLD, 700);
       line(g, rankLabel(pick?.rank ?? "pro-1"), pad, h * 0.44, h * 0.18, tw, "#ffffff", 800);
-      line(g, `${t("unlocks")} ${pick?.name ?? ""}`, pad, h * 0.62, h * 0.09, tw, "rgba(255,255,255,0.92)", 500);
+      say(`${t("unlocks")} ${pick?.name ?? ""}`, h * 0.62, h * 0.09, "rgba(255,255,255,0.92)", 500);
       footer("EMILGO Games");
       break;
     }
@@ -205,11 +237,11 @@ function paintHouse(g: CanvasRenderingContext2D, x: number, y: number, w: number
       if (info.family === "ffa") {
         grad("#0a0a0a", "#3a0a0a");
         line(g, "DEAD STREETS", pad, h * 0.36, h * 0.2, tw, "#e8e0d0", 800);
-        line(g, t("Cross the dead city. Reach the Mast."), pad, h * 0.56, h * 0.09, tw, "#ff8a6a", 600);
+        say(t("Cross the dead city. Reach the Mast."), h * 0.56, h * 0.09, "#ff8a6a", 600);
       } else {
         grad("#00553a", "#008751");
         line(g, "FREE FOR ALL", pad, h * 0.36, h * 0.2, tw, "#ffffff", 800);
-        line(g, t("Twelve players. Melee only. One city."), pad, h * 0.56, h * 0.09, tw, GOLD, 600);
+        say(t("Twelve players. Melee only. One city."), h * 0.56, h * 0.09, GOLD, 600);
       }
       footer("EMILGO Games");
       break;
@@ -222,12 +254,26 @@ function paintHouse(g: CanvasRenderingContext2D, x: number, y: number, w: number
       g.fillStyle = GOLD;
       g.fillRect(0, h * 0.12, w, h * 0.02);
       line(g, "EMILGO", pad, h * 0.46, h * 0.22, tw, EMILGO_GREEN, 800);
-      line(g, t("Live-tracked trips and fare payment"), pad, h * 0.64, h * 0.085, tw, "#1a1a1a", 600);
-      line(g, t("for drivers, passengers and parks"), pad, h * 0.77, h * 0.075, tw, "#4a4a4a", 500);
+      if (tall) say(`${t("Live-tracked trips and fare payment")} ${t("for drivers, passengers and parks")}`, h * 0.6, h * 0.085, "#1a1a1a", 600);
+      else {
+        line(g, t("Live-tracked trips and fare payment"), pad, h * 0.64, h * 0.085, tw, "#1a1a1a", 600);
+        line(g, t("for drivers, passengers and parks"), pad, h * 0.77, h * 0.075, tw, "#4a4a4a", 500);
+      }
       break;
     }
   }
   g.restore();
+}
+
+/** A creative on a tall board: whole, in the middle, over a darkened, cover-fitted copy of itself (digital signage's way). */
+function paintTall(g: CanvasRenderingContext2D, img: CanvasImageSource & { width: number; height: number }, w: number, h: number): void {
+  paintImage(g, img, 0, 0, w, h);
+  g.fillStyle = "rgba(6,8,10,0.62)";
+  g.fillRect(0, 0, w, h);
+  const iw = img.width || 1;
+  const ih = img.height || 1;
+  const k = Math.min(w / iw, h / ih);
+  g.drawImage(img, (w - iw * k) / 2, (h - ih * k) / 2, iw * k, ih * k);
 }
 
 /** A picture, cover-fitted into a cell. */
@@ -252,19 +298,29 @@ export class BillboardView {
   private readonly tex: CanvasTexture;
   private readonly geo = new BufferGeometry();
   private readonly mat: MeshBasicMaterial;
+  /** v6 max (3.6): the portrait towers' LED faces: their own material, lit at night. */
+  private readonly lit: MeshBasicMaterial;
   private readonly uv: BufferAttribute;
   private readonly cw: number;
   private readonly ch: number;
+  private readonly cells: number;
   private readonly house: House[];
-  /** Cells by owner: "h:<i>" a house board, "<url>" a picture. */
+  /** Cells by owner: "h:<i>" a house board, "<url>" a picture; "ph:<i>", "p:<url>" their upright copies (towers). */
   private readonly cellOf = new Map<string, number>();
   private nextCell = 0;
+  /** Is there a wide board / a tower at all (which copies a picture needs). */
+  private readonly wide: boolean;
+  private readonly tall: boolean;
   private readonly showing: Showing[];
   /** Each board's turn through its rotation and through the house boards (they start offset, so neighbours differ). */
   private readonly turn: number[];
   private readonly houseTurn: number[];
-  private readonly frames: { face: ReturnType<typeof faceOf>; r: number }[];
+  private readonly faces: Face[] = [];
+  /** Each board's faces (their places in `faces`). */
+  private readonly facesOfSlot: number[][];
   private readonly seconds: Float32Array;
+  /** The tick each board was last counted in (a board seen by both faces counts once). */
+  private readonly countedAt: Float64Array;
   private readonly seenBy = new Map<string, number>();
   private readonly ready = new Map<string, boolean>();
   private dirty = false;
@@ -301,8 +357,12 @@ export class BillboardView {
     const tier = opts.tier;
     this.cw = tier === 0 ? 256 : 512;
     this.ch = this.cw / 2;
+    this.tall = slots.some((b) => b.portrait);
+    this.wide = slots.some((b) => !b.portrait);
+    const rows = this.tall && this.wide ? ROWS * 2 : ROWS;
+    this.cells = COLS * rows;
     this.canvas.width = this.cw * COLS;
-    this.canvas.height = this.ch * ROWS;
+    this.canvas.height = this.ch * rows;
     this.g = this.canvas.getContext("2d")!;
     this.g.fillStyle = "#1a1c1e";
     this.g.fillRect(0, 0, this.canvas.width, this.canvas.height);
@@ -311,34 +371,54 @@ export class BillboardView {
     this.tex.minFilter = LinearMipmapLinearFilter;
     this.tex.anisotropy = tier === 0 ? 1 : 4;
     this.mat = new MeshBasicMaterial({ map: this.tex, color: new Color(1, 1, 1) });
+    this.lit = new MeshBasicMaterial({ map: this.tex, color: new Color(1, 1, 1) });
     this.house = houseList(opts.info);
-    this.house.forEach((_, i) => this.houseCell(i));
-    // Every face, one quad each.
-    const n = slots.length;
+    this.house.forEach((_, i) => {
+      if (this.wide) this.houseCell(i, false);
+      if (this.tall) this.houseCell(i, true);
+    });
+    // Every face, one quad each: the wide boards' first, then the towers' (a group each: two materials, two draws).
+    this.facesOfSlot = slots.map(() => []);
+    for (const tall of [false, true]) {
+      slots.forEach((b, i) => {
+        if (b.portrait !== tall) return;
+        for (const f of facesOf(b)) {
+          this.facesOfSlot[i].push(this.faces.length);
+          this.faces.push({ slot: i, f, r: Math.hypot(b.w, b.h) / 2 });
+        }
+      });
+    }
+    const n = this.faces.length;
     const pos = new Float32Array(n * 12);
     const idx: number[] = [];
-    this.frames = slots.map((b, i) => {
-      const f = faceOf(b);
-      const tx = Math.cos(b.rot);
-      const tz = -Math.sin(b.rot);
+    let wideFaces = 0;
+    this.faces.forEach(({ slot, f }, j) => {
+      const b = slots[slot];
+      if (!b.portrait) wideFaces++;
+      // A back face runs the other way along the board (it reads right from behind).
+      const s = f.back ? -1 : 1;
+      const tx = Math.cos(b.rot) * s;
+      const tz = -Math.sin(b.rot) * s;
       const hw = b.w / 2;
       const hh = b.h / 2;
       const corners: [number, number][] = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
-      corners.forEach(([u, v], k) => pos.set([f.x + tx * u, f.y + v, f.z + tz * u], i * 12 + k * 3));
-      idx.push(i * 4, i * 4 + 1, i * 4 + 2, i * 4, i * 4 + 2, i * 4 + 3);
-      return { face: f, r: Math.hypot(b.w, b.h) / 2 };
+      corners.forEach(([u, v], k) => pos.set([f.x + tx * u, f.y + v, f.z + tz * u], j * 12 + k * 3));
+      idx.push(j * 4, j * 4 + 1, j * 4 + 2, j * 4, j * 4 + 2, j * 4 + 3);
     });
     this.geo.setAttribute("position", new BufferAttribute(pos, 3));
     this.uv = new BufferAttribute(new Float32Array(n * 8), 2);
     this.uv.setUsage(DynamicDrawUsage);
     this.geo.setAttribute("uv", this.uv);
     this.geo.setIndex(idx);
+    this.geo.addGroup(0, wideFaces * 6, 0);
+    this.geo.addGroup(wideFaces * 6, (n - wideFaces) * 6, 1);
     this.geo.computeBoundingSphere();
-    const faces = new Mesh(this.geo, this.mat);
+    const faces = new Mesh(this.geo, [this.mat, this.lit]);
     faces.frustumCulled = false;
     faces.matrixAutoUpdate = false;
     this.group.add(faces);
-    this.seconds = new Float32Array(n);
+    this.seconds = new Float32Array(slots.length);
+    this.countedAt = new Float64Array(slots.length).fill(-1);
     this.turn = slots.map((_, i) => i);
     this.houseTurn = slots.map((_, i) => i);
     // What each board shows first; the pictures load behind (house boards until they arrive).
@@ -354,7 +434,14 @@ export class BillboardView {
    */
   setFeed(feed: AdFeed | null): void {
     this.opts.feed = feed;
-    for (const ad of feed?.ads ?? []) for (const u of ad.format === "video" ? [ad.poster!] : ad.images) this.load(u);
+    for (const ad of feed?.ads ?? []) {
+      const urls = ad.format === "video" ? [ad.poster!] : ad.images;
+      // Only the copies its boards need: a booking on towers alone needs no wide copy, and the other way round.
+      const on = this.slots.filter((b) => (ad.premium ? ad.slots.includes(b.id) : !ad.slots.length || ad.slots.includes(b.id)));
+      const wide = on.some((b) => !b.portrait);
+      const tall = on.some((b) => b.portrait);
+      for (const u of urls) this.load(u, wide, tall);
+    }
     for (const s of this.showing) s.until = Math.min(s.until, this.time + 0.5);
     // The film: Medium and High only, and only if a film is booked.
     if (this.opts.tier > 0 && !this.video && (feed?.ads ?? []).some((a) => a.format === "video")) {
@@ -375,29 +462,58 @@ export class BillboardView {
     }
   }
 
-  /** The house board's cell (drawn once). */
-  private houseCell(i: number): number {
-    const key = `h:${i}`;
+  /** The house board's cell (drawn once); `tall`: its upright copy for the towers. */
+  private houseCell(i: number, tall: boolean): number {
+    const key = `${tall ? "ph" : "h"}:${i}`;
     let c = this.cellOf.get(key);
     if (c !== undefined) return c;
-    c = Math.min(this.nextCell++, CELLS - 1);
+    c = Math.min(this.nextCell++, this.cells - 1);
     this.cellOf.set(key, c);
     const [x, y] = this.cellXY(c);
-    paintHouse(this.g, x, y, this.cw, this.ch, this.house[i], this.opts.info, this.opts.night);
+    if (tall) {
+      const up = this.upright();
+      paintHouse(up.getContext("2d")!, 0, 0, up.width, up.height, this.house[i], this.opts.info, this.opts.night);
+      this.putUpright(up, c);
+    } else paintHouse(this.g, x, y, this.cw, this.ch, this.house[i], this.opts.info, this.opts.night);
     this.dirty = true;
     return c;
+  }
+
+  /** A canvas the shape of a tower's face (a cell stood on end). */
+  private upright(): HTMLCanvasElement {
+    const up = document.createElement("canvas");
+    up.width = this.ch;
+    up.height = this.cw;
+    return up;
+  }
+
+  /** An upright picture into cell c, turned a quarter (its top along the cell's left): setUv turns it back. */
+  private putUpright(up: HTMLCanvasElement, c: number): void {
+    const [x, y] = this.cellXY(c);
+    this.g.save();
+    this.g.translate(x, y + this.ch);
+    this.g.rotate(-Math.PI / 2);
+    this.g.drawImage(up, 0, 0);
+    this.g.restore();
   }
 
   private cellXY(c: number): [number, number] {
     return [(c % COLS) * this.cw, Math.floor(c / COLS) * this.ch];
   }
 
-  /** Load a picture into a cell of its own (if there's one left). */
-  private load(url: string): void {
-    if (this.cellOf.has(url) || this.nextCell >= CELLS) return;
-    const c = this.nextCell++;
-    this.cellOf.set(url, c);
-    this.ready.set(url, false);
+  /** Load a picture into a cell of its own (if there's one left): a wide copy, an upright one, or both. */
+  private load(url: string, wide: boolean, tall: boolean): void {
+    const wc = wide && !this.cellOf.has(url) && this.nextCell < this.cells ? this.nextCell++ : -1;
+    const tc = tall && !this.cellOf.has(`p:${url}`) && this.nextCell < this.cells ? this.nextCell++ : -1;
+    if (wc < 0 && tc < 0) return;
+    if (wc >= 0) {
+      this.cellOf.set(url, wc);
+      this.ready.set(url, false);
+    }
+    if (tc >= 0) {
+      this.cellOf.set(`p:${url}`, tc);
+      this.ready.set(`p:${url}`, false);
+    }
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.decoding = "async";
@@ -405,23 +521,39 @@ export class BillboardView {
       if (this.disposed) return;
       // Through a scratch canvas first: a picture from a host that refuses CORS
       // would taint the atlas, and a tainted atlas can never be uploaded again.
-      const scratch = document.createElement("canvas");
-      scratch.width = this.cw;
-      scratch.height = this.ch;
-      const sg = scratch.getContext("2d")!;
-      try {
-        paintImage(sg, img, 0, 0, this.cw, this.ch);
-        sg.getImageData(0, 0, 1, 1);
-      } catch {
-        this.ready.set(url, false);
-        return;
+      if (wc >= 0) {
+        const scratch = document.createElement("canvas");
+        scratch.width = this.cw;
+        scratch.height = this.ch;
+        const sg = scratch.getContext("2d")!;
+        try {
+          paintImage(sg, img, 0, 0, this.cw, this.ch);
+          sg.getImageData(0, 0, 1, 1);
+          const [x, y] = this.cellXY(wc);
+          this.g.drawImage(scratch, x, y);
+          this.ready.set(url, true);
+        } catch {
+          this.ready.set(url, false);
+        }
       }
-      const [x, y] = this.cellXY(c);
-      this.g.drawImage(scratch, x, y);
-      this.ready.set(url, true);
+      if (tc >= 0) {
+        const up = this.upright();
+        const ug = up.getContext("2d")!;
+        try {
+          paintTall(ug, img, up.width, up.height);
+          ug.getImageData(0, 0, 1, 1);
+          this.putUpright(up, tc);
+          this.ready.set(`p:${url}`, true);
+        } catch {
+          this.ready.set(`p:${url}`, false);
+        }
+      }
       this.dirty = true;
     };
-    img.onerror = () => this.ready.set(url, false);
+    img.onerror = () => {
+      this.ready.set(url, false);
+      this.ready.set(`p:${url}`, false);
+    };
     img.src = url;
   }
 
@@ -437,9 +569,10 @@ export class BillboardView {
   /** What board i shows from second `at` of the match. */
   private pick(i: number, at: number): Showing {
     const { premium, pool } = this.poolFor(i);
+    const tall = this.slots[i].portrait;
     const ad = premium ?? (pool.length ? pool[this.turn[i]++ % pool.length] : null);
     if (ad) {
-      const urls = ad.format === "video" ? [ad.poster!] : ad.images;
+      const urls = (ad.format === "video" ? [ad.poster!] : ad.images).map((u) => (tall ? `p:${u}` : u));
       const cells = urls.map((u) => (this.ready.get(u) ? this.cellOf.get(u)! : -1)).filter((c) => c >= 0);
       if (cells.length) {
         const until = premium || ad.cycle === 0 ? Infinity : at + ad.cycle;
@@ -450,7 +583,7 @@ export class BillboardView {
     if (ad && !premium) this.turn[i]--; // its turn comes again once it has loaded
     // Waiting for a picture: the same house board meanwhile (no flicker every 2 s).
     const h = (ad ? this.houseTurn[i] : this.houseTurn[i]++) % this.house.length;
-    return { house: this.house[h], ad: null, cell: this.houseCell(h), cells: [], until: ad ? at + 2 : at + HOUSE_S };
+    return { house: this.house[h], ad: null, cell: this.houseCell(h, tall), cells: [], until: ad ? at + 2 : at + HOUSE_S };
   }
 
   private setUv(i: number, c: number): void {
@@ -463,7 +596,9 @@ export class BillboardView {
     const v1 = 1 - (y + 2) / H;
     const v0 = 1 - (y + this.ch - 2) / H;
     const a = this.uv.array as Float32Array;
-    a.set([u0, v0, u1, v0, u1, v1, u0, v1], i * 8);
+    // A tower's cell holds its picture turned a quarter (putUpright): its corners turn back.
+    const uv = this.slots[i].portrait ? [u1, v0, u1, v1, u0, v1, u0, v0] : [u0, v0, u1, v0, u1, v1, u0, v1];
+    for (const j of this.facesOfSlot[i]) a.set(uv, j * 8);
     this.uv.needsUpdate = true;
   }
 
@@ -477,6 +612,9 @@ export class BillboardView {
     const base = this.opts.night ? 0.55 : 0.94;
     const k = base * (1 - 0.85 * this.dim);
     this.mat.color.setRGB(k, k, k);
+    // The towers' LEDs: full at night (brighter than the lit boards), and out in a power cut.
+    const led = (this.opts.night ? 1.15 : 1) * (1 - 0.92 * this.dim);
+    this.lit.color.setRGB(led, led, led);
     (this.vmesh?.material as MeshBasicMaterial | undefined)?.color.setRGB(k, k, k);
   }
 
@@ -511,9 +649,10 @@ export class BillboardView {
     const c = cam.position;
     let near = -1;
     let nearD = VIDEO_NEAR;
-    for (let i = 0; i < this.frames.length; i++) {
-      const { face: f, r } = this.frames[i];
+    for (let j = 0; j < this.faces.length; j++) {
+      const { slot: i, f, r } = this.faces[j];
       const b = this.slots[i];
+      if (this.countedAt[i] === this.tickAt) continue; // its other face was counted this tick
       const dx = f.x - c.x;
       const dz = f.z - c.z;
       const d = Math.hypot(dx, dz, f.y - c.y);
@@ -526,12 +665,14 @@ export class BillboardView {
       const y = c.y + (f.y - c.y) * 0.5;
       if (!this.opts.space.lineClear(c.x, c.z, f.x + f.nx * 0.8, f.z + f.nz * 0.8, y)) continue;
       this.seconds[i] += TICK;
+      this.countedAt[i] = this.tickAt;
       const ad = this.showing[i].ad;
       if (ad) {
         const key = `${b.id}|${ad.id}`;
         this.seenBy.set(key, (this.seenBy.get(key) ?? 0) + TICK);
-        if (ad.format === "video" && d < nearD) {
-          near = i;
+        // The film plays on wide faces (a tower shows its poster).
+        if (ad.format === "video" && !b.portrait && d < nearD) {
+          near = j;
           nearD = d;
         }
       }
@@ -539,12 +680,12 @@ export class BillboardView {
     this.film(near, nearD);
   }
 
-  /** The shared film on board `i` (−1: none in view). */
-  private film(i: number, d: number): void {
+  /** The shared film on face `j` (−1: none in view). */
+  private film(j: number, d: number): void {
     const v = this.video;
     const m = this.vmesh;
     if (!v || !m) return;
-    if (i < 0) {
+    if (j < 0) {
       if (this.vslot >= 0) {
         v.pause();
         m.visible = false;
@@ -552,14 +693,14 @@ export class BillboardView {
       }
       return;
     }
+    const { slot: i, f } = this.faces[j];
     const ad = this.showing[i].ad!;
-    if (i !== this.vslot) {
-      const f = this.frames[i].face;
+    if (j !== this.vslot) {
       const b = this.slots[i];
       m.position.set(f.x + f.nx * 0.01, f.y, f.z + f.nz * 0.01);
-      m.rotation.set(0, b.rot, 0);
+      m.rotation.set(0, b.rot + (f.back ? Math.PI : 0), 0);
       m.scale.set(b.w, b.h, 1);
-      this.vslot = i;
+      this.vslot = j;
       if (this.vsrc !== ad.video) {
         this.vsrc = ad.video!;
         v.src = ad.video!;
@@ -596,6 +737,7 @@ export class BillboardView {
     this.disposed = true;
     this.geo.dispose();
     this.mat.dispose();
+    this.lit.dispose();
     this.tex.dispose();
     if (this.video) {
       this.video.pause();

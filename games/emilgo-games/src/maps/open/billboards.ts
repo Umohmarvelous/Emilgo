@@ -10,9 +10,9 @@
 // phone's business (world/billboards.ts), never the layout's.
 
 import type { Solid } from "../../game/core/space";
-import { BOARD_DEPTH, BOARD_SIZE, solidsOf, type Placement } from "./prefabs";
+import { BOARD_DEPTH, BOARD_SIZE, PORTRAIT_SIZE, solidsOf, type Placement } from "./prefabs";
 
-export { BOARD_DEPTH, BOARD_SIZE };
+export { BOARD_DEPTH, BOARD_SIZE, PORTRAIT_SIZE };
 
 /** A turned rectangle (naija.ts's Rect), and the taken ground it is checked against. */
 interface Rect {
@@ -48,6 +48,10 @@ export interface BoardSlot {
   kind: BoardKind;
   /** Sold as a premium static slot (outside the rotation). */
   premium: boolean;
+  /** v6 max (3.6): a face on the back too (the same ad, seen both ways). */
+  back: boolean;
+  /** v6 max (3.6): a tall portrait LED tower, lit at night. */
+  portrait: boolean;
 }
 
 /** Where a board is wanted: near (x, z), facing (fx, fz). */
@@ -60,6 +64,8 @@ export interface BoardWish {
   premium?: boolean;
   /** How far from (x, z) to look for free ground (m). */
   r?: number;
+  /** v6 max (3.6): a portrait LED tower (lit at night). Roadside boards are two-sided (traffic both ways). */
+  portrait?: boolean;
 }
 
 /** No two boards closer than this (m). */
@@ -108,10 +114,10 @@ export function placeBoards(
   solids: Solid[],
   avoid: readonly (readonly [number, number])[],
 ): BoardSlot[] {
-  const size = BOARD_SIZE[variant];
   const out: BoardSlot[] = [];
   // What was solid before the boards (each board checks against these and the boards before it).
   const before = solids.slice();
+  let size: { w: number; h: number; y: number } = BOARD_SIZE[variant];
   const fits = (x: number, z: number, rot: number): boolean => {
     if (Math.abs(x) > half - 8 || Math.abs(z) > half - 8) return false;
     if (out.some((b) => Math.hypot(b.x - x, b.z - z) < APART)) return false;
@@ -125,6 +131,9 @@ export function placeBoards(
   for (let k = 0; k < wishes.length; k++) {
     const w = wishes[k];
     const r = w.r ?? 14;
+    size = w.portrait ? PORTRAIT_SIZE : BOARD_SIZE[variant];
+    // Roadside boards are seen by traffic both ways, and a tower from all round: a face on each side.
+    const back = !!w.portrait || w.kind === "road";
     let got: [number, number, number] | null = null;
     for (let ring = 0; ring <= r && !got; ring += 1.5) {
       const n = ring === 0 ? 1 : Math.max(6, Math.round((ring * Math.PI * 2) / 1.5));
@@ -141,19 +150,32 @@ export function placeBoards(
     }
     if (!got) continue;
     const [x, z, rot] = got;
-    const p: Placement = { prefab: "billboard", x: Math.round(x * 100) / 100, z: Math.round(z * 100) / 100, rot: Math.round(rot * 1000) / 1000, v: variant };
+    const p: Placement = { prefab: "billboard", x: Math.round(x * 100) / 100, z: Math.round(z * 100) / 100, rot: Math.round(rot * 1000) / 1000, v: variant | (back ? 2 : 0) | (w.portrait ? 4 : 0) };
     placements.push(p);
     solidsOf(p, solids);
     taken.add(rectOf(p.x, p.z, size.w + 0.8, 1.6, p.rot));
     // The id is the wish's place in the list (bookings use it): a wish with no room leaves a gap, and moves nothing.
-    out.push({ id: `${prefix}-${String(k + 1).padStart(2, "0")}`, x: p.x, z: p.z, rot: p.rot, w: size.w, h: size.h, y: size.y, kind: w.kind, premium: !!w.premium });
+    out.push({ id: `${prefix}-${String(k + 1).padStart(2, "0")}`, x: p.x, z: p.z, rot: p.rot, w: size.w, h: size.h, y: size.y, kind: w.kind, premium: !!w.premium, back, portrait: !!w.portrait });
   }
   return out;
 }
 
 /** The face's middle in world axes, and its normal. */
 export function faceOf(b: BoardSlot): { x: number; y: number; z: number; nx: number; nz: number } {
-  const nx = Math.sin(b.rot);
-  const nz = Math.cos(b.rot);
-  return { x: b.x + nx * (BOARD_DEPTH / 2 + 0.02), y: b.y + b.h / 2, z: b.z + nz * (BOARD_DEPTH / 2 + 0.02), nx, nz };
+  return sideOf(b, 1);
+}
+
+/** v6 max (3.6): every face a board has: the front, and the back of a two-sided board (facing the other way). */
+export function facesOf(b: BoardSlot): { x: number; y: number; z: number; nx: number; nz: number; back: boolean }[] {
+  const out = [{ ...sideOf(b, 1), back: false }];
+  if (b.back) out.push({ ...sideOf(b, -1), back: true });
+  return out;
+}
+
+function sideOf(b: BoardSlot, s: 1 | -1): { x: number; y: number; z: number; nx: number; nz: number } {
+  const nx = Math.sin(b.rot) * s;
+  const nz = Math.cos(b.rot) * s;
+  // The portrait tower's case is deeper (prefabs' solids, art's case).
+  const off = (b.portrait ? BOARD_DEPTH + 0.2 : BOARD_DEPTH) / 2 + 0.02;
+  return { x: b.x + nx * off, y: b.y + b.h / 2, z: b.z + nz * off, nx, nz };
 }

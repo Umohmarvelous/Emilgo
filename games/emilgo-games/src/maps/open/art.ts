@@ -12,7 +12,7 @@ import { BoxGeometry, BufferGeometry, ConeGeometry, CylinderGeometry, Matrix4, O
 
 import { Kit, type Chunk, type Level, type TexKind } from "../kit";
 import { merge, part, type V3 } from "../../world/geo";
-import { BOARD_DEPTH, BOARD_SIZE, COURTYARD, compoundP, houseP, hutP, mudP, officeP, parts, propOf, shopsP, storeyP, type Part, type Placement } from "./prefabs";
+import { BOARD_DEPTH, boardSize, COURTYARD, compoundP, houseP, hutP, mudP, officeP, parts, propOf, shopsP, storeyP, type Part, type Placement } from "./prefabs";
 
 /** The atlas's tiles, in order (4 × 2). */
 export const TEX_KINDS: TexKind[] = ["plaster", "concrete", "brick", "wood", "mud", "zinc", "glass", "thatch"];
@@ -615,14 +615,34 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
     case "billboard": {
       // A unipole: the steel pole, the panel's back and frame, the catwalk and two lamps over the face.
       // The face itself is drawn by world/billboards.ts (what it shows changes).
-      const q = BOARD_SIZE[v & 1];
-      const top = q.y + q.h / 2;
-      k.cyl(METAL, 0.28, top, [0, top / 2, -0.45], "mass", { sides: 10 });
+      const q = boardSize(v);
+      if ((v & 4) !== 0) {
+        // v6 max (3.6): a portrait LED tower: a concrete plinth, a slim steel case round the face, LED strips
+        // down both edges and across the top (lit at night, pale by day), the same on the back.
+        k.box("#6e6a62", [q.w + 0.6, q.y - 0.1, BOARD_DEPTH + 0.5], [0, (q.y - 0.1) / 2, 0], "mass");
+        k.box(night ? "#16181a" : "#24272a", [q.w + 0.4, q.h + 0.4, BOARD_DEPTH + 0.2], [0, q.y + q.h / 2, 0], "mass");
+        k.box("#3a3e42", [q.w + 0.5, 0.18, BOARD_DEPTH + 0.3], [0, q.y + q.h + 0.25, 0], "detail");
+        for (const zf of [1, -1]) {
+          const z = zf * (BOARD_DEPTH / 2 + 0.11);
+          for (const x of [-(q.w / 2 + 0.12), q.w / 2 + 0.12]) {
+            if (night) k.glow("#7fe8ff", [0.07, q.h + 0.1, 0.05], [x, q.y + q.h / 2, z]);
+            else k.box("#c8d2d8", [0.07, q.h + 0.1, 0.05], [x, q.y + q.h / 2, z], "detail");
+          }
+          if (night) k.glow("#ffffff", [q.w + 0.3, 0.06, 0.05], [0, q.y + q.h + 0.13, z]);
+        }
+        break;
+      }
+      const two = (v & 2) !== 0;
+      const top = two ? q.y : q.y + q.h / 2;
+      // A two-sided board stands on a pole under its middle; a one-sided one, behind its face.
+      k.cyl(METAL, 0.28, top, [0, top / 2, two ? 0 : -0.45], "mass", { sides: 10 });
       k.box(night ? "#1e2022" : "#2a2d30", [q.w + 0.3, q.h + 0.3, BOARD_DEPTH], [0, q.y + q.h / 2, 0], "mass");
-      k.box("#3a3e42", [q.w, 0.08, 0.7], [0, q.y - 0.22, 0.4], "detail");
-      for (const x of [-q.w / 4, q.w / 4]) {
-        k.box("#2a2d30", [0.08, 0.08, 0.9], [x, q.y + q.h + 0.3, 0.45], "detail");
-        if (night) k.glow("#fff2c0", [0.4, 0.06, 0.16], [x, q.y + q.h + 0.25, 0.85]);
+      for (const zf of two ? [1, -1] : [1]) {
+        k.box("#3a3e42", [q.w, 0.08, 0.7], [0, q.y - 0.22, 0.4 * zf], "detail");
+        for (const x of [-q.w / 4, q.w / 4]) {
+          k.box("#2a2d30", [0.08, 0.08, 0.9], [x, q.y + q.h + 0.3, 0.45 * zf], "detail");
+          if (night) k.glow("#fff2c0", [0.4, 0.06, 0.16], [x, q.y + q.h + 0.25, 0.85 * zf]);
+        }
       }
       break;
     }
