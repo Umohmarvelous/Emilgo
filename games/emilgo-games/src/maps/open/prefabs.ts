@@ -105,8 +105,8 @@ export type PrefabId =
   | "pipes" | "hangar" | "ctower" | "planewreck" | "dune" | "mangrove" | "stilt" | "club" | "stand" | "glasstower"
   // v5: Frostline's spruce, snow on every tier.
   | "snowpine"
-  // v6 max (3.3): the swamp's drowned trees.
-  | "deadtree"
+  // v6 max (3.3): the swamp's drowned trees; the Dune Sea's canyon walls.
+  | "deadtree" | "ridge" | "ruin"
   // v4 rework R9: a CC0 model from the props' table (v & 255 is its index in PROPS).
   | "prop";
 
@@ -208,6 +208,8 @@ export function footprint(id: PrefabId, v: number): [number, number] {
     case "dune": { const w = 18 + (v % 5) * 4; return [w, 10]; }
     case "mangrove": return [4, 4];
     case "deadtree": return [1.6, 1.6];
+    case "ridge": return [44 + (v % 4) * 8, 30];
+    case "ruin": { const p = ruinP(v); return [p.w + 1, p.d + 1]; }
     case "stilt": return [7, 7];
     case "club": return [22, 16];
     case "stand": return [60, 12];
@@ -584,7 +586,8 @@ export function parts(id: PrefabId, v: number): Part[] {
       out.push(box(0, 0, 1.6, 1.6, 0, 34, "metal"));
       break;
     case "pipes":
-      out.push(box(0, 0, 2.4, 24, 0, 1.6, "metal"));
+      // v6 max (3.3, the v4 picture): a rack of pipes, a wall of them 2.3 m high.
+      out.push(box(0, 0, 2.4, 24, 0, 2.3, "metal"));
       break;
     case "hangar":
       out.push(box(-17.6, 0, 0.6, 30, 0, 12, "metal"));
@@ -613,6 +616,26 @@ export function parts(id: PrefabId, v: number): Part[] {
     case "deadtree":
       out.push(box(0, 0, 0.6, 0.6, 0, 7, "wood"));
       break;
+    case "ruin": {
+      // Four brick walls, no roof, a doorway in the front (+z).
+      const p = ruinP(v);
+      const t = 0.4;
+      out.push(box(0, -p.d / 2 + t / 2, p.w, t, 0, p.h, "concrete"));
+      out.push(box(-p.w / 2 + t / 2, 0, t, p.d, 0, p.h * 0.85, "concrete"));
+      out.push(box(p.w / 2 - t / 2, 0, t, p.d, 0, p.h * 0.7, "concrete"));
+      const side = (p.w - 1.6) / 2;
+      out.push(box(-p.w / 2 + side / 2, p.d / 2 - t / 2, side, t, 0, p.h * 0.9, "concrete"));
+      out.push(box(p.w / 2 - side / 2, p.d / 2 - t / 2, side, t, 0, p.h * 0.6, "concrete"));
+      break;
+    }
+    case "ridge": {
+      // A dune 7 m high: up one face, a crest, down the other (26°: you run up it).
+      const w = 44 + (v % 4) * 8;
+      out.push({ x: 0, z: -8, hx: w / 2, hz: 7, y0: 0, y1: 0, y2: 7, surface: "sand", kind: "ramp" });
+      out.push(box(0, 0, w, 2, 0, 7, "sand"));
+      out.push({ x: 0, z: 8, hx: w / 2, hz: 7, y0: 0, y1: 7, y2: 0, surface: "sand", kind: "ramp" });
+      break;
+    }
     case "stilt":
       for (const [x, z] of [[-3, -3], [3, -3], [-3, 3], [3, 3]]) out.push(box(x, z, 0.3, 0.3, 0, 1.6, "wood"));
       out.push(box(0, 0, 6.6, 6.6, 1.6, 1.8, "wood"));
@@ -649,6 +672,11 @@ function fenceRing(out: Part[], w: number, d: number, h: number, gate: number): 
 }
 
 /** A placement's parts in the world, as Space solids. */
+/** v6 max (3.3): a ruin's size: a mud-brick house of the Dune Sea's canyon, its roof long gone. */
+export function ruinP(v: number): { w: number; d: number; h: number } {
+  return { w: 8 + (v % 3) * 2, d: 6 + ((v >>> 3) % 3) * 1.5, h: 3.4 + ((v >>> 6) % 3) * 0.6 };
+}
+
 export function solidsOf(p: Placement, out: Solid[]): void {
   const c = Math.cos(p.rot);
   const s = Math.sin(p.rot);

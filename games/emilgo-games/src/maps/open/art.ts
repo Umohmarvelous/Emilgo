@@ -937,12 +937,26 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
       k.box("#3a3e42", [8, 6, 0.1], [0, 3, 11.05], "detail");
       break;
     case "tank": {
+      // v6 max (3.3, the v4 picture): weathered and rusting, a rail round the roof.
       const rr = 7 + (v % 4) * 1.5;
       const h = 12 + (v % 3) * 2;
-      k.cyl("#d8d4cc", rr, h, [0, h / 2, 0], "mass", { sides: 16 });
-      k.cyl("#c8c4bc", rr * 1.01, 0.4, [0, h * 0.33, 0], "detail", { sides: 16 });
-      k.cyl("#c8c4bc", rr * 1.01, 0.4, [0, h * 0.66, 0], "detail", { sides: 16 });
-      k.cyl("#b8b4ac", rr * 0.98, 1.2, [0, h + 0.4, 0], "main", { sides: 16, top: 0.6 });
+      const body = r.pick(["#b9a68a", "#a99478", "#c2ae90"]);
+      k.cyl(body, rr, h, [0, h / 2, 0], "mass", { sides: 16 });
+      // Rust: the seams and the foot, a streak down from the roof.
+      k.cyl("#8a5530", rr * 1.01, 0.5, [0, h * 0.33, 0], "detail", { sides: 16 });
+      k.cyl("#94603a", rr * 1.01, 0.5, [0, h * 0.66, 0], "detail", { sides: 16 });
+      k.cyl("#6e4428", rr * 1.012, 1.1, [0, 0.55, 0], "main", { sides: 16 });
+      const sa = r.range(0, Math.PI * 2);
+      k.box("#8a5a34", [rr * 0.5, h * 0.55, 0.06], [Math.cos(sa) * rr * 1.003, h * 0.7, Math.sin(sa) * rr * 1.003], "detail", [0, -sa + Math.PI / 2, 0]);
+      k.cyl("#9c8a70", rr * 0.98, 1.2, [0, h + 0.4, 0], "main", { sides: 16, top: 0.6 });
+      // The rail: posts and a band round the rim.
+      for (let i = 0; i < 16; i++) {
+        const a = (i / 16) * Math.PI * 2;
+        const a2 = ((i + 0.5) / 16) * Math.PI * 2;
+        k.box("#3a3632", [0.07, 1.05, 0.07], [Math.cos(a) * rr * 0.97, h + 0.52, Math.sin(a) * rr * 0.97], "detail");
+        k.box("#3a3632", [0.06, 0.06, rr * 0.39], [Math.cos(a2) * rr * 0.96, h + 1.04, Math.sin(a2) * rr * 0.96], "detail", [0, -a2, 0]);
+      }
+      // The stair up the side.
       k.box("#3a3a3a", [0.2, h, 0.2], [rr * 0.72, h / 2, rr * 0.72], "detail");
       break;
     }
@@ -951,10 +965,18 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
       k.glow("#ff8a1a", [1.6, 3.2, 1.6], [0, 36, 0]);
       k.glow("#ffd24a", [0.9, 2, 0.9], [0, 35.4, 0]);
       break;
-    case "pipes":
-      for (const x of [-0.7, 0, 0.7]) k.cyl(r.pick(["#8a8a84", "#6a6a64", "#9a6a3a"]), 0.32, 24, [x, 1.1, 0], "mass", { sides: 10, r: [Math.PI / 2, 0, 0] });
-      for (let z = -11; z <= 11; z += 5.5) k.box("#4a4a4a", [2.4, 0.2, 0.3], [0, 0.6, z], "detail");
+    case "pipes": {
+      // v6 max (3.3, the v4 picture): a rack: pipes one over another on steel frames, the run 2.3 m high.
+      const tint = r.pick(["#7a7468", "#6a655c", "#857a6a"]);
+      for (const [x, y, rad] of [[-0.55, 0.45, 0.3], [0.55, 0.45, 0.3], [-0.55, 1.15, 0.28], [0.55, 1.15, 0.3], [0, 1.85, 0.34]] as [number, number, number][])
+        k.cyl(r.range(0, 1) < 0.25 ? "#8a5a34" : tint, rad, 24, [x, y, 0], "mass", { sides: 10, r: [Math.PI / 2, 0, 0] });
+      for (let z = -11; z <= 11; z += 5.5) {
+        k.box("#3e3e3e", [0.14, 2.3, 0.2], [-1.15, 1.15, z], "detail");
+        k.box("#3e3e3e", [0.14, 2.3, 0.2], [1.15, 1.15, z], "detail");
+        k.box("#3e3e3e", [2.44, 0.12, 0.2], [0, 2.26, z], "detail");
+      }
       break;
+    }
     case "hangar":
       k.texBox("zinc", "#9aa0a4", [0.6, 12, 30], [-17.6, 6, 0], 3);
       k.texBox("zinc", "#9aa0a4", [0.6, 12, 30], [17.6, 6, 0], 3);
@@ -990,6 +1012,30 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
       }
       k.cyl("#4a3a2a", 0.3, 4, [0, 3, 0], "mass", { sides: 6 });
       k.blob(r.pick(["#2a4a2a", "#334f2c", "#2b4426"]), [2.6, 1.6, 2.6], [0, 5.2, 0]);
+      break;
+    }
+    case "ruin": {
+      // v6 max (3.3, the v4 picture): sun-baked brick walls, no roof, the tops broken off unevenly.
+      allParts(k, ps, () => ({ tex: "brick", color: r.pick(["#c08a62", "#b47e58", "#c99670"]), tile: 2 }));
+      for (const q of ps) {
+        // A few bricks' worth still standing on each wall's top.
+        const n = 1 + Math.floor(r.range(0, 3));
+        for (let i = 0; i < n; i++) {
+          const along = r.range(-0.4, 0.4);
+          const long = q.hx > q.hz;
+          const x = q.x + (long ? along * q.hx * 2 : 0);
+          const z = q.z + (long ? 0 : along * q.hz * 2);
+          const hh = r.range(0.3, 0.9);
+          k.box("#b07c56", long ? [r.range(0.6, 1.6), hh, 0.4] : [0.4, hh, r.range(0.6, 1.6)], [x, q.y1 + hh / 2, z], "detail");
+        }
+      }
+      break;
+    }
+    case "ridge": {
+      // v6 max (3.3, the v4 picture): a dune 7 m high, the Dune Sea's canyon walls; wind-ribbed on its faces.
+      allParts(k, ps, () => ({ color: r.pick(["#d6b47a", "#d0ad72", "#dcbb84"]) }));
+      const w = 44 + (v % 4) * 8;
+      k.blob("#cba66c", [w * 0.46, 0.9, 3.2], [0, 7, 0], "main", true);
       break;
     }
     case "deadtree": {

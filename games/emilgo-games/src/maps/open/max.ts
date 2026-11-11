@@ -293,9 +293,14 @@ export function buildMaxWorld(seed = 1957): OpenLayout {
   // v6 max (3.3, the v4 picture): broadleaves among the pines, over a meadow (grass.ts).
   scatter(P.ironwood, "pine", 420, { inner: 0.03, gap: 1.6 });
   scatter(P.ironwood, "tree", 150, { inner: 0.05, gap: 2 });
-  // ── Windmere Ridge: turbines in rows across the grass, rocks between ──
-  for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) if ((i + j) % 2 === 0) place("turbine", P.windmere.x + i * 80 + rng.range(-6, 6), P.windmere.z + j * 80 + rng.range(-6, 6), 0.6);
-  scatter(P.windmere, "rock", 40);
+  // ── Windmere Ridge (v6 max, 3.3, the v4 picture): a wind farm, turbines all across the grass, stones between ──
+  for (let i = -3; i <= 3; i++)
+    for (let j = -3; j <= 3; j++) {
+      const x = i * 52 + (j % 2) * 26 + rng.range(-7, 7);
+      const z = j * 50 + rng.range(-7, 7);
+      if (Math.hypot(x, z) < P.windmere.r * 0.92) place("turbine", P.windmere.x + x, P.windmere.z + z, 0.6);
+    }
+  scatter(P.windmere, "rock", 95);
   scatter(P.windmere, "bush", 120);
   // ── Harbour Yard: warehouses on the quay, cranes over the water's edge, container rows ──
   for (const dz of [-160, -60, 60, 160]) place("crane", MAX_HALF - 40 - 35 - 20, pin(dz), Math.PI / 2);
@@ -304,11 +309,18 @@ export function buildMaxWorld(seed = 1957): OpenLayout {
   scatter(P.harbour, "generator", 10);
   // ── Black Refinery: tanks in a grid, pipe runs between, flares at the edge ──
   for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) if (rng.chance(0.75)) place("tank", P.refinery.x + i * 60, P.refinery.z + j * 60, 0, nextV(), 3);
-  for (let k = 0; k < 18; k++) place("pipes", P.refinery.x + rng.range(-125, 125), P.refinery.z + rng.range(-125, 125), rng.chance(0.5) ? 0 : Math.PI / 2);
+  for (let k = 0; k < 30; k++) place("pipes", P.refinery.x + rng.range(-125, 125), P.refinery.z + rng.range(-125, 125), rng.chance(0.5) ? 0 : Math.PI / 2);
   for (const [dx, dz] of [[-156, -33], [148, 98], [33, 164], [-98, 156]]) place("flarestack", P.refinery.x + dx, P.refinery.z + dz, 0);
-  // ── Dune Sea: ridges across the sand, rocks, an oasis of palms, a plane down ──
-  place("planewreck", P.dunes.x + 60, P.dunes.z + 40, 0.7);
-  for (let k = 0; k < 70; k++) place("dune", P.dunes.x + rng.range(-190, 190), P.dunes.z + rng.range(-190, 190), rng.range(-0.4, 0.4) + (k % 2) * 0.3, nextV(), 3);
+  // ── Dune Sea (v6 max, 3.3, the v4 picture): a canyon down the road between walls of dune 7 m high, a row of
+  // mud-brick ruins on its floor; ridges across the sand beyond, rocks, an oasis of palms, a plane down ──
+  const RX = 60;
+  for (const side of [-1, 1])
+    for (let z = P.dunes.z - 170; z <= P.dunes.z + 170; z += 46) place("ridge", RX + side * 52 + rng.range(-4, 4), z + rng.range(-5, 5), Math.PI / 2 + rng.range(-0.08, 0.08), nextV(), 1);
+  for (let z = P.dunes.z - 110; z <= P.dunes.z + 110; z += 26) place("ruin", RX - 20 + rng.range(-2, 2), z, Math.PI / 2 + rng.range(-0.1, 0.1));
+  for (let z = P.dunes.z - 60; z <= P.dunes.z + 60; z += 40) place("ruin", RX + 20 + rng.range(-2, 2), z + 13, -Math.PI / 2 + rng.range(-0.1, 0.1));
+  place("planewreck", P.dunes.x - 70, P.dunes.z + 40, 0.7);
+  for (let k = 0; k < 24; k++) place("ridge", P.dunes.x + rng.range(-185, -90) * (k % 2 ? 1 : -1) + (k % 2 ? 0 : RX), P.dunes.z + rng.range(-170, 170), Math.PI / 2 + rng.range(-0.6, 0.6), nextV(), 3);
+  for (let k = 0; k < 40; k++) place("dune", P.dunes.x + rng.range(-190, 190), P.dunes.z + rng.range(-190, 190), rng.range(-0.4, 0.4) + (k % 2) * 0.3, nextV(), 3);
   scatter({ x: P.dunes.x - 90, z: P.dunes.z - 60, r: 28 }, "palm", 14);
   scatter(P.dunes, "rock", 50);
   // ── Old Airfield: hangars and the tower along the runway, wrecks on the apron ──
