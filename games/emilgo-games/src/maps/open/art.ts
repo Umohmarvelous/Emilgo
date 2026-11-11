@@ -977,13 +977,23 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
       }
       break;
     }
-    case "hangar":
-      k.texBox("zinc", "#9aa0a4", [0.6, 12, 30], [-17.6, 6, 0], 3);
-      k.texBox("zinc", "#9aa0a4", [0.6, 12, 30], [17.6, 6, 0], 3);
-      k.texBox("zinc", "#9aa0a4", [36, 12, 0.6], [0, 6, -14.7], 3);
-      k.box("#7a8084", [37, 1.2, 31], [0, 12.6, 0], "main");
-      k.box("#e8e0c8", [6, 1.4, 0.1], [0, 10.2, 15.05], "detail");
+    case "hangar": {
+      // v6 max (3.3, the v4 picture): a Quonset hut: corrugated panels round a half-circle, the back closed, the
+      // front open on the dark inside.
+      const R = 16;
+      const N = k.tier >= 1 ? 12 : 8;
+      const chord = 2 * R * Math.sin(Math.PI / (2 * N)) + 0.12;
+      for (let i = 0; i < N; i++) {
+        const th = ((i + 0.5) / N) * Math.PI;
+        k.texBox("zinc", i % 2 ? "#a2a69a" : "#9aa092", [chord, 0.3, 30], [Math.cos(th) * R, Math.sin(th) * R, 0], 3, [0, 0, th - Math.PI / 2]);
+      }
+      // The back: a half-disc (the cylinder's lower half is under the ground).
+      k.cyl("#8e9488", R, 0.5, [0, 0, -14.75], "mass", { sides: 16, r: [Math.PI / 2, 0, 0] });
+      // A dark inside behind the open front, and the number over it.
+      k.box("#1c1e1c", [R * 1.6, 0.1, 0.1], [0, 0.05, 14.6], "detail");
+      k.box("#e8e0c8", [5, 1.2, 0.1], [0, 11.6, 15.1], "detail");
       break;
+    }
     case "ctower":
       k.texBox("concrete", "#c8c0b0", [4, 18, 4], [0, 9, 0], 3);
       k.box("#2a4a5a", [7, 3, 7], [0, 19.5, 0], "main");

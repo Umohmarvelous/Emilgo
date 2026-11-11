@@ -590,10 +590,11 @@ export function parts(id: PrefabId, v: number): Part[] {
       out.push(box(0, 0, 2.4, 24, 0, 2.3, "metal"));
       break;
     case "hangar":
-      out.push(box(-17.6, 0, 0.6, 30, 0, 12, "metal"));
-      out.push(box(17.6, 0, 0.6, 30, 0, 12, "metal"));
-      out.push(box(0, -14.7, 36, 0.6, 0, 12, "metal"));
-      out.push(box(0, 0, 36, 30, 12, 12.4, "metal"));
+      // v6 max (3.3, the v4 picture): a Quonset hut: one corrugated arch (radius 16) open at the front.
+      out.push(box(-15.3, 0, 0.8, 30, 0, 8, "metal"));
+      out.push(box(15.3, 0, 0.8, 30, 0, 8, "metal"));
+      out.push(box(0, -14.7, 32, 0.6, 0, 12, "metal"));
+      out.push(box(0, 0, 32, 30, 15.6, 16, "metal"));
       break;
     case "ctower":
       out.push(box(0, 0, 4, 4, 0, 18, "concrete"));

@@ -106,6 +106,8 @@ export interface OpenLayout {
   rivers: River[];
   /** v6 max (3.3): standing water (the swamp). */
   ponds?: Pond[];
+  /** v6 max (3.3): lines painted on the ground (the runway's): from x0, z0 to x1, z1, `w` wide, dashed or not. */
+  marks?: { x0: number; z0: number; x1: number; z1: number; w: number; dash?: [number, number] }[];
   landmarks: Landmark[];
   areas: Area[];
   placements: Placement[];

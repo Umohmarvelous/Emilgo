@@ -236,6 +236,24 @@ for (const b of MAX_BOARDS) {
   b.fz = pin(b.fz);
 }
 
+/** v6 max (3.3, the v4 picture): the runway's paint: the dashed centre line, the edge lines, the threshold bars. */
+function runwayMarks(): NonNullable<OpenLayout["marks"]> {
+  const ax = Math.sin(RUNWAY.rot);
+  const az = Math.cos(RUNWAY.rot);
+  const cx = Math.cos(RUNWAY.rot);
+  const cz = -Math.sin(RUNWAY.rot);
+  const at = (along: number, across: number): [number, number] => [RUNWAY.x + ax * along + cx * across, RUNWAY.z + az * along + cz * across];
+  const half = RUNWAY.len / 2;
+  const line = (a0: number, a1: number, across: number, w: number, dash?: [number, number]) => {
+    const [x0, z0] = at(a0, across);
+    const [x1, z1] = at(a1, across);
+    return { x0, z0, x1, z1, w, dash };
+  };
+  const out = [line(-half + 34, half - 34, 0, 0.9, [14, 12]), line(-half + 2, half - 2, RUNWAY.w / 2 - 1.2, 0.5), line(-half + 2, half - 2, -RUNWAY.w / 2 + 1.2, 0.5)];
+  for (const end of [-1, 1]) for (let k = -3.5; k <= 3.5; k++) out.push(line(end * (half - 22), end * (half - 6), k * 3.6, 1.6));
+  return out;
+}
+
 export function buildMaxWorld(seed = 1957): OpenLayout {
   const city = buildNaijaWorld(seed);
   const H = MAX_HALF;
@@ -345,6 +363,9 @@ export function buildMaxWorld(seed = 1957): OpenLayout {
   scatter(P.mangrove, "bush", 120, { where: dry });
   // ── Neon Row: clubs along the road, glass towers behind; the Arena's stands round its pitch ──
   for (let k = 0; k < 8; k++) place("club", P.neon.x - 100 + k * 28, P.neon.z + (k % 2 ? 22 : -22), k % 2 ? Math.PI : 0);
+  // v6 max (3.3, the v4 picture): street lights down both sides of the strip, their arms over it.
+  for (let x = P.neon.x - 112; x <= P.neon.x + 100; x += 24)
+    for (const side of [-1, 1]) place("pole", x + (side > 0 ? 12 : 0), P.neon.z + side * 11, side > 0 ? Math.PI : 0, nextV(), 0.3);
   for (const [dx, dz] of [[-90, -90], [-30, -100], [40, -95], [100, -80], [-100, 80], [90, 90]]) place("glasstower", P.neon.x + dx, P.neon.z + dz, 0);
   for (let s = 0; s < 4; s++) {
     const a = (s * Math.PI) / 2;
@@ -483,6 +504,7 @@ export function buildMaxWorld(seed = 1957): OpenLayout {
     roads,
     rivers: [...city.rivers, ...WATERS],
     ponds,
+    marks: runwayMarks(),
     landmarks,
     areas,
     placements: [...city.placements, ...placements],

@@ -599,6 +599,18 @@ function* paintGround(L: OpenLayout, px: number, forMap: boolean, neutral = fals
     }
     g.setLineDash([]);
   }
+  // v6 max (3.3): the lines painted on the ground (the runway's).
+  g.strokeStyle = "rgba(240,238,228,0.85)";
+  g.lineCap = "butt";
+  for (const mk of L.marks ?? []) {
+    g.lineWidth = mk.w;
+    g.setLineDash(mk.dash ?? []);
+    g.beginPath();
+    g.moveTo(mk.x0, mk.z0);
+    g.lineTo(mk.x1, mk.z1);
+    g.stroke();
+  }
+  g.setLineDash([]);
   // The transit hub's lot and the arcade's floor.
   if (!neutral) {
     g.fillStyle = "#4e4c48";
@@ -608,6 +620,40 @@ function* paintGround(L: OpenLayout, px: number, forMap: boolean, neutral = fals
   }
   yield;
   if (forMap) {
+    // v6 max (3.3, "more detail on the map"): the dunes' crests and the trees' crowns, under the buildings.
+    for (const p of L.placements) {
+      if (p.prefab !== "ridge" && p.prefab !== "dune") continue;
+      const w = p.prefab === "ridge" ? 44 + (p.v % 4) * 8 : 18 + (p.v % 5) * 4;
+      const d = p.prefab === "ridge" ? 30 : 10;
+      g.save();
+      g.translate(p.x, p.z);
+      g.rotate(-p.rot);
+      g.fillStyle = "rgba(240,214,160,0.75)";
+      g.fillRect(-w / 2, -d / 2, w, d / 2);
+      g.fillStyle = "rgba(150,112,60,0.55)";
+      g.fillRect(-w / 2, 0, w, d / 2);
+      g.restore();
+    }
+    const CROWN: Partial<Record<string, [number, string]>> = {
+      tree: [3.2, "#3f6a2c"],
+      palm: [3, "#4a7a34"],
+      baobab: [5, "#355a28"],
+      pine: [2.6, "#24452a"],
+      snowpine: [2.6, "#8fa6a0"],
+      mangrove: [2.6, "#2f4d2a"],
+      deadtree: [1.6, "#3a332c"],
+      bush: [1.2, "#5a7a3a"],
+      rock: [1.4, "#7a756c"],
+      turbine: [3, "#eef0f2"],
+    };
+    for (const p of L.placements) {
+      const c = CROWN[p.prefab];
+      if (!c) continue;
+      g.fillStyle = c[1];
+      g.beginPath();
+      g.arc(p.x, p.z, c[0], 0, Math.PI * 2);
+      g.fill();
+    }
     // The minimap: building footprints over the ground, darker, and the river in blue.
     for (const s of L.solids) {
       if (s.kind !== "box" || s.y1 < 1.6 || s.y0 > 0.5) continue;
