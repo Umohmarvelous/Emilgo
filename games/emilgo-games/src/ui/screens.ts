@@ -15,6 +15,7 @@ import { CATEGORIES, MAPS, SKY_LABEL, SKY_STATES, mapOf, thumbSvg, type MapCateg
 import type { GameEntry, ModeEntry } from "../content/catalog";
 import { BUILTIN_MANIFEST } from "../content/modes";
 import type { RoomInfo } from "../net/protocol";
+import type { AwardState, Unlock } from "../rank/awards";
 import type { Rank } from "../rank/ladder";
 import type { Host, Leaderboard, MatchView } from "../platform/types";
 import { errorText } from "../platform/vatarErrors";
@@ -24,6 +25,7 @@ import { PRODUCTS, PRODUCT_BY_ID } from "../shop/catalog";
 import type { FriendState } from "../social/friends";
 import { EMOTES, EMOTE_BY_ID, type EmoteId } from "../social/emotes";
 import { HOODIE_COLORS, HOODIE_DESIGNS, type HoodieDesign, type Look } from "../world/human/wardrobe";
+import { awardsBody, badgeEmblem, unlockedHtml } from "./awards";
 import { esc, fmtTime, ordinal } from "./dom";
 import { SPOOKY_ROUTE } from "../maps/open/route";
 import { divisionIndex } from "../content/validate";
@@ -114,6 +116,8 @@ export interface FfaResultView {
   /** v6: today's chest, while unopened today (game/chest.ts), and whether it was opened on this screen. */
   chest?: { day: number; cp: number; opened?: boolean };
   cpParts?: { label: string; cp: number }[];
+  /** v6 max (3.10): the awards this match reached (each paid its CP, already in `cp`). */
+  awards?: Unlock[];
 }
 
 /** Honour's cosmetic title (§10.12) for this many commends, or null. */
@@ -215,6 +219,8 @@ export interface LobbyState {
   rotation?: { name: string; url: string; on: boolean }[];
   squad?: { name: string; me: boolean }[];
   loadout?: { kit: string; armour: number; dead: string };
+  /** v6 max (3.10): the badge worn ("veteran.3", or ""), and awards reached but not looked at yet. */
+  awards?: { wear: string; fresh: number };
 }
 
 type Action = (name: string, el: HTMLElement, ev: Event) => void;
@@ -392,13 +398,14 @@ export class Screens {
         <span class="art-t"><span class="h" style="display:block">Store</span><span class="small">${s.shop ? "Boosts · outfits · emotes" : "Boosts · try the looks"}</span></span>
       </button>
 
-      <div class="lb-name glass"><span data-name></span>${s.badge ? `<span class="badge-star">${icon("star", "", 12)}</span>` : ""}</div>
+      <div class="lb-name glass">${s.awards?.wear ? badgeEmblem(s.awards.wear, 20, "lb-emb") : ""}<span data-name></span>${s.badge ? `<span class="badge-star">${icon("star", "", 12)}</span>` : ""}</div>
       ${this.modeCard(s)}
       ${this.lobbyA(s)}
       <div class="lb-bar glass-fill">
         <button class="act" data-act="loadout">${icon("loadout")}<span>Loadout</span></button>
         <button class="act" data-act="customize">${icon("customize")}<span>Customize</span></button>
         <button class="act" data-act="emotes">${icon("emote")}<span>Emotes</span></button>
+        <button class="act" data-act="awards">${icon("medal")}<span>Awards</span>${s.awards?.fresh ? `<i class="dot-badge">${s.awards.fresh > 9 ? "9+" : s.awards.fresh}</i>` : ""}</button>
         <button class="act" data-act="invite" ${s.online !== "ready" ? "disabled" : ""}>${icon("invite")}<span>Invite</span></button>
       </div>
       <button class="lb-play" data-act="start" aria-label="Play">PLAY</button>`,
@@ -602,6 +609,11 @@ export class Screens {
        <div class="grid" style="grid-template-columns:repeat(4,1fr)">${slots}</div>
        ${!packOwned && EMOTES.some((e) => e.pack) ? `<div class="status" style="margin-top:12px">${icon("lock", "", 14)} Wobble, Shuffle and Hero come with the Party emote pack${canBuy ? ` · ${naira(PRODUCT_BY_ID.emotes_owambe.price)} in the Store` : " (inside Lagos Life)"}.</div>` : ""}`,
     );
+  }
+
+  /** v6 max (3.10): the Awards sheet: the badge worn, the milestones and their bars, the achievements. */
+  awards(a: AwardState): void {
+    this.sheet("awards", "Awards", awardsBody(a));
   }
 
   loadout(s: Settings): void {
@@ -1010,6 +1022,7 @@ export class Screens {
          ${rewardsHtml(r)}
          <div class="pm-xp" data-rank-line>${r.online ? rankLine(r) : `<span class="small">Practice: no XP. Play online to rank up.</span>`}</div>
          ${r.cp ? `<div class="pm-cp"><b>+${r.cp} CP</b><small>${esc((r.cpParts ?? []).map((p) => `${t(p.label)} +${p.cp}`).join(" · "))}</small></div>` : ""}
+         ${r.awards?.length ? unlockedHtml(r.awards) : ""}
          ${r.online === "match" ? `<div class="status" data-match-outcome>${esc(r.matchNote ?? "Sending the result to Lagos Life…")}</div>` : ""}
          ${r.completed?.length ? `<div class="status ok">${icon("check", "", 14)} Daily done: ${r.completed.map((c) => esc(t(c))).join(", ")}</div>` : ""}
          <div class="pm-actions">

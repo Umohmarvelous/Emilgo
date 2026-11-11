@@ -91,6 +91,7 @@ import type { buildAtlas } from "../world/textures";
 import type { BotBrain } from "./bots";
 import { chestOffer, openChest } from "./chest";
 import { addProgress, ensureDaily } from "./progress";
+import { badgeOf, recordMatch } from "../rank/awards";
 import { DIVISIONS, rankOf, rankUp } from "../rank/ladder";
 import { xpParts } from "../rank/xp";
 import { catalog, games } from "../content/catalog";
@@ -730,6 +731,7 @@ export class Game {
       daily: daily.map((def, i) => ({ def, progress: this.settings.daily.progress[i] ?? 0 })),
       mode: this.playMode,
       badge: this.settings.badge && !!this.shop?.owned.has("badge_gold"),
+      awards: { wear: badgeOf(this.settings.awards), fresh: this.settings.awards.fresh.length },
       ffa: !familyOn("ffa") ? "Dead Streets" : this.settings.game === "ffa" || !FEATURES.ballHaunt ? (this.ffaPick()?.name.en ?? "Free For All") : null,
       ...this.lobbyA(),
     });
@@ -902,6 +904,16 @@ export class Game {
   private showEmotes(): void {
     this.frame("left-panel");
     this.screens.emotes(this.emoteSel, this.owned(), this.settings.wheel, this.wheelSlot, !!this.shop);
+  }
+
+  /** v6 max (3.10): the Awards sheet; what was new is seen now (the lobby's dot goes). */
+  private showAwards(): void {
+    this.frame("left-panel");
+    this.screens.awards(this.settings.awards);
+    if (this.settings.awards.fresh.length) {
+      this.settings.awards.fresh = [];
+      saveSettings(this.host, this.settings);
+    }
   }
 
   private showLoadout(): void {
@@ -2696,7 +2708,7 @@ export class Game {
   private sendLook(): void {
     if (!this.net || this.net.state !== "open") return;
     const badge = this.settings.badge && this.owned().has("badge_gold");
-    this.net.send({ t: "look", ticket: this.shop?.ticket ?? undefined, look: toWireLook(this.myLook(), badge) });
+    this.net.send({ t: "look", ticket: this.shop?.ticket ?? undefined, look: toWireLook(this.myLook(), badge, badgeOf(this.settings.awards)) });
   }
 
   private onOwnedChanged(): void {
@@ -2996,6 +3008,19 @@ export class Game {
       case "loadout":
         this.showLoadout();
         break;
+      case "awards":
+        this.showAwards();
+        break;
+      case "award-wear": {
+        // Wear a reached badge (or take it off): everyone online sees it from the next look.
+        const a = this.settings.awards;
+        const id = d.id ?? "";
+        a.wear = id && a.got[id] ? id : "";
+        saveSettings(this.host, this.settings);
+        this.sendLook();
+        this.showAwards();
+        break;
+      }
       case "pose":
         this.settings.lobbyPose = d.id as PoseId;
         saveSettings(this.host, this.settings);
@@ -3945,6 +3970,22 @@ export class Game {
     this.settings.cp += pay.cp;
     this.ffaRes.cp = pay.cp;
     this.ffaRes.cpParts = pay.parts;
+    // v6 max (3.10): the awards: the match's feats counted, what they reached shown, each paying its CP once.
+    if (r.feats) {
+      const ty = r.run?.tally;
+      const got = recordMatch(this.settings.awards, {
+        ...r.feats,
+        ranked: !!this.ranked && !!online,
+        ...(ty ? { run: { finished: ty.finished, seconds: ty.seconds, kills: ty.kills, heads: ty.headshots, hurt: ty.hurt } } : {}),
+      });
+      if (got.length) {
+        const cp = got.reduce((a, u) => a + u.cp, 0);
+        this.settings.cp += cp;
+        this.ffaRes.cp = (this.ffaRes.cp ?? 0) + cp;
+        this.ffaRes.cpParts = [...(this.ffaRes.cpParts ?? []), { label: got.length > 1 ? `Awards ×${got.length}` : "Award", cp }];
+        this.ffaRes.awards = got;
+      }
+    }
     // v6: the day's chest, until it's opened (on this screen or the next match's).
     const chest = chestOffer(this.settings.chest);
     if (chest) this.ffaRes.chest = chest;

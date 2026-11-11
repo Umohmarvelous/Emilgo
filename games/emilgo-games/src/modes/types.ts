@@ -17,6 +17,7 @@ import type { GradeLook } from "../graphics/grade";
 import type { TierSpec } from "../graphics/tiers";
 import type { Controls } from "../input/controls";
 import type { AdFeed, Seen } from "../net/ads";
+import type { MatchFeats } from "../rank/awards";
 import type { ServerMsg } from "../net/protocol";
 import type { HapticKind } from "../platform/types";
 import type { Settings } from "../settings";
@@ -92,4 +93,6 @@ export interface ModeResult {
   trail?: [number, number, number][];
   /** A Dead Streets run: what it did, and where it went (t, x, z, the floor's height, a second apart) for the server's check. */
   run?: { tally: RunTally; trace: number[]; missed: [number, number][] };
+  /** v6 max (3.10): what you did, for the awards (the session adds the run and whether it was ranked). */
+  feats?: MatchFeats;
 }

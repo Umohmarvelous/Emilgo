@@ -24,6 +24,7 @@ import { PHASES } from "../../src/game/rules";
 import type { ServerMsg } from "../../src/net/protocol";
 import { divisionStart, rankOf, rankUp, TOP_DIVISION } from "../../src/rank/ladder";
 import { matchXp, runXp } from "../../src/rank/xp";
+import { badgeOf, botBadge, cleanAwards, freshAwards, parseBadge, recordMatch, TIER_CP, type MatchFeats } from "../../src/rank/awards";
 import { Identity, SqliteProfiles } from "../src/profiles";
 
 let failures = 0;
@@ -98,6 +99,34 @@ check(await refused(jwt({ sub: "user-1", aud: "authenticated", exp }, "wrong-sec
 check(await refused(jwt({ sub: "user-1", aud: "authenticated", exp: exp - 7200 })), "an expired token is refused");
 check(await refused(jwt({ aud: "authenticated", role: "anon", exp })), "an anonymous token is refused");
 check(await id.verify("ll", good).then(() => false, () => true), "a Lagos Life claim needs Lagos Life (none here)");
+
+console.log("\nawards (v6 max, 3.10):");
+{
+  const base: MatchFeats = { mode: "treasure-hunt", online: true, ranked: false, won: false, place: 5, sides: 8, seconds: 400, kills: 0, heads: 0, deaths: 1, treasures: 0, uploads: 0, crates: 0, items: 0, boosters: [], downs: 0, helps: 0, swum: 0, hour: 14 };
+  const s = freshAwards();
+  check(recordMatch(s, { ...base, seconds: 30, kills: 30 }).length === 0 && s.stats.matches === 0, "a match left in its first minute counts nothing");
+  const first = recordMatch(s, { ...base, won: true, place: 1, kills: 6, heads: 3, deaths: 0, treasures: 5, boosters: ["strength-booster", "speed-booster"] });
+  const ids = first.map((u) => u.id).sort();
+  check(["champion", "flawless", "hoarder", "hunt-king", "overcharged", "rampage", "sharpshooter", "seeker", "clutch"].every((id) => ids.includes(id)), `one big match reaches the right awards (${ids.join(", ")})`);
+  check(first.every((u) => u.cp > 0) && first.find((u) => u.id === "champion")?.cp === TIER_CP[0], "each pays CP; a first step pays the Bronze figure");
+  check(recordMatch(s, { ...base, won: true, place: 1, kills: 6 }).every((u) => u.id !== "rampage" && u.id !== "champion"), "an achievement pays once; a milestone only at its next step");
+  for (let i = 0; i < 9; i++) recordMatch(s, { ...base, kills: 2 });
+  check(s.got.veteran === 1 && s.stats.matches === 11, `ten matches: Veteran Bronze (${s.stats.matches} matches)`);
+  const many = recordMatch(s, { ...base, kills: 999 });
+  check(many.filter((u) => u.id === "marksman").length === 2 && s.got.marksman === 3 && many.some((u) => u.id === "massacre"), "a count that jumps past two steps pays both (Silver and Gold)");
+  const st = freshAwards();
+  recordMatch(st, { ...base, won: true });
+  recordMatch(st, { ...base, won: true });
+  check(recordMatch(st, { ...base, won: true }).some((u) => u.id === "hot-streak"), "three wins in a row: Hot Streak");
+  check(recordMatch(freshAwards(), { ...base, mode: "dead-streets", run: { finished: true, seconds: 400, kills: 3, heads: 1, hurt: 0 } }).filter((u) => ["survivor", "speedrun", "untouched"].includes(u.id)).length === 3, "a quick clean run: Survivor, Mast Sprinter, Untouched");
+  s.wear = "veteran";
+  check(badgeOf(s) === "veteran.1" && parseBadge("veteran.1")?.[1] === 1 && parseBadge("rampage.3") === null && parseBadge("nope.1") === null && parseBadge("<b>") === null, "badges on the wire are checked for shape");
+  const back = cleanAwards(JSON.parse(JSON.stringify({ ...s, wear: "night-owl", got: { ...s.got, nope: 3, veteran: 99 } })));
+  check(back.wear === "" && back.got.veteran === 4 && !("nope" in back.got) && back.stats.kills === s.stats.kills, "a saved state is cleaned (no unreached badge worn, steps capped, unknown ids dropped)");
+  check(allowedLook({ aw: "veteran.2" }, new Set()).aw === "veteran.2" && allowedLook({ aw: "veteran.9" }, new Set()).aw === undefined, "the server passes a well-formed badge on the look, drops a bad one");
+  const bots = Array.from({ length: 40 }, (_, i) => botBadge(7, i));
+  check(bots.every((b) => b === "" || parseBadge(b)) && bots.filter(Boolean).length > 8 && bots.filter(Boolean).length < 32, `bots wear a badge about half the time (${bots.filter(Boolean).length} of 40)`);
+}
 
 const GAME = process.env.GAME;
 if (GAME) {

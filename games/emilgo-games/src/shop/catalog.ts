@@ -16,6 +16,7 @@
 //    marked it delivered. The game's word is never enough.
 
 import { divisionIndex } from "../content/validate";
+import { parseBadge } from "../rank/awards";
 import { rankOf } from "../rank/ladder";
 import { cleanLook, DEFAULT_LOOK, DESIGN_BY_ID, EXTRA_BY_ID, HOODIE_COLORS, OUTFIT_BY_ID, type ExtraId, type HoodieDesign, type Look } from "../world/human/wardrobe";
 
@@ -74,6 +75,8 @@ export interface WireLook {
   mk?: 1;
   /** Wins in a row (SPEC-V3 §10.18), 3 or more: the streak glow. Only ever set by the server, from the profile. */
   st?: number;
+  /** v6 max (3.10): the award badge worn ("veteran.3"; rank/awards.ts), over the head in a match. Cosmetic. */
+  aw?: string;
 }
 
 /** Keep only what is valid and, for paid items, owned. Used by the server on everything a phone claims. */
@@ -98,11 +101,13 @@ export function allowedLook(want: WireLook | null | undefined, owned: ReadonlySe
   if (x.length) out.x = x;
   if (want.b && owned.has("badge_gold")) out.b = 1;
   if (look.mask === "closed") out.mk = 1;
+  // The awards are kept on the phone (as CP is): a badge is only checked for shape, and only ever drawn.
+  if (parseBadge(want.aw)) out.aw = want.aw;
   return out;
 }
 
-export function toWireLook(look: Look, badge: boolean): WireLook {
-  return { hd: look.hoodie, ds: look.design, o: look.outfit, g: look.body, s: look.skin, h: look.hair, hc: look.hairColor, x: look.extras.length ? look.extras : undefined, ht: Math.round(look.height * 100), b: badge ? 1 : undefined, mk: look.mask === "closed" ? 1 : undefined };
+export function toWireLook(look: Look, badge: boolean, aw = ""): WireLook {
+  return { hd: look.hoodie, ds: look.design, o: look.outfit, g: look.body, s: look.skin, h: look.hair, hc: look.hairColor, x: look.extras.length ? look.extras : undefined, ht: Math.round(look.height * 100), b: badge ? 1 : undefined, mk: look.mask === "closed" ? 1 : undefined, aw: aw || undefined };
 }
 
 /** A look from the wire (anything missing → the default). */

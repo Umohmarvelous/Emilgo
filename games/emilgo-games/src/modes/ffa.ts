@@ -15,6 +15,7 @@ import { ITEM_DEFS } from "../content/items";
 import { type ModeDef } from "../content/modes";
 import { Rng } from "../core/rng";
 import type { Contestant } from "../game/core/body";
+import { badgeOf, botBadge } from "../rank/awards";
 import { Match, settingsOf, weeklyMutator, type MatchWorld } from "../game/core/match";
 import type { MatchEvent } from "../game/core/module";
 import type { CaptureModule } from "../game/modules/capture";
@@ -180,6 +181,8 @@ export class FfaMode implements GameMode {
   private wasOut = false;
   /** Rivals you killed this match. */
   private kills = 0;
+  /** v6 max (3.10): what you did this match, for the awards (rank/awards.ts MatchFeats). */
+  private readonly feats = { heads: 0, deaths: 0, deadAt: -9, treasures: 0, uploads: 0, crates: 0, items: 0, boosters: [] as string[], downs: 0, helps: 0, swum: 0 };
   /** Dead Streets' screen side (a run only). */
   private readonly dead: DeadView | null;
   /** The billboards (SPEC-V3 §8), this match's ads once they come, and whether their seconds have been sent. */
@@ -302,6 +305,8 @@ export class FfaMode implements GameMode {
       },
     });
     this.view = new FfaView({ crowd: h.crowd, hud: h.hud, sound: h.sound, me: me.index, layer: h.ui, places: world.layout.landmarks });
+    // v6 max (3.10): the badges worn, over heads: yours, what the others' phones sent, a few for the bots.
+    this.view.badges = m.contestants.map((c, i) => (c === me ? badgeOf(h.settings.awards) : wire[i] ? (wire[i]!.aw ?? "") : botBadge(m.seed, i)));
     h.scene.add(this.ms.group, this.view.group);
     this.cars = m.module<VehiclesModule>("vehicles") ? new VehicleView({ crowd: h.crowd, sound: h.sound, rig: h.rig, me: me.index, stands: m.world.fuel ?? [] }) : null;
     if (this.cars) h.scene.add(this.cars.group);
@@ -604,6 +609,8 @@ export class FfaMode implements GameMode {
     const m = src.match;
     const me = src.me!;
     const live = me.status === "alive" && m.phase === "play" && !this.over && !h.paused;
+    // The awards' metres swum.
+    if (live && me.swim) this.feats.swum += Math.min(10, Math.hypot(me.vx, me.vz)) * dt;
     c.autoTrigger = live && !m.seated(me) && h.settings.autoFire && (!!this.gunsView || !!this.dead) && this.onEnemy(m, me);
     c.update();
     c.enabled = (m.phase === "play" || m.phase === "countdown") && !this.over && !h.paused;
@@ -654,14 +661,56 @@ export class FfaMode implements GameMode {
     if (this.endAt > 0 && performance.now() >= this.endAt && !this.over) this.finish();
   }
 
+  /** v6 max (3.10): the awards' count of what you did (your own events only). */
+  private tally(e: MatchEvent, m: Match, me: Contestant): void {
+    const f = this.feats;
+    switch (e.type) {
+      case "kill":
+      case "eliminated": {
+        // Going down for good, once (a kill and its elimination come together).
+        const id = e.type === "kill" ? e.tg : e.id;
+        if (id === me.id && m.elapsed - f.deadAt > 1) {
+          f.deaths++;
+          f.deadAt = m.elapsed;
+        }
+        break;
+      }
+      case "tre":
+        if (e.id === me.id && (e.how === "find" || e.how === "take")) f.treasures++;
+        break;
+      case "upl":
+        if (e.id === me.id && e.how === "done") f.uploads++;
+        break;
+      case "open":
+        if (e.id === me.id) f.crates++;
+        break;
+      case "use":
+        if (e.id === me.id) f.items++;
+        break;
+      case "take":
+        if (e.id === me.id && (e.kind === "strength-booster" || e.kind === "speed-booster") && !f.boosters.includes(e.kind)) f.boosters.push(e.kind);
+        break;
+      case "down":
+        if (e.by === me.id && e.id !== me.id) f.downs++;
+        break;
+      case "helpup":
+        if (e.id === me.id) f.helps++;
+        break;
+    }
+  }
+
   private onEvent(e: MatchEvent): void {
     const h = this.host;
     const m = this.src.match;
     const me = this.src.me!;
     if (e.type === "kill" && e.by === me.id && e.tg !== me.id) {
       const tg = m.get(e.tg);
-      if (tg && !m.sameSquad(tg, me)) this.kills++;
+      if (tg && !m.sameSquad(tg, me)) {
+        this.kills++;
+        if (e.head) this.feats.heads++;
+      }
     }
+    this.tally(e, m, me);
     if (e.type === "kill" && e.tg === me.id && e.by && e.by !== me.id && e.how !== "zone" && m.phase === "play") this.killedBy(m, me, e);
     switch (e.type) {
       case "phase":
@@ -1516,6 +1565,27 @@ export class FfaMode implements GameMode {
       seconds: m.elapsed,
       measure: measureName(m),
       kills: this.kills,
+      feats: {
+        mode: this.src.def.id,
+        online: !!this.online,
+        ranked: false,
+        won: !!m.winner && m.winner.squad === m.squads[me.index],
+        place: st.find((s) => s.id === me.id)?.place ?? 0,
+        sides: new Set(st.map((s) => s.squad)).size,
+        seconds: m.elapsed,
+        kills: this.kills,
+        heads: this.feats.heads,
+        deaths: this.feats.deaths,
+        treasures: this.feats.treasures,
+        uploads: this.feats.uploads,
+        crates: this.feats.crates,
+        items: this.feats.items,
+        boosters: this.feats.boosters,
+        downs: this.feats.downs,
+        helps: this.feats.helps,
+        swum: Math.round(this.feats.swum),
+        hour: new Date().getHours(),
+      },
       ...(this.best.text ? { play: this.best.text } : {}),
       trail: this.trail,
       ...(this.dead ? { run: runResult(m.module<SurvivalModule>("survival")!, this.trace) } : {}),

@@ -1502,3 +1502,56 @@ input { font: inherit; color: inherit; }
   background: radial-gradient(circle at 50% 55%, color-mix(in srgb, var(--pf) 65%, #fff) 0%, color-mix(in srgb, var(--pf) 40%, transparent) 38%, transparent 75%);
   mix-blend-mode: screen; animation: pflash 0.6s ease-out forwards; }
 @keyframes pflash { 0% { opacity: 0.95; } 100% { opacity: 0; } }
+/* 3.10: the awards. The emblem: a hexagon in its step's metal, the award's icon in it; diamond shimmers. */
+.emb { --es: 40px; position: relative; flex: none; display: inline-grid; place-items: center; width: var(--es); height: calc(var(--es) * 1.1); overflow: hidden;
+  clip-path: polygon(50% 0, 100% 24%, 100% 76%, 50% 100%, 0 76%, 0 24%); background: linear-gradient(155deg, var(--e1), var(--e2) 70%); color: var(--e3); }
+.emb::before { content: ""; position: absolute; inset: 9%; clip-path: inherit; background: linear-gradient(155deg, var(--e2), var(--e1)); opacity: 0.55; }
+.emb .ico { position: relative; stroke-width: 2.3; filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.35)); }
+.emb.t1 { --e1: #f3b886; --e2: #8a5324; --e3: #3a1e08; }
+.emb.t2 { --e1: #f7f9fb; --e2: #7f8b97; --e3: #26303a; }
+.emb.t3 { --e1: #ffe795; --e2: #b67f10; --e3: #4a3000; }
+.emb.t4 { --e1: #e4fdff; --e2: #2f9fd6; --e3: #08324a; }
+.emb.t4::after { content: ""; position: absolute; inset: -40%; background: linear-gradient(115deg, transparent 40%, rgba(255, 255, 255, 0.85) 50%, transparent 60%); animation: embShine 2.6s ease-in-out infinite; }
+@keyframes embShine { 0% { transform: translateX(-60%); } 60%, 100% { transform: translateX(60%); } }
+.emb.off { --e1: #3a3e44; --e2: #1b1d21; --e3: #6c717a; }
+.emb.pop { animation: embPop 0.7s cubic-bezier(0.2, 1.6, 0.4, 1) both; }
+@keyframes embPop { 0% { transform: scale(0.2) rotate(-25deg); opacity: 0; } 100% { transform: none; opacity: 1; } }
+/* The Awards sheet. */
+.aw-head { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 14px; background: rgba(255, 255, 255, 0.06); }
+.aw-head .grow, .aw-row .grow { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.aw-head small, .aw-row small, .aw-tile small { color: rgba(255, 255, 255, 0.66); font-size: 11px; }
+.aw-bar { display: block; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
+.aw-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #f5a623, #ffe08a); }
+.aw-rows { display: flex; flex-direction: column; gap: 8px; }
+.aw-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.04); }
+.aw-row b small { color: #ffd27a; font-weight: 600; }
+.aw-row.fresh, .aw-tile.fresh { box-shadow: 0 0 0 1.5px #ffcf5a, 0 0 14px rgba(255, 207, 90, 0.35); }
+.aw-side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex: none; }
+.aw-pips { display: flex; gap: 3px; }
+.aw-pips i { width: 8px; height: 8px; border-radius: 2px; transform: rotate(45deg); background: rgba(255, 255, 255, 0.14); }
+.aw-pips i.t1 { background: #c98a4b; } .aw-pips i.t2 { background: #d6dde4; } .aw-pips i.t3 { background: #f2c94c; } .aw-pips i.t4 { background: #8fe8ff; }
+.aw-on { display: inline-flex; align-items: center; gap: 3px; color: #7ee3a0; font-size: 11px; font-weight: 700; }
+.aw-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
+.aw-tile { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 8px; border-radius: 12px; background: rgba(255, 255, 255, 0.05); text-align: center; }
+.aw-tile b { font-size: 12px; }
+.aw-tile.locked b, .aw-tile.locked small { opacity: 0.55; }
+.aw-lock { color: rgba(255, 255, 255, 0.4); }
+/* On the results card: what the match reached. */
+.pm-awards { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.pm-awards .label b { color: #ffb23a; }
+.aw-list { display: flex; flex-wrap: wrap; gap: 8px 14px; }
+.aw-new { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.aw-new > span { display: flex; flex-direction: column; min-width: 0; }
+.aw-new b { font-size: 12px; } .aw-new small { font-size: 10px; color: rgba(255, 255, 255, 0.66); }
+.aw-new:nth-child(2) .emb { animation-delay: 0.15s; } .aw-new:nth-child(3) .emb { animation-delay: 0.3s; } .aw-new:nth-child(4) .emb { animation-delay: 0.45s; }
+/* The lobby: the worn badge by your name, the Awards button's count. */
+.lb-name .lb-emb { margin: -2px 0; }
+.lb-bar .act { position: relative; }
+.lb-bar .act .dot-badge { position: absolute; top: 2px; right: 18%; min-width: 14px; height: 14px; padding: 0 4px; border-radius: 7px; background: var(--red); font: 500 9px/14px var(--num); color: var(--white); }
+/* In a match: the badge over a head, close up. */
+.fhead > i.aw { display: none; position: absolute; left: -9px; top: -38px; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6)); }
+.fhead.has-aw.aw-on > i.aw { display: block; }
+.fhead.has-aw.aw-on.is-mate > i.aw, .fhead.has-aw.aw-on.is-holder > i.aw { top: -58px; }
+@media (max-width: 520px) { .lb-bar .act { flex-basis: 18%; } }
+.aw-side .mini, .aw-tile .mini { height: 26px; padding: 0 12px; border-radius: 13px; border: 1px solid rgba(255, 207, 90, 0.6); background: rgba(255, 207, 90, 0.12); color: #ffd98a; font: 700 11px var(--head); letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer; }
+.aw-side .mini:active, .aw-tile .mini:active { transform: scale(0.96); }
