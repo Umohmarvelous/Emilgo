@@ -199,7 +199,8 @@ export interface Settings {
 const KEY = "settings.v1";
 
 // v6: the two emotes left (social/emotes.ts LIVE_EMOTES).
-export const DEFAULT_WHEEL: EmoteId[] = ["shaku", "zanku"];
+/** v6 max (3.9): the two the owner kept, and four of the world's dances. */
+export const DEFAULT_WHEEL: EmoteId[] = ["shaku", "zanku", "charleston", "salsa", "twist", "kazachok"];
 
 export function defaults(host: Host): Settings {
   return {
@@ -413,6 +414,8 @@ export function loadSettings(host: Host): Settings {
     if (saved.quality === "saver") out.graphics = "low";
     if (saved.quality === "sharp") out.graphics = "high";
     out.wheel = Array.isArray(saved.wheel) && saved.wheel.length >= 1 && saved.wheel.length <= 8 && saved.wheel.every((e) => EMOTE_IDS.includes(e)) ? saved.wheel : base.wheel;
+    // v6 max (3.9): a wheel still on v6's two gets the new dances too.
+    if (out.wheel.join() === "shaku,zanku") out.wheel = [...DEFAULT_WHEEL];
     out.daily = saved.daily && typeof saved.daily.day === "string" && Array.isArray(saved.daily.progress) ? saved.daily : base.daily;
     out.chest = cleanChest(saved.chest);
     out.awards = cleanAwards(saved.awards);

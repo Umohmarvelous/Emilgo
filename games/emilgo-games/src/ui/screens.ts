@@ -597,7 +597,7 @@ export class Screens {
     const tiles = EMOTES.map((e) => {
       const locked = !!e.pack && !packOwned;
       return `<button class="tile ${selected === e.id ? "on" : ""} ${locked ? "locked" : ""}" data-act="emote-pick" data-id="${e.id}">
-        ${locked ? `<span class="lock">${icon("lock", "", 14)}</span>` : ""}${icon(e.icon, "", 26)}<span class="t">${esc(e.label)}</span>
+        ${locked ? `<span class="lock">${icon("lock", "", 14)}</span>` : ""}${icon(e.icon, "", 26)}<span class="t">${esc(e.label)}</span>${e.from ? `<span class="s">${esc(t(e.from))}</span>` : ""}
         ${wheel.includes(e.id) ? `<span class="owned">Wheel</span>` : ""}
       </button>`;
     }).join("");
@@ -1315,7 +1315,8 @@ export class Screens {
           confirmReset
             ? `<span style="display:flex;gap:6px"><button class="btn secondary" style="height:30px" data-act="reset-no">Cancel</button><button class="btn primary" style="height:30px" data-act="reset-yes">Reset</button></span>`
             : `<button class="btn secondary" style="height:30px" data-act="reset">Reset</button>`
-        }</div>`;
+        }</div>
+        <div class="row-set"><span class="lbl"><b>Credits</b><small>Bodies and moves: Quaternius (Universal Animation Library, CC0). Dances: the CMU Graphics Lab Motion Capture Database, mocap.cs.cmu.edu, created with funding from NSF EIA-0196217. Voice efforts: cicifyre (CC0). Everything else: EMILGO Games.</small></span></div>`;
     }
     this.sheet("settings", "Settings", body, { tabs, side: "wide", back: from === "pause" ? "pause-menu" : "back" });
   }

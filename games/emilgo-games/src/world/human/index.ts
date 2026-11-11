@@ -48,6 +48,7 @@ import { loadScanLevel, onScanLevel, scanReady, scanStamp } from "./scanbody";
 import { OUTFIT_BY_ID, paintKey, scanPaintKey, shapeKey, type Look } from "./wardrobe";
 import { onOperatorsReady, operatorBody, operatorsReady } from "./op";
 import { suitMaterial } from "./suit";
+import { danceReady } from "./mocapPose";
 import type { FigurineDef } from "../../shop/figurines";
 
 export type { Look } from "./wardrobe";
@@ -753,7 +754,8 @@ export class Human {
     computePose(a, this.pose);
     this.apply();
     // A gun in the hands (v4): the arms round it, after the pose (never while down or falling).
-    if (this.hold && a.dead < 0) applyHold(this, this.hold);
+    // (v6 max, 3.9: a mocap dance has the arms: the gun's grip lets go while it lasts.)
+    if (this.hold && a.dead < 0 && !(this.op && danceReady(a.emote))) applyHold(this, this.hold);
     this.restedAt = a.dead > REST_AT ? this.level : -1;
   }
 

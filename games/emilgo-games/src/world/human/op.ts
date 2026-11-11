@@ -15,6 +15,7 @@ import type { BuiltBody, Detail } from "./mesh";
 import { BONES, PROPORTIONS, type BoneName, type V3 } from "./skeleton";
 import type { Body } from "./wardrobe";
 import urlClips from "./op/op-clips.bin?url";
+import urlDances from "./op/op-dances.bin?url";
 
 /**
  * v5: one body for every operator, the female one (the owner: "hide the male 3d
@@ -274,8 +275,32 @@ export function loadOperators(): Promise<void> {
   ]).then(() => {
     ready = true;
     for (const fn of readyFns) fn();
+    // v6 max (3.9): the dances, after (137 KB nobody needs before the first emote).
+    void loadDances();
   });
   return loading;
+}
+
+let dancing: Promise<void> | null = null;
+/** v6 max (3.9): the motion-captured dances (tools/anim/dances.mjs), into CLIPS beside the others. */
+export function loadDances(): Promise<void> {
+  dancing ??= fetchBin(urlDances)
+    .then(({ head, buf, at }) => {
+      // The same bones in the same order as the clips (both bakes keep every bone but the root and the face).
+      if (head.keep.length !== KEEP.length) return;
+      let o = at;
+      for (const c of head.clips as Omit<MocapClip, "q" | "hips">[]) {
+        const q = new Uint32Array(buf, o, c.n * KEEP.length);
+        o += pad4(q.byteLength);
+        const hips = new Int16Array(buf, o, c.n * 3);
+        o += pad4(hips.byteLength);
+        CLIPS[c.name] = { ...c, q, hips };
+      }
+    })
+    .catch(() => {
+      dancing = null;
+    });
+  return dancing;
 }
 
 const readyFns: (() => void)[] = [];

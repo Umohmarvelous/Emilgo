@@ -23,6 +23,7 @@ import { Euler, Quaternion, Vector3 } from "three";
 import type { AnimState, Pose } from "./animator";
 import { CLIPS, carried, operatorsReady, sampleClip, type MocapClip } from "./op";
 import { BONES, BONE_INDEX, type BoneName } from "./skeleton";
+import { EMOTE_SECONDS, MOCAP_DANCES, type EmoteId } from "../../social/emotes";
 
 const NB = BONES.length;
 const QB = new Float32Array(NB * 4);
@@ -249,6 +250,32 @@ export function deathPose(a: AnimState, out: Pose): boolean {
   return true;
 }
 
+const HX = new Vector3();
+
+/** v6 max (3.9): how long an emote lasts: a dance a few times round (or once, a one-off), the rest EMOTE_SECONDS. */
+export function emoteLength(id: EmoteId | null): number {
+  const name = id ? MOCAP_DANCES[id] : undefined;
+  const c = name ? CLIPS[name] : undefined;
+  if (!c) return EMOTE_SECONDS;
+  return c.loop ? c.dur * Math.max(1, Math.round(6.5 / c.dur)) : c.dur;
+}
+
+/** v6 max (3.9): this emote is a mocap dance whose clip has arrived. */
+export function danceReady(id: EmoteId | null): boolean {
+  const name = id ? MOCAP_DANCES[id] : undefined;
+  return !!name && !!CLIPS[name] && operatorsReady();
+}
+
+/** v6 max (3.9): how much of a dance's clip the body takes now (0 when there's none to play). */
+export function danceWeight(a: AnimState, speed: number, air = 0, crouch = 0): number {
+  const name = a.emote ? MOCAP_DANCES[a.emote] : undefined;
+  if (!name || !CLIPS[name] || a.sit > 0.1 || a.slide > 0.1) return 0;
+  const len = emoteLength(a.emote);
+  const t = a.emoteT;
+  const ramp = Math.max(0, Math.min(1, t / 0.3, (len - t) / 0.45));
+  return ramp * (1 - Math.min(1, speed / 1.2)) * (1 - air) * (1 - crouch);
+}
+
 export function mocapPose(a: AnimState, out: Pose): boolean {
   if (!operatorsReady() || a.stance > 1.05) return false;
   QB.fill(0);
@@ -295,8 +322,21 @@ export function mocapPose(a: AnimState, out: Pose): boolean {
     mix(QB, QX, a.sit, null);
   }
 
-  // The upper body with a weapon (or a torch).
-  if (a.weapon && a.sit < 0.5 && a.slide < 0.5) {
+  // v6 max (3.9): a motion-captured dance over the whole body: standing (or nearly), on the ground, not in a car.
+  // On the move it fades out (the legs run, the dance stops).
+  const dw = danceWeight(a, speed, air, crouch);
+  if (dw > 0) {
+    const c = CLIPS[MOCAP_DANCES[a.emote!]!]!;
+    QX.fill(0);
+    HX.set(0, 0, 0);
+    sampleClip(c, a.emoteT, 1, QX, HX);
+    normalise(QX);
+    mix(QB, QX, dw, null);
+    HB.lerp(HX, dw);
+  }
+
+  // The upper body with a weapon (or a torch); a dance has the arms.
+  if (a.weapon && a.sit < 0.5 && a.slide < 0.5 && dw < 0.99) {
     QU.fill(0);
     HU.set(0, 0, 0);
     const pitch = Math.max(-1, Math.min(1, a.aimPitch / 0.75));
@@ -327,7 +367,7 @@ export function mocapPose(a: AnimState, out: Pose): boolean {
     }
     // At a sprint the arms run (hold.ts carries the gun across the chest); otherwise the weapon's torso.
     const runArms = a.aimW < 0.5 ? Math.max(0, Math.min(1, (speed - 6.5) / 1.5)) : 0;
-    mix(QB, QU, (1 - runArms) * (1 - air * 0.5), UPPER);
+    mix(QB, QU, (1 - runArms) * (1 - air * 0.5) * (1 - dw), UPPER);
   }
 
   // Strafing while aiming: the hips toward the way you go, the chest back to the aim.

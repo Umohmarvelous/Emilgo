@@ -66,6 +66,9 @@ if (set === "outfits") {
   const cols = (q.get("colors") ?? "white,mustard,green,sky,crimson,rose").split(",");
   const des = (q.get("designs") ?? "plain,twotone,stripe,block,tracksuit,plates").split(",");
   cols.forEach((c, i) => looks.push(base({ body: "f", hoodie: Math.max(0, HOODIE_COLORS.findIndex((h) => h.id === c)), design: des[i % des.length] as never })));
+} else if (set === "dances") {
+  // v6 max (3.9): the seven motion-captured dances side by side (with &gear=0), each on a loop.
+  for (let i = 0; i < 7; i++) looks.push(base({ body: "m", hoodie: [5, 7, 14, 17, 18, 11, 6][i] }));
 } else if (set === "figs") {
   // v6 max (3.8): the five figurines (with &gear=0), in their own suits.
   for (const f of FIGURINES) looks.push(figurineLook(base({ body: "m" }), f));
@@ -83,7 +86,15 @@ looks.forEach((l, i) => {
   if (cam === "side" || (set === "move" && q.get("cam") !== "front")) h.mesh.rotation.y = Math.PI / 2;
   if (set === "poses") h.setPose((["relaxed", "hip", "hair", "hero", "arms"] as const)[i]);
   if (q.get("pose")) h.setPose(q.get("pose") as never);
-  if (q.get("emote")) h.emote(q.get("emote") as never);
+  const DANCE_IDS = ["charleston", "twist", "salsa", "lambada", "kazachok", "breaking", "ballet"] as const;
+  const em = set === "dances" ? DANCE_IDS[i % DANCE_IDS.length] : q.get("emote");
+  if (em) {
+    h.emote(em as never);
+    // Again whenever it ends (a dance's clip arrives a moment after the bodies).
+    setInterval(() => {
+      if (!h.anim.emote) h.emote(em as never);
+    }, 100);
+  }
   if (q.get("nonormal")) ((h.mesh.material as unknown) as { normalMap: unknown }).normalMap = null;
   // v4: the operator's gear (?gear=ladder: tiers 0–4 across; ?gear=0..4 for all; ?kit=0..2).
   const gq = q.get("gear");

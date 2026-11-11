@@ -25,11 +25,11 @@
 // back (+); about Z swing them out (left side +, right side −); spine/head +X
 // leans forward. Everything here is presentation; the referee never reads it.
 
-import { EMOTE_SECONDS, type EmoteId } from "../../social/emotes";
+import { MOCAP_DANCES, type EmoteId } from "../../social/emotes";
 import { FALL_TIME, fallOf, fallProgress, ragdollPose, type FallKind } from "./ragdoll";
 import { clip, mirror, mirrorKey, play, playAdd, setScratch, type Clip, type Key, type V3 } from "./keys";
 import { BONES, BONE_INDEX, LID_CLOSE, type BoneName } from "./skeleton";
-import { deathPose, mocapPose, stepMocap } from "./mocapPose";
+import { danceReady, deathPose, emoteLength, mocapPose, stepMocap } from "./mocapPose";
 
 export type { EmoteId } from "../../social/emotes";
 export type PoseId = "relaxed" | "hip" | "hair" | "hero" | "arms";
@@ -275,7 +275,7 @@ export function stepGait(a: AnimState, speed: number, dt: number): void {
   if (a.done >= 0) a.done += dt;
   if (a.emote) {
     a.emoteT += dt;
-    if (a.emoteT >= EMOTE_SECONDS) a.emote = null;
+    if (a.emoteT >= emoteLength(a.emote)) a.emote = null;
   }
   if (a.action) {
     a.actionT += dt;
@@ -531,9 +531,10 @@ export function computePose(a: AnimState, out: Pose): void {
 
   // ── Emote over everything: the upper body always; standing still, the
   // dances move the hips and legs too (on the move the legs keep running) ──
-  if (a.emote) {
+  // (v6 max, 3.9: a motion-captured dance on a mocap body is mocapPose's, whole: nothing to add here.)
+  if (a.emote && !(mocap && MOCAP_DANCES[a.emote] && danceReady(a.emote))) {
     const e = a.emoteT;
-    const w = Math.max(0, Math.min(1, e / 0.15, (EMOTE_SECONDS - e) / 0.25));
+    const w = Math.max(0, Math.min(1, e / 0.15, (emoteLength(a.emote) - e) / 0.25));
     _emote.clear();
     for (let i = 0; i < out.rot.length; i++) _emote.rot[i] = out.rot[i];
     _emote.curlL = out.curlL;
@@ -725,7 +726,7 @@ function faceRig(a: AnimState, out: Pose): void {
   if (a.pose === "hair") lids = Math.max(lids, 0.25);
   if (a.emote) {
     const e = a.emoteT;
-    const w = Math.max(0, Math.min(1, e / 0.15, (EMOTE_SECONDS - e) / 0.25));
+    const w = Math.max(0, Math.min(1, e / 0.15, (emoteLength(a.emote) - e) / 0.25));
     const [l, j, p] = emoteFace(a.emote, e);
     lids += (l - lids) * w;
     jaw += (j - jaw) * w;
@@ -1442,7 +1443,8 @@ const CLIPS: Partial<Record<EmoteId, Clip>> = { dance: DANCE, zanku: ZANKU, shak
 
 /** Emote poses as functions of time: the keyed ones (CLIPS), the rest upper body. */
 function emotePose(id: EmoteId, t: number, out: Pose, seed: number): void {
-  const c = CLIPS[id];
+  // v6 max (3.9): a mocap dance on a body without the clips (a scan, or before they arrive): the keyed dance.
+  const c = CLIPS[id] ?? (MOCAP_DANCES[id] ? DANCE : undefined);
   if (c) {
     // Everyone starts a dance at their own point in it.
     play(c, t + (seed % 1) * c.period, out);
