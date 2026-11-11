@@ -95,17 +95,36 @@ export function unpackInts(text: string, widths: readonly number[]): number[] {
   return out;
 }
 
-/** The server's numbers to the wire: `carsAlso` false leaves the cars out (they haven't changed; the phone keeps the last). */
-export function packSnap(s: MatchSnap, carsAlso: boolean): MatchSnap {
+/**
+ * The server's numbers to the wire: `carsAlso` false leaves the cars out (they haven't changed; the phone keeps the
+ * last). v6 max (3.13): only the bodies marked "a" in st are packed (the eliminated and the far cost nothing).
+ */
+export function packSnap(s: MatchSnap, carsAlso: boolean, all = false): MatchSnap {
   const { p, v, ...rest } = s;
-  return { ...rest, pb: packInts(p, BODY_BYTES), ...(v && carsAlso ? { vb: packInts(v, CAR_BYTES) } : {}) } as unknown as MatchSnap;
+  // A full snapshot (a sync) keeps every body (the fallen lie where they fell): marked fa.
+  if (all) return { ...rest, fa: 1, pb: packInts(p, BODY_BYTES), ...(v && carsAlso ? { vb: packInts(v, CAR_BYTES) } : {}) } as unknown as MatchSnap;
+  const on: number[] = [];
+  for (let i = 0; i < s.st.length; i++) if (s.st[i] === "a") for (let k = 0; k < MSNAP_STRIDE; k++) on.push(p[i * MSNAP_STRIDE + k] ?? 0);
+  return { ...rest, pb: packInts(on, BODY_BYTES), ...(v && carsAlso ? { vb: packInts(v, CAR_BYTES) } : {}) } as unknown as MatchSnap;
 }
 
 /** The wire's bytes back to numbers, in place (a snapshot already in numbers is left as it is). `lastCars`: the newest cars this phone has. */
 export function inflateSnap(s: MatchSnap, lastCars: number[] | undefined): MatchSnap {
   const w = s as MatchSnap & { pb?: string; vb?: string };
-  if (typeof w.pb === "string") {
+  if (typeof w.pb === "string" && (w as { fa?: number }).fa === 1) {
     w.p = unpackInts(w.pb, BODY_BYTES);
+    delete w.pb;
+    delete (w as { fa?: number }).fa;
+  } else if (typeof w.pb === "string") {
+    // The packed bodies are the "a" ones, in order: back into every roster index (zeros for the rest).
+    const on = unpackInts(w.pb, BODY_BYTES);
+    const p = new Array<number>(w.st.length * MSNAP_STRIDE).fill(0);
+    let j = 0;
+    for (let i = 0; i < w.st.length && j < on.length; i++) {
+      if (w.st[i] !== "a") continue;
+      for (let k = 0; k < MSNAP_STRIDE; k++) p[i * MSNAP_STRIDE + k] = on[j++] ?? 0;
+    }
+    w.p = p;
     delete w.pb;
   }
   if (typeof w.vb === "string") {
@@ -124,7 +143,10 @@ export interface MatchSnap {
   pt?: number;
   pd?: number;
   el: number;
-  /** One char per roster index: a(live) e(liminated). */
+  /**
+   * One char per roster index: a(live) e(liminated); v6 max (3.13, protocol 22): f, alive but far, left out of
+   * this snapshot (interest management: the phone keeps it moving between the snapshots that carry it).
+   */
   st: string;
   /** Per body MSNAP_STRIDE numbers: x, z (cm), heading (centiradians, −π…π), height (cm), flags (packFlags), meter (packMeter), hand. Out: zeros. */
   p: number[];

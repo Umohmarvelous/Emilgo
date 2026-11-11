@@ -14,6 +14,7 @@ import { Match, settingsOf, weeklyMutator, type MatchWorld, type Standing } from
 import { Space } from "../../src/game/core/space";
 import type { AirfallModule } from "../../src/game/modules/airfall";
 import type { FlagsModule } from "../../src/game/modules/flags";
+import type { TreasureModule } from "../../src/game/modules/treasure";
 import type { MeleeModule } from "../../src/game/modules/melee";
 import type { VehiclesModule } from "../../src/game/modules/vehicles";
 import { PROP_IDS } from "../../src/game/modules/melee";
@@ -217,6 +218,12 @@ export class FfaGame {
 
   /** The state now; `measures`: with each body's measure (once a second). `full`: the fallen too (a sync). */
   snapshot(serverMs: number, full = false, measures = full): MatchSnap {
+    const { snap, carsAlso } = this.snapshotParts(serverMs, full, measures);
+    return packSnap(snap, carsAlso, full);
+  }
+
+  /** v6 max (3.13): the snapshot in numbers (and whether the cars go), for the room to tailor per phone, then pack. */
+  snapshotParts(serverMs: number, full = false, measures = full): { snap: MatchSnap; carsAlso: boolean } {
     const m = this.match;
     const list = m.contestants;
     const p: number[] = new Array(list.length * MSNAP_STRIDE).fill(0);
@@ -256,7 +263,7 @@ export class FfaGame {
     const carsNow = v ? v.join() : "";
     const carsAlso = full || !!measures || carsNow !== this.carsSent;
     this.carsSent = carsNow;
-    return packSnap({
+    const snap: MatchSnap = {
       t: "msnap",
       s: serverMs,
       ph: MATCH_PHASES.indexOf(m.phase),
@@ -266,7 +273,39 @@ export class FfaGame {
       p,
       ...(o ? { o } : {}),
       ...(v ? { v } : {}),
-    }, carsAlso);
+    };
+    return { snap, carsAlso };
+  }
+
+  /** A seat's roster index (−1: not in the match). */
+  indexOf(seat: string): number {
+    return this.index.get(seat) ?? -1;
+  }
+
+  /**
+   * v6 max (3.13): interest management. The same snapshot, for one phone: the bodies far from what it watches
+   * marked "f" (left out) on some ticks: 90–220 m away every other snapshot, beyond 220 m one in three. Its own
+   * body, its squad, whoever holds a flag or the treasure are always in. `tick` counts snapshots.
+   */
+  interest(snap: MatchSnap, viewer: number, tick: number): MatchSnap {
+    const m = this.match;
+    const me = m.contestants[viewer];
+    if (!me || me.status !== "alive") return snap;
+    const st = snap.st.split("");
+    const tre = m.module<TreasureModule>("treasure");
+    let changed = false;
+    for (const c of m.contestants) {
+      const i = c.index;
+      if (st[i] !== "a" || c === me || m.sameSquad(c, me)) continue;
+      if (this.flags?.heldBy(i) || (tre && tre.count[i] > 0)) continue;
+      const d = Math.hypot(c.x - me.x, c.z - me.z);
+      const every = d > 220 ? 3 : d > 90 ? 2 : 1;
+      if (every > 1 && (tick + i) % every !== 0) {
+        st[i] = "f";
+        changed = true;
+      }
+    }
+    return changed ? { ...snap, st: st.join("") } : snap;
   }
   private carsSent = "";
 

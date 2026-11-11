@@ -388,7 +388,8 @@ export async function online(url: string, check: Check): Promise<number> {
     let agree = false;
     const late = phones[10];
     // The driver: whoever (not the phone that drops, not the party) starts nearest a car's driver door.
-    const cars = () => lead.match!.module<VehiclesModule>("vehicles")!.cars;
+    // (Vehicles are off since v6: no cars, no drive; the rest of the run goes on.)
+    const cars = () => lead.match!.module<VehiclesModule>("vehicles")?.cars ?? [];
     let driver: Phone | null = null;
     let door: [number, number] = [0, 0];
     let bestDoor = Infinity;
@@ -515,7 +516,7 @@ export async function online(url: string, check: Check): Promise<number> {
       }
     }
     ok(rejoined && agree, "a phone that dropped and came back rebuilt its copy from the server's log: it agrees with the others");
-    if (!carSeen) {
+    if (!carSeen && cars().length) {
       const c = driver?.me();
       ok(false, `a phone walked to a car and drove off (the match ended first: ${droveAt >= 0 ? "it drove" : `it never got in; ${c ? `${Math.hypot(door[0] - c.x, door[1] - c.z).toFixed(1)} m from the door at (${c.x.toFixed(0)}, ${c.z.toFixed(0)}), ${c.status}` : "no driver"}`})`);
     }

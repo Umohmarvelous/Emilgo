@@ -517,31 +517,63 @@ export class OnlineMatch {
         car.h = space.floorAt(car.x, car.z, car.h + 0.3).h;
       }
     }
+    const ia = list.indexOf(a);
+    const ib = list.indexOf(b);
     for (const c of m.contestants) {
-      if (c === this.me || c.status !== "alive" || m.seated(c) || a.st[c.index] !== "a" || b.st[c.index] !== "a") continue;
-      const k = c.index * MSNAP_STRIDE;
-      const ax = a.p[k] / 100;
-      const az = a.p[k + 1] / 100;
-      const bx = b.p[k] / 100;
-      const bz = b.p[k + 1] / 100;
-      const x = ax + (bx - ax) * u;
-      const z = az + (bz - az) * u;
-      if (span > 0) {
-        c.vx = ((bx - ax) * 1000) / span;
-        c.vz = ((bz - az) * 1000) / span;
+      if (c === this.me || c.status !== "alive" || m.seated(c)) continue;
+      const i = c.index;
+      // v6 max (3.13): a far body ("f") isn't in every snapshot: between the nearest two that carry it (or, past
+      // the newest, on from it at its pace for a moment).
+      let A = a;
+      let B = b;
+      let uu = u;
+      let span2 = span;
+      if (A.st[i] !== "a" || B.st[i] !== "a") {
+        if (A.st[i] === "e" || B.st[i] === "e") continue;
+        let x = ia;
+        while (x >= 0 && list[x].st[i] !== "a") x--;
+        let y = ib;
+        while (y < list.length && list[y].st[i] !== "a") y++;
+        if (x < 0) continue;
+        A = list[x];
+        if (y < list.length) {
+          B = list[y];
+          span2 = B.s - A.s;
+          uu = span2 > 0 ? Math.max(0, Math.min(1, (t - A.s) / span2)) : 1;
+        } else {
+          const ahead = Math.min(0.3, Math.max(0, (t - A.s) / 1000));
+          const k0 = i * MSNAP_STRIDE;
+          c.x = A.p[k0] / 100 + c.vx * ahead;
+          c.z = A.p[k0 + 1] / 100 + c.vz * ahead;
+          c.h = space.floorAt(c.x, c.z, A.p[k0 + 3] / 100 + 0.05).h;
+          continue;
+        }
+      }
+      const a2 = A;
+      const b2 = B;
+      const k = i * MSNAP_STRIDE;
+      const ax = a2.p[k] / 100;
+      const az = a2.p[k + 1] / 100;
+      const bx = b2.p[k] / 100;
+      const bz = b2.p[k + 1] / 100;
+      const x = ax + (bx - ax) * uu;
+      const z = az + (bz - az) * uu;
+      if (span2 > 0) {
+        c.vx = ((bx - ax) * 1000) / span2;
+        c.vz = ((bz - az) * 1000) / span2;
       }
       // A respawn far away: no slide across the map.
       if (Math.hypot(x - c.x, z - c.z) > 12) c.vx = c.vz = 0;
       c.x = x;
       c.z = z;
-      const ha = a.p[k + 2] / 100;
-      let dh = b.p[k + 2] / 100 - ha;
+      const ha = a2.p[k + 2] / 100;
+      let dh = b2.p[k + 2] / 100 - ha;
       dh = Math.atan2(Math.sin(dh), Math.cos(dh));
-      c.heading = ha + dh * u;
-      const hy = (a.p[k + 3] + (b.p[k + 3] - a.p[k + 3]) * u) / 100;
+      c.heading = ha + dh * uu;
+      const hy = (a2.p[k + 3] + (b2.p[k + 3] - a2.p[k + 3]) * uu) / 100;
       c.h = space.floorAt(x, z, hy + 0.05).h;
       c.y = Math.max(0, hy - c.h);
-      const fl = unpackFlags(b.p[k + 4]);
+      const fl = unpackFlags(b2.p[k + 4]);
       c.stance = fl.stance;
       c.sprinting = fl.sprinting;
       c.stamina = fl.stamina;

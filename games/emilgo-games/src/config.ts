@@ -949,7 +949,8 @@ export const NET = {
   // 19 (v5): Titan Serum and the Map Print in the loot (the scatter changed), a seat's own events ("reveal").
   // 20 (v6): only the kept items in the loot, spread wider (the scatter changed).
   // 21 (v6 max): the higher jump (the body kernel changed), the boosters, the decoy and disguise in every mode.
-  protocol: 21,
+  // 22 (v6 max, 3.13): snapshots pack only the bodies they carry; far bodies left out of some (interest management).
+  protocol: 22,
   tickHz: 60,
   /** Server → client state broadcasts per second. */
   snapshotHz: 15,

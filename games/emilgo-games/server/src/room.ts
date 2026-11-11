@@ -59,7 +59,7 @@ import { EMOTE_PACK } from "../../src/shop/catalog";
 import { boostsFromWire, boostsToWire } from "../../src/shop/boosts";
 import type { ModeDef } from "../../src/content/modes";
 import { now } from "./clock";
-import type { WireEvent } from "../../src/net/matchWire";
+import { packSnap, type WireEvent } from "../../src/net/matchWire";
 import { assignSquads, FfaGame } from "./ffa";
 import type { Peer } from "./peer";
 
@@ -109,6 +109,8 @@ export class Room {
    * player still in it, with what the referee saw. Set once by the server.
    */
   static onAward: ((peer: Peer, facts: MatchFacts) => void) | null = null;
+  /** v6 max (3.13): snapshots sent this match (interest management staggers the far bodies by it). */
+  private snapNo = 0;
   static onCommend: ((from: Peer, to: Peer) => void) | null = null;
   /** The last match's seats, and who has commended someone from it (§10.12: once each). */
   private played = new Set<string>();
@@ -475,7 +477,25 @@ export class Room {
       const half = (this.ticks / SNAP_EVERY) % 2 === 1 && !game.over;
       // Each body's measure goes out once a second (the HUD's scores), and with the last.
       const measures = (this.ticks / SNAP_EVERY) % NET.snapshotHz === 0 || game.over;
-      this.broadcastRaw(JSON.stringify(game.snapshot(now(), false, measures)), half);
+      // v6 max (3.13): interest management: each phone gets the bodies far from it less often (a full set with the
+      // measures once a second, and the last). The same bytes go to every phone that would get the same.
+      const { snap, carsAlso } = game.snapshotParts(now(), false, measures);
+      if (measures || game.over || process.env.INTEREST === "0") this.broadcastRaw(JSON.stringify(packSnap(snap, carsAlso)), half);
+      else {
+        this.snapNo++;
+        const shared = new Map<string, Buffer>();
+        for (const p of this.members) {
+          if (half && p.saver) continue;
+          const mine = game.interest(snap, game.indexOf(this.seats.get(p.id) ?? p.id), this.snapNo);
+          const key = mine.st;
+          let frame = shared.get(key);
+          if (!frame) {
+            frame = Buffer.from(JSON.stringify(packSnap(mine, carsAlso)));
+            shared.set(key, frame);
+          }
+          p.sendRaw(frame);
+        }
+      }
     }
     if (both) this.cork(false);
     if (game.over) {
