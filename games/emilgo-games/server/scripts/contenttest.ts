@@ -52,6 +52,16 @@ const mixed = checkManifest({ ...BUILTIN_MANIFEST, modes: [...BUILTIN_MANIFEST.m
 check(mixed.manifest.modes.length === BUILTIN_MANIFEST.modes.length && mixed.dropped.length === 2, "one bad mode and a duplicate dropped; the rest kept");
 check(checkManifest({ format: 2, modes: [] }) === null && checkManifest("nonsense") === null, "a file that isn't a manifest is refused whole");
 
+// v7: Treasure Hunt only (FEATURES.huntOnly): every other public FFA mode is gone, the staked duel and the test's stay.
+console.log("\nTreasure Hunt only (v7):");
+const huntWas = FEATURES.huntOnly;
+FEATURES.huntOnly = true;
+const huntSees = catalog(BUILTIN_MANIFEST, { xp: 1e9 }).filter((e) => e.def.family === "ffa").map((e) => e.def.id);
+check(huntSees.length === 1 && huntSees[0] === "treasure-hunt" && familyOn("ffa"), `the menu: Treasure Hunt alone (${huntSees.join(", ")})`);
+FEATURES.huntOnly = false;
+check(catalog(BUILTIN_MANIFEST, { xp: 1e9 }).filter((e) => e.def.family === "ffa").length > 1, "switched off: the other modes are back");
+// The rest of this file tests the whole catalog.
+
 console.log("\nthe menu follows the rank:");
 const all = new Set<string>(MODULE_IDS);
 const ffaPlay = (xp: number) => catalog(BUILTIN_MANIFEST, { xp, built: all }).filter((e) => e.def.family === "ffa" && e.state === "play").length;
@@ -96,5 +106,6 @@ check(!familyOn("ffa") && !games(BUILTIN_MANIFEST, { xp: 0 }).some((g) => g.id =
 setLiveOff([]);
 check(familyOn("ffa") && (familyOn("survival") || !FEATURES.deadStreets) && seen().includes("hustle"), "all back on");
 
+FEATURES.huntOnly = huntWas;
 console.log(failures ? `\n${failures} FAILED` : "\nall passed");
 process.exit(failures ? 1 : 0);

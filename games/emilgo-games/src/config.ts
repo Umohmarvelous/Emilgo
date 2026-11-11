@@ -36,9 +36,17 @@ export const DOLL_Z = -131;
  * game out of every menu, the lobby and the server. How to use them: README,
  * "Showing and hiding a mode". Leave at least one of the three on.
  */
-export const FEATURES: { ballHaunt: boolean; freeForAll: boolean; deadStreets: boolean; vehicles: boolean } = {
+export const FEATURES: { ballHaunt: boolean; freeForAll: boolean; deadStreets: boolean; vehicles: boolean; huntOnly: boolean } = {
   ballHaunt: false,
   freeForAll: true,
+  /**
+   * v7 (the owner: "hide every other mode in the free for all game mode just focusing and working with the treasure
+   * hunt for now ... make it a toggle feature I can just toggle on/off from the codebase"): true, and Free For All
+   * offers Treasure Hunt alone (its XP, Ranked and awards as before); every other FFA mode is off as if its
+   * MODE_SWITCH line were false. The staked Flag Duel stays (only Lagos Life opens it), and the network test's
+   * City Flag. false brings the others back as MODE_SWITCH has them.
+   */
+  huntOnly: true,
   /**
    * v6 (the owner: "remove all old cars, bus, keke in the game"): no vehicles in any mode, whatever a mode's
    * manifest says (match.ts settingsOf drops the module), and no wrecks or parked minibuses in the worlds. The
@@ -76,6 +84,9 @@ export const MODE_SWITCH: Record<"ffa" | "survival" | "rlgl", Record<string, boo
   rlgl: { "classic-run": true, "ball-haunting": true },
 };
 
+/** The Free For All modes `FEATURES.huntOnly` leaves on. */
+const HUNT_ONLY_KEEPS: ReadonlySet<string> = new Set(["treasure-hunt", "flag-duel", "city-flag"]);
+
 /** What the live switch has off now: mode ids, or a whole game ("ffa", "survival", "rlgl"). */
 let liveOff: ReadonlySet<string> = new Set();
 
@@ -90,6 +101,7 @@ export function liveOffList(): string[] {
 /** Is this mode on, by the code's switch and the live one? (Its game's switch is familyOn.) */
 export function modeOn(id: string): boolean {
   if (liveOff.has(id)) return false;
+  if (FEATURES.huntOnly && id in MODE_SWITCH.ffa && !HUNT_ONLY_KEEPS.has(id)) return false;
   for (const fam of Object.values(MODE_SWITCH)) if (fam[id] === false) return false;
   return true;
 }
