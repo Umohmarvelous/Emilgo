@@ -37,7 +37,42 @@ needs: CP, ad revenue, billboards, performance. Then list what only the owner ca
 | M13 | 3.1 The runner mode | Done: **Horde Dash**, our own runner (Play → Horde Dash). The dead are out of the city and you run the road to the **Safe Gate** (1 km; each level 250 m longer, a little busier; reach the gate to open the next; your best time per level). **Three lanes**: swipe left/right (or ← → / A D), up to jump (↑ W Space, 1.8 m), down to slide (↓ S; it drops you out of a jump). Faster and faster (9 → 15 m/s). **Obstacles** (our own): yellow danfo buses parked in a lane (go round; run into a front and the horde has you; swerve into a side and you bounce back), red-and-white road barriers and cones (jump), green sign gantries (slide under); never all three lanes shut. **Owo coins** in lines and in arcs over what you jump. **Power-ups**: Owo Magnet (10 s), Jet Pack (7 s, 6 m up over everything, a line of coins in the sky), Shield (one hit, even a bus, 20 s). **The horde**: Dead Streets' runners behind you; each stumble lets them gain 7 m (they show up behind you; the screen's edges go red); run clean and they fall back. A golden-hour road out of a dusty city, lamps, the gate's banner; the HUD: progress to the gate with the horde's dot, Owo, the clock, power-up timers, a 3-2-1. **Pay**: 30 CP at the gate, 1 CP per 10 Owo (up to 50), 10 for a quick time; awards count it (Explorer, Night Owl…), the history too. Rules pure and seeded (`game/runner/dash.ts`); dashtest: an autopilot reaches the gate on 40 of 40 courses (levels 1–3), every move, hit, power-up and the pay |
 | M14 | 3.3 + 3.4 The places rebuilt, realistic props, KTX2 | **Part done.** **KTX2 (done):** the open worlds' wall and ground atlases (and their normal maps) are baked ahead of time to KTX2 / Basis ETC1S (`tools/assets/atlases.ts`, wasm encoder, no system install) in a copy per tier (256, 512, 1024-px tiles; Low without normals): the GPU keeps them compressed (a 4096 × 2048 atlas: about 5 MB instead of 44 MB with mipmaps, twice over with the normals), the phone no longer composes them on a canvas, and the download is a little smaller. three's KTX2Loader transcodes in a worker to what each GPU takes (ASTC, ETC2, BC, PVRTC); without support, the files or the network, the world composes its atlases from the JPEGs as before. Checked in a real match (compressed 4096 × 2048 atlases on the city's walls and ground, the right way up). `deploy-site.sh` ships them with the library (`assets-site/lib/atlas/`, the transcoder in `lib/basis/`). **Realistic stones:** already CC0 scans (Poly Haven, v4). **Not done, and why:** (1) CC0 scanned **trees**: Poly Haven's are 1.7–17 million triangles each (46–958 MB): a phone can only show them as impostors (the tree rendered offline from many angles into an atlas, drawn on a card): a job of its own; the trees stay the drawn ones. (2) **Baked light** for the static world needs a lightmap or vertex-AO bake per world at build time: not started. (3) **3.3, the 11 places rebuilt** after the v4 pictures: level design per place, not started. These three are the open part of Tier 3 |
 | M15 | 3.13 Performance: interest-managed snapshots, animation LOD | Done. **Interest management** (protocol 22): every phone gets its own snapshot: bodies within 90 m every time (15 a second), 90–220 m every other one, beyond 220 m one in three, staggered; its own body, its squad and whoever holds a flag or the treasure always; a full set once a second (with the measures) and at the end. The phone moves a body left out of a snapshot between the two that carry it (or on at its pace for a moment past the newest). Snapshots now pack only the bodies they carry, so the fallen cost nothing either; phones that would get the same snapshot share one buffer. Measured on the 12-player network test (the small city map, everyone close): 4.6 → 3.2 KB/s down per phone, −30%; on the big map with 24 spread out, more. `INTEREST=0` on the server switches it off. **Animation LOD**: already there (far bodies posed every second to fourth frame by tier, nearest and falling bodies every frame). **Baked light and KTX2**: KTX2 done in M14; baked light open. Also fixed: the network test (its mode left the rotation, vehicles are off) runs again on a dev server (`BALL_HAUNT=1`) and passes |
-| M16 | The owner's manual steps, in one list | — |
+| M16 | The owner's manual steps, in one list | Done: the list below. Also the EMILGO app's embedded copy rebuilt from HEAD (M1–M15) |
+
+### What only the owner can do (v6 max, 11 Nov 2026)
+
+In order. Nothing here is needed to keep developing; all of it is needed for real players.
+
+1. **Deploy the server and the site together** (protocol 22: a page built for an older protocol is told to update):
+   `fly deploy` (from games/emilgo-games), then `scripts/deploy-site.sh` right after. The site now also ships
+   the KTX2 atlases (`assets-site/lib/atlas/`, 14 MB for all tiers) and their transcoder (`lib/basis/`), the
+   recorded jump efforts (`lib/sfx/`) and the dances (inside the build).
+2. **Billboards:** run `supabase/migrations/migration_game_billboards_v6.sql` (79 boards now: the 8 portrait LED
+   towers and the two-sided labels); set the real 1-week / 2-week prices (test placeholders now); the payment
+   keys: Flutterwave for the web game's billboard bookings, Paystack in the app (live keys need the businesses'
+   verification: SETUP-KEYS.md).
+3. **Ads for unsold boards and before purchases:** an AdSense account and Google's H5 Games Ads beta; Playgama
+   (its Bridge SDK) for Anzu's intrinsic ads; the steps are in ADS-NETWORKS.md. Never in Lagos Life.
+4. **The announcer:** run `tools/audio/voice.sh` once on the Mac (`AUDITION=1` first, to pick the voice by ear),
+   then deploy the site.
+5. **Accounts and keys on the server** (`fly secrets set`): `SUPABASE_URL` or `SUPABASE_JWT_SECRET` (EMILGO
+   accounts' ranks, profiles, the weekly board); the Lagos Life keys (`VATAR_SECRET`, `VATAR_RESULTS_SECRET`,
+   `VATAR_WEBHOOK_SECRET`) and Lagos Life's approval for live; `TICKET_SECRET`, `ADMIN_TOKEN`.
+6. **When there are players enough for more than one node** (the services split, M10; optional until then):
+   a Redis (Upstash, or Fly's) and `REDIS_URL` on every node; the profile service
+   (`fly apps create emilgo-games-profiles`, a volume, `SERVICE_SECRET`, `fly deploy --config server/fly.profiles.toml`,
+   copy `profiles.db` across, then `PROFILE_URL` + `SERVICE_SECRET` on the nodes); an NDJSON collector for
+   `ANALYTICS_URL` / `ANALYTICS_TOKEN` (or keep the daily files); the room directory (`DIRECTORY`, `DIR_SECRET`,
+   `NODE_URL`, `SHARD` per node), as v4 set up.
+7. **The app:** ship an app update with the rebuilt embedded copy (EAS), the store links, and the trademark
+   search for "EMILGO Games" before any marketing.
+8. **Decide:** (a) the seven new dances are free: say if they should be the paid emote pack; (b) the figurines'
+   prices (1,500–4,000 CP); (c) SPEC-V6's questions 1 (a speed-walk button) and 2 (the zone's timing); question 3
+   (safety rules for messages) was built as proposed.
+9. **Test on real phones:** every number here comes from headless Chrome (a slowed CPU, or the Mac's GPU): the
+   frame rates, Horde Dash's swipes, the KTX2 atlases on an older Android, the dances.
+10. **Still open in Tier 3** (M14): scanned trees (they need impostors), light baked into the world, and the 11
+    places rebuilt after the v4 pictures. Say the word and they're next.
 
 ## The owner's answers (9 Nov 2026)
 
