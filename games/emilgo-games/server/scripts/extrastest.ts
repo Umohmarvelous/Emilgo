@@ -118,10 +118,11 @@ console.log("the §10 items:");
   // Every one of them can be found now.
   const m = newMatch(1, settingsOf(def("find-the-flag")), 12);
   const kinds = new Set(m.module<ItemsModule>("items")!.items.map((it) => it.kind));
-  const extras: ItemId[] = ["smoke-pot", "decoy-flag", "talking-drum", "aso-ebi"];
-  const gone: ItemId[] = ["pepper-soup", "iron-wrapper", "banana-peel", "pepper-powder", "megaphone", "slipper", "golden-slipper", "zanku", "shaku", "odogwu", "breakdance"];
+  // v7: the Smoke Canister is out, the Med Kit in.
+  const extras: ItemId[] = ["med-kit", "decoy-flag", "talking-drum", "aso-ebi"];
+  const gone: ItemId[] = ["smoke-pot", "pepper-soup", "iron-wrapper", "banana-peel", "pepper-powder", "megaphone", "slipper", "golden-slipper", "zanku", "shaku", "odogwu", "breakdance"];
   check(extras.every((k) => kinds.has(k)), `all four are scattered (${extras.filter((k) => kinds.has(k)).length}/4 in one match)`);
-  check(gone.every((k) => !kinds.has(k)), "v5: the old items aren't");
+  check(gone.every((k) => !kinds.has(k)), "v5: the old items aren't (v7: nor the Smoke Canister)");
 }
 {
   // The Smoke Pot: a cloud; the Talking Drum can't find you in it.
@@ -985,6 +986,30 @@ console.log("the extras (§10):");
   runFor(m, t0 - AIRFALL.flare + 0.2 - m.elapsed, ev2);
   const f = ev2.find((e) => e.type === "flare") as Extract<MatchEvent, { type: "flare" }> | undefined;
   check(!!f && Math.hypot(f.x - v!.xs[2], f.z - v!.zs[2]) < 0.01 && f.votes?.[2] === 2, "the flare goes up on the spot with the most votes (2 of 3)");
+}
+
+console.log("v7, the Med Kit:");
+{
+  const m = newMatch(77, settingsOf(def("treasure-hunt")), 4);
+  runFor(m, 0.1);
+  const g = m.module<GunsModule>("guns")!;
+  const items = m.module<ItemsModule>("items")!;
+  const c = put(m, "p0", YX, YZ);
+  clear(m, ["p0"]);
+  g.hp[c.index] = 100;
+  const full = use(m, "p0", "med-kit");
+  check(!full.some((e) => e.type === "use") && items.packs[c.index][0] === "med-kit", "at full health it stays in the pack");
+  g.hp[c.index] = 30;
+  const ev = use(m, "p0", "med-kit");
+  check(ev.some((e) => e.type === "use" && e.kind === "med-kit") && m.effect(c, "heal") > 2.5, "hurt: used, 3 s of healing");
+  runFor(m, 3.2);
+  check(g.hp[c.index] >= 89 && g.hp[c.index] <= 100, `+60 over 3 s (30 → ${g.hp[c.index].toFixed(0)})`);
+  // Two at most in the pack: a third on the ground stays there.
+  items.packs[c.index].fill(null);
+  items.packs[c.index][0] = items.packs[c.index][1] = "med-kit";
+  const it = items.add(m, "med-kit", c.x + 0.4, c.z, c.h, null);
+  runFor(m, 0.3);
+  check(!it.taken && items.packs[c.index].filter((k) => k === "med-kit").length === 2, "two in the pack: a third is left on the ground");
 }
 
 void MELEE;

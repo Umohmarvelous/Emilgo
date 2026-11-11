@@ -18,7 +18,7 @@
 //   Death     the backpack drops as a loot bag (it glows LOOT.bagGlow s on
 //             phones); you come back with an empty one.
 
-import { GROWTH, LOOT, POWER } from "../../config";
+import { GROWTH, GUNS, LOOT, POWER } from "../../config";
 import { SpotGrid } from "../core/spotgrid";
 
 /** The items' lookup grid (m). */
@@ -28,6 +28,10 @@ import type { Contestant } from "../core/body";
 import type { Match } from "../core/match";
 import type { MatchEvent, RuleModule } from "../core/module";
 import type { GadgetsModule } from "./gadgets";
+import type { GunsModule } from "./guns";
+
+/** v7: Med Kits a backpack holds at most. */
+export const MED_KITS_MAX = 2;
 import type { SurvivalModule } from "./survival";
 import type { TagModule } from "./tag";
 import type { VehiclesModule } from "./vehicles";
@@ -166,6 +170,8 @@ export class ItemsModule implements RuleModule {
     if (!t || (t.item && t.item.index === this.noAuto[i])) return;
     // A full backpack still takes a booster (it's used, not carried).
     if (!this.packs[i].includes(null) && !(t.item && ITEM_DEFS[t.item.kind].instant)) return;
+    // v7: two Med Kits at most; a third stays on the ground for someone else.
+    if (t.item && t.item.kind === "med-kit" && this.packs[i].filter((k) => k === "med-kit").length >= MED_KITS_MAX) return;
     this.interact(m, c, t);
   }
 
@@ -347,6 +353,13 @@ export class ItemsModule implements RuleModule {
         this.printed[c.index] = 1;
         m.setEffect(c, "print", fx.s);
         break;
+      case "heal": {
+        // v7: the Med Kit: not at full health, not twice at once (another stays in the pack).
+        const g = m.module<GunsModule>("guns");
+        if (!g || g.hp[c.index] >= GUNS.hp - 0.5 || m.effect(c, "heal") > 0) return;
+        m.setEffect(c, "heal", fx.s, fx.hp / fx.s);
+        break;
+      }
       case "survival":
         // Dead Streets': survival.ts does it when it hears the "use" (if it would do anything now).
         if (!m.module<SurvivalModule>("survival")?.can(m, c, kind)) return;
@@ -405,6 +418,7 @@ export class ItemsModule implements RuleModule {
         else if (fx?.kind === "speed") m.setEffect(c, "speed", fx.s, fx.mult);
         else if (fx?.kind === "shield" || fx?.kind === "pepper" || fx?.kind === "iron") m.setEffect(c, fx.kind, fx.s);
         else if (fx?.kind === "grow") this.growth[c.index] = Math.min(GROWTH.max, this.growth[c.index] + 1);
+        else if (fx?.kind === "heal") m.setEffect(c, "heal", fx.s, fx.hp / fx.s);
         else if (fx?.kind === "print") {
           this.printed[c.index] = 1;
           m.setEffect(c, "print", fx.s);

@@ -237,6 +237,7 @@ export class GunsModule implements RuleModule {
         continue;
       }
       this.regen(t, i, dt);
+      this.heal(m, c, dt);
       const kind = GUN_KINDS[this.gun[i][this.slot[i]]] ?? "pistol";
       const K = GUNS.kinds[kind];
       this.bloom[i] = Math.max(0, this.bloom[i] - K.drain * dt);
@@ -292,9 +293,19 @@ export class GunsModule implements RuleModule {
     if (this.hp[i] < GUNS.hp && t - this.hurtAt[i] >= GUNS.regen.after) this.hp[i] = Math.min(GUNS.hp, this.hp[i] + GUNS.regen.rate * dt);
   }
 
+  /** v7: a Med Kit at work: its health a second while it lasts. */
+  private heal(m: Match, c: Contestant, dt: number): void {
+    const i = c.index;
+    if (this.hp[i] < GUNS.hp && m.effect(c, "heal") > 0) this.hp[i] = Math.min(GUNS.hp, this.hp[i] + m.effectValue(c, "heal") * dt);
+  }
+
   /** The copy: health comes back on its own (the server's next hit carries the true value). */
   view(m: Match, dt: number): void {
-    for (const c of m.contestants) if (c.status === "alive") this.regen(m.elapsed, c.index, dt);
+    for (const c of m.contestants) {
+      if (c.status !== "alive") continue;
+      this.regen(m.elapsed, c.index, dt);
+      this.heal(m, c, dt);
+    }
   }
 
   /** The eye a shot leaves from: the shoulder the camera looks over, as the phone's camera has it. */

@@ -53,8 +53,8 @@ const ITEM_VIEW = [40, 55, 70] as const;
 const FALL_S = 8;
 const FALL_H = 70;
 
-type Look = "kola" | "zobo" | "big-bag" | "zone-shield" | "titan-serum" | "map-print" | "smoke-pot" | "decoy-flag" | "talking-drum" | "aso-ebi" | "strength-booster" | "speed-booster" | "bundle";
-const LOOKS: Look[] = ["kola", "zobo", "big-bag", "zone-shield", "titan-serum", "map-print", "smoke-pot", "decoy-flag", "talking-drum", "aso-ebi", "strength-booster", "speed-booster", "bundle"];
+type Look = "kola" | "zobo" | "big-bag" | "zone-shield" | "titan-serum" | "map-print" | "smoke-pot" | "decoy-flag" | "talking-drum" | "aso-ebi" | "strength-booster" | "speed-booster" | "med-kit" | "bundle";
+const LOOKS: Look[] = ["kola", "zobo", "big-bag", "zone-shield", "titan-serum", "map-print", "smoke-pot", "decoy-flag", "talking-drum", "aso-ebi", "strength-booster", "speed-booster", "med-kit", "bundle"];
 const lookOf = (k: ItemId): Look => ((LOOKS as string[]).includes(k) ? (k as Look) : "bundle");
 
 /**
@@ -73,6 +73,7 @@ const GLOW: Partial<Record<ItemId, readonly [number, number, number]>> = {
   "speed-booster": [0.3, 0.85, 1.8],
   bandage: [0.25, 1.35, 0.45],
   medkit: [0.25, 1.35, 0.45],
+  "med-kit": [0.25, 1.45, 0.5],
   ammo: [1.35, 0.8, 0.2],
   armour: [0.3, 0.65, 1.55],
   battery: [1.3, 1.2, 0.2],
@@ -174,6 +175,16 @@ function itemGeometry(l: Look): BufferGeometry {
         part(new BoxGeometry(0.3, 0.07, 0.24), 0x6a2a9a, { p: [0, 0.035, 0] }),
         part(new BoxGeometry(0.3, 0.03, 0.08), 0x4d1d72, { p: [0, 0.08, -0.08] }),
         part(new BoxGeometry(0.08, 0.012, 0.06), 0xf2c230, { p: [0.08, 0.075, 0.05] }),
+      ]);
+    case "med-kit":
+      // v7: a field medic's pouch: a white hard case, a red cross on its lid, a black strap and buckle.
+      return merge([
+        part(new BoxGeometry(0.28, 0.12, 0.18), 0xeeeae2, { p: [0, 0.06, 0] }),
+        part(new BoxGeometry(0.29, 0.02, 0.19), 0xc8c4bc, { p: [0, 0.125, 0] }),
+        part(new BoxGeometry(0.12, 0.012, 0.035), 0xd8221c, { p: [0, 0.137, 0] }, 1.2),
+        part(new BoxGeometry(0.035, 0.012, 0.12), 0xd8221c, { p: [0, 0.137, 0] }, 1.2),
+        part(new BoxGeometry(0.03, 0.135, 0.19), 0x1c1d20, { p: [0.1, 0.066, 0] }),
+        part(new BoxGeometry(0.035, 0.04, 0.02), 0x8a9098, { p: [0.1, 0.07, 0.1] }),
       ]);
     case "strength-booster": {
       // v6 max: a heavy hexagonal power cell standing up: black armoured caps, a molten orange core behind

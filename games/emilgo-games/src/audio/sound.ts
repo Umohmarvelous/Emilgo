@@ -1206,6 +1206,12 @@ export class Sound {
         this.tone(55, t + 0.45, 0.16, { type: "sine", gain: 0.2, to: 40 });
         this.tone(55, t + 0.7, 0.16, { type: "sine", gain: 0.16, to: 40 });
         break;
+      case "med-kit": // v7: a zip torn open, a syringe's click, a breath let out.
+        this.noise(t, 0.22, { gain: 0.08, freq: 2600, type: "bandpass" });
+        this.noise(t + 0.3, 0.025, { gain: 0.12, freq: 3200, type: "highpass" });
+        this.noise(t + 0.45, 0.6, { gain: 0.035, freq: 700, type: "lowpass" });
+        this.tone(330, t + 0.5, 0.5, { type: "sine", gain: 0.03, to: 520 });
+        break;
       case "map-print": // Paper unfolded, then a sweep and three pings.
         this.noise(t, 0.18, { gain: 0.08, freq: 1500, type: "bandpass" });
         this.tone(500, t + 0.15, 0.3, { type: "sine", gain: 0.07, to: 1400 });

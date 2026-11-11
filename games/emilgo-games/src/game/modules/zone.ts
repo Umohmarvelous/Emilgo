@@ -173,6 +173,8 @@ export class ZoneModule implements RuleModule {
       }
       if (t < this.tickAt[i]) continue;
       this.tickAt[i] = t + ZONE.every;
+      // v7: a Med Kit at work holds the gas off.
+      if (m.effect(c, "heal") > 0) continue;
       // v6, COD-style: the gas bites harder each circle, through armour; at 0 health you're out at once.
       guns.hurt(m, c, this.dps(t) * ZONE.every, null, false, "zone", true);
     }

@@ -58,7 +58,7 @@ export const ITEM_ICON: Record<ItemId, string> = {
   "talking-drum": "signal", "aso-ebi": "outfit", "golden-slipper": "bundle", jerrycan: "fuel", "danfo-key": "car",
   zanku: "dance", shaku: "fire", odogwu: "crown", breakdance: "dance",
   bandage: "heal", medkit: "heal", ammo: "ammo", armour: "brace", battery: "bolt", nv: "eye",
-  "titan-serum": "serum", "map-print": "map", "strength-booster": "fist", "speed-booster": "bolt",
+  "titan-serum": "serum", "map-print": "map", "strength-booster": "fist", "speed-booster": "bolt", "med-kit": "heal",
 };
 
 export function itemName(k: ItemId): string {
@@ -74,6 +74,7 @@ function itemWhat(k: ItemId): string {
 const EFFECT_NAME: Record<string, { item: ItemId; label: string }> = {
   // v6 max: the boosters (the Adrenaline Shot is out of every table, so "speed" is the Speed Booster's now).
   speed: { item: "speed-booster", label: "Speed" },
+  heal: { item: "med-kit", label: "Med Kit" },
   strength: { item: "strength-booster", label: "Strength" },
   shield: { item: "zone-shield", label: "Zone Shield" },
   bait: { item: "zanku", label: "Wobble Bait" },

@@ -17,7 +17,9 @@ export type ItemId =
   | "bandage" | "medkit" | "ammo" | "armour" | "battery" | "nv"
   | "titan-serum" | "map-print"
   // v6 max (3.2): the boosters, taken the moment you touch them.
-  | "strength-booster" | "speed-booster";
+  | "strength-booster" | "speed-booster"
+  // v7 (2.2): the Med Kit.
+  | "med-kit";
 
 export type ItemEffect =
   /** Faster for a while: run and sprint × mult. */
@@ -45,7 +47,9 @@ export type ItemEffect =
   /** v5: the whole map, live, for `s` seconds; once a match. */
   | { kind: "print"; s: number }
   /** v6 max (3.2): a booster: strength (more damage) or speed (much faster), for `s` seconds (config POWER). */
-  | { kind: "power"; power: "strength" | "speed"; s: number };
+  | { kind: "power"; power: "strength" | "speed"; s: number }
+  /** v7: health back over `s` seconds (`hp` in all); the zone's gas can't hurt you meanwhile. */
+  | { kind: "heal"; hp: number; s: number };
 
 export interface ItemDef {
   id: ItemId;
@@ -111,6 +115,8 @@ export const ITEM_DEFS: Record<ItemId, ItemDef> = {
   // v6 max (3.2): the boosters: walked into, they transform you at once (the pose, the camera round you, the aura).
   "strength-booster": { ...def("strength-booster", "Strength Booster", "Strength Booster", "Taken at once: 25 s of power. Your guns hit 35% harder, your blows 50%; heavy steps", "E go work sharp sharp: 25 seconds of power. Your gun go hit 35% harder, your hand 50%", { kind: "power", power: "strength", s: 25 }), instant: true, counter: { en: "Keep your distance: their speed is the same, and the fire shows where they are", pcm: "Stay far: dem no fast pass before, and the fire dey show where dem dey" } },
   "speed-booster": { ...def("speed-booster", "Speed Booster", "Speed Booster", "Taken at once: 20 s much faster, sprinting twice as long", "E go work sharp sharp: 20 seconds you go fast well well, sprint go last double", { kind: "power", power: "speed", s: 20 }), instant: true, counter: { en: "Lead your shots: the sparks show where they're going", pcm: "Shoot for front of dem: the spark dey show where dem dey go" } },
+  // v7 (2.2): carried, used from the backpack (up to 2 in it): health back, and the gas held off while it works.
+  "med-kit": { ...def("med-kit", "Med Kit", "Med Kit", "+60 health over 3 s; the gas can't hurt you while it works", "+60 health inside 3 seconds; gas no fit touch you as e dey work", { kind: "heal", hp: 60, s: 3 }, false, "guns"), counter: { en: "Rush them while they patch up: they can't fire", pcm: "Rush dem as dem dey patch: dem no fit shoot" } },
   // Vehicles' (Phase 5).
   jerrycan: def("jerrycan", "Fuel Jerrycan", "Fuel Jerrycan", "+15 s of fuel for the car you're in or beside", "+15 seconds fuel for the motor wey you dey inside or near", { kind: "fuel" }, true, "vehicles"),
   "danfo-key": def("danfo-key", "Van Key", "Van Key", "Calls a minibus to the road nearby", "E go call minibus come the road wey near", { kind: "call" }, true, "vehicles"),
@@ -127,8 +133,9 @@ export const LOOT_TABLES: Record<string, LootTable> = {
   // Their rules stay in the code, unused (a mode could still name them in its own table).
   // v6 max: the two boosters join (3.2).
   // v7 (the owner: "Remove the smoke canister item"): out of both tables; its rule and look stay in the code, unused.
-  "ffa-core": [["decoy-flag", 1.2], ["talking-drum", 2.4], ["aso-ebi", 1.6], ["titan-serum", 2], ["map-print", 0.5], ["strength-booster", 1.1], ["speed-booster", 1.3]],
-  airfall: [["titan-serum", 1.4], ["map-print", 1], ["talking-drum", 0.5], ["strength-booster", 0.9], ["speed-booster", 0.9]],
+  // v7 (2.2, the owner: "players pick up health ... and use it when they are about to die outside of safe zone"): the Med Kit.
+  "ffa-core": [["med-kit", 2.6], ["decoy-flag", 1.2], ["talking-drum", 2.4], ["aso-ebi", 1.6], ["titan-serum", 2], ["map-print", 0.5], ["strength-booster", 1.1], ["speed-booster", 1.3]],
+  airfall: [["med-kit", 1], ["titan-serum", 1.4], ["map-print", 1], ["talking-drum", 0.5], ["strength-booster", 0.9], ["speed-booster", 0.9]],
   "ds-core": [["bandage", 5], ["medkit", 1.5], ["ammo", 6], ["armour", 1.2], ["battery", 3], ["nv", 0.8]],
 };
 
