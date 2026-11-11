@@ -1012,6 +1012,27 @@ console.log("v7, the Med Kit:");
   check(!it.taken && items.packs[c.index].filter((k) => k === "med-kit").length === 2, "two in the pack: a third is left on the ground");
 }
 
+console.log("v7, near death:");
+{
+  const m = newMatch(78, settingsOf(def("treasure-hunt")), 4);
+  runFor(m, 0.1);
+  const g = m.module<GunsModule>("guns")!;
+  const c = put(m, "p0", YX, YZ);
+  clear(m, ["p0"]);
+  const pace = (hp: number) => {
+    put(m, "p0", YX, YZ);
+    g.hp[c.index] = hp;
+    m.setInput("p0", 0, -1);
+    runFor(m, 1.5, [], () => (g.hp[c.index] = hp));
+    m.setInput("p0", 0, 0);
+    return Math.hypot(c.x - YX, c.z - YZ);
+  };
+  const healthy = pace(100);
+  const weak = pace(5);
+  check(g.weakShare(c.index) < 0.7 && weak < healthy * 0.8, `at 5 health she runs slower (${weak.toFixed(1)} m against ${healthy.toFixed(1)} m in 1.5 s)`);
+  check(g.weakness(c.index) > 0.8, "and the breath and heart follow it (weakness > 0.8)");
+}
+
 void MELEE;
 void MOVE;
 console.log(failures ? `\n${failures} FAILED` : "\nall passed");

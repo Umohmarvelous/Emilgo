@@ -82,6 +82,9 @@ export class Sound {
   private music: GainNode | null = null;
   /** Sound effects (everything but the songs and the warning hum). */
   private sfx: GainNode | null = null;
+  /** v7: the world's sound through a low-pass (near death, muffled); the body's own sounds skip it (`body`). */
+  private muffleF: BiquadFilterNode | null = null;
+  private body: GainNode | null = null;
   private noiseBuf: AudioBuffer | null = null;
   private songNodes: AudioScheduledSourceNode[] = [];
   private songBus: GainNode | null = null;
@@ -144,12 +147,20 @@ export class Sound {
     this.master.connect(comp).connect(this.ctx.destination);
     // v4: the sample layer, from the asset CDN if there is one.
     loadSamples(this.ctx);
+    this.muffleF = this.ctx.createBiquadFilter();
+    this.muffleF.type = "lowpass";
+    this.muffleF.frequency.value = 20000;
+    this.muffleF.Q.value = 0.7;
+    this.muffleF.connect(this.master);
     this.music = this.ctx.createGain();
     this.music.gain.value = 0.55 * this.levels.music;
-    this.music.connect(this.master);
+    this.music.connect(this.muffleF);
     this.sfx = this.ctx.createGain();
     this.sfx.gain.value = this.levels.sfx;
-    this.sfx.connect(this.master);
+    this.sfx.connect(this.muffleF);
+    this.body = this.ctx.createGain();
+    this.body.gain.value = this.levels.sfx;
+    this.body.connect(this.master);
 
     const len = this.ctx.sampleRate;
     this.noiseBuf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
@@ -169,6 +180,7 @@ export class Sound {
     this.master.gain.setTargetAtTime(this.hushed ? 0 : this.levels.master, t, 0.02);
     this.music.gain.setTargetAtTime(0.55 * this.levels.music, t, 0.02);
     this.sfx.gain.setTargetAtTime(this.levels.sfx, t, 0.02);
+    this.body?.gain.setTargetAtTime(this.levels.sfx, t, 0.02);
   }
 
   private hushed = false;
@@ -1255,6 +1267,95 @@ export class Sound {
     const g = 0.18 + 0.32 * level;
     this.tone(58, t, 0.2, { type: "sine", gain: g, to: 40 });
     this.tone(52, t + 0.16, 0.18, { type: "sine", gain: g * 0.65, to: 38 });
+  }
+
+  // ── v7: near death (COD-style): the world muffled, a slow heavy heart, laboured breath, a struggling voice ──
+
+  /** The world's sound muffled, 0 (clear) … 1 (as if under a blanket); the body's own sounds stay clear. */
+  muffle(level: number): void {
+    if (!this.ctx || !this.muffleF) return;
+    const k = Math.max(0, Math.min(1, level));
+    this.muffleF.frequency.setTargetAtTime(20000 * Math.pow(550 / 20000, k * 0.9), this.ctx.currentTime, 0.3);
+  }
+
+  /** One slow, heavy heartbeat, lub-dub, deeper and louder the nearer to death (`level` 0 … 1). */
+  weakHeart(level: number): void {
+    const t = this.now;
+    const g = 0.3 + 0.4 * level;
+    this.tone(50, t, 0.26, { type: "sine", gain: g, to: 33, bus: this.body ?? undefined });
+    this.tone(44, t + 0.22, 0.24, { type: "sine", gain: g * 0.6, to: 31, bus: this.body ?? undefined });
+    this.noise(t, 0.06, { gain: 0.06 * g, freq: 180, type: "lowpass", bus: this.body ?? undefined });
+  }
+
+  /** A laboured breath: a ragged gasp in (the throat catching, nearer death) or a shaking breath out. */
+  weakBreath(level: number, inhale: boolean): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.body || !this.noiseBuf) return;
+    const t = this.now;
+    const dur = inhale ? 0.5 + 0.35 * level : 0.75 + 0.5 * level;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noiseBuf;
+    const f1 = ctx.createBiquadFilter();
+    f1.type = "bandpass";
+    f1.Q.value = 1.4;
+    f1.frequency.setValueAtTime(inhale ? 1000 : 950, t);
+    f1.frequency.linearRampToValueAtTime(inhale ? 1800 : 600, t + dur);
+    const f2 = ctx.createBiquadFilter();
+    f2.type = "lowpass";
+    f2.frequency.value = 3600;
+    const g = ctx.createGain();
+    const peak = (inhale ? 0.075 : 0.05) * (0.6 + 0.6 * level);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + dur * (inhale ? 0.4 : 0.12));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    // The shake: the breath trembles, harder near the end.
+    const lfo = ctx.createOscillator();
+    lfo.frequency.value = 7 + 5 * level;
+    const depth = ctx.createGain();
+    depth.gain.value = peak * (0.25 + 0.5 * level);
+    lfo.connect(depth).connect(g.gain);
+    src.connect(f1).connect(f2).connect(g).connect(this.body);
+    this.voices += 2;
+    src.onended = this.voiceEnded;
+    lfo.onended = this.voiceEnded;
+    src.start(t, Math.random() * 0.5);
+    src.stop(t + dur + 0.02);
+    lfo.start(t);
+    lfo.stop(t + dur + 0.02);
+    // The throat catching on a gasp in.
+    if (inhale && level > 0.3) this.tone(210 + 50 * level, t + 0.04, dur * 0.55, { type: "sawtooth", gain: 0.006 + 0.012 * level, to: 270, bus: this.body, attack: 0.07 });
+  }
+
+  /** A struggling voice: a strained "uhh", the pitch sinking (a voice through three formants, over breath). */
+  weakGroan(level: number): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.body) return;
+    const t = this.now;
+    const dur = 0.5 + 0.3 * Math.random();
+    const f0 = 200 + Math.random() * 30;
+    const osc = ctx.createOscillator();
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(f0, t);
+    osc.frequency.exponentialRampToValueAtTime(f0 * 0.72, t + dur);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.05 * (0.5 + 0.5 * level), t + 0.07);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    for (const [fr, q, k] of [[720, 6, 1], [1150, 8, 0.6], [2500, 10, 0.25]] as const) {
+      const b = ctx.createBiquadFilter();
+      b.type = "bandpass";
+      b.frequency.value = fr;
+      b.Q.value = q;
+      const bg = ctx.createGain();
+      bg.gain.value = k * 3;
+      osc.connect(b).connect(bg).connect(g);
+    }
+    g.connect(this.body);
+    this.voices++;
+    osc.onended = this.voiceEnded;
+    osc.start(t);
+    osc.stop(t + dur + 0.02);
+    this.noise(t, dur * 0.8, { gain: 0.02, freq: 1300, type: "bandpass", bus: this.body });
   }
 
   /** The zone starts closing: two low notes on a horn. */

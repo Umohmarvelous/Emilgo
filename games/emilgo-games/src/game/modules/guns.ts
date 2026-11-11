@@ -22,7 +22,7 @@
 // Pure and shared, like every module: the server referees; the phone's copy
 // (Match.mirror) applies the server's events and works out only the regen.
 
-import { GROWTH, GUN_KINDS, GUNS, POWER, VEHICLES, type GunKind } from "../../config";
+import { GROWTH, GUN_KINDS, GUNS, POWER, VEHICLES, WEAK, type GunKind } from "../../config";
 import type { ItemsModule } from "./items";
 import { SpotGrid } from "../core/spotgrid";
 import type { Contestant } from "../core/body";
@@ -238,6 +238,9 @@ export class GunsModule implements RuleModule {
       }
       this.regen(t, i, dt);
       this.heal(m, c, dt);
+      // v7: near death, slower.
+      const w = this.weakShare(i);
+      if (w < 1) m.slow(c, w);
       const kind = GUN_KINDS[this.gun[i][this.slot[i]]] ?? "pistol";
       const K = GUNS.kinds[kind];
       this.bloom[i] = Math.max(0, this.bloom[i] - K.drain * dt);
@@ -291,6 +294,19 @@ export class GunsModule implements RuleModule {
 
   private regen(t: number, i: number, dt: number): void {
     if (this.hp[i] < GUNS.hp && t - this.hurtAt[i] >= GUNS.regen.after) this.hp[i] = Math.min(GUNS.hp, this.hp[i] + GUNS.regen.rate * dt);
+  }
+
+  /** v7: the pace a body this hurt keeps (1 above WEAK.at of full health, down to WEAK.slowest at 0). */
+  weakShare(i: number): number {
+    const f = this.hp[i] / GUNS.hp;
+    if (f >= WEAK.at) return 1;
+    return WEAK.slowest + (1 - WEAK.slowest) * Math.max(0, f / WEAK.at);
+  }
+
+  /** How near death body i is, 0 (fine) … 1 (at the edge): the breath and the heartbeat follow it. */
+  weakness(i: number): number {
+    const f = this.hp[i] / GUNS.hp;
+    return f >= WEAK.at ? 0 : 1 - Math.max(0, f / WEAK.at);
   }
 
   /** v7: a Med Kit at work: its health a second while it lasts. */

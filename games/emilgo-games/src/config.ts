@@ -591,6 +591,13 @@ export const MAP_PRINT = { seconds: 20 } as const;
 export const DROPZONES = { radius: 5, minApart: 60 } as const;
 
 /**
+ * v7 (the owner: "when player is about to die ... I want them slowly loss speed"): under `at` of full health, run and
+ * sprint fall off with the health left, to `slowest` at the edge of death. The phone hears it too (laboured breath,
+ * a slowing heartbeat: ffa.ts), and predicts the same pace (onlineMatch.ts).
+ */
+export const WEAK = { at: 0.3, slowest: 0.6 } as const;
+
+/**
  * Guns (v4 Phase 2): Free For All is a shooter. Everyone spawns with a
  * pistol; the assault rifle, SMG and shotgun are loot in six rarities. Hits
  * are hitscan, judged by the server with the target rewound by the shooter's

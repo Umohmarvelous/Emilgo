@@ -29,6 +29,7 @@ import type { MeleeModule } from "../game/modules/melee";
 import type { HarmattanModule } from "../game/modules/harmattan";
 import type { ZipsModule } from "../game/modules/zips";
 import type { RoomsModule } from "../game/modules/rooms";
+import type { GunsModule } from "../game/modules/guns";
 import type { TagModule } from "../game/modules/tag";
 import type { VehiclesModule } from "../game/modules/vehicles";
 import type { NetClient } from "./client";
@@ -272,6 +273,9 @@ export class OnlineMatch {
     if (f && f.heldBy(me.index) && f.holderSlow > 0) k *= 1 - f.holderSlow;
     const tag = m.module<TagModule>("tag");
     if (tag?.isOjuju(me.index)) k *= tag.speed;
+    // v7: near death, slower (as the server has it).
+    const guns = m.module<GunsModule>("guns");
+    if (guns) k *= guns.weakShare(me.index);
     return k;
   }
 

@@ -1249,6 +1249,48 @@ export class FfaMode implements GameMode {
   }
 
   /** HUD A, each frame: the watch, the plates, the edges; Dead Streets' centre arc and the zombies' bars. */
+  /**
+   * v7 (the owner: "slowly loss speed, breath slower with sound effect like cod-style, make struggling human sound
+   * ... and the sound of their heart beat running slow"): under a third of your health, the world goes muffled, a
+   * heavy heart beats slower the nearer you are (68 → 42 a minute), the breath comes in ragged gasps and shaking
+   * breaths out, longer and longer, and past halfway a strained groan every few seconds. (The legs slow too:
+   * WEAK, guns.ts; the screen's edges pulse red: fieldkit.)
+   */
+  private nearDeath(level: number): void {
+    const s = this.host.sound;
+    const w = this.weak;
+    const now = performance.now() / 1000;
+    const dt = Math.min(0.1, now - w.last);
+    w.last = now;
+    if (level <= 0) {
+      if (w.on) s.muffle(0);
+      w.on = false;
+      w.beat = w.breath = 0;
+      w.groan = 2.5;
+      w.inhale = true;
+      return;
+    }
+    w.on = true;
+    s.muffle(0.35 + 0.65 * level);
+    w.beat -= dt;
+    w.breath -= dt;
+    w.groan -= dt;
+    if (w.beat <= 0) {
+      s.weakHeart(level);
+      w.beat = 60 / (68 - 26 * level);
+    }
+    if (w.breath <= 0) {
+      s.weakBreath(level, w.inhale);
+      w.breath = w.inhale ? 0.65 + 0.35 * level : 0.95 + 0.9 * level;
+      w.inhale = !w.inhale;
+    }
+    if (level > 0.45 && w.groan <= 0) {
+      s.weakGroan(level);
+      w.groan = 3.5 + Math.random() * 3 - level * 1.2;
+    }
+  }
+  private readonly weak = { on: false, last: 0, beat: 0, breath: 0, groan: 2.5, inhale: true };
+
   private fieldFrame(m: Match, me: Contestant): void {
     const h = this.host;
     this.armourLook(m, me);
@@ -1300,6 +1342,8 @@ export class FfaMode implements GameMode {
     }
     const heat = ps ? (ps.outside ? 0.35 + 0.65 * ps.exposure : ps.exposure * 0.5) : 0;
     this.fk.update({ watch, armour, armourMax: GUNS.armour.max, tag, health: alive ? health : 1, heat: alive ? heat : 0, doomed: !!ps?.doomed });
+    // v7: near death (shot, or worn down by the gas): the breath, the heart, the voice, the world muffled.
+    this.nearDeath(alive && g && !this.over ? g.weakness(me.index) : 0);
     if (!sv) {
       if (g) this.playerBars(m, me, g);
       return;
@@ -1629,6 +1673,7 @@ export class FfaMode implements GameMode {
 
   dispose(): void {
     const h = this.host;
+    h.sound.muffle(0);
     this.sendBoards();
     this.gone = true;
     h.controls.chatBtn.hidden = true;
