@@ -21,6 +21,8 @@ if (!watch) {
   await build(options);
   // v4: the room directory, its own small service.
   await build({ ...options, entryPoints: ["server/src/dirMain.ts"], outfile: "server/dist/directory.mjs" });
+  // v6 max (3.12): the profile service, its own small service (PROFILE_URL on the nodes points at it).
+  await build({ ...options, entryPoints: ["server/src/profileMain.ts"], outfile: "server/dist/profiles.mjs" });
 } else {
   let child = null;
   const restart = () => {

@@ -1,0 +1,43 @@
+# The profile service (v6 max, 3.12: SPEC-V6 "Microservices"), its own Fly app.
+# Only the game nodes call it, over Fly's private network:
+#   PROFILE_URL = http://emilgo-games-profiles.internal:8810   (on each node, with the same SERVICE_SECRET)
+# Nothing public: no [http_service]. From games/emilgo-games:
+#
+#   fly apps create emilgo-games-profiles
+#   fly volumes create emilgo_profiles --app emilgo-games-profiles --region lhr --size 1
+#   fly secrets set SERVICE_SECRET=… --app emilgo-games-profiles
+#   fly deploy --config server/fly.profiles.toml
+#
+# Moving from one node: stop the node, copy its /data/profiles.db to this volume
+# (fly sftp), deploy, then set PROFILE_URL and SERVICE_SECRET on the node.
+# One machine: SQLite on one volume is the one authority.
+
+app = "emilgo-games-profiles"
+primary_region = "lhr"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8810"
+  DATA_DIR = "/data"
+
+[processes]
+  app = "node --enable-source-maps --no-warnings=ExperimentalWarning profiles.mjs"
+
+[[mounts]]
+  source = "emilgo_profiles"
+  destination = "/data"
+
+[checks]
+  [checks.health]
+    type = "http"
+    port = 8810
+    path = "/health"
+    interval = "15s"
+    timeout = "3s"
+    grace_period = "10s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

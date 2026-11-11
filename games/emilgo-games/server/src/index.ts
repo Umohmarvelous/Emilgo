@@ -31,6 +31,13 @@
 //   NODE_URL          this node's public WebSocket address (wss://…)
 //   SHARD             this node's letter (A–Z less I and O): its codes start with it
 //   NODE_CAP          players it takes before the directory sends them elsewhere (default 2000)
+//
+// v6 max (3.12), the services split (SPEC-V6 "Microservices"); all optional, one node needs none:
+//   REDIS_URL         redis:// or rediss://: what the nodes share (friends and direct messages across
+//                     nodes, held messages, the weekly leaderboard). Unset: this process's memory
+//   PROFILE_URL       the profile service (profileMain.ts, server/fly.profiles.toml), with
+//   SERVICE_SECRET    its shared secret (16+ chars). Unset: profiles in DATA_DIR/profiles.db here
+//   ANALYTICS_URL     where batched analytics go (NDJSON POST), with ANALYTICS_TOKEN. Unset: DATA_DIR/analytics-*.ndjson
 // On SIGTERM such a node drains: no new players, and it exits when its last match ends.
 //
 // Lagos Life matches (Phase 3) — server-side only, never in the game's code:
@@ -68,7 +75,10 @@ import { Lobby } from "./lobby";
 import { Peer } from "./peer";
 import { loadContent } from "./content";
 import { Presence } from "./presence";
-import { Identity, SqliteProfiles, utcDay, type ProfileStore } from "./profiles";
+import { HttpProfiles, Identity, SqliteProfiles, utcDay, type ProfileStore } from "./profiles";
+import { analyticsFromEnv, type Props } from "./analytics";
+import { Leaderboard } from "./leaderboard";
+import { sharedFromEnv } from "./shared";
 import { Room } from "./room";
 import { matchXp, runXp } from "../../src/rank/xp";
 import { RunBoard, verifyRun } from "./runs";
@@ -110,17 +120,29 @@ const vatarCfg = vatarConfigFromEnv(process.env);
 const vatar = vatarCfg ? new VatarApi(vatarCfg) : null;
 // Match events, without player ids or names: enough to operate, nothing to leak.
 loadSwitches();
-const lobby = new Lobby(vatar, (event, info) => console.log(`match ${event} ${JSON.stringify(info)}`), {
+const lobby = new Lobby(vatar, (event, info) => {
+  console.log(`match ${event} ${JSON.stringify(info)}`);
+  analytics.track(`match_${event}`, info as Props);
+}, {
   ballHaunt: process.env.BALL_HAUNT === "1",
   xpOf: (peer) => (peer.profile ? (profiles.get(peer.profile)?.xp ?? 0) : 0),
   shard: DIR.shard,
 });
-const presence = new Presence(lobby);
+// v6 max (3.12): what the nodes share (Redis when REDIS_URL is set, else this process's memory), the weekly
+// leaderboard on it, and write-only analytics.
+const shared = sharedFromEnv(process.env);
+const NODE_NAME = DIR.shard || "solo";
+const presence = new Presence(lobby, shared, NODE_NAME);
+const leaderboard = new Leaderboard(shared);
+const analytics = analyticsFromEnv(process.env, NODE_NAME);
 const store = vatar ? new SqliteStore(`${process.env.DATA_DIR ?? "./data"}/emilgo-games.db`) : null;
 const shop = vatar && store ? new Shop(vatar, store, process.env.TICKET_SECRET, (e, info) => console.log(`shop ${e} ${JSON.stringify(info)}`)) : null;
 /** The modes this server referees, and the signed copy it hands phones (content.ts). */
 const content = loadContent(process.env);
-const profiles: ProfileStore = new SqliteProfiles(`${process.env.DATA_DIR ?? "./data"}/profiles.db`);
+// v6 max (3.12): PROFILE_URL set: the profile service (profileMain.ts) keeps them; else this node's own SQLite.
+const profiles: ProfileStore = process.env.PROFILE_URL?.trim()
+  ? new HttpProfiles(process.env.PROFILE_URL.trim(), process.env.SERVICE_SECRET?.trim() ?? "")
+  : new SqliteProfiles(`${process.env.DATA_DIR ?? "./data"}/profiles.db`);
 const identity = new Identity(vatar, { url: process.env.SUPABASE_URL?.trim() || null, secret: process.env.SUPABASE_JWT_SECRET?.trim() || null });
 
 // Rank XP: the referee's facts in, the profile's total out. A guest still hears
@@ -131,6 +153,7 @@ Room.onAward = (peer, facts) => {
   const gain = matchXp({ ...facts, firstToday: !!peer.profile && had?.lastDay !== day });
   if (peer.profile) {
     const p = profiles.award(peer.profile, gain, facts.won, day);
+    leaderboard.add(peer.profile, peer.name, gain);
     peer.streak = p.streak;
     peer.look = withStreak(peer.look, p.streak);
     peer.send({ t: "rank", xp: p.xp, gain, st: p.streak });
@@ -148,8 +171,6 @@ function withStreak(look: WireLook, streak: number): WireLook {
 // Billboards (SPEC-V3 §8): the feed per match, the seconds seen added up and sent each minute.
 const billboards = new Billboards(adsBackendFromEnv(process.env));
 setInterval(() => void billboards.flush(), 60_000).unref();
-// v6 max (3.11): held direct messages and absent players' friend lists go after a day.
-setInterval(() => presence.sweep(), 3_600_000).unref();
 const adCalls = new Map<string, number[]>();
 
 /** The ads routes: open CORS (no cookies; nothing in them says who you are). */
@@ -223,6 +244,8 @@ function runEnd(peer: Peer, msg: Extract<ClientMsg, { t: "runend" }>): void {
   let place: number | undefined;
   if (peer.profile) {
     const p = profiles.award(peer.profile, gain, msg.fin, day);
+    leaderboard.add(peer.profile, peer.name, gain);
+    analytics.track("run_end", { finished: msg.fin, daily: !!r.daily });
     peer.send({ t: "rank", xp: p.xp, gain, st: p.streak });
     if (msg.fin && r.daily) place = runBoard.putDaily(peer.profile, r.daily, Math.round(msg.secs * 10) / 10);
     else if (msg.fin) ({ best, place } = runBoard.put(peer.profile, Math.round(msg.secs * 10) / 10, gain, day));
@@ -566,13 +589,24 @@ function handle(peer: Peer, msg: ClientMsg): void {
     // ── v6 max (3.11): direct messages and the public card ──
     case "dm":
       presence.dm(peer, msg.to, msg.text, msg.n);
+      analytics.track("dm");
       break;
-    case "dmrep": {
-      const lines = presence.evidence(peer.fid, msg.fid);
-      reports.push({ at: new Date().toISOString(), reason: msg.reason, name: `(direct messages) ${lines.length ? "" : "no lines held"}`.trim(), lines });
-      if (reports.length > 500) reports.shift();
-      console.log(`report ${msg.reason} on direct messages (${reports.length} held)`);
-      peer.send({ t: "note", text: "Reported. Thank you — we'll look at it." });
+    case "dmrep":
+      void presence.evidence(peer.fid, msg.fid).then((lines) => {
+        reports.push({ at: new Date().toISOString(), reason: msg.reason, name: `(direct messages)${lines.length ? "" : " no lines held"}`, lines });
+        if (reports.length > 500) reports.shift();
+        console.log(`report ${msg.reason} on direct messages (${reports.length} held)`);
+        analytics.track("report", { reason: msg.reason, dm: true });
+        peer.send({ t: "note", text: "Reported. Thank you — we'll look at it." });
+      });
+      break;
+    case "lbq": {
+      // A profile's own board; a guest sees the board of the copy they're in.
+      const kind = peer.profile ? Leaderboard.kindOf(peer.profile) : msg.k;
+      void leaderboard
+        .top(kind, 20, peer.profile)
+        .then((b) => peer.send({ t: "lb", ...b }))
+        .catch(() => peer.send({ t: "lb", week: "", rows: [], me: null }));
       break;
     }
     case "card": {
@@ -601,7 +635,9 @@ function handle(peer: Peer, msg: ClientMsg): void {
       // Who am I, for my rank: checked with Lagos Life or against the EMILGO project's keys.
       identity
         .verify(msg.k, msg.tok)
-        .then((key) => {
+        .then(async (key) => {
+          // The profile service's copy first (a node of many); a local store has it already.
+          await profiles.warm?.(key);
           peer.profile = key;
           const p = profiles.get(key);
           peer.streak = p?.streak ?? 0;

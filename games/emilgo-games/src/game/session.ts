@@ -2196,6 +2196,9 @@ export class Game {
         this.friends.hello();
         this.sendCard();
         break;
+      case "lb":
+        if (this.screens.name === "week") this.screens.weekBoard(m, true);
+        break;
       case "card": {
         // v6 max (3.11): a card we asked for (a stale answer for someone else is dropped).
         const want = this.cardWant;
@@ -3116,6 +3119,14 @@ export class Game {
       case "profile":
         this.showProfile();
         break;
+      case "week": {
+        // v6 max (3.12): this week's leaderboard (the sorted set every node adds to).
+        const on = this.net?.state === "open";
+        this.frame("left-panel");
+        this.screens.weekBoard(null, on);
+        if (on) this.net!.send({ t: "lbq", k: this.host.kind === "lagoslife" ? "ll" : "em" });
+        break;
+      }
       case "inbox":
         this.showInbox();
         break;

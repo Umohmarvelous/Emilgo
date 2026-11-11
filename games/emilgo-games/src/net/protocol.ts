@@ -114,7 +114,9 @@ export type ClientMsg =
   /** My public card (what others see when they open my profile), and whether I take direct messages. */
   | { t: "card"; c: WireCard; dms: boolean }
   /** Show me a player's card: a seat in my room or someone I played with (id), or a friend (fid). */
-  | { t: "cardq"; id?: string; fid?: string };
+  | { t: "cardq"; id?: string; fid?: string }
+  /** v6 max (3.12): this week's leaderboard (k: which copy of the game I'm in, when I have no profile). */
+  | { t: "lbq"; k: "ll" | "em" };
 
 /**
  * v6 max (3.11): a player's public card. Numbers the phone keeps (as it keeps
@@ -337,7 +339,9 @@ export type ServerMsg =
   /** My message n: delivered (ok), held for when they come on (held), or not sent and why. */
   | { t: "dmack"; to: string; n: number; ok?: 1; held?: 1; why?: string; text?: string }
   /** A player's public card (name from the server; null card: not available). */
-  | { t: "card"; id?: string; fid?: string; name: string; c: WireCard | null };
+  | { t: "card"; id?: string; fid?: string; name: string; c: WireCard | null }
+  /** v6 max (3.12): this week's XP leaderboard (ISO week), the top, and my place on it (a profile's). */
+  | { t: "lb"; week: string; rows: { name: string; xp: number; you?: boolean }[]; me: { place: number; xp: number } | null };
 
 export type ErrorCode =
   | "version" // client too old
@@ -552,6 +556,8 @@ export function parseClient(raw: string): ClientMsg | null {
       const c = cleanCard(o.c);
       return c && typeof o.dms === "boolean" ? { t: "card", c, dms: o.dms } : null;
     }
+    case "lbq":
+      return o.k === "ll" || o.k === "em" ? { t: "lbq", k: o.k } : null;
     case "cardq":
       if (typeof o.fid === "string" && FID.test(o.fid)) return { t: "cardq", fid: o.fid };
       return typeof o.id === "string" && o.id.length <= 64 ? { t: "cardq", id: o.id } : null;

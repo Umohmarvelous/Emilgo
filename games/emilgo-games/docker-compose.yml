@@ -66,6 +66,28 @@ services:
       - "127.0.0.1:8797:8787"
     profiles: ["mock"]
 
+  # v6 max (3.12): the services split, tried on one Mac: Redis (what the nodes share: presence across nodes,
+  # messages between them, the weekly leaderboard) and the profile service. Point the server at them with
+  #   REDIS_URL=redis://redis:6379  PROFILE_URL=http://profiles:8810  SERVICE_SECRET=…   (in server/.env)
+  # then: docker compose --profile split up -d
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    restart: unless-stopped
+    profiles: ["split"]
+
+  profiles:
+    image: emilgo-games-server
+    command: ["node", "--enable-source-maps", "--no-warnings=ExperimentalWarning", "profiles.mjs"]
+    env_file: server/.env
+    environment:
+      PORT: "8810"
+    volumes:
+      - emilgo-profiles:/data
+    restart: unless-stopped
+    profiles: ["split"]
+
 volumes:
   emilgo-data:
   emilgo-mock-data:
+  emilgo-profiles:

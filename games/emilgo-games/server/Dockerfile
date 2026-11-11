@@ -32,7 +32,8 @@ ENV NODE_ENV=production PORT=8787 DATA_DIR=/data
 RUN mkdir -p /data && chown node:node /data
 VOLUME /data
 RUN npm install --omit=dev --no-save --no-audit --no-fund ws@8.22.0
-COPY --from=build /app/server/dist/index.mjs /app/server/dist/index.mjs.map ./
+# v6 max (3.12): the profile service and the room directory ride in the same image (`node profiles.mjs`).
+COPY --from=build /app/server/dist/index.mjs /app/server/dist/index.mjs.map /app/server/dist/profiles.mjs /app/server/dist/directory.mjs ./
 COPY --from=build /app/site ./site
 USER node
 EXPOSE 8787

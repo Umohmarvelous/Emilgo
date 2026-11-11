@@ -27,7 +27,7 @@ import type { FriendState } from "../social/friends";
 import { EMOTES, EMOTE_BY_ID, type EmoteId } from "../social/emotes";
 import { HOODIE_COLORS, HOODIE_DESIGNS, type HoodieDesign, type Look } from "../world/human/wardrobe";
 import { awardsBody, badgeEmblem, unlockedHtml } from "./awards";
-import { cardBody, inboxBody, profileBody, threadBody, type ProfileView } from "./profile";
+import { boardBody, cardBody, inboxBody, profileBody, threadBody, type ProfileView } from "./profile";
 import { esc, fmtTime, ordinal } from "./dom";
 import { SPOOKY_ROUTE } from "../maps/open/route";
 import { divisionIndex } from "../content/validate";
@@ -636,6 +636,11 @@ export class Screens {
     });
     const log = node.querySelector<HTMLElement>("[data-dm-log]");
     if (log) log.scrollTop = log.scrollHeight;
+  }
+
+  /** v6 max (3.12): this week's leaderboard. */
+  weekBoard(b: Parameters<typeof boardBody>[0], online: boolean): void {
+    this.sheet("week", "This week", boardBody(b, online), { back: "profile" });
   }
 
   /** v6 max (3.11): another player's public card (`back`: where Back goes). */

@@ -1600,3 +1600,7 @@ input { font: inherit; color: inherit; }
 @media (max-width: 520px) { .pf-stats { grid-template-columns: repeat(3, 1fr); } }
 .pf-priv .md { text-align: left; justify-content: flex-start; }
 .pf-priv .md b, .pf-priv .md small { text-align: left; }
+/* 3.12: this week's board; the profile's four buttons wrap on a narrow sheet. */
+.pf-acts { flex-wrap: wrap; }
+.pf-acts .btn { flex: 1 1 45%; }
+.pf-hist .me { box-shadow: inset 0 0 0 1.5px #ffcf5a; }

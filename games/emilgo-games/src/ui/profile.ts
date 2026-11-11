@@ -80,6 +80,7 @@ export function profileBody(p: ProfileView): string {
       <button class="btn secondary" data-act="customize">${icon("customize", "", 16)}${esc(t("Customize"))}</button>
       <button class="btn secondary" data-act="inbox">${icon("chat", "", 16)}${esc(t("Messages"))}${unread ? ` <i class="dot-badge">${unread > 9 ? "9+" : unread}</i>` : ""}</button>
       <button class="btn secondary" data-act="awards">${icon("medal", "", 16)}${esc(t("Awards"))}</button>
+      <button class="btn secondary" data-act="week">${icon("trophy", "", 16)}${esc(t("This week"))}</button>
     </div>
     <div class="label" style="margin:14px 0 8px">${esc(t("Stats"))}</div>
     <div class="pf-stats">
@@ -144,4 +145,15 @@ export function cardBody(name: string, c: WireCard | null): string {
         ? `<p class="note">${esc(t("This player keeps their numbers private."))}</p>`
         : `<div class="pf-stats">${stat("Matches", c.m)}${stat("Wins", c.w, `${rate}%`)}${stat("Kills", c.k)}${stat("Head shots", c.hs)}${stat("Badges", c.b)}${stat("Commends", c.h)}</div>`
     }`;
+}
+
+/** v6 max (3.12): this week's XP leaderboard (null: still coming). */
+export function boardBody(b: { week: string; rows: { name: string; xp: number; you?: boolean }[]; me: { place: number; xp: number } | null } | null, online: boolean): string {
+  if (!online) return `<div class="status">${esc(t("The leaderboard needs the game server."))}</div>`;
+  if (!b) return `<div class="status">${esc(t("Loading…"))}</div>`;
+  const rows = b.rows.length
+    ? b.rows.map((r, i) => `<li class="li pf-h${r.you ? " me" : ""}"><span class="pf-res">${i + 1}</span><span class="grow"><b>${esc(r.name)}${r.you ? ` · ${esc(t("You"))}` : ""}</b></span><span class="pf-cp num">${r.xp.toLocaleString()} XP</span></li>`).join("")
+    : `<li class="li"><span class="grow"><b>${esc(t("Nobody yet this week"))}</b><small>${esc(t("Play online with an account: your XP counts here."))}</small></span></li>`;
+  const mine = b.me && !b.rows.some((r) => r.you) ? `<div class="status">${esc(t("You"))}: #${b.me.place} · ${b.me.xp.toLocaleString()} XP</div>` : "";
+  return `<p class="note">${esc(t("XP earned online this week"))}${b.week ? ` (${esc(b.week)})` : ""}. ${esc(t("It starts again every Monday."))}</p>${mine}<ul class="list pf-hist">${rows}</ul>`;
 }

@@ -32,6 +32,8 @@ export interface Profile {
 }
 
 export interface ProfileStore {
+  /** v6 max (3.12): fetch a profile ahead of use (the profile service's client; a local store has it already). */
+  warm?(key: string): Promise<void>;
   get(key: string): Profile | null;
   /** Add XP from one match; creates the profile on first use. */
   award(key: string, xp: number, won: boolean, day: string): Profile;
@@ -191,4 +193,93 @@ export class Identity {
     if (!k) throw new Error("unknown_key");
     return k;
   }
+}
+
+// ── v6 max (3.12): the profile service's client ────────────────────────────────
+
+/**
+ * The profiles in their own service (profileMain.ts), for a node of many: the
+ * node keeps the profiles of the players it has (fetched when they say who they
+ * are) and answers from that copy at once; a match's XP and a commend change the
+ * copy straight away and go to the service, whose answer then replaces it. The
+ * service is the one authority (SQLite on its own volume); a node holds nothing
+ * that matters when it goes.
+ */
+export class HttpProfiles implements ProfileStore {
+  private readonly cache = new Map<string, Profile>();
+
+  constructor(
+    private readonly url: string,
+    private readonly secret: string,
+  ) {}
+
+  private async call(method: string, path: string, body?: unknown): Promise<unknown> {
+    const res = await fetch(`${this.url.replace(/\/+$/, "")}${path}`, {
+      method,
+      headers: { Authorization: `Bearer ${this.secret}`, ...(body !== undefined ? { "Content-Type": "application/json" } : {}) },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`profiles ${res.status}`);
+    return res.json();
+  }
+
+  private put(p: Profile | null): void {
+    if (!p) return;
+    this.cache.delete(p.key);
+    this.cache.set(p.key, p);
+    // The oldest go first past 100,000 (a node holds a few thousand players).
+    if (this.cache.size > 100_000) this.cache.delete(this.cache.keys().next().value!);
+  }
+
+  async warm(key: string): Promise<void> {
+    try {
+      const p = (await this.call("GET", `/v1/profiles/${encodeURIComponent(key)}`)) as Profile | null;
+      if (p) this.put(p);
+    } catch {
+      // The service is away: this player plays on with what the node has (nothing yet: XP still counts when it's back).
+    }
+  }
+
+  get(key: string): Profile | null {
+    return this.cache.get(key) ?? null;
+  }
+
+  award(key: string, xp: number, won: boolean, day: string): Profile {
+    const had = this.cache.get(key);
+    const gain = Math.max(0, Math.round(xp));
+    const next: Profile = {
+      key,
+      xp: (had?.xp ?? 0) + gain,
+      matches: (had?.matches ?? 0) + 1,
+      wins: (had?.wins ?? 0) + (won ? 1 : 0),
+      lastDay: day,
+      honour: had?.honour ?? 0,
+      streak: won ? (had?.streak ?? 0) + 1 : 0,
+    };
+    this.put(next);
+    this.call("POST", `/v1/profiles/${encodeURIComponent(key)}/award`, { xp: gain, won, day })
+      .then((p) => this.put(p as Profile))
+      .catch((e) => console.log(`profiles: award not saved (${(e as Error).message})`));
+    return next;
+  }
+
+  commend(key: string): number {
+    const had = this.cache.get(key);
+    const n = (had?.honour ?? 0) + 1;
+    if (had) this.put({ ...had, honour: n });
+    this.call("POST", `/v1/profiles/${encodeURIComponent(key)}/commend`)
+      .then((p) => this.put(p as Profile))
+      .catch(() => {});
+    return n;
+  }
+
+  remove(key: string): boolean {
+    this.cache.delete(key);
+    this.call("DELETE", `/v1/profiles/${encodeURIComponent(key)}`).catch(() => {});
+    return true;
+  }
+
+  close(): void {}
 }

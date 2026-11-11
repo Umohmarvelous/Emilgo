@@ -7,18 +7,42 @@
 // and can invite them, only if they list you too. So a friend id on its own
 // tells a stranger nothing. Friend ids are per copy of the game (Lagos Life's
 // and EMILGO's are different), so they never link a player across services.
+//
+// v6 max (3.11, 3.12): direct messages between friends, and friends on other
+// nodes. Through `shared` (shared.ts: Redis when there are many nodes, this
+// process's memory when there's one):
+//   pres:<fid>   who is on, on which node, whom they list, whether they take
+//                messages, what they're doing (refreshed every 15 s, gone in 90)
+//   lf:<fid>     whom an absent player listed when they left (a day): a message
+//                held for them needs it
+//   held:<fid>   messages waiting for a friend who is off (20 at most, a day)
+//   ev:<a|b>     the last lines passed between two friends (a report's evidence)
+//   dm:<node>    a channel per node: a message for a friend connected there
 
 import { filterChat } from "../../src/social/filter";
 import type { Lobby } from "./lobby";
 import type { Peer } from "./peer";
+import type { Shared } from "./shared";
 
-/** v6 max (3.11): a direct message held for a friend who is off: at most this many each, for a day, in memory only. */
 const HOLD_MAX = 20;
-const HOLD_MS = 24 * 3600 * 1000;
-/** The last lines passed between two friends, kept (in memory) as evidence for a report. */
+const DAY_S = 86_400;
+const PRES_S = 90;
 const EVIDENCE = 6;
 
-interface Held {
+type FriendState = "on" | "rm" | "pl";
+
+interface Pres {
+  /** The node it's connected to. */
+  n: string;
+  /** Whom it lists. */
+  f: string[];
+  /** Takes messages. */
+  d: boolean;
+  st: FriendState;
+}
+
+interface Remote {
+  to: string;
   from: string;
   name: string;
   text: string;
@@ -27,13 +51,15 @@ interface Held {
 
 export class Presence {
   private readonly byFid = new Map<string, Peer>();
-  /** Who an absent player listed (and whether they took messages), from when they left: a held message needs it. */
-  private readonly lastFriends = new Map<string, { friends: ReadonlySet<string>; dms: boolean; at: number }>();
-  private readonly held = new Map<string, Held[]>();
-  /** "a|b" (the two friend ids, sorted) → the last lines between them. */
-  private readonly between = new Map<string, string[]>();
 
-  constructor(private readonly lobby: Lobby) {}
+  constructor(
+    private readonly lobby: Pick<Lobby, "roomOf">,
+    private readonly shared: Shared,
+    private readonly node = "",
+  ) {
+    // Messages for friends connected here, from other nodes.
+    shared.subscribe(`dm:${node}`, (m) => this.arrive(m as Remote));
+  }
 
   /** A phone said who it is (and again whenever its list changes). */
   identify(peer: Peer, fid: string, friends: string[]): void {
@@ -42,30 +68,32 @@ export class Presence {
     peer.fid = fid;
     peer.friendFids = new Set(friends.slice(0, 100));
     this.byFid.set(fid, peer);
-    this.lastFriends.delete(fid);
-    this.tell(peer);
-    // Messages friends sent while this player was off.
-    const waiting = this.held.get(fid);
-    if (waiting) {
-      this.held.delete(fid);
-      const t = Date.now();
-      for (const h of waiting) if (t - h.at < HOLD_MS && peer.friendFids.has(h.from)) peer.send({ t: "dm", fid: h.from, name: h.name, text: h.text, at: h.at });
-    }
+    void this.announce(peer);
+    void this.shared.del(`lf:${fid}`).catch(() => {});
+    void this.tell(peer);
     // Friends who list this player see them come on.
     for (const f of peer.friendFids) {
       const o = this.byFid.get(f);
-      if (o && o !== peer && this.mutual(peer, o)) this.tell(o);
+      if (o && o !== peer && this.mutual(peer, o)) void this.tell(o);
     }
+    // Messages friends sent while this player was off.
+    void this.shared
+      .drain(`held:${fid}`)
+      .then((list) => {
+        const t = Date.now();
+        for (const h of list as Remote[]) if (h && t - h.at < DAY_S * 1000 && peer.friendFids.has(h.from) && peer.connected) peer.send({ t: "dm", fid: h.from, name: h.name, text: h.text, at: h.at });
+      })
+      .catch(() => {});
   }
 
   forget(peer: Peer): void {
     if (peer.fid && this.byFid.get(peer.fid) === peer) {
       this.byFid.delete(peer.fid);
-      this.lastFriends.set(peer.fid, { friends: peer.friendFids, dms: peer.acceptsDms, at: Date.now() });
-      if (this.lastFriends.size > 50_000) this.sweep();
+      void this.shared.del(`pres:${peer.fid}`).catch(() => {});
+      void this.shared.setJson(`lf:${peer.fid}`, { f: [...peer.friendFids], d: peer.acceptsDms }, DAY_S).catch(() => {});
       for (const f of peer.friendFids) {
         const o = this.byFid.get(f);
-        if (o && this.mutual(peer, o)) this.tell(o);
+        if (o && this.mutual(peer, o)) void this.tell(o);
       }
     }
   }
@@ -75,24 +103,49 @@ export class Presence {
     return !!a.fid && !!b.fid && a.friendFids.has(b.fid) && b.friendFids.has(a.fid) && a.connected && b.connected && !a.blockedWith(b);
   }
 
-  /** Send a peer the state of their friends. */
-  tell(peer: Peer): void {
-    if (!peer.connected || !peer.fid) return;
-    const on: string[] = [];
-    const rm: string[] = [];
-    const pl: string[] = [];
-    for (const f of peer.friendFids) {
-      const o = this.byFid.get(f);
-      if (!o || !this.mutual(peer, o)) continue;
-      const room = this.lobby.roomOf(o);
-      (room?.playing ? pl : room ? rm : on).push(f);
-    }
-    peer.send({ t: "fr", on, rm, pl });
+  private stateOf(p: Peer): FriendState {
+    const room = this.lobby.roomOf(p);
+    return room?.playing ? "pl" : room ? "rm" : "on";
   }
 
-  /** Everyone's friends' state, now and then (rooms come and go). */
+  /** Tell the other nodes this player is on, here (and what they're doing). */
+  private announce(p: Peer): Promise<void> {
+    if (!p.fid || !p.connected) return Promise.resolve();
+    const pres: Pres = { n: this.node, f: [...p.friendFids], d: p.acceptsDms, st: this.stateOf(p) };
+    return this.shared.setJson(`pres:${p.fid}`, pres, PRES_S).catch(() => {});
+  }
+
+  /** Send a peer the state of their friends: those here, and those on other nodes who list them back. */
+  async tell(peer: Peer): Promise<void> {
+    if (!peer.connected || !peer.fid) return;
+    const lists: Record<FriendState, string[]> = { on: [], rm: [], pl: [] };
+    const away: string[] = [];
+    for (const f of peer.friendFids) {
+      const o = this.byFid.get(f);
+      if (o) {
+        if (this.mutual(peer, o)) lists[this.stateOf(o)].push(f);
+      } else away.push(f);
+    }
+    if (away.length) {
+      try {
+        const got = (await this.shared.getJson(away.map((f) => `pres:${f}`))) as (Pres | null)[];
+        got.forEach((p, i) => {
+          if (p && p.n !== this.node && Array.isArray(p.f) && p.f.includes(peer.fid) && (p.st === "on" || p.st === "rm" || p.st === "pl")) lists[p.st].push(away[i]);
+        });
+      } catch {
+        // The shared store is away: this node's friends only.
+      }
+    }
+    if (peer.connected) peer.send({ t: "fr", on: lists.on, rm: lists.rm, pl: lists.pl });
+  }
+
+  /** Everyone's friends' state, now and then (rooms come and go); and everyone here announced again. */
   tellAll(): void {
-    for (const p of this.byFid.values()) if (p.connected) this.tell(p);
+    for (const p of this.byFid.values()) {
+      if (!p.connected) continue;
+      void this.announce(p);
+      void this.tell(p);
+    }
   }
 
   /** A friend request to `target`. Returns a note for the asker, or null when it went. */
@@ -119,7 +172,7 @@ export class Presence {
    * v6 max (3.11): a direct message. Only between friends who list each other
    * (so nobody gets one from a stranger, whatever their age), never blocked,
    * cleaned like chat (no numbers, links, handles or addresses), at chat's
-   * pace. A friend who is off gets it when they come on (held a day, in memory).
+   * pace. On another node: passed over the shared bus. Off: held a day.
    */
   dm(from: Peer, to: string, raw: string, n: number): void {
     const no = (why: string) => from.send({ t: "dmack", to, n, why });
@@ -128,50 +181,67 @@ export class Presence {
     if (!from.allowChat()) return no("Easy! Try again in a moment.");
     const { text, changed } = filterChat(raw);
     if (!text) return no("Nothing to send.");
-    const target = this.byFid.get(to);
     const at = Date.now();
-    const evidence = (line: string) => {
-      const key = [from.fid, to].sort().join("|");
-      const list = this.between.get(key) ?? [];
-      list.push(line);
-      if (list.length > EVIDENCE) list.shift();
-      this.between.set(key, list);
-      if (this.between.size > 100_000) this.between.clear();
-    };
+    const shown = changed ? { text } : {};
+    const target = this.byFid.get(to);
     if (target && target.connected) {
       if (!target.friendFids.has(from.fid) || from.blockedWith(target)) return no("You're not on each other's friends lists.");
       if (!target.acceptsDms) return no(`${target.name} has messages off.`);
       target.send({ t: "dm", fid: from.fid, name: from.name, text, at });
-      evidence(`${from.name}: ${text}`);
-      return from.send({ t: "dmack", to, n, ok: 1, ...(changed ? { text } : {}) });
+      this.keep(from.fid, to, `${from.name}: ${text}`);
+      return from.send({ t: "dmack", to, n, ok: 1, ...shown });
     }
-    // Off: only if, when they left, they listed this sender and took messages.
-    const last = this.lastFriends.get(to);
-    if (!last || !last.friends.has(from.fid) || !last.dms || at - last.at > HOLD_MS) return no("They're not online right now.");
-    const list = (this.held.get(to) ?? []).filter((h) => at - h.at < HOLD_MS);
-    if (list.length >= HOLD_MAX) return no("They have too many messages waiting.");
-    list.push({ from: from.fid, name: from.name, text, at });
-    this.held.set(to, list);
-    evidence(`${from.name}: ${text}`);
-    from.send({ t: "dmack", to, n, held: 1, ...(changed ? { text } : {}) });
+    // On another node, or off.
+    const msg: Remote = { to, from: from.fid, name: from.name, text, at };
+    void this.shared
+      .getJson([`pres:${to}`, `lf:${to}`])
+      .then(async ([p, l]) => {
+        const pres = p as Pres | null;
+        const last = l as { f: string[]; d: boolean } | null;
+        if (pres && pres.n !== this.node && Array.isArray(pres.f)) {
+          if (!pres.f.includes(from.fid)) return no("You're not on each other's friends lists.");
+          if (!pres.d) return no("They have messages off.");
+          this.shared.publish(`dm:${pres.n}`, msg);
+          this.keep(from.fid, to, `${from.name}: ${text}`);
+          return from.send({ t: "dmack", to, n, ok: 1, ...shown });
+        }
+        if (!last || !Array.isArray(last.f) || !last.f.includes(from.fid) || !last.d) return no("They're not online right now.");
+        // The newest 20 wait (an older one drops off the front).
+        await this.shared.push(`held:${to}`, msg, DAY_S, HOLD_MAX);
+        this.keep(from.fid, to, `${from.name}: ${text}`);
+        from.send({ t: "dmack", to, n, held: 1, ...shown });
+      })
+      .catch(() => no("Messages are down for a moment. Try again."));
   }
 
-  /** The last lines between two friends (a report's evidence). */
-  evidence(a: string, b: string): string[] {
-    return [...(this.between.get([a, b].sort().join("|")) ?? [])];
+  /** A message from another node, for a friend connected here (or held if they've just gone). */
+  private arrive(m: Remote): void {
+    if (!m || typeof m.to !== "string" || typeof m.text !== "string") return;
+    const target = this.byFid.get(m.to);
+    if (target && target.connected) {
+      if (target.friendFids.has(m.from) && target.acceptsDms) target.send({ t: "dm", fid: m.from, name: m.name, text: m.text, at: m.at });
+      return;
+    }
+    void this.shared.push(`held:${m.to}`, m, DAY_S, HOLD_MAX).catch(() => {});
   }
 
-  /** A friend's peer, if both list each other and they're on. */
+  /** The last lines between two friends, for a report. */
+  private keep(a: string, b: string, line: string): void {
+    void this.shared.push(`ev:${[a, b].sort().join("|")}`, line, 7 * DAY_S, EVIDENCE).catch(() => {});
+  }
+
+  /** The last lines between two friends (a report's evidence). The list stays (a second report sees it too). */
+  async evidence(a: string, b: string): Promise<string[]> {
+    const key = `ev:${[a, b].sort().join("|")}`;
+    const lines = (await this.shared.drain(key).catch(() => [])) as string[];
+    for (const l of lines) void this.shared.push(key, l, 7 * DAY_S, EVIDENCE).catch(() => {});
+    return lines.filter((l) => typeof l === "string");
+  }
+
+  /** A friend's peer, if both list each other and they're on this node. */
   friend(of: Peer, fid: string): Peer | null {
     const o = this.byFid.get(fid);
     return o && this.mutual(of, o) ? o : null;
-  }
-
-  /** Drop what's older than a day. */
-  sweep(): void {
-    const t = Date.now();
-    for (const [k, v] of this.lastFriends) if (t - v.at > HOLD_MS) this.lastFriends.delete(k);
-    for (const [k, v] of this.held) if (!v.some((h) => t - h.at < HOLD_MS)) this.held.delete(k);
   }
 
   /** Invite a friend to the room `from` is in. Returns a note for the sender. */
