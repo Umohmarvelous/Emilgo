@@ -13,7 +13,7 @@
 //              into the world, so the sun and the sky light the leaves as they
 //              do the rest; the snow pines whiten whatever faces up. Low: no
 //              normal atlas, a flat card lit facing you
-//   the wind   the crown sways a little, more toward the top
+//   the wind   none since v7 (the owner saw them move): the crown stands still
 //
 // Nothing breaks without them: no KTX2, no files: the drawn trees, as before.
 
@@ -155,8 +155,8 @@ export function impostorMaterial(spec: TierSpec, sp: Species, imp: Impostor, tim
       .replace(
         "#include <begin_vertex>",
         `vec3 transformed = rightW * position.x * uQuad + vec3(0.0, position.y * uQuad, 0.0);
-        // The crown sways (the foot doesn't).
-        transformed.xz += vec2(sin(uTime * 1.3 + orgW.x * 0.37), cos(uTime * 1.1 + orgW.z * 0.41)) * 0.012 * position.y * position.y * uQuad;
+        // v7 (the owner: "they are moving"): no sway; the crown stands still. (The card still turns to face you: a
+        // flat picture has to. Real 3D trees are SPEC-V7 3.3.)
         float az = atan(dIr.x, dIr.y) - aYaw;
         float f = mod(az / 6.2831853 * uViews, uViews);
         float i0 = floor(f);
