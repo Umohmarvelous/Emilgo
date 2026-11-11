@@ -59,7 +59,8 @@ export function playable(manifest: Manifest, family: Family, o: CatalogOptions):
 }
 
 export interface GameEntry {
-  id: Family;
+  /** A family of modes, or (v6 max, 3.1) the runner: Horde Dash, played alone, on the phone. */
+  id: Family | "runner";
   name: string;
   state: ModeState;
   /** "10 modes", "Unlocks at Pro I". */

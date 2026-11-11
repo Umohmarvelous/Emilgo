@@ -116,7 +116,7 @@ export interface Settings {
   mode: Mode;
   distance: Distance;
   /** The game picked on the Play screen's strip, and Free For All's mode (SPEC-V3 §9). */
-  game: "ffa" | "rlgl" | "survival";
+  game: "ffa" | "rlgl" | "survival" | "runner";
   /** Dead Streets: your best finished run (seconds, 0 none) on this device. */
   runBest: number;
   /** Dead Streets' loadout (§3.4): weapon, perks, juju charms, weapon mods, and the Daily Run picked. */
@@ -184,6 +184,8 @@ export interface Settings {
   /** v6 max (3.8): the figurines bought with CP (shop/figurines.ts), and the one worn ("" the operator). */
   figs: string[];
   fig: string;
+  /** v6 max (3.1): Horde Dash: the levels opened (1 …), the level picked, the best time to the gate per level (s). */
+  dash: { open: number; level: number; best: number[] };
   /** People you've played online with lately, newest first. `seat` reaches them while they're still online. */
   recent: { name: string; at: number; seat?: string }[];
   /** Your friend id in this copy of the game: random, never sent to Lagos Life or EMILGO, unknown to the other copy. */
@@ -273,6 +275,7 @@ export function defaults(host: Host): Settings {
     blockedFids: [],
     figs: [],
     fig: "",
+    dash: { open: 1, level: 1, best: [] },
     recent: [],
     mode: "classic",
     distance: DEFAULT_DISTANCE,
@@ -311,7 +314,7 @@ export function defaults(host: Host): Settings {
 export const KEPT_ON_RESET: readonly (keyof Settings)[] = [
   "look", "avatar", "avatarSet", "suitV5", "badge", "lobbyPose", "wheel", "map", "mode", "distance", "tutorialSeen", "best", "played", "wins", "xp",
   "rankXp", "rankKnown", "deviceXp", "founder", "honour", "form", "streak", "runBest", "runWeapon", "runPerks", "runCharms", "runMods", "runDaily", "runDeaths",
-  "daily", "chest", "awards", "history", "dms", "blockedFids", "figs", "fig", "recent", "fid", "friends", "cp", "boosts", "boostsOn", "song",
+  "daily", "chest", "awards", "history", "dms", "blockedFids", "figs", "fig", "dash", "recent", "fid", "friends", "cp", "boosts", "boostsOn", "song",
 ];
 
 export function resetPrefs(host: Host, s: Settings): Settings {
@@ -424,6 +427,15 @@ export function loadSettings(host: Host): Settings {
     out.dmsOn = saved.dmsOn !== false;
     out.cardPublic = saved.cardPublic !== false;
     ({ figs: out.figs, fig: out.fig } = cleanFigurines(saved.figs, saved.fig));
+    {
+      const d = saved.dash as Partial<Settings["dash"]> | undefined;
+      const open = Math.max(1, Math.min(9, Math.floor(Number(d?.open)) || 1));
+      out.dash = {
+        open,
+        level: Math.max(1, Math.min(open, Math.floor(Number(d?.level)) || 1)),
+        best: Array.isArray(d?.best) ? d.best.slice(0, 9).map((x) => (typeof x === "number" && x > 0 ? x : 0)) : [],
+      };
+    }
     out.blockedFids = Array.isArray(saved.blockedFids) ? saved.blockedFids.filter((f) => typeof f === "string" && FID_RE.test(f)).slice(0, 200) : [];
     out.recent = Array.isArray(saved.recent) ? saved.recent.filter((r) => r && typeof r.name === "string").slice(0, 30) : [];
     if (!FID_RE.test(out.fid)) out.fid = newFid();

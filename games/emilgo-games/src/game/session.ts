@@ -81,7 +81,7 @@ import { Crowd, accentOf } from "../world/crowd";
 import type { SkyWatcher } from "../world/skyWatcher";
 import type { SkyLaser } from "../world/skyLaser";
 import { Effects } from "../world/fx";
-import { ensureScanLevels, setMaxAnisotropy, warmLook } from "../world/human";
+import { ensureScanLevels, loadOperators, setMaxAnisotropy, warmLook } from "../world/human";
 import { cleanLook, ownedOnly, randomLook, uniformLook, wearProduct, type ExtraId, type HoodieDesign, type Look } from "../world/human/wardrobe";
 import type { PoseId } from "../world/human/animator";
 import { LobbyStage, type Framing } from "../world/lobbyStage";
@@ -92,6 +92,8 @@ import type { BotBrain } from "./bots";
 import { chestOffer, openChest } from "./chest";
 import { addProgress, ensureDaily } from "./progress";
 import { badgeOf, recordMatch } from "../rank/awards";
+import { dashCp } from "./runner/dash";
+import { DashMode, type DashResult } from "../modes/dash";
 import { FIGURINE_BY_ID, figurineLook, type FigurineDef } from "../shop/figurines";
 import { addHistory, myCard, unreadDms } from "../social/profile";
 import { divisionName, type ProfileView } from "../ui/profile";
@@ -319,6 +321,8 @@ export class Game {
   // Naija World (built once per graphics tier, in slices while the menus are
   // up), a start that arrived before the world was ready, your party, the results.
   private gm: FfaMode | null = null;
+  /** v6 max (3.1): Horde Dash, while it runs. */
+  private dash: DashMode | null = null;
   /** The open world for Free For All: Naija World, or (v4) Naija Max, the big world; one at a time. */
   private naija: { tier: Tier; id: string; p: Promise<OpenWorld>; w: OpenWorld | null } | null = null;
   /** Spooky World (Dead Streets), built when a run is first asked for. */
@@ -1098,9 +1102,15 @@ export class Game {
 
   private showPlay(): void {
     this.frame("full");
-    const list = games(this.content.manifest, { xp: this.rankXp });
+    // v6 max (3.1): Horde Dash beside the families of modes (played alone, on the phone: always on).
+    const list = [...games(this.content.manifest, { xp: this.rankXp }), { id: "runner" as const, name: "Horde Dash", state: "play" as const, sub: "" }];
     // A game switched off in code (FEATURES) can't stay picked: the first one left takes over.
     if (!list.some((g) => g.id === this.settings.game) && list[0]) this.settings.game = list[0].id;
+    if (this.settings.game === "runner") {
+      const d = this.settings.dash;
+      this.screens.playDash({ games: list, error: this.playError, open: d.open, level: d.level, best: d.best });
+      return;
+    }
     if (this.settings.game === "survival") {
       const k = rankOf(this.rankXp).k;
       const st = this.settings;
@@ -1198,6 +1208,7 @@ export class Game {
   /** Stop whatever round is running and put the world back to idle. */
   private endRound(): void {
     this.endFfa();
+    this.endDash();
     if (this.rl && this.round instanceof this.rl.OnlineRound) this.round.dispose();
     this.round = null;
     this.brains = [];
@@ -1511,6 +1522,10 @@ export class Game {
   // ── Fixed step ────────────────────────────────────────────────────────────
 
   private update(dt: number): void {
+    if (this.dash) {
+      this.dash.update(dt);
+      return;
+    }
     if (this.gm) {
       if (!(this.paused && this.mode === "practice")) this.gm.update(dt);
       return;
@@ -2482,6 +2497,11 @@ export class Game {
       return;
     }
 
+    if (this.dash) {
+      this.dash.render(frameDt);
+      this.quality.sample(frameDt * 1000, performance.now() - workStart, this.loop.targetMs);
+      return;
+    }
     if (this.gm) {
       this.gm.render(frameDt);
       this.updateSocial(null);
@@ -3460,10 +3480,18 @@ export class Game {
         this.go();
         break;
       case "pick-game":
-        this.settings.game = d.g === "rlgl" && FEATURES.ballHaunt ? "rlgl" : d.g === "survival" && familyOn("survival") ? "survival" : familyOn("ffa") ? "ffa" : "survival";
+        this.settings.game = d.g === "runner" ? "runner" : d.g === "rlgl" && FEATURES.ballHaunt ? "rlgl" : d.g === "survival" && familyOn("survival") ? "survival" : familyOn("ffa") ? "ffa" : "survival";
         saveSettings(this.host, this.settings);
         this.showPlay();
         break;
+      case "dash-level": {
+        const n = Number(d.id);
+        const st = this.settings.dash;
+        if (n >= 1 && n <= st.open) st.level = n;
+        saveSettings(this.host, this.settings);
+        this.showPlay();
+        break;
+      }
       case "ffa-ranked":
         this.settings.ranked = !this.settings.ranked;
         saveSettings(this.host, this.settings);
@@ -4154,6 +4182,94 @@ export class Game {
     this.rotator.prompt();
   }
 
+  // ── v6 max (3.1): Horde Dash ────────────────────────────────────────────────
+
+  /** A dash, from the start (Run, or Run again on its end card). */
+  private goDash(): void {
+    this.leaveOnline();
+    this.endRound();
+    this.mode = "practice";
+    if (this.world) this.scene.remove(this.world.group);
+    if (this.dollObj) this.dollObj.root.visible = false;
+    this.props?.setup([], []);
+    this.hud.clearCourse();
+    const st = this.settings.dash;
+    void loadOperators().catch(() => {});
+    this.dash = new DashMode(this.modeHost(), {
+      seed: randomSeed(),
+      level: st.level,
+      best: st.best[st.level - 1] ?? 0,
+      onEnd: (r) => this.onDashEnd(r),
+      onAgain: () => this.goDash(),
+      onLeave: () => {
+        this.toLobby();
+        this.showLobby();
+      },
+    });
+    this.paused = false;
+    this.view = "game";
+    this.stage.interactive = false;
+    this.flow.reset("play");
+    this.screens.hide();
+    this.sound.hush(false);
+    this.touch.classList.add("live");
+    this.setActions(false);
+    this.loop.setStepping(true);
+    this.loop.setFpsCap(this.spec.tier === 0 ? 30 : 60);
+    if (!this.loop.isRunning && !this.hostPaused) this.loop.start();
+    this.board.show(false);
+    this.quick.toggle(false);
+    this.settings.played++;
+    saveSettings(this.host, this.settings);
+    this.rotator.prompt();
+  }
+
+  /** The dash is over (the gate, or caught): pay, count, open the next level, the history. */
+  private onDashEnd(r: DashResult): void {
+    const st = this.settings;
+    const pay = dashCp({ done: r.finished ? "finish" : "caught", coins: r.coins, t: r.seconds }, r.length);
+    st.cp += pay.cp;
+    const best = st.dash.best[r.level - 1] ?? 0;
+    if (r.finished) {
+      if (!best || r.seconds < best) {
+        const b = st.dash.best.slice();
+        while (b.length < r.level) b.push(0);
+        b[r.level - 1] = Math.round(r.seconds * 10) / 10;
+        st.dash.best = b;
+      }
+      if (r.level >= st.dash.open && st.dash.open < 9) st.dash.open = r.level + 1;
+    }
+    const got = recordMatch(st.awards, {
+      mode: "horde-dash", online: false, ranked: false, won: r.finished, place: r.finished ? 1 : 0, sides: 1, seconds: r.seconds,
+      kills: 0, heads: 0, deaths: r.finished ? 0 : 1, treasures: 0, uploads: 0, crates: 0, items: 0, boosters: [], downs: 0, helps: 0, swum: 0, hour: new Date().getHours(),
+    });
+    const awardCp = got.reduce((a, u) => a + u.cp, 0);
+    st.cp += awardCp;
+    st.history = addHistory(st.history, { mode: "Horde Dash", won: r.finished, place: 0, sides: 1, kills: 0, cp: pay.cp + awardCp, online: false, at: Date.now() });
+    saveSettings(this.host, st);
+    const parts = [...pay.parts.map((p) => `${t(p.label)} +${p.cp}`), ...(awardCp ? [`${t(got.length > 1 ? "Awards" : "Award")} +${awardCp}`] : [])];
+    this.dash?.showPay(pay.cp + awardCp ? `+${pay.cp + awardCp} CP · ${parts.join(" · ")}` : t("No CP this time: reach the gate, or grab more Owo"));
+  }
+
+  private endDash(): void {
+    const d = this.dash;
+    if (!d) return;
+    this.dash = null;
+    d.dispose();
+    if (this.world) {
+      this.scene.add(this.world.group);
+      this.scene.fog = this.world.fog;
+      this.renderer.setClearColor(this.world.clear);
+      this.rig.colliders = this.world.colliders;
+    }
+    this.camera.far = 900;
+    this.camera.updateProjectionMatrix();
+    if (this.dollObj) this.dollObj.root.visible = true;
+    this.controls.enabled = false;
+    this.setActions(false);
+    this.touch.classList.remove("live");
+  }
+
   /** Free For All is over, or left: put Red Light, Green Light's world back as it was. */
   private endFfa(): void {
     this.ffaWait = null;
@@ -4346,6 +4462,7 @@ export class Game {
 
   /** START on the play screen. */
   private go(): void {
+    if (this.settings.game === "runner") return this.goDash();
     // A saved pick of a game now switched off falls through to one that's on.
     if (this.settings.game === "survival" && familyOn("survival")) return this.goRun();
     if (!familyOn("ffa") && familyOn("survival")) return this.goRun();

@@ -948,6 +948,38 @@ export class Screens {
     );
   }
 
+  /** v6 max (3.1): Horde Dash's start: the level, your best, how it plays. */
+  playDash(s: { games: GameEntry[]; error: string | null; open: number; level: number; best: number[] }): void {
+    const games = s.games
+      .map((g) => `<button class="gm ${g.id === "runner" ? "on" : ""}" data-act="pick-game" data-g="${g.id}" ${g.state === "play" ? "" : "disabled"}>${esc(g.name)}${g.state === "play" ? "" : `<span class="soon">${g.state === "locked" ? "Locked" : "Soon"}</span>`}</button>`)
+      .join("");
+    const levels = Array.from({ length: Math.min(9, s.open + 1) }, (_, i) => i + 1)
+      .map((n) => {
+        const locked = n > s.open;
+        const best = s.best[n - 1];
+        return `<button class="chip ${s.level === n ? "on" : ""}" data-act="dash-level" data-id="${n}" ${locked ? "disabled" : ""}>${esc(t("Level"))} ${n} · ${(1000 + (n - 1) * 250) / 1000} km${best ? ` · <b class="num">${fmtTime(best)}</b>` : ""}${locked ? ` <span class="soon">${esc(t("Reach the gate"))}</span>` : ""}</button>`;
+      })
+      .join("");
+    this.mount(
+      "play",
+      `<div class="playscreen">
+        <div class="head"><button class="ibtn glass" data-act="back" aria-label="Back">${icon("back")}</button><span class="h">Play</span><span class="grow"></span></div>
+        <div class="games">${games}</div>
+        <div class="modes">${s.error ? `<div class="status error" role="alert">${esc(s.error)}</div>` : ""}</div>
+        <div class="side">
+          <div class="glass mapcard">
+            <div class="row"><b>${esc(t("Horde Dash"))}</b></div>
+            <span class="small">${esc(t("The dead are out of the city and you're on the road to the Safe Gate. Three lanes, faster and faster: go round the danfos, jump the barriers, slide under the gantries, grab the Owo. Stumble twice and the horde has you."))}</span>
+          </div>
+          <div class="glass gamecard"><div class="label">${esc(t("Level"))}</div><div class="chips">${levels}</div>
+            <span class="small">${esc(t("Power-ups: Owo Magnet, Jet Pack, Shield. Owo and the gate pay CP."))}</span></div>
+        </div>
+        <div class="start"><button class="btn primary" data-act="go">${icon("play", "", 16)}${esc(t("Run"))}</button></div>
+      </div>`,
+      "dim",
+    );
+  }
+
   playFfa(s: FfaPlayState): void {
     const off = (m: PlayMode) => (m === "solo" ? false : m === "lagos" ? !s.lagosLife || s.online !== "ready" : s.online !== "ready");
     const info: Record<PlayMode, { name: string; sub: string; icon: string; tag: string }> = {
