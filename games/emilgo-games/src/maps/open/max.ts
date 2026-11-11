@@ -28,8 +28,16 @@ import { footprint, propPlaced, solidsOf, type Placement, type PrefabId } from "
 import { inPatch } from "./patches";
 import { PROPS } from "./propTable";
 
-export const MAX_HALF = 1000;
 const CITY = 200;
+/**
+ * v6 max (3.3): the places drawn in toward the city (they stood 500 m of savanna out). Everything past the city's
+ * edge comes in to PULL of its distance from it, per axis (so straight roads stay straight); the world's edge with
+ * it (2 × 2 km → 1.6 × 1.6 km), each place's circle to PLACE_R of what it was.
+ */
+const PULL = 0.75;
+const PLACE_R = 0.82;
+const pin = (v: number): number => (Math.abs(v) <= CITY ? v : Math.sign(v) * (CITY + (Math.abs(v) - CITY) * PULL));
+export const MAX_HALF = pin(1000);
 
 interface Rect {
   x: number;
@@ -87,18 +95,23 @@ interface Place {
   ground: GroundKind;
 }
 const PLACES: Place[] = [
-  { id: "ironwood", name: "Ironwood Forest", x: 0, z: -760, r: 230, ground: "grass" },
+  { id: "ironwood", name: "Ironwood Forest", x: 0, z: -740, r: 230, ground: "grass" },
   { id: "windmere", name: "Windmere Ridge", x: 700, z: -700, r: 240, ground: "grass" },
   { id: "harbour", name: "Harbour Yard", x: 760, z: 0, r: 220, ground: "paving" },
   { id: "refinery", name: "Black Refinery", x: 700, z: 700, r: 230, ground: "earth" },
-  { id: "dunes", name: "Dune Sea", x: 0, z: 760, r: 240, ground: "sand" },
+  { id: "dunes", name: "Dune Sea", x: 0, z: 740, r: 240, ground: "sand" },
   { id: "airfield", name: "Old Airfield", x: -700, z: 700, r: 240, ground: "earth" },
   { id: "mangrove", name: "Mangrove Sink", x: -760, z: 0, r: 220, ground: "earth" },
   { id: "neon", name: "Neon Row", x: -760, z: -560, r: 140, ground: "paving" },
   { id: "arena", name: "The Arena", x: -560, z: -800, r: 110, ground: "paving" },
   { id: "glass", name: "Glass District", x: 330, z: -330, r: 118, ground: "paving" },
-  { id: "frostline", name: "Frostline", x: 772, z: 345, r: 120, ground: "snow" },
+  { id: "frostline", name: "Frostline", x: 772, z: 320, r: 120, ground: "snow" },
 ];
+for (const p of PLACES) {
+  p.x = pin(p.x);
+  p.z = pin(p.z);
+  p.r = Math.round(p.r * PLACE_R);
+}
 /** The new places borrow the CC0 props already made for a place like them. */
 const PROPS_OF: Record<string, string> = { glass: "neon", frostline: "ironwood" };
 
@@ -121,16 +134,22 @@ const OUT_ROADS: Road[] = [
   // Glass District's two streets; the track out to Frostline.
   { x0: CITY, z0: -330, x1: 460, z1: -330, w: 10, kind: "asphalt", gutters: false },
   { x0: 330, z0: -CITY, x1: 330, z1: -460, w: 10, kind: "asphalt", gutters: false },
-  { x0: 460, z0: 345, x1: 652, z1: 345, w: 7, kind: "laterite", gutters: false },
+  { x0: 460, z0: 320, x1: 652, z1: 320, w: 7, kind: "laterite", gutters: false },
 ];
+for (const r of OUT_ROADS) {
+  r.x0 = pin(r.x0);
+  r.z0 = pin(r.z0);
+  r.x1 = pin(r.x1);
+  r.z1 = pin(r.z1);
+}
 /** The Old Airfield's runway (asphalt ground, not a road: nothing parks on it). */
-const RUNWAY = { x: -700, z: 700, len: 520, w: 36, rot: Math.PI / 4 };
+const RUNWAY = { x: pin(-700), z: pin(700), len: 460, w: 36, rot: Math.PI / 4 };
 
 /** The harbour's water along the east edge, the swamp's channel through the west. */
 const WATERS: River[] = [
-  { pts: [[960, -300], [960, 300]], w: 70, depth: 3, water: 2.6 },
+  { pts: [[MAX_HALF - 40, -pin(300)], [MAX_HALF - 40, pin(300)]], w: 70, depth: 3, water: 2.6 },
   {
-    pts: [[-980, -260], [-860, -180], [-800, -40], [-700, 40], [-620, 140], [-560, 260]],
+    pts: ([[-980, -260], [-860, -180], [-800, -40], [-700, 40], [-620, 140], [-560, 260]] as [number, number][]).map(([x, z]) => [pin(x), pin(z)]),
     w: 12,
     depth: 1.1,
     water: 0.85,
@@ -197,18 +216,25 @@ const MAX_BOARDS: BoardWish[] = [
   { x: 216, z: -318, fx: 260, fz: -330, kind: "road", premium: true },
   { x: 318, z: -216, fx: 330, fz: -260, kind: "road", premium: true },
   { x: 444, z: -344, fx: 400, fz: -330, kind: "road" },
-  { x: 500, z: 358, fx: 560, fz: 345, kind: "road" },
-  { x: 640, z: 332, fx: 600, fz: 345, kind: "road" },
+  { x: 500, z: 333, fx: 560, fz: 320, kind: "road" },
+  { x: 640, z: 307, fx: 600, fz: 320, kind: "road" },
   // v6 max (3.6): portrait LED towers, lit at night, where the night-life is (on the end: no id moves).
   { x: -735, z: -545, fx: -760, fz: -560, kind: "plaza", premium: true, portrait: true },
   { x: -785, z: -578, fx: -760, fz: -560, kind: "plaza", portrait: true },
   { x: -540, z: -780, fx: -560, fz: -800, kind: "plaza", premium: true, portrait: true },
   { x: 312, z: -312, fx: 330, fz: -330, kind: "landmark", premium: true, portrait: true },
   { x: 736, z: 22, fx: 760, fz: 0, kind: "landmark", portrait: true },
-  { x: 752, z: 330, fx: 772, fz: 345, kind: "landmark", portrait: true },
+  { x: 752, z: 305, fx: 772, fz: 320, kind: "landmark", portrait: true },
   { x: -670, z: 660, fx: -700, fz: 700, kind: "landmark", portrait: true, r: 30 },
   { x: 668, z: 662, fx: 700, fz: 700, kind: "landmark", portrait: true, r: 30 },
 ];
+
+for (const b of MAX_BOARDS) {
+  b.x = pin(b.x);
+  b.z = pin(b.z);
+  b.fx = pin(b.fx);
+  b.fz = pin(b.fz);
+}
 
 export function buildMaxWorld(seed = 1957): OpenLayout {
   const city = buildNaijaWorld(seed);
@@ -261,17 +287,17 @@ export function buildMaxWorld(seed = 1957): OpenLayout {
   scatter(P.windmere, "rock", 40);
   scatter(P.windmere, "bush", 120);
   // ── Harbour Yard: warehouses on the quay, cranes over the water's edge, container rows ──
-  for (const dz of [-160, -60, 60, 160]) place("crane", 905, dz, Math.PI / 2);
-  for (const [dx, dz] of [[-140, -150], [-140, 0], [-140, 150]]) place("warehouse", P.harbour.x + dx, P.harbour.z + dz, 0);
-  for (let i = 0; i < 10; i++) for (let j = 0; j < 6; j++) if (rng.chance(0.8)) place("containers", P.harbour.x - 60 + i * 15, P.harbour.z - 170 + j * 28 + rng.range(-3, 3), 0, nextV(), 2.2);
+  for (const dz of [-160, -60, 60, 160]) place("crane", MAX_HALF - 40 - 35 - 20, pin(dz), Math.PI / 2);
+  for (const [dx, dz] of [[-130, -125], [-130, 0], [-130, 125]]) place("warehouse", P.harbour.x + dx, P.harbour.z + dz, 0);
+  for (let i = 0; i < 10; i++) for (let j = 0; j < 6; j++) if (rng.chance(0.8)) place("containers", P.harbour.x - 75 + i * 15, P.harbour.z - 170 + j * 28 + rng.range(-3, 3), 0, nextV(), 2.2);
   scatter(P.harbour, "generator", 10);
   // ── Black Refinery: tanks in a grid, pipe runs between, flares at the edge ──
   for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) if (rng.chance(0.75)) place("tank", P.refinery.x + i * 60, P.refinery.z + j * 60, 0, nextV(), 3);
-  for (let k = 0; k < 18; k++) place("pipes", P.refinery.x + rng.range(-150, 150), P.refinery.z + rng.range(-150, 150), rng.chance(0.5) ? 0 : Math.PI / 2);
-  for (const [dx, dz] of [[-190, -40], [180, 120], [40, 200], [-120, 190]]) place("flarestack", P.refinery.x + dx, P.refinery.z + dz, 0);
+  for (let k = 0; k < 18; k++) place("pipes", P.refinery.x + rng.range(-125, 125), P.refinery.z + rng.range(-125, 125), rng.chance(0.5) ? 0 : Math.PI / 2);
+  for (const [dx, dz] of [[-156, -33], [148, 98], [33, 164], [-98, 156]]) place("flarestack", P.refinery.x + dx, P.refinery.z + dz, 0);
   // ── Dune Sea: ridges across the sand, rocks, an oasis of palms, a plane down ──
   place("planewreck", P.dunes.x + 60, P.dunes.z + 40, 0.7);
-  for (let k = 0; k < 70; k++) place("dune", P.dunes.x + rng.range(-230, 230), P.dunes.z + rng.range(-230, 230), rng.range(-0.4, 0.4) + (k % 2) * 0.3, nextV(), 3);
+  for (let k = 0; k < 70; k++) place("dune", P.dunes.x + rng.range(-190, 190), P.dunes.z + rng.range(-190, 190), rng.range(-0.4, 0.4) + (k % 2) * 0.3, nextV(), 3);
   scatter({ x: P.dunes.x - 90, z: P.dunes.z - 60, r: 28 }, "palm", 14);
   scatter(P.dunes, "rock", 50);
   // ── Old Airfield: hangars and the tower along the runway, wrecks on the apron ──
@@ -325,7 +351,7 @@ export function buildMaxWorld(seed = 1957): OpenLayout {
     }
   }
   // ── The savanna between: trees, bushes and rocks, thinly ──
-  for (let k = 0; k < 900; k++) {
+  for (let k = 0; k < 600; k++) {
     const x = rng.range(-H + 20, H - 20);
     const z = rng.range(-H + 20, H - 20);
     if (Math.abs(x) < CITY + 10 && Math.abs(z) < CITY + 10) continue;
