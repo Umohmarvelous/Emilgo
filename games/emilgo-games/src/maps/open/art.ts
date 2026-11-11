@@ -56,6 +56,16 @@ const OCTA = new OctahedronGeometry(1, 0);
 const TRUNK = new BoxGeometry(1, 1, 1);
 
 /** A kit that draws one prefab at a time into a scratch chunk, in local axes. */
+/** v6 max (3.4): a tree for the impostors, in world axes. */
+export interface TreeAt {
+  x: number;
+  y: number;
+  z: number;
+  /** Its height (m). */
+  h: number;
+  kind: "broad" | "pine" | "snow";
+}
+
 export class PrefabKit extends Kit {
   scratch: OpenChunk = emptyChunk();
   /** Prefabs another draw stands in for (the scanned boulders, build.ts): their own look is skipped. */
@@ -65,6 +75,26 @@ export class PrefabKit extends Kit {
   readonly localLamps: V3[] = [];
   /** v5 (3.7): keep the trees' leaves apart (High and Max draw them in the leaf material). */
   splitLeaves = false;
+  /**
+   * v6 max (3.4): scanned trees drawn as impostors (build.ts): a tree is only noted (where, how tall, which kind)
+   * and drawn by the impostors' instanced draw, not built here. Its trunk's solid stays the prefab's.
+   */
+  impostors = false;
+  private readonly trees: TreeAt[] = [];
+
+  /** A broadleaf tree: noted for the impostors when they're on, else built as before. */
+  override tree(p: V3, h = 8, colors?: string[], trunk?: string): void {
+    if (this.impostors) {
+      this.trees.push({ x: p[0], y: p[1], z: p[2], h, kind: "broad" });
+      return;
+    }
+    super.tree(p, h, colors, trunk);
+  }
+
+  /** A pine noted for the impostors (the prefab's own pine is built only without them). */
+  notePine(p: V3, h: number, snow: boolean): void {
+    this.trees.push({ x: p[0], y: p[1], z: p[2], h, kind: snow ? "snow" : "pine" });
+  }
 
   override chunkAt(): Chunk {
     return this.scratch;
@@ -78,9 +108,10 @@ export class PrefabKit extends Kit {
   }
 
   /** Draw a placement and hand back its pieces in world axes. */
-  draw(p: Placement, night: boolean): { chunk: OpenChunk; lamps: V3[] } {
+  draw(p: Placement, night: boolean): { chunk: OpenChunk; lamps: V3[]; trees: TreeAt[] } {
     this.scratch = emptyChunk();
     this.lamps.length = 0;
+    this.trees.length = 0;
     drawPrefab(this, p, night);
     if (VEG.has(p.prefab) && this.scratch.foliage.length) {
       // Far away a tree is one blob: its leaves move up to the middle level and a stand-in takes the far one.
@@ -112,7 +143,8 @@ export class PrefabKit extends Kit {
     const c = Math.cos(p.rot);
     const s = Math.sin(p.rot);
     const lamps = this.lamps.map(([x, y, z]): V3 => [p.x + x * c + z * s, y, p.z - x * s + z * c]);
-    return { chunk: ch, lamps };
+    const trees = this.trees.map((t): TreeAt => ({ ...t, x: p.x + t.x * c + t.z * s, z: p.z - t.x * s + t.z * c }));
+    return { chunk: ch, lamps, trees };
   }
 }
 
@@ -831,6 +863,10 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
       // thinner tiers that narrow to a spire, each turned and tipped a little,
       // the greens varied per tree. Medium and up: 7 tiers of 10 sides.
       const h = 10 + r.range(0, 6);
+      if (k.impostors) {
+        k.notePine([0, 0, 0], h, p.prefab === "snowpine");
+        break;
+      }
       const hi = k.tier >= 1;
       k.cyl("#3b2e23", 0.32, h * 0.55, [0, h * 0.27, 0], "mass", { sides: hi ? 10 : 6, top: 0.45 });
       const tint = r.range(-0.04, 0.04);

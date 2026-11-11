@@ -71,6 +71,10 @@ const tick = () => {
   if (building) requestAnimationFrame(tick);
 };
 requestAnimationFrame(tick);
+// The renderer first: the world's compressed textures (KTX2) need it to know what the GPU takes.
+const canvas = document.getElementById("c") as HTMLCanvasElement;
+const r = new WebGLRenderer({ canvas, antialias: false, powerPreference: "high-performance" });
+initKtx2(r);
 const world = q.get("idle") ? await buildOpenWorldIdle(layout, spec, { night: q.get("night") === "1" }) : buildOpenWorld(layout, spec, { night: q.get("night") === "1" });
 setTimeout(() => (building = false), 3000);
 const tWorld = performance.now();
@@ -89,9 +93,6 @@ const boardView = q.get("boards") === "1" && layout.boards?.length
   : null;
 (window as unknown as { __boards: unknown }).__boards = boardView;
 
-const canvas = document.getElementById("c") as HTMLCanvasElement;
-const r = new WebGLRenderer({ canvas, antialias: false, powerPreference: "high-performance" });
-initKtx2(r);
 r.setPixelRatio(Math.min(spec.maxPixelRatio, devicePixelRatio));
 r.setSize(innerWidth, innerHeight);
 r.outputColorSpace = SRGBColorSpace;

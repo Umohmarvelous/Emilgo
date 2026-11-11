@@ -38,15 +38,37 @@ function atlasList(): Promise<Record<string, { file: string; kb: number }> | nul
 /** A baked atlas ("walls-day.a.512"), compressed, or null (the world composes its own). */
 export async function ktxAtlas(name: string, anisotropy = 4): Promise<Texture | null> {
   if (!loader) return null;
-  const l = await atlasList();
-  const e = l?.[name];
-  if (!e) return null;
+  const e = (await atlasList())?.[name];
+  return e ? ktxFile(e.file, anisotropy) : null;
+}
+
+/** v6 max (3.4): any KTX2 file in the library (its path under lib/), or null. */
+export async function ktxFile(path: string, anisotropy = 4): Promise<Texture | null> {
+  if (!loader) return null;
   try {
-    const t = await loader.loadAsync(`${BASE}${e.file}`);
+    const t = await loader.loadAsync(`${BASE}${path}`);
     t.minFilter = LinearMipmapLinearFilter;
     t.anisotropy = anisotropy;
     return t;
   } catch {
     return null;
   }
+}
+
+/** Can this phone take the library's KTX2 files at all (a renderer was given and it set up)? */
+export function ktxOn(): boolean {
+  return !!loader;
+}
+
+/** A JSON file in the library (once), or null. */
+const jsons = new Map<string, Promise<unknown>>();
+export function libJson(path: string): Promise<unknown> {
+  let p = jsons.get(path);
+  if (!p) {
+    p = fetch(`${BASE}${path}`, { cache: "force-cache" })
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null);
+    jsons.set(path, p);
+  }
+  return p;
 }

@@ -10,6 +10,7 @@
 
 import { GROUND_LIB, WALL_LIB } from "./atlasLists";
 import { ktxAtlas } from "../../assets/ktx";
+import { impostorMesh, loadImpostors, speciesOf, type ImpostorSet, type Species } from "./impostors";
 import { PROPS } from "./propTable";
 import {
   BufferGeometry,
@@ -53,7 +54,7 @@ import { merge, type V3 } from "../../world/geo";
 import { canvasTexture, concrete, glassFacade, mud, plaster, thatch, wood, zinc, brick, sand, type Painter } from "../../world/tex";
 import { Sky } from "../sky";
 import type { TexKind } from "../kit";
-import { emptyChunk, PrefabKit, TEX_KINDS, TEX_STRIDE, type OpenChunk } from "./art";
+import { emptyChunk, PrefabKit, TEX_KINDS, TEX_STRIDE, type OpenChunk, type TreeAt } from "./art";
 import { EDGE, GUTTER, SURFACE_OF, type GroundKind, type OpenLayout } from "./naija";
 import { sky as librarySky, texAlbedo, texSet, texSize, type SkyName, type TexName } from "../../assets/library";
 import { modelFor, type CdnModel } from "../../assets/cdn";
@@ -163,6 +164,8 @@ const GROUND_REP = [7, 6, 4, 5, 6, 7, 6];
 const GROUND_SAT = [1, 0.45, 1, 0.9, 0.4, 1, 1];
 
 export interface WorldLibrary {
+  /** v6 max (3.4): the scanned trees as impostors (impostors.ts), when they came. */
+  trees?: ImpostorSet | null;
   /** v6 max (3.4): the wall and ground atlases baked to KTX2 (tools/assets/atlases.ts), when they came. */
   atlases?: { walls: { a: Texture; n: Texture | null } | null; ground: { a: Texture; n: Texture | null } | null };
   walls: ({ a: HTMLImageElement; n: HTMLImageElement | null } | null)[];
@@ -252,7 +255,7 @@ export async function loadWorldLibrary(spec: TierSpec, night: boolean, L?: OpenL
     }
     return { a, n: nm };
   };
-  const [bw, bg] = await Promise.all([baked("walls"), baked("ground")]);
+  const [bw, bg, trees] = await Promise.all([baked("walls"), baked("ground"), loadImpostors(spec).catch(() => null)]);
   const [walls, ground, sk, grassRock, sandRock, pm] = await Promise.all([
     bw ? Promise.resolve(WALL_LIB[key].map(() => null)) : Promise.all(WALL_LIB[key].map(get)),
     bg ? Promise.resolve(GROUND_LIB[key].map(() => null)) : Promise.all(GROUND_LIB[key].map(get)),
@@ -264,7 +267,7 @@ export async function loadWorldLibrary(spec: TierSpec, night: boolean, L?: OpenL
   if (!ground.some(Boolean) && !walls.some(Boolean) && !bw && !bg) return null;
   const props = new Map<number, CdnModel>();
   used.forEach((idx, j) => pm[j]?.meshes.length && props.set(idx, pm[j]!));
-  return { walls, ground, atlases: { walls: bw, ground: bg }, rocks: { grass: grassRock, sand: sandRock }, props, sky: sk.bg ? { bg: sk.bg, env: sk.env, horizon: horizonOf(sk.bg), sun: sunOf(sk.bg) } : null };
+  return { walls, ground, atlases: { walls: bw, ground: bg }, trees, rocks: { grass: grassRock, sand: sandRock }, props, sky: sk.bg ? { bg: sk.bg, env: sk.env, horizon: horizonOf(sk.bg), sun: sunOf(sk.bg) } : null };
 }
 
 /**
@@ -442,6 +445,24 @@ function* bakeGroundLight(c: HTMLCanvasElement, L: OpenLayout, px: number, sun: 
     g.drawImage(layer, 0, 0);
     g.restore();
     yield;
+  }
+  // Under the trees: the crown's soft shade (two discs, the inner darker).
+  {
+    g.save();
+    g.setTransform(k, 0, 0, k, L.half * k, L.half * k);
+    g.fillStyle = "rgba(0,0,0,0.09)";
+    let n = 0;
+    for (const p of L.placements) {
+      const r = p.prefab === "baobab" ? 4.2 : p.prefab === "pine" || p.prefab === "snowpine" ? 2.2 : p.prefab === "tree" || p.prefab === "palm" ? 2.6 : 0;
+      if (!r) continue;
+      for (const rr of [r * 1.35, r * 0.75]) {
+        g.beginPath();
+        g.arc(p.x, p.z, rr, 0, Math.PI * 2);
+        g.fill();
+      }
+      if (++n % 500 === 0) yield;
+    }
+    g.restore();
   }
   // Contact shade: rings round each foot, lightest outside.
   g.save();
@@ -1081,6 +1102,10 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }, lib: W
   // The scanned rocks stand in for the drawn ones (Medium and up, with the library).
   const rockSet = lib && (lib.rocks.grass || lib.rocks.sand) ? lib.rocks : null;
   if (rockSet) kit.skip = new Set(["rock"]);
+  // v6 max (3.4): the scanned trees: the kit notes each tree for its impostor draw instead of building it.
+  const treeSet = lib?.trees ?? null;
+  kit.impostors = !!treeSet;
+  const treesIn: TreeAt[][] = [];
   const rocksIn: Placement[][] = [];
   // The props with a model: drawn instanced below, not by the kit.
   const propSet = lib && lib.props.size ? lib.props : null;
@@ -1092,7 +1117,8 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }, lib: W
     if (++drawn0 % 6 === 0) yield;
     if (rockSet && p.prefab === "rock") (rocksIn[cellIndex(p.x, p.z)] ??= []).push(p);
     if (propSet && p.prefab === "prop" && propSet.has(p.v & 255)) (propsIn[cellIndex(p.x, p.z)] ??= []).push(p);
-    const { chunk } = kit.draw(p, night);
+    const { chunk, trees } = kit.draw(p, night);
+    for (const t of trees) (treesIn[cellIndex(t.x, t.z)] ??= []).push(t);
     const c = chunks[cellIndex(p.x, p.z)];
     c.mass.push(...chunk.mass);
     c.main.push(...chunk.main);
@@ -1310,6 +1336,25 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }, lib: W
     if (gm) {
       cell.objects.push(gm);
       group.add(gm);
+    }
+    // v6 max (3.4): the cell's trees: one impostor draw per scanned kind.
+    const ts = treesIn[i];
+    if (treeSet && ts?.length) {
+      const bySp = new Map<Species, TreeAt[]>();
+      for (const t of ts) {
+        const sp = speciesOf(t, treeSet);
+        const e = bySp.get(sp) ?? [];
+        e.push(t);
+        bySp.set(sp, e);
+      }
+      for (const [sp, list] of bySp) {
+        const imp = treeSet[sp];
+        if (!imp) continue;
+        const im = impostorMesh(spec, sp, imp, list, uTime);
+        im.position.set(0, 0, 0);
+        cell.objects.push(im);
+        group.add(im);
+      }
     }
     // The cell's rocks: an instanced draw per shape, each sized and turned as its drawn rock was.
     const rs = rocksIn[i];
