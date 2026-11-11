@@ -1611,3 +1611,33 @@ input { font: inherit; color: inherit; }
 .fig-role { font: 700 9px var(--head); letter-spacing: 0.12em; color: var(--fg); }
 .fig-tile.on { box-shadow: 0 0 0 2px var(--fg), 0 0 18px color-mix(in srgb, var(--fg) 45%, transparent); }
 .fig-hint { opacity: 0.7; }
+/* 3.1: Horde Dash's screen. */
+.dash-hud { position: absolute; inset: 0; pointer-events: none; z-index: 5; font-family: var(--head); }
+.dash-top { position: absolute; top: max(10px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); width: min(56vw, 420px); }
+.dash-prog { position: relative; height: 8px; border-radius: 4px; background: rgba(0, 0, 0, 0.45); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25); overflow: visible; }
+.dash-fill { position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(90deg, #0a8a4a, #f5c542); transform-origin: 0 50%; transform: scaleX(0); }
+.dash-horde { position: absolute; top: -3px; width: 14px; height: 14px; margin-left: -7px; border-radius: 50%; background: #d62a2a; box-shadow: 0 0 8px #ff3b3b; }
+.dash-prog::after { content: ""; position: absolute; right: -4px; top: -6px; width: 6px; height: 20px; border-radius: 2px; background: #0a8a4a; box-shadow: 0 0 0 1px #fff; }
+.dash-stats { position: absolute; top: max(10px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); display: flex; flex-direction: column; gap: 6px; }
+.dash-stat { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 14px; background: rgba(0, 0, 0, 0.45); color: #fff; font-size: 15px; }
+.dash-owo { display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff2b0, #f5c542 45%, #a57a12); box-shadow: 0 0 0 1px #7a5a0a; }
+.dash-chips { position: absolute; top: calc(max(10px, env(safe-area-inset-top)) + 22px); left: 50%; transform: translateX(-50%); display: flex; gap: 6px; }
+.dash-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 12px; font-size: 12px; font-weight: 700; color: #fff; background: rgba(0, 0, 0, 0.5); }
+.dash-chip.magnet { box-shadow: inset 0 0 0 1.5px #ff5a5a; } .dash-chip.jet { box-shadow: inset 0 0 0 1.5px #c8d2dc; } .dash-chip.shield { box-shadow: inset 0 0 0 1.5px #4aa8ff; }
+.dash-warn { position: absolute; inset: 0; opacity: 0; transition: opacity 0.25s; background: radial-gradient(ellipse at 50% 60%, transparent 55%, rgba(200, 20, 20, 0.55)); }
+.dash-warn.on { opacity: 1; animation: dashPulse 0.6s ease-in-out infinite alternate; }
+@keyframes dashPulse { from { filter: brightness(0.8); } to { filter: brightness(1.25); } }
+.dash-hud.counting .dash-warn { opacity: 1; background: none; }
+.dash-hud.counting .dash-warn::after { content: attr(data-n); position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%); font: 900 84px var(--head); color: #fff; text-shadow: 0 4px 18px rgba(0, 0, 0, 0.6); }
+.dash-hint { position: absolute; left: 50%; bottom: 18%; transform: translateX(-50%); padding: 10px 16px; border-radius: 14px; background: rgba(0, 0, 0, 0.55); color: #fff; text-align: center; font-size: 14px; line-height: 1.5; transition: opacity 0.6s; }
+.dash-hint small { opacity: 0.75; font-size: 11px; }
+.dash-hint.gone { opacity: 0; }
+.dash-end { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) scale(0.9); display: none; flex-direction: column; align-items: center; gap: 8px; padding: 18px 22px; min-width: 260px; border-radius: 18px; pointer-events: auto; text-align: center; }
+.dash-end.on { display: flex; animation: dashIn 0.35s cubic-bezier(0.2, 1.4, 0.4, 1) forwards; }
+@keyframes dashIn { to { transform: translate(-50%, -50%) scale(1); } }
+.dash-end .h { font: 900 34px var(--head); letter-spacing: 0.04em; }
+.dash-endrow { display: inline-flex; align-items: center; gap: 6px; font-size: 16px; }
+.dash-cp { color: #ffb23a; font-size: 12px; font-weight: 700; max-width: 320px; }
+.dash-acts { display: flex; gap: 8px; margin-top: 4px; }
+.dash-quit { position: absolute; top: max(10px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); pointer-events: auto; }
+.dash-end { background: rgba(12, 14, 16, 0.78); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45); color: #fff; }
