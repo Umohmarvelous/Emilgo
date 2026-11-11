@@ -385,6 +385,94 @@ function atlasMaterial(spec: TierSpec, map: Texture, normal: Texture | null = nu
 // ── The ground: one painted picture of the whole city ──────────────────────────
 
 /** Paint the ground: earth, grass, paving, roads and their lines; holes where the gutters and river are. */
+/**
+ * v6 max (3.4): light baked into the ground picture (it multiplies the ground's colour: 0.5 is "as is").
+ *
+ *   contact   every solid standing on the ground (a building, a wall, a container, a big prop) darkens the ground
+ *             next to it, most at its foot and fading out over 2.4 m: the light the sky can't reach there
+ *   sun       on tiers without shadow maps, by day: each building's shadow cast across the ground from the sun's
+ *             direction (its height, at most 30 m long), drawn into one layer so overlaps don't double up, then
+ *             laid on at the strength a shadow has (the sky's light only)
+ */
+function* bakeGroundLight(c: HTMLCanvasElement, L: OpenLayout, px: number, sun: Vector3, night: boolean, castSun: boolean): Generator<void, void> {
+  const g = c.getContext("2d")!;
+  const k = px / (L.half * 2);
+  const stand = L.solids.filter((so) => so.kind === "box" && so.y0 < 0.6 && so.y1 - so.y0 >= 1.2 && so.hx * so.hz > 0.15);
+  const rect = (ctx: CanvasRenderingContext2D, so: (typeof stand)[number], grow: number) => {
+    ctx.save();
+    ctx.translate(so.x, so.z);
+    ctx.rotate(-so.rot);
+    ctx.fillRect(-so.hx - grow, -so.hz - grow, (so.hx + grow) * 2, (so.hz + grow) * 2);
+    ctx.restore();
+  };
+  // Sun shadows: one layer (hulls of each footprint and its shadow's end), then onto the ground at a shadow's depth.
+  if (castSun && !night && sun.y > 0.15) {
+    const layer = document.createElement("canvas");
+    layer.width = layer.height = px;
+    const sg = layer.getContext("2d")!;
+    sg.setTransform(k, 0, 0, k, L.half * k, L.half * k);
+    sg.fillStyle = "#000";
+    const sx = -sun.x / sun.y;
+    const sz = -sun.z / sun.y;
+    let n = 0;
+    for (const so of stand) {
+      const h = Math.min(so.y1, 30 / Math.max(0.3, Math.hypot(sx, sz)));
+      const ox = sx * h;
+      const oz = sz * h;
+      const cs = Math.cos(so.rot);
+      const sn = -Math.sin(so.rot);
+      const pts: [number, number][] = [];
+      for (const [a, b] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+        // The solid's +x is (cos rot, −sin rot); its +z, (sin rot, cos rot).
+        const x = so.x + cs * so.hx * a + Math.sin(so.rot) * so.hz * b;
+        const z = so.z + sn * so.hx * a + Math.cos(so.rot) * so.hz * b;
+        pts.push([x, z], [x + ox, z + oz]);
+      }
+      const hull = convexHull(pts);
+      sg.beginPath();
+      hull.forEach(([x, z], i) => (i ? sg.lineTo(x, z) : sg.moveTo(x, z)));
+      sg.closePath();
+      sg.fill();
+      if (++n % 300 === 0) yield;
+    }
+    g.save();
+    // (Pixel for pixel: paintGround leaves its world transform on the context.)
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalAlpha = 0.42;
+    g.drawImage(layer, 0, 0);
+    g.restore();
+    yield;
+  }
+  // Contact shade: rings round each foot, lightest outside.
+  g.save();
+  g.setTransform(k, 0, 0, k, L.half * k, L.half * k);
+  g.fillStyle = "rgba(0,0,0,0.075)";
+  let n = 0;
+  for (const so of stand) {
+    for (const grow of [2.4, 1.5, 0.9, 0.45]) rect(g, so, grow);
+    if (++n % 400 === 0) yield;
+  }
+  g.restore();
+}
+
+/** The convex hull of points (monotone chain), counter-clockwise. */
+function convexHull(pts: [number, number][]): [number, number][] {
+  const p = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cross = (o: [number, number], a: [number, number], b: [number, number]) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const lower: [number, number][] = [];
+  for (const q of p) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], q) <= 0) lower.pop();
+    lower.push(q);
+  }
+  const upper: [number, number][] = [];
+  for (let i = p.length - 1; i >= 0; i--) {
+    const q = p[i];
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], q) <= 0) upper.pop();
+    upper.push(q);
+  }
+  return lower.slice(0, -1).concat(upper.slice(0, -1));
+}
+
 function* paintGround(L: OpenLayout, px: number, forMap: boolean, neutral = false): Generator<void, HTMLCanvasElement> {
   const c = document.createElement("canvas");
   c.width = c.height = px;
@@ -951,6 +1039,9 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }, lib: W
   const gpx = spec.tier === 0 ? 1024 : 2048;
   const textured = !!lib && (lib.ground.some(Boolean) || !!lib.atlases?.ground);
   const gcan = yield* paintGround(L, gpx, false, textured);
+  // v6 max (3.4): light baked into the ground: contact shade round everything that stands on it, and (Low, which
+  // has no shadow maps; by day) the buildings' shadows from the sun.
+  yield* bakeGroundLight(gcan, L, gpx, sunDir, night, !spec.shadows);
   const gtex = new CanvasTexture(gcan);
   gtex.colorSpace = SRGBColorSpace;
   gtex.minFilter = LinearMipmapLinearFilter;
