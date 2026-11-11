@@ -241,7 +241,8 @@ export async function loadWorldLibrary(spec: TierSpec, night: boolean, L?: OpenL
   };
   const key = night ? "night" : "day";
   const rockLod = spec.tier >= 2 ? 1 : 2;
-  const rockOf = (use: string) => (spec.tier >= 1 ? modelFor(use, rockLod, spec.tier).catch(() => null) : Promise.resolve(null));
+  // v7: Low too (the lightest LOD, ~40 KB a shape): the drawn rock is a faceted blob the owner asked gone.
+  const rockOf = (use: string) => modelFor(use, rockLod, spec.tier).catch(() => null);
   // The props this layout uses (v4 rework R9), High and Max only (their draws cost Medium its 30 fps floor
   // on a slow phone; Medium draws each solid one as a plain crate in the cell's own mesh): the middle LOD.
   const used = spec.tier >= 2 && L ? [...new Set(L.placements.filter((p) => p.prefab === "prop").map((p) => p.v & 255))] : [];

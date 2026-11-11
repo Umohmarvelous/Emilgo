@@ -23,7 +23,7 @@
 import { Rng } from "../../core/rng";
 import type { Solid } from "../../game/core/space";
 import { placeBoards, type BoardWish } from "./billboards";
-import { buildNaijaWorld, EDGE, inPond, type Area, type GroundKind, type Landmark, type OpenLayout, type Pond, type River, type Road } from "./naija";
+import { buildNaijaWorld, DROPPED_PREFABS, EDGE, inPond, type Area, type GroundKind, type Landmark, type OpenLayout, type Pond, type River, type Road } from "./naija";
 import { footprint, propPlaced, solidsOf, type Placement, type PrefabId } from "./prefabs";
 import { inPatch } from "./patches";
 import { PROPS } from "./propTable";
@@ -281,7 +281,8 @@ export function buildMaxWorld(seed = 1957): OpenLayout {
     const t = rectOf(x, z, w + gap, d + gap, rot);
     if (!taken.free(t)) return false;
     taken.add(t);
-    placements.push({ prefab, x, z, rot, v });
+    // v7: the drawn bushes are out (their ground stays clear, so nothing else moved).
+    if (!DROPPED_PREFABS.has(prefab)) placements.push({ prefab, x, z, rot, v });
     return true;
   };
   /** n tries to put `prefab` somewhere in a place's circle (a fraction `inner` of it left clear). */

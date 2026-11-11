@@ -360,6 +360,15 @@ function riverRects(rv: River, margin: number): Rect[] {
 
 // ── The generator ─────────────────────────────────────────────────────────────
 
+/**
+ * v7 (the owner's screenshots: "remove these ... and another that is else where"): what Free For All's worlds no
+ * longer draw. The drawn bushes (a faceted green blob, walked through: the "stone" the owner couldn't name) and
+ * the Old Farm's yam ridges with their stems and cones (the long brown bars). Each is still placed and its ground
+ * still reserved, then left out of the list, so every other placement, the random numbers and the solids round
+ * them stay exactly as they were.
+ */
+export const DROPPED_PREFABS: ReadonlySet<PrefabId> = new Set<PrefabId>(["bush", "farm"]);
+
 export function buildNaijaWorld(seed = 1957): OpenLayout {
   const rng = new Rng(seed);
   const taken = new Taken();
@@ -375,7 +384,7 @@ export function buildNaijaWorld(seed = 1957): OpenLayout {
     if (Math.abs(x) + 0 > HALF - 4 || Math.abs(z) > HALF - 4) return false;
     if (!force && !taken.free(t)) return false;
     taken.add(t);
-    placements.push({ prefab, x, z, rot, v });
+    if (!DROPPED_PREFABS.has(prefab)) placements.push({ prefab, x, z, rot, v });
     return true;
   };
 

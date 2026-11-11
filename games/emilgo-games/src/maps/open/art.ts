@@ -733,9 +733,7 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
         tg.rotateY(Math.PI / 4);
         k.put(partOf(tg, TILES, [0, 4.2, -0.7], [q.w * 0.85, 2, q.d * 0.85]), "mass", 0);
       }
-      // The veranda's posts.
-      k.box("#6a4a30", [0.12, 2.6, 0.12], [-q.w / 2 + 0.3, 1.3, q.d / 2 + 0.5], "detail");
-      k.box("#6a4a30", [0.12, 2.6, 0.12], [q.w / 2 - 0.3, 1.3, q.d / 2 + 0.5], "detail");
+      // v7: the veranda's two posts are gone (they held no roof: "long brown sticks", the owner's screenshot).
       break;
     }
     case "farm": {

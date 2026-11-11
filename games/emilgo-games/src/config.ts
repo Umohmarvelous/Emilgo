@@ -964,7 +964,8 @@ export const NET = {
   // 22 (v6 max, 3.13): snapshots pack only the bodies they carry; far bodies left out of some (interest management).
   // 23 (v6 max, 3.4): the ground's earth patches (patches.ts): the zip lines' landings moved.
   // 24 (v6 max, 3.3): the big world's places drawn in toward the city and rebuilt (everything there moved).
-  protocol: 24,
+  // 25 (v7): no Smoke Canister in the loot (the scatter changed), the farm's ridges gone from the solids.
+  protocol: 25,
   tickHz: 60,
   /** Server → client state broadcasts per second. */
   snapshotHz: 15,
