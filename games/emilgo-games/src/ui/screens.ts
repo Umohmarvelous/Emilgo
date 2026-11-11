@@ -392,7 +392,7 @@ export class Screens {
           </div>`,
         )
         .join("")}
-        <div class="label" style="text-align:center">Daily · resets at midnight</div>
+        <div class="label pdesc" style="text-align:center">Daily · resets at midnight</div>
       </div>
       <button class="lb-bl friends-w" data-act="friends" aria-label="Friends">
         <div class="row"><span class="label">Friends</span>${icon("friends", "", 16)}</div>
@@ -402,7 +402,7 @@ export class Screens {
 
       <button class="lb-br glass-fill store-w" data-act="store" aria-label="Store">
         <span class="art">${icon("store", "ico-bob")}</span>
-        <span class="art-t"><span class="h" style="display:block">Store</span><span class="small">${s.shop ? "Boosts · outfits · emotes" : "Boosts · try the looks"}</span></span>
+        <span class="art-t"><span class="h" style="display:block">Store</span><span class="small pdesc">${s.shop ? "Boosts · outfits · emotes" : "Boosts · try the looks"}</span></span>
       </button>
 
       <div class="lb-name glass">${s.awards?.wear ? badgeEmblem(s.awards.wear, 20, "lb-emb") : ""}<span data-name></span>${s.badge ? `<span class="badge-star">${icon("star", "", 12)}</span>` : ""}</div>
@@ -437,7 +437,7 @@ export class Screens {
       if (m) return `<div class="sq${m.me ? " me" : ""}"><span class="ini">${esc(m.name.trim().charAt(0).toUpperCase() || "?")}</span><span class="nm">${esc(m.name)}</span></div>`;
       return `<button class="sq empty" data-act="invite" ${s.online !== "ready" ? "disabled" : ""} aria-label="Invite"><span class="ini">+</span><span class="nm">${esc(t("Invite"))}</span></button>`;
     }).join("");
-    return `${s.drop ? `<div class="lb-drop"><span class="k">${esc(t("Next drop"))}</span><b>${esc(t(s.drop.name)).toUpperCase()}</b><span class="l">${esc(t(s.drop.line))}</span></div>` : ""}
+    return `${s.drop ? `<div class="lb-drop"><span class="k">${esc(t("Next drop"))}</span><b>${esc(t(s.drop.name)).toUpperCase()}</b><span class="l pdesc">${esc(t(s.drop.line))}</span></div>` : ""}
       ${lo ? `<div class="lb-kit">
         <span class="h">${esc(t("Loadout"))}</span>
         ${card("Sidearm", "Pistol", "Common", "#b9bcc2")}
@@ -447,7 +447,7 @@ export class Screens {
         ${card("Suit", "Black, gloves, boots", "No armour worn", "#8a8f94")}
       </div>` : ""}
       <div class="lb-squad">${slots}</div>
-      ${s.rotation?.length ? `<button class="lb-rot" data-act="mode" aria-label="${esc(t("Change mode"))}"><span class="h">${esc(t("Rotation · this week"))}</span><span class="row">${s.rotation.map((r) => `<span class="th${r.on ? " on" : ""}" style="background-image:url(${r.url})"><b>${esc(t(r.name))}</b></span>`).join("")}</span><span class="pick">${icon("swap", "", 12)}<b>${esc(t(s.rotation.find((r) => r.on)?.name ?? s.ffa ?? "Dead Streets")).toUpperCase()}</b></span></button>` : ""}`;
+      ${s.rotation?.length ? `<button class="lb-rot" data-act="mode" aria-label="${esc(t("Change mode"))}"><span class="h pdesc">${esc(t("Rotation · this week"))}</span><span class="row">${s.rotation.map((r) => `<span class="th${r.on ? " on" : ""}" style="background-image:url(${r.url})"><b>${esc(t(r.name))}</b></span>`).join("")}</span><span class="pick">${icon("swap", "", 12)}<b>${esc(t(s.rotation.find((r) => r.on)?.name ?? s.ffa ?? "Dead Streets")).toUpperCase()}</b></span></button>` : ""}`;
   }
 
   private modeCard(s: LobbyState): string {
@@ -853,7 +853,7 @@ export class Screens {
       .map((m) => {
         const i = MODE_INFO[m];
         const tag = m === "solo" ? "Practice" : m === "lagos" ? "Stakes" : "Online";
-        return `<button class="md ${s.mode === m ? "on" : ""}" data-act="pick-mode" data-mode="${m}" ${off(m) ? "disabled" : ""}>${icon(i.icon, "", 20)}<span class="grow"><b>${i.name}</b><small>${off(m) && s.online !== "ready" ? (s.online === "offline" ? "You're offline" : "Coming soon in this build") : i.sub}</small></span><span class="tag">${tag}</span></button>`;
+        return `<button class="md ${s.mode === m ? "on" : ""}" data-act="pick-mode" data-mode="${m}" ${off(m) ? "disabled" : ""}>${icon(i.icon, "", 20)}<span class="grow"><b>${i.name}</b>${off(m) && s.online !== "ready" ? `<small>${s.online === "offline" ? "You're offline" : "Coming soon in this build"}</small>` : `<small class="pdesc">${i.sub}</small>`}</span><span class="tag">${tag}</span></button>`;
       })
       .join("");
     const practice = s.mode === "solo";
@@ -922,7 +922,7 @@ export class Screens {
         <div class="label">Weapon mods</div><div class="chips">${mods}</div>
         <div class="label">Charms (harder, more XP)</div><div class="chips">${charms}</div>
         <div class="chips">${chip("run-daily", "daily", "Daily Run: today's seed for everyone", s.daily)}</div>
-        ${s.mutator ? `<span class="small">${icon("star", "", 12)} ${esc(t("This week"))}: ${esc(t(s.mutator))}</span>` : ""}
+        ${s.mutator ? `<span class="small pdesc">${icon("star", "", 12)} ${esc(t("This week"))}: ${esc(t(s.mutator))}</span>` : ""}
       </div>`;
     const games = s.games
       .map((g) => `<button class="gm ${g.id === "survival" ? "on" : ""}" data-act="pick-game" data-g="${g.id}" ${g.state === "play" ? "" : "disabled"}>${esc(g.name)}${g.state === "play" ? "" : `<span class="soon">${g.state === "locked" ? "Locked" : "Soon"}</span>`}</button>`)
@@ -936,10 +936,10 @@ export class Screens {
         <div class="side">
           <div class="glass mapcard">
             <div class="row"><b>Spooky World</b></div>
-            <span class="small">A dead city at night, 320 × 320 m: from the Motor Park of the Lost to the Broadcast Mast, 1.4 km of streets through twelve districts and thirty obstacles. Churches and mosques are sanctuaries.</span>
+            <span class="small pdesc">A dead city at night, 320 × 320 m: from the Motor Park of the Lost to the Broadcast Mast, 1.4 km of streets through twelve districts and thirty obstacles. Churches and mosques are sanctuaries.</span>
           </div>
           ${loadout}
-          <div class="glass gamecard"><div class="label">Dead Streets</div><span class="small">Cross the dead city to the Mast. Fast, and alive. After 12:00 you bleed. On your own; your run is checked by our server.</span>
+          <div class="glass gamecard"><div class="label">Dead Streets</div><span class="small pdesc">Cross the dead city to the Mast. Fast, and alive. After 12:00 you bleed. On your own; your run is checked by our server.</span>
             <span class="small">${s.best > 0 ? `Your best: <b class="num">${fmtTime(s.best)}</b>` : "No finished run yet."}</span></div>
         </div>
         <div class="start"><button class="btn secondary" data-act="tutorial">${icon("help", "", 16)}How to play</button><button class="btn primary" data-act="go">${icon("play", "", 16)}Start a run</button></div>
@@ -969,10 +969,10 @@ export class Screens {
         <div class="side">
           <div class="glass mapcard">
             <div class="row"><b>${esc(t("Horde Dash"))}</b></div>
-            <span class="small">${esc(t("The dead are out of the city and you're on the road to the Safe Gate. Three lanes, faster and faster: go round the danfos, jump the barriers, slide under the gantries, grab the Owo. Stumble twice and the horde has you."))}</span>
+            <span class="small pdesc">${esc(t("The dead are out of the city and you're on the road to the Safe Gate. Three lanes, faster and faster: go round the danfos, jump the barriers, slide under the gantries, grab the Owo. Stumble twice and the horde has you."))}</span>
           </div>
           <div class="glass gamecard"><div class="label">${esc(t("Level"))}</div><div class="chips">${levels}</div>
-            <span class="small">${esc(t("Power-ups: Owo Magnet, Jet Pack, Shield. Owo and the gate pay CP."))}</span></div>
+            <span class="small pdesc">${esc(t("Power-ups: Owo Magnet, Jet Pack, Shield. Owo and the gate pay CP."))}</span></div>
         </div>
         <div class="start"><button class="btn primary" data-act="go">${icon("play", "", 16)}${esc(t("Run"))}</button></div>
       </div>`,
@@ -993,7 +993,7 @@ export class Screens {
       .filter((m) => m !== "lagos" || s.lagosLife)
       .map((m) => {
         const i = info[m];
-        return `<button class="md ${s.mode === m ? "on" : ""}" data-act="pick-mode" data-mode="${m}" ${off(m) ? "disabled" : ""}>${icon(i.icon, "", 20)}<span class="grow"><b>${i.name}</b><small>${off(m) && s.online !== "ready" ? (s.online === "offline" ? "You're offline" : "Coming soon in this build") : i.sub}</small></span><span class="tag">${i.tag}</span></button>`;
+        return `<button class="md ${s.mode === m ? "on" : ""}" data-act="pick-mode" data-mode="${m}" ${off(m) ? "disabled" : ""}>${icon(i.icon, "", 20)}<span class="grow"><b>${i.name}</b>${off(m) && s.online !== "ready" ? `<small>${s.online === "offline" ? "You're offline" : "Coming soon in this build"}</small>` : `<small class="pdesc">${i.sub}</small>`}</span><span class="tag">${i.tag}</span></button>`;
       })
       .join("");
     const games = s.games
@@ -1017,7 +1017,7 @@ export class Screens {
              <span class="small">${party.members.map((p) => esc(p.name) + (p.id === party.lead ? " (leader)" : "")).join(", ")}</span>
              ${lead ? "" : `<span class="small">The leader picks the game.</span>`}
              <button class="btn secondary" style="height:30px;padding:0 10px;align-self:flex-start" data-act="party-leave">Leave the party</button>`
-          : `<div class="label">Party</div><span class="small">Up to 4: one squad, matched together.</span>
+          : `<div class="label">Party</div><span class="small pdesc">Up to 4: one squad, matched together.</span>
              <div class="row"><button class="btn secondary" style="height:30px;padding:0 10px" data-act="party-make">${icon("invite", "", 14)}Make a party</button></div>
              <form class="join party-join"><input name="pcode" maxlength="${NET.codeLength}" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="PARTY CODE" aria-label="Party code" /><button class="btn secondary" type="button" data-act="party-join">Join</button></form>`
         : "";
@@ -1029,15 +1029,15 @@ export class Screens {
     // Ranked: the public queue only, from Pro I.
     const ranked =
       s.mode === "new"
-        ? `<button class="rk ${s.ranked && s.rankedOpen ? "on" : ""}" data-act="ffa-ranked" ${s.rankedOpen ? "" : "disabled"} aria-pressed="${s.ranked && s.rankedOpen}">${icon(s.rankedOpen ? "trophy" : "lock", "", 14)}<b>Ranked</b><small>${s.rankedOpen ? "Double XP, harder rules" : "Opens at Pro I"}</small></button>`
+        ? `<button class="rk ${s.ranked && s.rankedOpen ? "on" : ""}" data-act="ffa-ranked" ${s.rankedOpen ? "" : "disabled"} aria-pressed="${s.ranked && s.rankedOpen}">${icon(s.rankedOpen ? "trophy" : "lock", "", 14)}<b>Ranked</b><small class="${s.rankedOpen ? "pdesc" : ""}">${s.rankedOpen ? "Double XP, harder rules" : "Opens at Pro I"}</small></button>`
         : "";
     const card =
       s.mode === "lagos"
-        ? `<div class="label">Lagos Life match</div><span class="small">The Flag Duel on the market: the flag stands in the open, on your map. The first to take it and hold it for 10 s wins. Guns, the zone and items are on. Every staked match plays the same.</span>`
+        ? `<div class="label">Lagos Life match</div><span class="small pdesc">The Flag Duel on the market: the flag stands in the open, on your map. The first to take it and hold it for 10 s wins. Guns, the zone and items are on. Every staked match plays the same.</span>`
         : `<div class="label">Mode</div><div class="seg wrap ffa-modes">${seg || `<span class="small">No mode here yet.</span>`}</div>
            ${ranked}
-           ${s.mutator ? `<span class="small mu">${icon("star", "", 12)} ${esc(t("This week"))}: ${esc(t(s.mutator))}</span>` : ""}
-           ${p ? `<span class="small">${esc(p.blurb.en)} ${p.players.min === p.players.max ? `${p.players.max} players` : `${p.players.min}–${p.players.max} players`}${p.players.squad[1] > 1 ? `, squads of ${p.players.squad[0] === p.players.squad[1] ? p.players.squad[0] : `up to ${p.players.squad[1]}`}` : ""}, ${Math.round(p.time / 60)} min.</span>` : ""}`;
+           ${s.mutator ? `<span class="small mu pdesc">${icon("star", "", 12)} ${esc(t("This week"))}: ${esc(t(s.mutator))}</span>` : ""}
+           ${p ? `<span class="small pdesc">${esc(p.blurb.en)} ${p.players.min === p.players.max ? `${p.players.max} players` : `${p.players.min}–${p.players.max} players`}${p.players.squad[1] > 1 ? `, squads of ${p.players.squad[0] === p.players.squad[1] ? p.players.squad[0] : `up to ${p.players.squad[1]}`}` : ""}, ${Math.round(p.time / 60)} min.</span>` : ""}`;
     const label = s.mode === "friends" ? "Make a room" : s.mode === "solo" ? "Practice" : s.mode === "lagos" ? "Stakes" : "Find a match";
     const blocked = off(s.mode) || s.connecting || (s.mode !== "lagos" && !picked) || (s.mode === "new" && !lead);
     const node = this.mount(
@@ -1052,7 +1052,7 @@ export class Screens {
         <div class="side">
           <div class="glass mapcard">
             <div class="row"><b>Meridian Max</b></div>
-            <span class="small">One world, 2 km across: the city in the middle, then Ironwood Forest, Glass District, Windmere Ridge, Harbour Yard, Frostline, Black Refinery, Dune Sea, Old Airfield, Mangrove Sink, Neon Row and The Arena. The zone closes in; stay outside too long and the sky finishes you.</span>
+            <span class="small pdesc">One world, 2 km across: the city in the middle, then Ironwood Forest, Glass District, Windmere Ridge, Harbour Yard, Frostline, Black Refinery, Dune Sea, Old Airfield, Mangrove Sink, Neon Row and The Arena. The zone closes in; stay outside too long and the sky finishes you.</span>
           </div>
           <div class="glass gamecard">${card}${partyBox}</div>
         </div>
@@ -1497,8 +1497,8 @@ export class Screens {
       `<div class="loadscreen ${s.kind}${s.drop ? " v4" : ""}">
         ${drop}
         <div class="ld-people">${cards}</div>
-        <div class="ld-map glass"><span class="label">${esc(s.map)}</span><b class="ld-mode">${esc(s.mode)}</b><span class="small">${esc(s.goal)}</span><span class="small">${Math.round(s.time / 60)} min</span>${extra}${kit}<span class="ld-radio">“${esc(line)}”</span><button class="btn secondary ld-cancel" data-act="leave-room">Cancel</button></div>
-        <div class="ld-sign"><span class="ld-route">${["Building world", "Spawning items", s.kind === "run" ? "Waking the dead" : "Syncing players"].map((x, i) => `<i class="stop" style="animation-delay:${i * 1.1}s"></i><span>${esc(t(x))}</span>`).join("")}</span></div>
+        <div class="ld-map glass"><span class="label">${esc(s.map)}</span><b class="ld-mode">${esc(s.mode)}</b><span class="small">${esc(s.goal)}</span><span class="small">${Math.round(s.time / 60)} min</span>${extra}${kit}<span class="ld-radio pdesc">“${esc(line)}”</span><button class="btn secondary ld-cancel" data-act="leave-room">Cancel</button></div>
+        <div class="ld-sign pdesc"><span class="ld-route">${["Building world", "Spawning items", s.kind === "run" ? "Waking the dead" : "Syncing players"].map((x, i) => `<i class="stop" style="animation-delay:${i * 1.1}s"></i><span>${esc(t(x))}</span>`).join("")}</span></div>
       </div>`,
     );
   }

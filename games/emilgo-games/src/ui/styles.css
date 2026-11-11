@@ -1650,3 +1650,8 @@ input { font: inherit; color: inherit; }
 .playhud .pradial .centre .big { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255, 255, 255, 0.25); }
 .playhud .pradial .centre .big.off { opacity: 0.5; }
 .playhud .pradial .centre .row .ib { width: 46px; height: 40px; padding: 0; display: inline-grid; place-items: center; pointer-events: auto; }
+/* 1.5 phones (narrow, or landscape with little height): the long descriptions go (Meridian Max's, "This week", the
+   modes' blurbs, the loading screen's radio line and route). The names, buttons and numbers stay. */
+@media (max-width: 900px), (max-height: 540px) {
+  .pdesc { display: none !important; }
+}
