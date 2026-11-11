@@ -15,6 +15,12 @@
 //
 // Draws: 2 for the boxes, 1 for the relics, 2 for their glows, 6 for the
 // machine (hidden past 260 m but for its beacon). Nothing allocated per frame.
+//
+// v7, the instant hunt (no machine): every closed box stands in a gold beam seen
+// across the map (one draw for all) with a shining orbit of sparks round it close
+// up (two crossed rings a box within ORBIT_RANGE, one draw); the boxes near you are
+// on the map and the compass points at the nearest; the treasure found rises out
+// of its box.
 
 import {
   AdditiveBlending,
@@ -25,6 +31,7 @@ import {
   CylinderGeometry,
   DoubleSide,
   DynamicDrawUsage,
+  Euler,
   Group,
   IcosahedronGeometry,
   InstancedMesh,
@@ -41,7 +48,7 @@ import {
   Vector3,
 } from "three";
 
-import { TREASURE } from "../config";
+import { TREASURE, TREASURE_KINDS } from "../config";
 import type { Sound } from "../audio/sound";
 import type { Match } from "../game/core/match";
 import type { MatchEvent } from "../game/core/module";
@@ -74,6 +81,13 @@ const _p = new Vector3();
 const _s = new Vector3();
 const _c = new Color();
 const _up = new Vector3(0, 1, 0);
+const _e = new Euler();
+
+/** v7: what each kind of treasure is called (the feed). */
+const TREASURE_KIND_NAME: Record<(typeof TREASURE_KINDS)[number], string> = {
+  diamond: "the diamond", gold: "the gold bars", silver: "the silver bars", emerald: "the emerald", ruby: "the ruby",
+  sapphire: "the sapphire", pearl: "the pearls", crown: "the crown", amethyst: "the amethyst",
+};
 
 /** Boxes drawn within this of the camera. */
 const BOX_RANGE = 140;
@@ -81,6 +95,10 @@ const BOX_RANGE = 140;
 const MACHINE_RANGE = 260;
 const MAX_GEMS = 12;
 const MAX_GLOWS = 16;
+/** v7: a closed box's orbit drawn within this; its beam always; on the map within MAP_RANGE. */
+const ORBIT_RANGE = 70;
+const MAP_RANGE = 300;
+const MAX_ORBITS = 24;
 
 // ── The things ──────────────────────────────────────────────────────────────
 
@@ -243,6 +261,30 @@ void main() {
   float band = 0.75 + 0.25 * sin(vUv.y * 22.0 - time * 3.0);
   gl_FragColor = vec4(vC * up * band * 0.6, 1.0);
 }`;
+/**
+ * v7: a box's shining orbit: a thin ring with three comets of light racing round it, crackling. Per instance: r the
+ * phase, g the speed, b the strength (it fades with distance).
+ */
+const ORBIT_FRAG = /* glsl */ `
+uniform float time;
+varying vec2 vUv;
+varying vec3 vC;
+void main() {
+  vec2 p = vUv - 0.5;
+  float r = length(p) * 2.0;
+  float a = atan(p.y, p.x);
+  float ring = exp(-pow((r - 0.8) / 0.04, 2.0));
+  float sp = 2.0 + vC.g * 1.6;
+  float glow = 0.0;
+  for (int k = 0; k < 3; k++) {
+    float head = time * sp + vC.r * 6.2831853 + float(k) * 2.0943951;
+    float da = mod(head - a, 6.2831853);
+    glow += exp(-da * 2.4);
+  }
+  float n = fract(sin(dot(floor(vec2(a * 24.0, time * 14.0)), vec2(12.9898, 78.233))) * 43758.5453);
+  vec3 col = mix(vec3(1.0, 0.72, 0.25), vec3(1.0, 0.95, 0.75), glow) * ring * (0.2 + 2.4 * glow) * (0.75 + 0.5 * n);
+  gl_FragColor = vec4(col * vC.b, 1.0);
+}`;
 const BEACON_FRAG = /* glsl */ `
 uniform float time;
 uniform vec3 tint;
@@ -298,6 +340,9 @@ export class TreasureView {
   private readonly gems: InstancedMesh;
   private readonly columns: InstancedMesh;
   private readonly glowRings: InstancedMesh;
+  /** v7: the closed boxes' beams and their orbits (instant hunts). */
+  private readonly beams: InstancedMesh;
+  private readonly orbits: InstancedMesh;
   private readonly machine = new Group();
   private readonly beacon: Mesh;
   private readonly screenMat: ShaderMaterial;
@@ -321,6 +366,8 @@ export class TreasureView {
   private beepAt = 0;
   /** v6: rivals already called out as carrying all but one (once each). */
   private readonly warned = new Set<number>();
+  /** v7: an instant hunt's finds, and when each rose out of its box. */
+  private readonly risen = new Map<number, number>();
 
   constructor(o: TreasureViewOptions) {
     this.o = o;
@@ -334,7 +381,11 @@ export class TreasureView {
     this.mats.push(col, ring);
     this.columns = instanced(new CylinderGeometry(1, 1, 1, 16, 1, true).translate(0, 0.5, 0), col, MAX_GLOWS, true);
     this.glowRings = instanced(new RingGeometry(0.9, 1, 40, 1).rotateX(-Math.PI / 2), ring, MAX_GLOWS, true);
-    this.group.add(this.closed, this.opened, this.gems, this.columns, this.glowRings);
+    this.beams = instanced(new CylinderGeometry(1, 1, 1, 10, 1, true).translate(0, 0.5, 0), col, TREASURE.boxes + 8, true);
+    const orbit = glowMaterial(GLOW_VERT, ORBIT_FRAG, { time });
+    this.mats.push(orbit);
+    this.orbits = instanced(new PlaneGeometry(1, 1).rotateX(-Math.PI / 2), orbit, MAX_ORBITS * 2, true);
+    this.group.add(this.closed, this.opened, this.gems, this.columns, this.glowRings, this.beams, this.orbits);
     // v5 (3.7, realism): Medium and up, the scanned metal chest from the model library (CC0, Poly Haven) when the site has it.
     if (o.tier >= 1 && cdnOn()) {
       void modelFor("prop", 1, o.tier, "metal_tool_chest").then((m) => {
@@ -406,6 +457,14 @@ export class TreasureView {
         if (e.found >= 0 && b) {
           this.flashes.push({ x: b.x, y: b.h, z: b.z, at: this.time, life: 2.2, r: 0.7 });
           this.o.sound?.treasure(c === me, near(b.x, b.z, 70));
+          if (tm.instant) {
+            // v7: the first find ends the hunt: who, and what it was.
+            this.risen.set(e.found, this.time);
+            const what = t(TREASURE_KIND_NAME[TREASURE_KINDS[e.found % TREASURE_KINDS.length]]);
+            if (c === me) this.o.sound?.voice.say("tre_found");
+            hud.pushFeed(`${c === me ? t("You") : (c?.name ?? "?")} ${t("found")} ${what}!`, c && m.sameSquad(c, me) ? "safe" : "out");
+            continue;
+          }
           if (c === me) {
             hud.pushFeed(`${t("Treasure found")}! ${tm.count[me.index]}/${tm.need}`, "safe");
             this.o.sound?.voice.say(tm.count[me.index] >= tm.need ? "tre_all" : "tre_found");
@@ -476,6 +535,11 @@ export class TreasureView {
   objectiveLine(m: Match): string {
     const tm = this.tm(m);
     if (!tm) return "";
+    if (tm.instant) {
+      let left = 0;
+      for (const b of tm.boxes) if (!b.opened) left++;
+      return `${t("Find the treasure")} · ${left} ${t("boxes")}`;
+    }
     const me = m.contestants[this.o.me];
     const squad = (q: number) => m.contestants.reduce((a, c) => a + (m.squads[c.index] === q ? tm.count[c.index] : 0), 0);
     let best = 0;
@@ -526,6 +590,46 @@ export class TreasureView {
     if (nc) this.closed.instanceMatrix.needsUpdate = true;
     if (no) this.opened.instanceMatrix.needsUpdate = true;
 
+    // ── v7: every closed box seen from far (an instant hunt): a beam, an orbit close up, the map, the compass ──
+    let boxPin: ItemPin | null = null;
+    if (tm.instant) {
+      let nb = 0;
+      let nr = 0;
+      let best = Infinity;
+      for (const b of tm.boxes) {
+        if (b.opened) continue;
+        const d = Math.hypot(b.x - cam.x, b.z - cam.z);
+        // The beam: dim right beside it (it would blind), full from 14 m; wider with distance so it stays a few
+        // pixels across from the far side of the map, and brighter there.
+        if (nb < this.beams.instanceMatrix.count) {
+          const w = Math.max(0.2, d * 0.0045);
+          this.beams.setMatrixAt(nb, _m.compose(_p.set(b.x, b.h, b.z), _q.identity(), _s.set(w, 60, w)));
+          this.beams.setColorAt(nb, _c.set("#ffc23a").multiplyScalar((0.35 + 0.65 * Math.min(1, d / 14)) * (1 + Math.min(1.5, d / 200))));
+          nb++;
+        }
+        // Two rings of sparks round it, crossed and turning, within ORBIT_RANGE.
+        if (d < ORBIT_RANGE && nr < MAX_ORBITS * 2) {
+          const k = Math.min(1, (ORBIT_RANGE - d) / 15);
+          for (let j = 0; j < 2; j++) {
+            _q.setFromEuler(_e.set(j ? 0.5 : -0.45, this.time * (j ? 0.7 : -0.5) + b.index, j ? 0.25 : -0.3));
+            this.orbits.setMatrixAt(nr, _m.compose(_p.set(b.x, b.h + 0.3, b.z), _q, _s.set(1.5 + j * 0.25, 1, 1.5 + j * 0.25)));
+            this.orbits.setColorAt(nr, _c.setRGB(((b.index * 0.37 + j * 0.5) % 1), (b.index * 0.61) % 1, k));
+            nr++;
+          }
+        }
+        const dm = Math.hypot(b.x - me.x, b.z - me.z);
+        if (dm < MAP_RANGE) marks.push({ x: b.x, z: b.z, kind: "chest" });
+        if (dm < best) {
+          best = dm;
+          boxPin = { x: b.x, z: b.z, kind: "crate" };
+        }
+      }
+      this.beams.count = nb;
+      this.orbits.count = nr;
+      if (nb) this.beams.instanceMatrix.needsUpdate = this.beams.instanceColor!.needsUpdate = true;
+      if (nr) this.orbits.instanceMatrix.needsUpdate = this.orbits.instanceColor!.needsUpdate = true;
+    }
+
     // ── Relics, their light ──
     let ng = 0;
     let nl = 0;
@@ -551,8 +655,18 @@ export class TreasureView {
         pin = { x, z, kind };
       }
     };
+    if (boxPin) aim((boxPin as ItemPin).x, (boxPin as ItemPin).z, "crate");
     const carriedBy = new Map<number, number>();
     for (const tr of tm.treasures) {
+      // v7: an instant hunt's find rises out of its open box, turning, and hangs there.
+      const rose = this.risen.get(tr.index);
+      if (rose !== undefined && tr.box >= 0) {
+        const b = tm.boxes[tr.box];
+        const u = Math.min(1, (this.time - rose) / 1.2);
+        gem(b.x, b.h + 0.35 + (1 - (1 - u) * (1 - u)) * 1.1 + Math.sin(this.time * 2.2) * 0.06 * u, b.z, 0.6 + 0.6 * u, this.time * 2);
+        glow(b.x, b.h, b.z, 0.5, 20, "#ffd36a", 1);
+        continue;
+      }
       if (tr.box !== -1) continue;
       if (tr.holder >= 0) {
         const c = m.contestants[tr.holder];
@@ -694,7 +808,7 @@ export class TreasureView {
 
   dispose(): void {
     this.gone = true;
-    for (const mesh of [this.closed, this.opened, this.gems, this.columns, this.glowRings]) {
+    for (const mesh of [this.closed, this.opened, this.gems, this.columns, this.glowRings, this.beams, this.orbits]) {
       mesh.geometry.dispose();
       mesh.dispose();
     }

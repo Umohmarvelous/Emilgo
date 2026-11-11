@@ -102,13 +102,16 @@ export const BUILTIN_MANIFEST: Manifest = {
   modes: [
     // ── Free For All (Naija World) ──
     {
-      id: "treasure-hunt", v: 1, family: "ffa", minRank: "rookie-1", players: SOLO_OR_SQUAD, map: "max-world", time: 720,
+      // v7 (the owner: "remove the timer, the game ends immediately a treasure is found ... any box can be opened but
+      // not all boxes will have treasures in them"): 32 boxes round the zone's centre, 5 with a treasure in; the first
+      // to open one wins at once. No machine, no clock on screen (30 minutes is only a backstop; the zone ends it).
+      id: "treasure-hunt", v: 2, family: "ffa", minRank: "rookie-1", players: SOLO_OR_SQUAD, map: "max-world", time: 1800,
       name: { en: "Treasure Hunt", pcm: "Treasure Hunt" },
-      blurb: { en: "Find the 5 hidden treasures and upload them at the machine. Kill for what others found.", pcm: "Find the 5 treasure wey hide, go upload am for the machine. Kill person collect wetin e find." },
+      blurb: { en: "Open a box with a treasure in it first. 5 of the boxes hold one.", pcm: "Na who first open box wey get treasure win. 5 box get treasure." },
       respawn: { on: true, delay: 6 },
-      modules: { zone: ZONE_FFA, items: ITEMS, vehicles: CARS, airfall: AIRFALL, melee: MELEE, treasure: { need: 5, boxes: 44, upload: 12 } },
-      win: { kind: "most", measure: "treasure.count" },
-      ranked: { ...RANKED, "respawn.on": false, "treasure.upload": 18 },
+      modules: { zone: ZONE_FFA, items: ITEMS, vehicles: CARS, airfall: AIRFALL, melee: MELEE, treasure: { need: 5, boxes: 32, instant: true, area: 240 } },
+      win: { kind: "first", event: "treasure.found" },
+      ranked: { ...RANKED, "respawn.on": false, "treasure.need": 3 },
     },
     {
       id: "find-the-flag", v: 3, family: "ffa", minRank: "rookie-1", players: SOLO_OR_SQUAD, map: "max-world", time: 540,

@@ -7,10 +7,11 @@
 //   node server/build-tools.mjs && node server/dist/treasuretest.mjs
 
 import { GROWTH, GUNS, TREASURE } from "../../src/config";
-import { BUILTIN_MANIFEST } from "../../src/content/modes";
+import { BUILTIN_MANIFEST, type ModeDef } from "../../src/content/modes";
 import { Match, settingsOf } from "../../src/game/core/match";
 import type { MatchEvent } from "../../src/game/core/module";
 import type { TreasureModule } from "../../src/game/modules/treasure";
+import type { ZoneModule } from "../../src/game/modules/zone";
 import type { ItemsModule } from "../../src/game/modules/items";
 import type { GunsModule } from "../../src/game/modules/guns";
 import type { ItemId } from "../../src/content/items";
@@ -24,14 +25,17 @@ function check(ok: boolean, label: string): void {
 }
 
 const DT = 1 / 60;
-const def = BUILTIN_MANIFEST.modes.find((d) => d.id === "treasure-hunt")!;
+const live = BUILTIN_MANIFEST.modes.find((d) => d.id === "treasure-hunt")!;
+// v7: the live mode is the instant hunt (its own section at the end); the v5 rules (carry all five to the machine and
+// upload) stay in the module, and most of this file tests them on the v5 definition.
+const def: ModeDef = { ...live, time: 720, modules: { ...live.modules, treasure: { need: 5, boxes: 44, upload: 12 } } };
 const world = worldFor(def.map);
 
-function fresh(seed: number, n: number, squads?: number[], secret = 99, mirror = false): Match {
+function fresh(seed: number, n: number, squads?: number[], secret = 99, mirror = false, d: ModeDef = def): Match {
   const m = new Match({
     seed,
     world,
-    settings: settingsOf(def),
+    settings: settingsOf(d),
     countdown: 0.1,
     secret,
     mirror,
@@ -310,6 +314,45 @@ console.log("XP, line by line:");
   const k = xpParts(cases[1]).find((p) => p.label === "Kills");
   check(!!k && k.xp === KILL_XP_CAP && k.note === "×30", `kills pay ${KILL_XP} XP each, up to ${KILL_XP_CAP}`);
   check(matchXp({ ...cases[0], kills: 0 }) < matchXp(cases[0]), "kills are rewarded");
+}
+
+console.log("v7, the instant hunt (the live mode):");
+{
+  const m = fresh(11, 6, undefined, 99, false, live);
+  const tm = tmOf(m);
+  const c = tm.spot(m);
+  check(tm.instant && !tm.machine, "no machine");
+  check(tm.boxes.length >= 24 && tm.boxes.every((b) => Math.hypot(b.x - c.x, b.z - c.z) <= TREASURE.area + 0.01), `${tm.boxes.length} boxes, every one within ${TREASURE.area} m of the hunt's centre`);
+  check(tm.treasures.length === 5 && tm.treasures.every((t) => Math.hypot(tm.boxes[t.box].x - c.x, tm.boxes[t.box].z - c.z) <= TREASURE.core + 0.01), `5 real, all within ${TREASURE.core} m of it`);
+  // The zone keeps the centre near each circle's middle.
+  const zone = m.module<ZoneModule>("zone")!;
+  check(zone.circles.slice(1, 4).every((q) => Math.hypot(q.x - c.x, q.z - c.z) <= q.r * 0.3 + 1), "the first three circles keep the centre within 0.3 of their radius");
+  const real = new Set(tm.treasures.map((t) => t.box));
+  const empty = tm.boxes.find((b) => !real.has(b.index))!;
+  put(m, "p0", empty.x + 0.6, empty.z, empty.h);
+  hold(m, "p0", true);
+  run(m, TREASURE.open + 0.1);
+  hold(m, "p0", false);
+  check(empty.opened && !m.over, "an empty box: opened, the hunt goes on");
+  const first = tm.boxes[tm.treasures[2].box];
+  put(m, "p3", first.x + 0.6, first.z, first.h);
+  hold(m, "p3", true);
+  const ev: MatchEvent[] = [];
+  run(m, TREASURE.open + 0.1, ev);
+  check(m.over && m.winner?.id === "p3" && ev.some((e) => e.type === "tbox" && e.found === 2), "a real box: P3 wins at once, the treasure named (index 2)");
+  const st = m.standings().find((x) => x.id === "p3");
+  check(tm.count[3] === 1 && !!st && st.place === 1 && st.won && st.objective === 1, "P3 first, the find counted");
+  // The phone's copy learns it from the event.
+  const ph = fresh(11, 6, undefined, 99, true, live);
+  for (const e of ev) tmOf(ph).apply(ph, e);
+  check(tmOf(ph).boxes[first.index].opened && tmOf(ph).treasures[2].box === first.index && tmOf(ph).count[3] === 1, "the phone's copy: the box open, the treasure in it, P3's count");
+  const sq = fresh(12, 6, [0, 0, 1, 1, 2, 2], 99, false, live);
+  const ts = tmOf(sq);
+  const b2 = ts.boxes[ts.treasures[0].box];
+  put(sq, "p1", b2.x + 0.6, b2.z, b2.h);
+  hold(sq, "p1", true);
+  run(sq, TREASURE.open + 0.1);
+  check(sq.over && sq.winner?.squad === 0, "squads: P1's find wins it for squad 0");
 }
 
 console.log(failures ? `\n${failures} FAILED` : "\nall passed");

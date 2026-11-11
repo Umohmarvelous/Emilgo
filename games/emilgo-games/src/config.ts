@@ -551,7 +551,17 @@ export const TREASURE = {
   field: 9,
   ring: 7,
   upload: 12,
+  /**
+   * v7 (instant hunts): every box within `area` m of the hunt's centre (the zone closes on it), the real ones within
+   * `core` of it, so they're always in the circle or just outside it.
+   */
+  area: 240,
+  core: 150,
 } as const;
+
+/** v7: what each of an instant hunt's treasures is, by its index (the reveal draws it, the feed names it). */
+export const TREASURE_KINDS = ["diamond", "gold", "silver", "emerald", "ruby", "sapphire", "pearl", "crown", "amethyst"] as const;
+export type TreasureKind = (typeof TREASURE_KINDS)[number];
 
 /**
  * Growth (v5, 3.2): Titan Serum, one level a dose. Same size (the owner: no

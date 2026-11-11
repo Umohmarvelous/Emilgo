@@ -2420,7 +2420,8 @@ export class Game {
       kind,
       mode: def.name.en,
       goal: def.blurb.en,
-      time: def.time,
+      // v7: an instant hunt has no clock (0: the loading screen shows no minutes).
+      time: def.modules.treasure?.instant ? 0 : def.time,
       map: kind === "run" ? "Spooky World" : def.map.includes(":") ? "Meridian City · the arcade" : def.map.startsWith("naija-max") ? "Meridian Max" : "Meridian City",
       players: players?.length ? players.map((p) => (p.me ? { ...p, rank: me.rank } : p)) : [me],
       drop: art?.name ?? "Spooky World",

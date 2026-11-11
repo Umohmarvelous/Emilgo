@@ -1037,7 +1037,7 @@ export class Screens {
         : `<div class="label">Mode</div><div class="seg wrap ffa-modes">${seg || `<span class="small">No mode here yet.</span>`}</div>
            ${ranked}
            ${s.mutator ? `<span class="small mu pdesc">${icon("star", "", 12)} ${esc(t("This week"))}: ${esc(t(s.mutator))}</span>` : ""}
-           ${p ? `<span class="small pdesc">${esc(p.blurb.en)} ${p.players.min === p.players.max ? `${p.players.max} players` : `${p.players.min}–${p.players.max} players`}${p.players.squad[1] > 1 ? `, squads of ${p.players.squad[0] === p.players.squad[1] ? p.players.squad[0] : `up to ${p.players.squad[1]}`}` : ""}, ${Math.round(p.time / 60)} min.</span>` : ""}`;
+           ${p ? `<span class="small pdesc">${esc(p.blurb.en)} ${p.players.min === p.players.max ? `${p.players.max} players` : `${p.players.min}–${p.players.max} players`}${p.players.squad[1] > 1 ? `, squads of ${p.players.squad[0] === p.players.squad[1] ? p.players.squad[0] : `up to ${p.players.squad[1]}`}` : ""}${p.modules.treasure?.instant ? "" : `, ${Math.round(p.time / 60)} min`}.</span>` : ""}`;
     const label = s.mode === "friends" ? "Make a room" : s.mode === "solo" ? "Practice" : s.mode === "lagos" ? "Stakes" : "Find a match";
     const blocked = off(s.mode) || s.connecting || (s.mode !== "lagos" && !picked) || (s.mode === "new" && !lead);
     const node = this.mount(
@@ -1497,7 +1497,7 @@ export class Screens {
       `<div class="loadscreen ${s.kind}${s.drop ? " v4" : ""}">
         ${drop}
         <div class="ld-people">${cards}</div>
-        <div class="ld-map glass"><span class="label">${esc(s.map)}</span><b class="ld-mode">${esc(s.mode)}</b><span class="small">${esc(s.goal)}</span><span class="small">${Math.round(s.time / 60)} min</span>${extra}${kit}<span class="ld-radio pdesc">“${esc(line)}”</span><button class="btn secondary ld-cancel" data-act="leave-room">Cancel</button></div>
+        <div class="ld-map glass"><span class="label">${esc(s.map)}</span><b class="ld-mode">${esc(s.mode)}</b><span class="small">${esc(s.goal)}</span>${s.time > 0 ? `<span class="small">${Math.round(s.time / 60)} min</span>` : ""}${extra}${kit}<span class="ld-radio pdesc">“${esc(line)}”</span><button class="btn secondary ld-cancel" data-act="leave-room">Cancel</button></div>
         <div class="ld-sign pdesc"><span class="ld-route">${["Building world", "Spawning items", s.kind === "run" ? "Waking the dead" : "Syncing players"].map((x, i) => `<i class="stop" style="animation-delay:${i * 1.1}s"></i><span>${esc(t(x))}</span>`).join("")}</span></div>
       </div>`,
     );

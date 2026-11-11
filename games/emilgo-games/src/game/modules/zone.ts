@@ -84,7 +84,10 @@ export class ZoneModule implements RuleModule {
     const rng = m.secretRng("zone");
     const reach = m.reach;
     // Treasure Hunt: every circle keeps the upload machine well inside, or the last one could shut it out.
-    const anchor = m.module<TreasureModule>("treasure")?.spot(m) ?? null;
+    const hunt = m.module<TreasureModule>("treasure");
+    const anchor = hunt?.spot(m) ?? null;
+    // v7: an instant hunt's centre stays nearer each circle's middle (0.3 of its radius; v5: 0.6), so its boxes are in.
+    const slack = hunt?.anchorSlack ?? 0.6;
     for (const p of this.phases) {
       const prev = this.circles[this.circles.length - 1];
       const room = Math.max(0, prev.r - p.r);
@@ -102,7 +105,7 @@ export class ZoneModule implements RuleModule {
         const x = prev.x + Math.cos(a) * d;
         const z = prev.z + Math.sin(a) * d;
         if (Math.abs(x - cx) > lim || Math.abs(z - cz) > lim || !reach.at(x, z)) continue;
-        if (anchor && Math.hypot(x - anchor.x, z - anchor.z) > p.r * 0.6) continue;
+        if (anchor && Math.hypot(x - anchor.x, z - anchor.z) > p.r * slack) continue;
         best = { x, z, r: p.r };
         break;
       }
