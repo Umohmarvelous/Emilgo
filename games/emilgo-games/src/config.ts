@@ -950,7 +950,8 @@ export const NET = {
   // 20 (v6): only the kept items in the loot, spread wider (the scatter changed).
   // 21 (v6 max): the higher jump (the body kernel changed), the boosters, the decoy and disguise in every mode.
   // 22 (v6 max, 3.13): snapshots pack only the bodies they carry; far bodies left out of some (interest management).
-  protocol: 22,
+  // 23 (v6 max, 3.4): the ground's earth patches (patches.ts): the zip lines' landings moved.
+  protocol: 23,
   tickHz: 60,
   /** Server → client state broadcasts per second. */
   snapshotHz: 15,

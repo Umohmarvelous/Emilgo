@@ -25,6 +25,7 @@ import type { Solid } from "../../game/core/space";
 import { placeBoards, type BoardWish } from "./billboards";
 import { buildNaijaWorld, EDGE, type Area, type GroundKind, type Landmark, type OpenLayout, type River, type Road } from "./naija";
 import { footprint, propPlaced, solidsOf, type Placement, type PrefabId } from "./prefabs";
+import { inPatch } from "./patches";
 import { PROPS } from "./propTable";
 
 export const MAX_HALF = 1000;
@@ -412,8 +413,9 @@ export function buildMaxWorld(seed = 1957): OpenLayout {
     const lx = (x - RUNWAY.x) * Math.cos(RUNWAY.rot) - (z - RUNWAY.z) * Math.sin(RUNWAY.rot);
     const lz = (x - RUNWAY.x) * Math.sin(RUNWAY.rot) + (z - RUNWAY.z) * Math.cos(RUNWAY.rot);
     if (Math.abs(lx) <= RUNWAY.w / 2 && Math.abs(lz) <= RUNWAY.len / 2) return "asphalt";
-    for (const p of PLACES) if (Math.hypot(p.x - x, p.z - z) <= p.r) return p.ground === "grass" && (Math.floor(x / 11) + Math.floor(z / 9)) % 5 === 0 ? "earth" : p.ground;
-    return (Math.floor(x / 17) + Math.floor(z / 13)) % 3 === 0 ? "earth" : "grass";
+    // v6 max (3.4): bare earth in soft patches through the grass (patches.ts), not a lattice of blocks.
+    for (const p of PLACES) if (Math.hypot(p.x - x, p.z - z) <= p.r) return p.ground === "grass" && inPatch(x, z, 26, 0.2, 31) ? "earth" : p.ground;
+    return inPatch(x, z, 40, 0.333, 32) ? "earth" : "grass";
   };
 
   return {

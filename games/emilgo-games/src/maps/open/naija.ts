@@ -13,6 +13,7 @@ import { Rng } from "../../core/rng";
 import type { Solid } from "../../game/core/space";
 import type { Surface } from "../registry";
 import { placeBoards, type BoardSlot, type BoardWish } from "./billboards";
+import { inPatch } from "./patches";
 import { footprint, propPlaced, solidsOf, type Placement, type PrefabId } from "./prefabs";
 import { PROPS } from "./propTable";
 
@@ -562,6 +563,7 @@ function groundOf(x: number, z: number): GroundKind {
   if (Math.abs(x - 92) < 22 && Math.abs(z - 110) < 28) return "asphalt"; // the bus park's lot
   if (Math.abs(x - 30) < 24 && Math.abs(z + 40) < 32) return "paving"; // the market's floor
   if (k === "commercial") return "paving";
-  if (k === "village" || k === "belt") return (Math.floor(x / 9) + Math.floor(z / 9)) % 3 === 0 ? "grass" : "earth";
-  return (Math.floor(x / 13) + Math.floor(z / 11)) % 4 === 0 ? "grass" : "earth";
+  // v6 max (3.4): grass in soft patches (patches.ts), not a lattice of blocks.
+  if (k === "village" || k === "belt") return inPatch(x, z, 18, 0.333, 11) ? "grass" : "earth";
+  return inPatch(x, z, 22, 0.25, 12) ? "grass" : "earth";
 }

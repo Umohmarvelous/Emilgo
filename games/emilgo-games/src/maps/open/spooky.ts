@@ -18,6 +18,7 @@ import { Rng } from "../../core/rng";
 import type { Solid } from "../../game/core/space";
 import { EDGE, rectOf, Taken, type GroundKind, type Landmark, type OpenLayout, type Road } from "./naija";
 import { placeBoards, type BoardWish } from "./billboards";
+import { inPatch } from "./patches";
 import { SPOOKY_ROUTE } from "./route";
 import { footprint, solidsOf, type Placement, type PrefabId } from "./prefabs";
 
@@ -307,7 +308,8 @@ function groundOf(roads: Road[], x: number, z: number): GroundKind {
     const t = Math.max(0, Math.min(1, ((x - r.x0) * dx + (z - r.z0) * dz) / len2));
     if ((r.x0 + dx * t - x) ** 2 + (r.z0 + dz * t - z) ** 2 <= (r.w / 2) ** 2) return r.kind;
   }
-  return (Math.floor(x / 11) + Math.floor(z / 9)) % 3 === 0 ? "grass" : "earth";
+  // v6 max (3.4): grass in soft patches (patches.ts), not a lattice of blocks.
+  return inPatch(x, z, 16, 0.333, 21) ? "grass" : "earth";
 }
 
 // ── The obstacles ────────────────────────────────────────────────────────────
