@@ -346,8 +346,9 @@ export class CameraRig {
     this.fov += (wantFov - this.fov) * (1 - Math.exp(-dt * 8));
 
     this.camera.position.copy(this.pos);
-    // v6: a runner's bob at a sprint (stride-timed), stronger in the tactical burst.
-    if (this.sprintK > 0.02 && this.mode === "follow" && !this.firstPerson) this.camera.position.y += Math.sin(this.time * 12.5) * 0.03 * this.sprintK;
+    // v6: a runner's bob at a sprint (stride-timed), stronger in the tactical burst. v7: a third as much (the owner:
+    // "the screen shakes when she is running").
+    if (this.sprintK > 0.02 && this.mode === "follow" && !this.firstPerson) this.camera.position.y += Math.sin(this.time * 12.5) * 0.01 * this.sprintK;
     if (this.shake > 0.001) {
       const s = this.shake * this.shake * 0.35;
       this.camera.position.x += (Math.sin(this.time * 61) + Math.sin(this.time * 37)) * 0.5 * s;

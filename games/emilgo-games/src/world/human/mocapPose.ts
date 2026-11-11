@@ -69,7 +69,12 @@ const ZOMBIE_KNOTS: [string, number][] = [
   ["zIdle", 0],
   ["zWalk", 1.2],
 ];
-const MAX_RATE = 1.55;
+// v7 (the owner: the run's stride "too long", the knee "too low to the ground", the screen shaking): the clips may
+// play faster (v6: 1.55×) so the game's run and sprint come from quicker steps, not longer ones, and the legs'
+// swing stretches at most 10% (v6: 35%). A long stretched stride spread the feet and dropped the body (the ground
+// solver puts the lowest foot on the ground) and bobbed it with every step.
+const MAX_RATE = 1.9;
+const MAX_STRETCH = 1.1;
 
 /** Weights of the knots for a speed (piecewise linear). */
 function knotWeights(knots: [string, number][], speed: number, out: number[]): void {
@@ -108,8 +113,8 @@ function rateFor(knots: [string, number][], speed: number): { rate: number; stre
     const want = Math.max(speed, 0.4) / cs;
     const r = Math.min(MAX_RATE, Math.max(0.75, want));
     rate += (_w[k] * r) / c.dur;
-    // What the playback rate can't cover, the stride takes (up to +35%).
-    stretch += _w[k] * Math.min(1.35, Math.max(1, want / r));
+    // What the playback rate can't cover, the stride takes (up to MAX_STRETCH).
+    stretch += _w[k] * Math.min(MAX_STRETCH, Math.max(1, want / r));
     moving += _w[k];
   }
   return { rate, stretch: moving > 0 ? stretch / moving : 1 };
@@ -295,6 +300,18 @@ export function mocapPose(a: AnimState, out: Pose): boolean {
   }
   normalise(QB);
   if (stretch > 1.001) for (const i of LEGS) stretchBone(QB, i, i === LEGS[4] || i === LEGS[5] ? 1 + (stretch - 1) * 0.5 : stretch);
+  // v7 (the owner: "her knee is too low to the ground ... take it up a little when she runs"): the jog and sprint
+  // clips run crouched, the head a quarter of a metre under a walker's. Running, the legs bend less (knees 30%,
+  // hips 12%, ankles 20%), so she runs tall, as a real runner does, and the body bobs less with each step.
+  const tall = a.undead ? 0 : stand * Math.max(0, Math.min(1, (speed - 2.2) / 2.8));
+  if (tall > 0.01) {
+    stretchBone(QB, LEGS[0], 1 - 0.12 * tall);
+    stretchBone(QB, LEGS[1], 1 - 0.12 * tall);
+    stretchBone(QB, LEGS[2], 1 - 0.3 * tall);
+    stretchBone(QB, LEGS[3], 1 - 0.3 * tall);
+    stretchBone(QB, LEGS[4], 1 - 0.2 * tall);
+    stretchBone(QB, LEGS[5], 1 - 0.2 * tall);
+  }
 
   // In the air, then the landing's settle (less of it on the move).
   const air = a.mAir ? Math.min(1, a.mAirT / 0.12) : 0;
