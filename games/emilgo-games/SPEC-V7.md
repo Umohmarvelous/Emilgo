@@ -22,16 +22,16 @@ performance kept as it is (smooth on a medium phone).
 
 | # | Item | Status |
 |---|---|---|
-| 1.1 | Free For All shows only **Treasure Hunt**; XP and Ranked work on it; one switch in the code (`FEATURES.huntOnly`) | Not started |
-| 1.2 | The **Smoke Canister** out of every loot table | Not started |
-| 1.3 | Default graphics: **Medium** on laptops and desktops, **Low** on phones | Not started |
-| 1.4 | **Icons only**, no text labels on items and prompts ("tap to open box", the map viewer…) | Not started |
-| 1.5 | Phone: the long descriptions off the mode and loading screens (Meridian Max's, "This week"'s…) | Not started |
-| 1.6 | **One** jump sound, always the same | Not started |
-| 1.7 | Free For All's worlds: the faceted stones, the farm's long brown ridges and stems, the houses' bare posts **removed** | Not started |
-| 1.8 | The zone **slower** (COD-style), the gas slower to hurt | Not started |
-| 1.9 | Running: knees **higher**, the camera steadier (no shake) | Not started |
-| 1.10 | The trees stop **swaying** | Not started |
+| 1.1 | Free For All shows only **Treasure Hunt**; XP and Ranked work on it; one switch in the code (`FEATURES.huntOnly`) | Done. `FEATURES.huntOnly` in `src/config.ts` (true now): every other public FFA mode off in menus, the rotation and the server; the staked Flag Duel and the test's City Flag stay. contenttest checks both ways |
+| 1.2 | The **Smoke Canister** out of every loot table | Done. Out of `ffa-core` and `airfall`; its rule and look kept, unused |
+| 1.3 | Default graphics: **Medium** on laptops and desktops, **Low** on phones | Done. Auto: phones and tablets Low, computers Medium; High and Max by choice |
+| 1.4 | **Icons only**, no text labels on items and prompts ("tap to open box", the map viewer…) | Done. The interact button is a round icon (a chest for a box, the upload arrow, a hand); effects show icon + seconds; the backpack shows the item's icon big and icon buttons (use, drop); the map drops its labels and "MAP PRINT"; the daily chest's "Tap to open" is a hand. Words kept for screen readers |
+| 1.5 | Phone: the long descriptions off the mode and loading screens (Meridian Max's, "This week"'s…) | Done. On phones (narrow, or landscape under 540 px high) Meridian Max's paragraph, "This week", the blurbs, the ways-to-play lines, the notes, the loading screen's radio line and route are hidden |
+| 1.6 | **One** jump sound, always the same | Done. One recorded take (the deepest of the three), always the same, nothing layered (question 2) |
+| 1.7 | Free For All's worlds: the faceted stones, the farm's long brown ridges and stems, the houses' bare posts **removed** | Done. The "stone" is the drawn bush (a faceted green blob with no collision); bushes and the Old Farm are left out of both worlds (their ground kept clear, so nothing else moved); the houses' veranda posts gone; Low draws the scanned rocks too (~40 KB). Protocol 25 |
+| 1.8 | The zone **slower** (COD-style), the gas slower to hurt | Done. Each circle closes over ~2 min (v6: 40–50 s), the last shut at ~16 min; 8 s warning, then about half v6's harm (1.5 → 10 a second) |
+| 1.9 | Running: knees **higher**, the camera steadier (no shake) | Done. The run clips were crouched and stretched up to 35%: now quicker steps (up to 1.9×), 10% stretch at most, legs straighter running (head ~12 cm higher); the camera's sprint bob a third |
+| 1.10 | The trees stop **swaying** | Done. No sway. The card still turns to you: real 3D trees are 3.3 |
 
 ## Tier 2: one system each, built now
 
