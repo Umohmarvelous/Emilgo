@@ -10,6 +10,7 @@
 
 import { GROUND_LIB, WALL_LIB } from "./atlasLists";
 import { ktxAtlas } from "../../assets/ktx";
+import { GrassField } from "./grass";
 import { impostorMesh, loadImpostors, speciesOf, type ImpostorSet, type Species } from "./impostors";
 import { PROPS } from "./propTable";
 import {
@@ -1102,6 +1103,8 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }, lib: W
   const group = new Group();
   const uTime = { value: 0 };
   const space = new Space(L.solids, { x0: -L.half, z0: -L.half, x1: L.half, z1: L.half }, (x, z) => SURFACE_OF[L.groundAt(x, z)]);
+  // v6 max (3.3/3.4): grass tufts round the camera, Medium and up (grass.ts: made as the camera comes near).
+  const grass = spec.tier >= 1 ? new GrassField(L, space, spec, uTime, group) : null;
 
   // ── Light (v4 rework): with the HDR sky, a clear afternoon whose haze is its horizon; without it, the old warm haze. ──
   const photo = lib?.sky ?? null;
@@ -1591,6 +1594,7 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }, lib: W
     update(dt, focus, cam) {
       uTime.value += dt;
       sky.update(dt, cam);
+      grass?.update(cam);
       const here = cellIndex(cam.x, cam.z);
       const usePvs = cam.y < PVS_EYE;
       drawn = 0;
@@ -1627,6 +1631,7 @@ function* steps(L: OpenLayout, spec: TierSpec, opts: { night?: boolean }, lib: W
       await renderer.compileAsync(scene, camera);
     },
     dispose() {
+      grass?.dispose();
       sky.dispose();
       gtex.dispose();
       group.traverse((o) => (o as Mesh).geometry?.dispose?.());

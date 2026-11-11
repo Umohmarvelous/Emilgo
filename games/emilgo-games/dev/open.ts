@@ -352,15 +352,16 @@ function frame(now: number): void {
   rig.follow(false, { x: me.x, z: me.z, y: me.y, stance: me.stance, ground: me.h });
   rig.update(dt, { x: me.x, z: me.z, y: me.y, stance: me.stance, ground: me.h });
   focus.set(me.x, me.h, me.z);
-  world.update(dt, focus, camera.position);
-  crowd.update(dt, people, camera.position);
   const eye = q.get("eye")?.split(",").map(Number);
+  // (With a fixed eye, the world updates for it alone: what's made round the camera, the grass, follows one camera.)
+  if (!eye) world.update(dt, focus, camera.position);
+  crowd.update(dt, people, camera.position);
   if (eye) {
     camera.position.set(eye[0], eye[1], eye[2]);
     camera.lookAt(eye[3], eye[4], eye[5]);
     camera.far = 2000;
     camera.updateProjectionMatrix();
-    world.update(0, focus.set(eye[3], 0, eye[5]), camera.position);
+    world.update(dt, focus.set(eye[3], 0, eye[5]), camera.position);
   }
   boardView?.update(dt, camera);
   const sky = q.get("sky");

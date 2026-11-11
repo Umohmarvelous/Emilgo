@@ -101,7 +101,7 @@ const PLACES: Place[] = [
   { id: "refinery", name: "Black Refinery", x: 700, z: 700, r: 230, ground: "earth" },
   { id: "dunes", name: "Dune Sea", x: 0, z: 740, r: 240, ground: "sand" },
   { id: "airfield", name: "Old Airfield", x: -700, z: 700, r: 240, ground: "earth" },
-  { id: "mangrove", name: "Mangrove Sink", x: -760, z: 0, r: 220, ground: "earth" },
+  { id: "mangrove", name: "Mangrove Sink", x: -760, z: 0, r: 220, ground: "grass" },
   { id: "neon", name: "Neon Row", x: -760, z: -560, r: 140, ground: "paving" },
   { id: "arena", name: "The Arena", x: -560, z: -800, r: 110, ground: "paving" },
   { id: "glass", name: "Glass District", x: 330, z: -330, r: 118, ground: "paving" },
@@ -290,7 +290,9 @@ export function buildMaxWorld(seed = 1957): OpenLayout {
   place("rangertower", P.ironwood.x + 20, P.ironwood.z, 0);
   for (const [dx, dz] of [[-40, 30], [60, -50], [-90, -80], [110, 70]]) place("cabin", P.ironwood.x + dx, P.ironwood.z + dz, rng.range(0, 6.28));
   scatter(P.ironwood, "rock", 60, { inner: 0.02 });
-  scatter(P.ironwood, "pine", 520, { inner: 0.03, gap: 1.6 });
+  // v6 max (3.3, the v4 picture): broadleaves among the pines, over a meadow (grass.ts).
+  scatter(P.ironwood, "pine", 420, { inner: 0.03, gap: 1.6 });
+  scatter(P.ironwood, "tree", 150, { inner: 0.05, gap: 2 });
   // ── Windmere Ridge: turbines in rows across the grass, rocks between ──
   for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) if ((i + j) % 2 === 0) place("turbine", P.windmere.x + i * 80 + rng.range(-6, 6), P.windmere.z + j * 80 + rng.range(-6, 6), 0.6);
   scatter(P.windmere, "rock", 40);
