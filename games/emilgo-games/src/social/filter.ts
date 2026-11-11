@@ -65,6 +65,13 @@ const CONTACT: [RegExp, string][] = [
   // 7+ digits, allowing spaces/dashes/dots between (phones, NUBAN account numbers, cards).
   [/\+?(?:\d[\s.-]?){6,}\d/g, "[number removed]"],
   [/(?:^|\s)@[a-z0-9_.]{2,}/gi, " [handle removed]"],
+  // v6 max (3.11): street addresses, in chat and direct messages ("I live at No 5 Adeola Street", "12 Allen Avenue",
+  // "plot 7 lekki phase 1 estate", "my address is …"). A name in capitals before the street word, so "3 kills on the
+  // road" stays.
+  [/\b(?:my|our|the)\s+(?:home\s+|house\s+)?address\s+(?:is|na|be)\b.*$/gi, "[address removed]"],
+  [/\b(?:i|we)\s+(?:live|stay|dey\s+stay)\s+(?:at|for|in)\s+(?:no\.?\s*)?\d.*$/gi, "[address removed]"],
+  [/\b(?:no\.?|number|plot|house|flat|block|apartment|apt)\s*\d+[a-z]?\b[^.!?\n]{0,40}?\b(?:street|str|st|road|rd|avenue|ave|close|crescent|cres|lane|ln|way|drive|dr|estate|layout|junction|bus\s*stop)\b\.?/gi, "[address removed]"],
+  [/\b\d{1,4}[a-zA-Z]?,?\s+(?:[A-Z][\w'-]*\s+){1,3}(?:[Ss]treet|[Ss]tr|[Ss]t|[Rr]oad|[Rr]d|[Aa]venue|[Aa]ve|[Cc]lose|[Cc]rescent|[Ll]ane|[Ww]ay|[Dd]rive|[Ee]state|[Ll]ayout)\b\.?/g, "[address removed]"],
 ];
 
 export interface Filtered {

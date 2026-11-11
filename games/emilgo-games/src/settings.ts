@@ -6,6 +6,7 @@ import type { SongChoice } from "./audio/songs";
 import { DEFAULT_DISTANCE, DISTANCES, MODES, type Distance, type Mode } from "./config";
 import { cleanChest, type ChestState } from "./game/chest";
 import { cleanAwards, freshAwards, type AwardState } from "./rank/awards";
+import { cleanDms, cleanHistory, type DmThread, type MatchRecord } from "./social/profile";
 import { levelOf } from "./game/progress";
 import { EMOTE_IDS, type EmoteId } from "./social/emotes";
 import type { Host } from "./platform/types";
@@ -170,6 +171,15 @@ export interface Settings {
   chest: ChestState;
   /** v6 max (3.10): the awards (rank/awards.ts): the counts, what's reached, the badge worn. */
   awards: AwardState;
+  /** v6 max (3.11): the last 30 matches (the profile's history). */
+  history: MatchRecord[];
+  /** v6 max (3.11): direct messages with friends (social/profile.ts), kept on this phone. */
+  dms: Record<string, DmThread>;
+  /** v6 max (3.11): take direct messages from friends; show my numbers on my public card. */
+  dmsOn: boolean;
+  cardPublic: boolean;
+  /** v6 max (3.11): friend ids blocked from a thread: their requests are ignored on this phone. */
+  blockedFids: string[];
   /** People you've played online with lately, newest first. `seat` reaches them while they're still online. */
   recent: { name: string; at: number; seat?: string }[];
   /** Your friend id in this copy of the game: random, never sent to Lagos Life or EMILGO, unknown to the other copy. */
@@ -251,6 +261,11 @@ export function defaults(host: Host): Settings {
     daily: { day: "", progress: [] },
     chest: { day: "", streak: 0 },
     awards: freshAwards(),
+    history: [],
+    dms: {},
+    dmsOn: true,
+    cardPublic: true,
+    blockedFids: [],
     recent: [],
     mode: "classic",
     distance: DEFAULT_DISTANCE,
@@ -289,7 +304,7 @@ export function defaults(host: Host): Settings {
 export const KEPT_ON_RESET: readonly (keyof Settings)[] = [
   "look", "avatar", "avatarSet", "suitV5", "badge", "lobbyPose", "wheel", "map", "mode", "distance", "tutorialSeen", "best", "played", "wins", "xp",
   "rankXp", "rankKnown", "deviceXp", "founder", "honour", "form", "streak", "runBest", "runWeapon", "runPerks", "runCharms", "runMods", "runDaily", "runDeaths",
-  "daily", "chest", "awards", "recent", "fid", "friends", "cp", "boosts", "boostsOn", "song",
+  "daily", "chest", "awards", "history", "dms", "blockedFids", "recent", "fid", "friends", "cp", "boosts", "boostsOn", "song",
 ];
 
 export function resetPrefs(host: Host, s: Settings): Settings {
@@ -395,6 +410,11 @@ export function loadSettings(host: Host): Settings {
     out.daily = saved.daily && typeof saved.daily.day === "string" && Array.isArray(saved.daily.progress) ? saved.daily : base.daily;
     out.chest = cleanChest(saved.chest);
     out.awards = cleanAwards(saved.awards);
+    out.history = cleanHistory(saved.history);
+    out.dms = cleanDms(saved.dms);
+    out.dmsOn = saved.dmsOn !== false;
+    out.cardPublic = saved.cardPublic !== false;
+    out.blockedFids = Array.isArray(saved.blockedFids) ? saved.blockedFids.filter((f) => typeof f === "string" && FID_RE.test(f)).slice(0, 200) : [];
     out.recent = Array.isArray(saved.recent) ? saved.recent.filter((r) => r && typeof r.name === "string").slice(0, 30) : [];
     if (!FID_RE.test(out.fid)) out.fid = newFid();
     return out;

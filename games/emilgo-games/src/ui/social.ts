@@ -26,7 +26,7 @@ export interface ChatLine {
   gold?: boolean;
 }
 
-export type ChatAction = { kind: "mute" | "block" | "friend"; seat: string; name: string } | { kind: "report"; seat: string; name: string; reason: ReportReason };
+export type ChatAction = { kind: "mute" | "block" | "friend" | "card"; seat: string; name: string } | { kind: "report"; seat: string; name: string; reason: ReportReason };
 
 export class ChatPanel {
   private readonly badge: HTMLElement;
@@ -173,6 +173,13 @@ export class ChatPanel {
       });
       extra.push(add);
     }
+    // v6 max (3.11): their public card.
+    const card = el("button", "", "Profile");
+    card.addEventListener("click", () => {
+      this.actionFn({ kind: "card", seat, name });
+      this.sheet.classList.remove("visible");
+    });
+    extra.push(card);
     const mute = el("button", "", this.muted.has(seat) ? "Unmute" : "Mute (only you stop seeing them)");
     mute.addEventListener("click", () => {
       if (this.muted.has(seat)) this.muted.delete(seat);

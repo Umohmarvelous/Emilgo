@@ -92,6 +92,8 @@ import type { BotBrain } from "./bots";
 import { chestOffer, openChest } from "./chest";
 import { addProgress, ensureDaily } from "./progress";
 import { badgeOf, recordMatch } from "../rank/awards";
+import { addHistory, myCard, unreadDms } from "../social/profile";
+import { divisionName, type ProfileView } from "../ui/profile";
 import { DIVISIONS, rankOf, rankUp } from "../rank/ladder";
 import { xpParts } from "../rank/xp";
 import { catalog, games } from "../content/catalog";
@@ -472,8 +474,15 @@ export class Game {
     this.friends.onChange(() => {
       this.showFriendCounts();
       if (this.screens.name === "friends") this.showFriends();
+      else if (this.screens.name === "inbox") this.showInbox();
+      else if (this.screens.name === "thread" && this.dmFid) this.showThread(this.dmFid, true);
     });
     this.friends.onNotice((n) => this.showNotice(n));
+    // v6 max (3.11): a direct message: into its open thread, else a toast (the lobby counts it).
+    this.friends.onDm((fid, name) => {
+      if (this.screens.name === "thread" && this.dmFid === fid) this.showThread(fid);
+      else if (!this.round || this.paused) this.screens.toast(`${t("Message from")} ${name}`);
+    });
     this.chat.canFriend = (seat, name) => (this.mode === "online" || !!this.room) && seat !== this.seatId && !this.settings.friends.some((f) => f.name === name);
     this.board.onPick = (seat, name) => this.chat.moderate(seat, name);
     this.rotator = new Rotator(ui, canvas, () => this.resize());
@@ -486,7 +495,8 @@ export class Game {
       this.applySettings();
     };
     this.chat.onAction((a) => {
-      if (a.kind === "friend") this.friends.ask(a.seat);
+      if (a.kind === "card") this.askCard({ id: a.seat }, a.name);
+      else if (a.kind === "friend") this.friends.ask(a.seat);
       else if (a.kind === "block") this.net?.send({ t: "block", id: a.seat });
       else if (a.kind === "report") this.net?.send({ t: "report", id: a.seat, reason: a.reason });
       else this.chat.add({ from: "", name: "", text: this.chat.isMuted(a.seat) ? `Muted ${a.name}.` : `Unmuted ${a.name}.`, mine: false, system: true });
@@ -732,6 +742,7 @@ export class Game {
       mode: this.playMode,
       badge: this.settings.badge && !!this.shop?.owned.has("badge_gold"),
       awards: { wear: badgeOf(this.settings.awards), fresh: this.settings.awards.fresh.length },
+      dms: unreadDms(this.settings.dms),
       ffa: !familyOn("ffa") ? "Dead Streets" : this.settings.game === "ffa" || !FEATURES.ballHaunt ? (this.ffaPick()?.name.en ?? "Free For All") : null,
       ...this.lobbyA(),
     });
@@ -904,6 +915,81 @@ export class Game {
   private showEmotes(): void {
     this.frame("left-panel");
     this.screens.emotes(this.emoteSel, this.owned(), this.settings.wheel, this.wheelSlot, !!this.shop);
+  }
+
+  // ── v6 max (3.11): the profile, the public card, messages ──
+
+  /** The friend whose thread is open; the card we're waiting for. */
+  private dmFid = "";
+  private cardWant: { id?: string; fid?: string; name: string } | null = null;
+
+  /** Tell the server my public card (and whether I take messages): on connect, after a match, on a change. */
+  private sendCard(): void {
+    if (this.net?.state !== "open") return;
+    this.net.send({ t: "card", c: myCard(this.settings, rankOf(this.rankXp).k), dms: this.settings.dmsOn });
+  }
+
+  /** Ask for a player's card (a seat or a recent player, or a friend). */
+  private askCard(who: { id?: string; fid?: string }, name: string): void {
+    if (this.net?.state !== "open") return void this.screens.toast(t("Profiles need the game server."));
+    this.cardWant = { ...who, name };
+    this.net.send({ t: "cardq", ...who });
+  }
+
+  private profileView(): ProfileView {
+    const rk = rankOf(this.rankXp);
+    return {
+      name: this.host.player.name || t("You"),
+      rank: { name: rk.name, into: rk.into, need: rk.need, top: rk.top, saved: this.settings.rankKnown },
+      awards: this.settings.awards,
+      history: this.settings.history,
+      cp: this.settings.cp,
+      honour: this.settings.honour,
+      honourTitle: honourTitle(this.settings.honour),
+      form: this.settings.form,
+      streak: this.settings.streak,
+      runBest: this.settings.runBest,
+      inbox: this.inboxRows(),
+      dmsOn: this.settings.dmsOn,
+      cardPublic: this.settings.cardPublic,
+      online: this.net?.state === "open",
+    };
+  }
+
+  /** Friends with a thread first (newest), then the rest of the list. */
+  private inboxRows(): ProfileView["inbox"] {
+    const dms = this.settings.dms;
+    const last = (fid: string) => dms[fid]?.lines[dms[fid].lines.length - 1];
+    return this.friends.list
+      .map((f) => ({ fid: f.fid, name: f.name, on: this.friends.stateOf(f.fid) !== "off", unread: dms[f.fid]?.unread ?? 0, last: last(f.fid)?.text ?? "", at: last(f.fid)?.at ?? 0 }))
+      .sort((a, b) => b.at - a.at)
+      .map(({ at: _at, ...r }) => r);
+  }
+
+  private showProfile(): void {
+    this.dmFid = "";
+    this.frame("left-panel");
+    this.screens.profile(this.profileView());
+  }
+
+  private showInbox(): void {
+    this.dmFid = "";
+    this.frame("left-panel");
+    if (this.onlineAvailability() === "ready") this.ensureNet()?.connect().catch(() => {});
+    this.screens.inbox(this.profileView());
+  }
+
+  /** A thread; `keep`: re-drawn for an update (the box keeps what's typed). */
+  private showThread(fid: string, keep = false): void {
+    const f = this.friends.list.find((x) => x.fid === fid);
+    if (!f) return this.showInbox();
+    const typed = keep ? (document.querySelector<HTMLInputElement>("[data-dm-input]")?.value ?? "") : "";
+    this.dmFid = fid;
+    this.frame("left-panel");
+    this.screens.thread(fid, f.name, this.settings.dms[fid], this.friends.stateOf(fid) !== "off");
+    this.friends.readDm(fid);
+    const box = document.querySelector<HTMLInputElement>("[data-dm-input]");
+    if (box && typed) box.value = typed;
   }
 
   /** v6 max (3.10): the Awards sheet; what was new is seen now (the lobby's dot goes). */
@@ -2108,7 +2194,23 @@ export class Game {
         this.sendLook();
         this.sendPrefs();
         this.friends.hello();
+        this.sendCard();
         break;
+      case "card": {
+        // v6 max (3.11): a card we asked for (a stale answer for someone else is dropped).
+        const want = this.cardWant;
+        if (!want || (m.fid ?? "") !== (want.fid ?? "") || (m.id ?? "") !== (want.id ?? "")) break;
+        this.cardWant = null;
+        const name = m.name || want.name;
+        if (this.round && !this.paused && !this.screens.name.match(/^(results|room|lobby)$/)) {
+          const c = m.c;
+          this.screens.toast(c ? `${name} · ${divisionName(c.r)}${c.p ? "" : ` · ${c.w} ${t("wins")} · ${c.k} ${t("kills")}`}` : `${name}: ${t("no card")}`);
+        } else {
+          this.frame("left-panel");
+          this.screens.card(name, m.c, want.fid ? "dm-back" : "back");
+        }
+        break;
+      }
       case "rank":
         if (m.hon !== undefined) this.settings.honour = m.hon;
         if (m.st !== undefined) this.settings.streak = m.st;
@@ -3011,6 +3113,65 @@ export class Game {
       case "awards":
         this.showAwards();
         break;
+      case "profile":
+        this.showProfile();
+        break;
+      case "inbox":
+        this.showInbox();
+        break;
+      case "dm-open":
+        this.showThread(d.fid ?? "");
+        break;
+      case "dm-back":
+        if (this.dmFid) this.showThread(this.dmFid);
+        else this.showInbox();
+        break;
+      case "dm-send": {
+        const box = document.querySelector<HTMLInputElement>("[data-dm-input]");
+        const text = box?.value.trim() ?? "";
+        const fid = d.fid ?? "";
+        if (!text || !fid) break;
+        if (this.net?.state !== "open") {
+          this.screens.toast(t("Messages need the game server."));
+          break;
+        }
+        this.friends.sendDm(fid, text);
+        this.showThread(fid);
+        document.querySelector<HTMLInputElement>("[data-dm-input]")?.focus();
+        break;
+      }
+      case "dm-card": {
+        const f = this.friends.list.find((x) => x.fid === d.fid);
+        if (f) this.askCard({ fid: f.fid }, f.name);
+        break;
+      }
+      case "dm-report": {
+        const fid = d.fid ?? "";
+        this.friends.reportDm(fid, "abuse");
+        this.screens.toast(t("Reported. Block them too if you want them gone."));
+        break;
+      }
+      case "dm-block": {
+        const f = this.friends.list.find((x) => x.fid === d.fid);
+        if (f) {
+          this.friends.block(f.fid);
+          this.screens.toast(`${t("Blocked")} ${f.name}`);
+        }
+        this.showInbox();
+        break;
+      }
+      case "pf-public":
+        this.settings.cardPublic = !this.settings.cardPublic;
+        saveSettings(this.host, this.settings);
+        this.sendCard();
+        this.showProfile();
+        break;
+      case "pf-dms":
+        this.settings.dmsOn = !this.settings.dmsOn;
+        saveSettings(this.host, this.settings);
+        this.sendCard();
+        this.showProfile();
+        break;
       case "award-wear": {
         // Wear a reached badge (or take it off): everyone online sees it from the next look.
         const a = this.settings.awards;
@@ -3018,6 +3179,7 @@ export class Game {
         a.wear = id && a.got[id] ? id : "";
         saveSettings(this.host, this.settings);
         this.sendLook();
+        this.sendCard();
         this.showAwards();
         break;
       }
@@ -3986,6 +4148,9 @@ export class Game {
         this.ffaRes.awards = got;
       }
     }
+    // v6 max (3.11): the profile's history, and the public card's new numbers.
+    this.settings.history = addHistory(this.settings.history, { mode: r.run ? "Dead Streets" : this.ffaRes.mode, won: r.won, place: me?.place ?? 0, sides: this.ffaRes.sides, kills: r.kills ?? 0, cp: this.ffaRes.cp ?? 0, online: !!online, at: Date.now() });
+    this.sendCard();
     // v6: the day's chest, until it's opened (on this screen or the next match's).
     const chest = chestOffer(this.settings.chest);
     if (chest) this.ffaRes.chest = chest;

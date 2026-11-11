@@ -9,7 +9,7 @@ import { randomBytes } from "node:crypto";
 import type { WebSocket } from "ws";
 
 import { NET } from "../../src/config";
-import type { ServerMsg } from "../../src/net/protocol";
+import type { ServerMsg, WireCard } from "../../src/net/protocol";
 import type { BoostId } from "../../src/shop/boosts";
 import type { WireLook } from "../../src/shop/catalog";
 import { now } from "./clock";
@@ -53,6 +53,10 @@ export class Peer {
   fid = "";
   friendFids: ReadonlySet<string> = new Set();
   acceptsReqs = true;
+  /** v6 max (3.11): takes direct messages from friends (the phone's setting). */
+  acceptsDms = true;
+  /** v6 max (3.11): the public card this phone shows others (phone-kept numbers; the rank from the profile when there is one). */
+  card: WireCard | null = null;
   readonly asked = new Set<string>();
   private chatTokens = 3;
   private chatRefill = now();

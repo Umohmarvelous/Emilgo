@@ -14,8 +14,9 @@ import type { ChallengeDef } from "../game/progress";
 import { CATEGORIES, MAPS, SKY_LABEL, SKY_STATES, mapOf, thumbSvg, type MapCategory, type SkyState } from "../maps/registry";
 import type { GameEntry, ModeEntry } from "../content/catalog";
 import { BUILTIN_MANIFEST } from "../content/modes";
-import type { RoomInfo } from "../net/protocol";
+import type { RoomInfo, WireCard } from "../net/protocol";
 import type { AwardState, Unlock } from "../rank/awards";
+import type { DmThread } from "../social/profile";
 import type { Rank } from "../rank/ladder";
 import type { Host, Leaderboard, MatchView } from "../platform/types";
 import { errorText } from "../platform/vatarErrors";
@@ -26,6 +27,7 @@ import type { FriendState } from "../social/friends";
 import { EMOTES, EMOTE_BY_ID, type EmoteId } from "../social/emotes";
 import { HOODIE_COLORS, HOODIE_DESIGNS, type HoodieDesign, type Look } from "../world/human/wardrobe";
 import { awardsBody, badgeEmblem, unlockedHtml } from "./awards";
+import { cardBody, inboxBody, profileBody, threadBody, type ProfileView } from "./profile";
 import { esc, fmtTime, ordinal } from "./dom";
 import { SPOOKY_ROUTE } from "../maps/open/route";
 import { divisionIndex } from "../content/validate";
@@ -221,6 +223,8 @@ export interface LobbyState {
   loadout?: { kit: string; armour: number; dead: string };
   /** v6 max (3.10): the badge worn ("veteran.3", or ""), and awards reached but not looked at yet. */
   awards?: { wear: string; fresh: number };
+  /** v6 max (3.11): unread direct messages. */
+  dms?: number;
 }
 
 type Action = (name: string, el: HTMLElement, ev: Event) => void;
@@ -361,12 +365,12 @@ export class Screens {
     const node = this.mount(
       "lobby",
       `<div class="vignette-lobby"></div>
-      <div class="lb-tl profile" data-act="customize" role="button" tabindex="0" aria-label="Your profile">
+      <div class="lb-tl profile" data-act="profile" role="button" tabindex="0" aria-label="Your profile">
         <button class="avatar" data-avatar data-act="avatar" aria-label="${esc(t("Change your avatar"))}"></button>
         <div class="who">
           <span class="nm" data-name></span>
           <span class="lv" title="${rk.into.toLocaleString()} / ${rk.need.toLocaleString()} XP${s.rankSaved ? "" : " (this device)"}"><b>${esc(rk.name.toUpperCase())}</b><span class="bar gold"><i style="width:${rk.top ? 100 : Math.round((rk.into / rk.need) * 100)}%"></i></span>${settings.founder ? `<span class="founder">FOUNDER</span>` : ""}${honourTitle(settings.honour) ? `<span class="founder honour">${esc(t(honourTitle(settings.honour)!).toUpperCase())}</span>` : ""}</span>
-          <span class="meta">${settings.form ? `<span class="form" title="${esc(t("Form: your last five online matches"))}">FORM <b>${[...settings.form].map((x) => `<i class="${x === "W" ? "w" : "l"}">${x}</i>`).join("")}</b></span>` : ""}${settings.streak >= 2 ? `<span class="streak">STREAK <b>${settings.streak}</b></span>` : ""}${s.board ? `<span>BOARD <b>${esc(s.board)}</b></span>` : ""}<span>BEST <b>${settings.best || 0}</b></span><span>CP <b>${settings.cp}</b></span><span class="money" data-act="money" role="button" tabindex="0" aria-label="${esc(t("Your Lagos Life money"))}">${icon("wallet", "", 11)}<b data-money>${s.money === null ? "₦ —" : naira(s.money)}</b></span></span>
+          <span class="meta">${settings.form ? `<span class="form" title="${esc(t("Form: your last five online matches"))}">FORM <b>${[...settings.form].map((x) => `<i class="${x === "W" ? "w" : "l"}">${x}</i>`).join("")}</b></span>` : ""}${settings.streak >= 2 ? `<span class="streak">STREAK <b>${settings.streak}</b></span>` : ""}${s.board ? `<span>BOARD <b>${esc(s.board)}</b></span>` : ""}${s.dms ? `<span class="dm-new">${icon("chat", "", 11)}<b>${s.dms > 9 ? "9+" : s.dms}</b></span>` : ""}<span>BEST <b>${settings.best || 0}</b></span><span>CP <b>${settings.cp}</b></span><span class="money" data-act="money" role="button" tabindex="0" aria-label="${esc(t("Your Lagos Life money"))}">${icon("wallet", "", 11)}<b data-money>${s.money === null ? "₦ —" : naira(s.money)}</b></span></span>
         </div>
       </div>
       ${tabsHtml("lobby")}
@@ -609,6 +613,34 @@ export class Screens {
        <div class="grid" style="grid-template-columns:repeat(4,1fr)">${slots}</div>
        ${!packOwned && EMOTES.some((e) => e.pack) ? `<div class="status" style="margin-top:12px">${icon("lock", "", 14)} Wobble, Shuffle and Hero come with the Party emote pack${canBuy ? ` · ${naira(PRODUCT_BY_ID.emotes_owambe.price)} in the Store` : " (inside Lagos Life)"}.</div>` : ""}`,
     );
+  }
+
+  /** v6 max (3.11): your profile: every stat, the awards, the history, privacy, the way to your messages. */
+  profile(p: ProfileView): void {
+    this.sheet("profile", "Profile", profileBody(p));
+  }
+
+  /** v6 max (3.11): your messages: one row per friend. */
+  inbox(p: Pick<ProfileView, "inbox" | "online" | "dmsOn">): void {
+    this.sheet("inbox", "Messages", inboxBody(p), { back: "profile" });
+  }
+
+  /** v6 max (3.11): a thread with a friend; Enter or the button sends (the session reads the box). */
+  thread(fid: string, name: string, th: DmThread | undefined, on: boolean): void {
+    const node = this.sheet("thread", name, threadBody(fid, th, on), { back: "inbox" });
+    const form = node.querySelector<HTMLFormElement>("form.dm-form");
+    form?.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const btn = form.querySelector<HTMLElement>("[data-act]");
+      if (btn) this.onAction(btn.dataset.act!, btn, e);
+    });
+    const log = node.querySelector<HTMLElement>("[data-dm-log]");
+    if (log) log.scrollTop = log.scrollHeight;
+  }
+
+  /** v6 max (3.11): another player's public card (`back`: where Back goes). */
+  card(name: string, c: WireCard | null, back = "back"): void {
+    this.sheet("card", name || "Player", cardBody(name, c), { back });
   }
 
   /** v6 max (3.10): the Awards sheet: the badge worn, the milestones and their bars, the achievements. */

@@ -101,7 +101,55 @@ export type ClientMsg =
   /** Yes to a request (`id` is the asker's id from their freq). */
   | { t: "facc"; id: string }
   /** Invite a friend (both list each other) to my room. */
-  | { t: "inv"; fid: string };
+  | { t: "inv"; fid: string }
+  // ── v6 max (3.11): the profile and direct messages ──
+  /**
+   * A direct message to a friend (by friend id). It only goes if we list each
+   * other and they take messages; it's cleaned like chat (no numbers, links or
+   * addresses). A friend who is off gets it when they come on (held a day).
+   */
+  | { t: "dm"; to: string; text: string; n: number }
+  /** Report a friend's direct messages (the server keeps what it passed between us as evidence). */
+  | { t: "dmrep"; fid: string; reason: ReportReason }
+  /** My public card (what others see when they open my profile), and whether I take direct messages. */
+  | { t: "card"; c: WireCard; dms: boolean }
+  /** Show me a player's card: a seat in my room or someone I played with (id), or a friend (fid). */
+  | { t: "cardq"; id?: string; fid?: string };
+
+/**
+ * v6 max (3.11): a player's public card. Numbers the phone keeps (as it keeps
+ * CP and awards), except the rank, which the server's profile gives when there
+ * is one. No ids, nothing that links a player anywhere else.
+ */
+export interface WireCard {
+  /** Rank division (rank/ladder rankOf(xp).k). */
+  r: number;
+  /** The badge worn ("veteran.3"). */
+  aw?: string;
+  /** Matches, wins, kills, head shots, badges reached, commends. */
+  m: number;
+  w: number;
+  k: number;
+  hs: number;
+  b: number;
+  h: number;
+  /** The last five results, newest first ("WLLWW"). */
+  f?: string;
+  /** Hidden by its owner: only the name, rank and badge show. */
+  p?: 1;
+}
+
+/** A card off the wire, checked (numbers clamped, strings shaped). */
+export function cleanCard(v: unknown): WireCard | null {
+  const o = v as Record<string, unknown> | null;
+  if (!o || typeof o !== "object") return null;
+  const n = (x: unknown, max = 1e7) => (typeof x === "number" && Number.isFinite(x) ? Math.max(0, Math.min(max, Math.floor(x))) : 0);
+  const c: WireCard = { r: n(o.r, 99), m: n(o.m), w: n(o.w), k: n(o.k), hs: n(o.hs), b: n(o.b, 999), h: n(o.h) };
+  if (typeof o.aw === "string" && /^[a-z-]{1,20}\.[1-4]$/.test(o.aw)) c.aw = o.aw;
+  if (typeof o.f === "string" && /^[WL]{0,5}$/.test(o.f)) c.f = o.f;
+  if (o.p === 1) c.p = 1;
+  return c;
+}
 
 export type ReportReason = "abuse" | "scam" | "cheating" | "name";
 export const REPORT_REASONS: Record<ReportReason, string> = {
@@ -282,7 +330,14 @@ export type ServerMsg =
   /** The server's word on a run: counted (the XP, your best and place, the board's best times) or not, and why. */
   | { t: "runres"; ok: boolean; why?: string; gain?: number; best?: number; place?: number; board?: { secs: number; you: boolean }[]; daily?: boolean }
   /** Someone commended you (§10.12); n: your commends now (none for a guest). */
-  | { t: "honour"; by: string; n?: number };
+  | { t: "honour"; by: string; n?: number }
+  // ── v6 max (3.11) ──
+  /** A direct message from a friend (cleaned), sent at `at` (ms since 1970, the server's clock). */
+  | { t: "dm"; fid: string; name: string; text: string; at: number }
+  /** My message n: delivered (ok), held for when they come on (held), or not sent and why. */
+  | { t: "dmack"; to: string; n: number; ok?: 1; held?: 1; why?: string; text?: string }
+  /** A player's public card (name from the server; null card: not available). */
+  | { t: "card"; id?: string; fid?: string; name: string; c: WireCard | null };
 
 export type ErrorCode =
   | "version" // client too old
@@ -469,6 +524,11 @@ export function parseClient(raw: string): ClientMsg | null {
       look.ht = int(l.ht, 200);
       if (Array.isArray(l.x)) look.x = l.x.filter((e): e is string => typeof e === "string" && e.length <= 16).slice(0, 6);
       if (l.b === 1) look.b = 1;
+      // v5's closed mask (it never got through here before v6 max: others saw the open face).
+      if (l.mk === 1) look.mk = 1;
+      // v6 max (3.10): the award badge worn (allowedLook checks its shape).
+      const aw = str(l.aw, 24);
+      if (aw) look.aw = aw;
       return { t: "look", ticket: typeof o.ticket === "string" ? o.ticket : undefined, look };
     }
     case "prefs": {
@@ -484,6 +544,17 @@ export function parseClient(raw: string): ClientMsg | null {
       return typeof o.id === "string" && o.id.length <= 64 ? { t: o.t, id: o.id } : null;
     case "inv":
       return typeof o.fid === "string" && FID.test(o.fid) ? { t: "inv", fid: o.fid } : null;
+    case "dm":
+      return typeof o.to === "string" && FID.test(o.to) && typeof o.text === "string" && o.text.length <= 400 && Number.isInteger(o.n) ? { t: "dm", to: o.to, text: o.text, n: Math.max(0, Math.min(1e9, o.n as number)) } : null;
+    case "dmrep":
+      return typeof o.fid === "string" && FID.test(o.fid) && typeof o.reason === "string" && o.reason in REPORT_REASONS ? { t: "dmrep", fid: o.fid, reason: o.reason as ReportReason } : null;
+    case "card": {
+      const c = cleanCard(o.c);
+      return c && typeof o.dms === "boolean" ? { t: "card", c, dms: o.dms } : null;
+    }
+    case "cardq":
+      if (typeof o.fid === "string" && FID.test(o.fid)) return { t: "cardq", fid: o.fid };
+      return typeof o.id === "string" && o.id.length <= 64 ? { t: "cardq", id: o.id } : null;
     case "id":
       return (o.k === "ll" || o.k === "em") && typeof o.tok === "string" && o.tok.length >= 8 && o.tok.length <= 2400 ? { t: "id", k: o.k, tok: o.tok } : null;
     case "vmatch": {

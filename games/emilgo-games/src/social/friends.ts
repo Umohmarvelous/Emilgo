@@ -4,7 +4,8 @@
 // requests and invites while both are connected. Nothing about a friend
 // leaves the phone except their random friend id.
 
-import type { ServerMsg } from "../net/protocol";
+import type { ReportReason, ServerMsg } from "../net/protocol";
+import { addDm } from "./profile";
 import { FID_RE, type Friend, type Settings } from "../settings";
 
 export type FriendState = "off" | "on" | "room" | "playing";
@@ -34,6 +35,9 @@ export class Friends {
   invites: Invite[] = [];
   private noticeFn: (n: Notice) => void = () => {};
   private changeFn: () => void = () => {};
+  /** v6 max (3.11): a direct message came in (fid, name, text). */
+  private dmFn: (fid: string, name: string, text: string) => void = () => {};
+  private dmN = 0;
 
   constructor(
     private readonly settings: Settings,
@@ -47,6 +51,46 @@ export class Friends {
 
   onChange(fn: () => void): void {
     this.changeFn = fn;
+  }
+
+  onDm(fn: (fid: string, name: string, text: string) => void): void {
+    this.dmFn = fn;
+  }
+
+  // ── v6 max (3.11): direct messages ──
+
+  /** Send a friend a message (the server says delivered, held or why not). */
+  sendDm(fid: string, text: string): void {
+    const f = this.settings.friends.find((x) => x.fid === fid);
+    const clean = text.replace(/\s+/g, " ").trim().slice(0, 200);
+    if (!f || !clean) return;
+    const n = ++this.dmN;
+    addDm(this.settings.dms, fid, f.name, { me: true, text: clean, at: Date.now(), n });
+    this.save();
+    this.send({ t: "dm", to: fid, text: clean, n });
+    this.changeFn();
+  }
+
+  /** A thread opened: nothing unread in it now. */
+  readDm(fid: string): void {
+    const th = this.settings.dms[fid];
+    if (th && th.unread) {
+      th.unread = 0;
+      this.save();
+      this.changeFn();
+    }
+  }
+
+  /** Report a friend's messages (the server keeps what it passed between you). */
+  reportDm(fid: string, reason: ReportReason): void {
+    this.send({ t: "dmrep", fid, reason });
+  }
+
+  /** Block from a thread: off the list, the thread gone, their requests ignored on this phone. */
+  block(fid: string): void {
+    if (!this.settings.blockedFids.includes(fid)) this.settings.blockedFids = [fid, ...this.settings.blockedFids].slice(0, 200);
+    delete this.settings.dms[fid];
+    this.remove(fid);
   }
 
   get list(): readonly Friend[] {
@@ -124,7 +168,7 @@ export class Friends {
         return true;
       }
       case "freq": {
-        if (!this.settings.friendReqs || !FID_RE.test(m.fid)) return true;
+        if (!this.settings.friendReqs || !FID_RE.test(m.fid) || this.settings.blockedFids.includes(m.fid)) return true;
         if (this.isFriend(m.fid)) {
           // Already on our list (they removed us and asked again): say yes at once.
           this.send({ t: "facc", id: m.id });
@@ -139,6 +183,27 @@ export class Friends {
       case "facc":
         if (FID_RE.test(m.fid)) this.add(m.fid, m.name);
         return true;
+      case "dm": {
+        // Only from a friend on this phone's list (the server checks both lists too).
+        if (!this.isFriend(m.fid) || !this.settings.dmsOn) return true;
+        addDm(this.settings.dms, m.fid, m.name, { me: false, text: m.text, at: Math.min(Date.now(), m.at) });
+        this.save();
+        this.dmFn(m.fid, m.name, m.text);
+        this.changeFn();
+        return true;
+      }
+      case "dmack": {
+        const line = this.settings.dms[m.to]?.lines.find((l) => l.me && l.n === m.n);
+        if (line) {
+          delete line.n;
+          if (m.text) line.text = m.text;
+          if (m.held) line.held = true;
+          if (m.why) line.fail = m.why;
+          this.save();
+          this.changeFn();
+        }
+        return true;
+      }
       case "inv": {
         const inv: Invite = { name: m.name, fid: m.fid, code: m.code, at: Date.now() };
         this.invites = [inv, ...this.invites.filter((i) => i.fid !== m.fid)].slice(0, 10);

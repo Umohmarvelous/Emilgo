@@ -49,7 +49,7 @@ function connect(name: string): Promise<Phone> {
     ws.on("message", (d) => {
       const m = JSON.parse(d.toString()) as ServerMsg;
       if (m.t === "ping") ws.send(JSON.stringify({ t: "pong", s: m.s }));
-      if (m.t === "snap") p.snaps++;
+      if (m.t === "snap" || m.t === "msnap") p.snaps++;
       else p.got.push(m);
       if (m.t === "welcome") {
         p.id = m.id;
@@ -78,7 +78,7 @@ check(!!last(B, "fr") && !last(B, "fr")!.on.includes(A.fid), "B lists A, A doesn
 check(!last(A, "fr")!.on.includes(B.fid), "and A doesn't see B");
 
 console.log("\nrequests:");
-send(A, { t: "create", size: 4 });
+send(A, { t: "create", size: 4, m: "treasure-hunt" }); // Red Light rooms are off since v4: a Free For All room
 await sleep(150);
 const code = last(A, "room")?.room.code;
 send(B, { t: "join", code });
@@ -120,6 +120,46 @@ send(C, { t: "inv", fid: B.fid });
 await sleep(150);
 check(B.got.filter((m) => m.t === "inv").length === before2 && notes(C).some((n) => n.includes("not online")), "C (not B's friend) can't invite B");
 
+console.log("\ndirect messages and cards (v6 max, 3.11):");
+{
+  send(A, { t: "dm", to: B.fid, text: "gg, again?", n: 1 });
+  await sleep(150);
+  const got = last(B, "dm");
+  check(!!got && got.fid === A.fid && got.text === "gg, again?" && got.name === "Ada", "A messages B (friends both ways): B gets it");
+  check(last(A, "dmack")?.ok === 1 && last(A, "dmack")?.n === 1, "and A hears it went");
+  send(A, { t: "dm", to: B.fid, text: "call me 0803 123 4567 at 12 Allen Avenue", n: 2 });
+  await sleep(150);
+  check(!!last(B, "dm")?.text.includes("[number removed]") && !last(B, "dm")!.text.includes("0803") && !last(B, "dm")!.text.includes("Allen"), `numbers and addresses are removed: "${last(B, "dm")?.text}"`);
+  check(!!last(A, "dmack")?.text?.includes("[address removed]"), "and A sees what was actually sent");
+  const bDms = B.got.filter((m) => m.t === "dm").length;
+  send(C, { t: "dm", to: B.fid, text: "hi stranger", n: 1 });
+  await sleep(150);
+  check(B.got.filter((m) => m.t === "dm").length === bDms && !!last(C, "dmack")?.why, `a stranger can't message B (C: "${last(C, "dmack")?.why}")`);
+  send(B, { t: "card", c: { r: 4, m: 10, w: 3, k: 40, hs: 9, b: 6, h: 2 }, dms: false });
+  await sleep(1600); // chat's pace: A has used its three quick lines
+  send(A, { t: "dm", to: B.fid, text: "you there?", n: 3 });
+  await sleep(150);
+  check(B.got.filter((m) => m.t === "dm").length === bDms && !!last(A, "dmack")?.why?.includes("messages off"), "B turns messages off: A's doesn't go, and A is told");
+  send(B, { t: "card", c: { r: 4, aw: "veteran.2", m: 10, w: 3, k: 40, hs: 9, b: 6, h: 2, f: "WLWWL" }, dms: true });
+  await sleep(100);
+  send(A, { t: "cardq", fid: B.fid });
+  await sleep(150);
+  const card = last(A, "card");
+  check(!!card?.c && card.name === "Bisi" && card.c.w === 3 && card.c.aw === "veteran.2" && card.c.f === "WLWWL", "A opens friend B's card: B's numbers, badge and form");
+  send(C, { t: "cardq", fid: A.fid });
+  await sleep(150);
+  check(last(C, "card")?.c === null, "C isn't A's friend: no card by friend id");
+  send(A, { t: "card", c: { r: 2, m: 5, w: 1, k: 7, hs: 1, b: 2, h: 0, p: 1 }, dms: true });
+  await sleep(100);
+  send(C, { t: "cardq", id: A.id });
+  await sleep(150);
+  const pc = last(C, "card");
+  check(!!pc?.c && pc.c.p === 1 && pc.c.k === 0 && pc.c.r === 2 && pc.name === "Ada", "a player met in a room: by their id; A's card is private: rank only");
+  send(A, { t: "dmrep", fid: B.fid, reason: "abuse" });
+  await sleep(150);
+  check(notes(A).some((n) => n.startsWith("Reported")), "a thread can be reported (the server keeps the lines it passed)");
+}
+
 console.log("\nboosts and data saver:");
 send(B, { t: "join", code });
 // Three claimed, two count (and only in free rooms).
@@ -131,12 +171,33 @@ while (!last(A, "start") && Date.now() - t0 < 8000) await sleep(100);
 const start = last(A, "start")?.start;
 const ra = start?.roster.find((r) => r.id === A.id);
 const rb = start?.roster.find((r) => r.id === B.id);
-check(!!start && boostsFromWire(ra?.bo).join() === [BOOST_IDS[0], BOOST_IDS[4]].join() && boostsFromWire(ra?.bo).length === BOOST_SLOTS, `A's boosts in the roster: ${boostsFromWire(ra?.bo).join(", ")} (the third claim dropped)`);
+// CP boosts are a Red Light round's (off since v4): a Free For All roster carries none; the cap still holds where they apply.
+check(!!start && (start.ffa ? !ra?.bo : boostsFromWire(ra?.bo).join() === [BOOST_IDS[0], BOOST_IDS[4]].join() && boostsFromWire(ra?.bo).length === BOOST_SLOTS), start?.ffa ? "a Free For All roster carries no CP boosts" : `A's boosts in the roster: ${boostsFromWire(ra?.bo).join(", ")} (the third claim dropped)`);
 check(!!rb && !rb.bo, "B brought none");
 A.snaps = B.snaps = 0;
 await sleep(4000);
 const ratio = B.snaps / Math.max(1, A.snaps);
 check(A.snaps > 40 && ratio > 0.4 && ratio < 0.6, `data saver: B got ${B.snaps} snapshots to A's ${A.snaps}`);
+
+console.log("\nheld messages:");
+{
+  const D = await connect("Dayo");
+  let E = await connect("Ebi");
+  send(D, { t: "me", fid: D.fid, friends: [E.fid] });
+  send(E, { t: "me", fid: E.fid, friends: [D.fid] });
+  await sleep(150);
+  E.ws.close();
+  await sleep(300);
+  send(D, { t: "dm", to: E.fid, text: "see you tonight", n: 7 });
+  await sleep(150);
+  check(last(D, "dmack")?.held === 1, "E is off: D's message is held");
+  E = await connect("Ebi");
+  send(E, { t: "me", fid: E.fid, friends: [D.fid] });
+  await sleep(200);
+  check(last(E, "dm")?.text === "see you tonight" && last(E, "dm")?.fid === D.fid, "E comes back on: it arrives");
+  D.ws.close();
+  E.ws.close();
+}
 
 for (const p of [A, B, C]) p.ws.close();
 console.log(`\n${failures ? `${failures} FAILED` : "all passed"}`);

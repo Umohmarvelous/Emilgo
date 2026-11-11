@@ -8,11 +8,30 @@
 // tells a stranger nothing. Friend ids are per copy of the game (Lagos Life's
 // and EMILGO's are different), so they never link a player across services.
 
+import { filterChat } from "../../src/social/filter";
 import type { Lobby } from "./lobby";
 import type { Peer } from "./peer";
 
+/** v6 max (3.11): a direct message held for a friend who is off: at most this many each, for a day, in memory only. */
+const HOLD_MAX = 20;
+const HOLD_MS = 24 * 3600 * 1000;
+/** The last lines passed between two friends, kept (in memory) as evidence for a report. */
+const EVIDENCE = 6;
+
+interface Held {
+  from: string;
+  name: string;
+  text: string;
+  at: number;
+}
+
 export class Presence {
   private readonly byFid = new Map<string, Peer>();
+  /** Who an absent player listed (and whether they took messages), from when they left: a held message needs it. */
+  private readonly lastFriends = new Map<string, { friends: ReadonlySet<string>; dms: boolean; at: number }>();
+  private readonly held = new Map<string, Held[]>();
+  /** "a|b" (the two friend ids, sorted) → the last lines between them. */
+  private readonly between = new Map<string, string[]>();
 
   constructor(private readonly lobby: Lobby) {}
 
@@ -23,7 +42,15 @@ export class Presence {
     peer.fid = fid;
     peer.friendFids = new Set(friends.slice(0, 100));
     this.byFid.set(fid, peer);
+    this.lastFriends.delete(fid);
     this.tell(peer);
+    // Messages friends sent while this player was off.
+    const waiting = this.held.get(fid);
+    if (waiting) {
+      this.held.delete(fid);
+      const t = Date.now();
+      for (const h of waiting) if (t - h.at < HOLD_MS && peer.friendFids.has(h.from)) peer.send({ t: "dm", fid: h.from, name: h.name, text: h.text, at: h.at });
+    }
     // Friends who list this player see them come on.
     for (const f of peer.friendFids) {
       const o = this.byFid.get(f);
@@ -34,6 +61,8 @@ export class Presence {
   forget(peer: Peer): void {
     if (peer.fid && this.byFid.get(peer.fid) === peer) {
       this.byFid.delete(peer.fid);
+      this.lastFriends.set(peer.fid, { friends: peer.friendFids, dms: peer.acceptsDms, at: Date.now() });
+      if (this.lastFriends.size > 50_000) this.sweep();
       for (const f of peer.friendFids) {
         const o = this.byFid.get(f);
         if (o && this.mutual(peer, o)) this.tell(o);
@@ -84,6 +113,65 @@ export class Presence {
     if (!asker || !asker.asked.has(by.id) || !by.fid) return;
     asker.asked.delete(by.id);
     asker.send({ t: "facc", name: by.name, fid: by.fid });
+  }
+
+  /**
+   * v6 max (3.11): a direct message. Only between friends who list each other
+   * (so nobody gets one from a stranger, whatever their age), never blocked,
+   * cleaned like chat (no numbers, links, handles or addresses), at chat's
+   * pace. A friend who is off gets it when they come on (held a day, in memory).
+   */
+  dm(from: Peer, to: string, raw: string, n: number): void {
+    const no = (why: string) => from.send({ t: "dmack", to, n, why });
+    if (!from.fid) return no("Messages need the friends list on.");
+    if (!from.friendFids.has(to)) return no("Only friends can message each other.");
+    if (!from.allowChat()) return no("Easy! Try again in a moment.");
+    const { text, changed } = filterChat(raw);
+    if (!text) return no("Nothing to send.");
+    const target = this.byFid.get(to);
+    const at = Date.now();
+    const evidence = (line: string) => {
+      const key = [from.fid, to].sort().join("|");
+      const list = this.between.get(key) ?? [];
+      list.push(line);
+      if (list.length > EVIDENCE) list.shift();
+      this.between.set(key, list);
+      if (this.between.size > 100_000) this.between.clear();
+    };
+    if (target && target.connected) {
+      if (!target.friendFids.has(from.fid) || from.blockedWith(target)) return no("You're not on each other's friends lists.");
+      if (!target.acceptsDms) return no(`${target.name} has messages off.`);
+      target.send({ t: "dm", fid: from.fid, name: from.name, text, at });
+      evidence(`${from.name}: ${text}`);
+      return from.send({ t: "dmack", to, n, ok: 1, ...(changed ? { text } : {}) });
+    }
+    // Off: only if, when they left, they listed this sender and took messages.
+    const last = this.lastFriends.get(to);
+    if (!last || !last.friends.has(from.fid) || !last.dms || at - last.at > HOLD_MS) return no("They're not online right now.");
+    const list = (this.held.get(to) ?? []).filter((h) => at - h.at < HOLD_MS);
+    if (list.length >= HOLD_MAX) return no("They have too many messages waiting.");
+    list.push({ from: from.fid, name: from.name, text, at });
+    this.held.set(to, list);
+    evidence(`${from.name}: ${text}`);
+    from.send({ t: "dmack", to, n, held: 1, ...(changed ? { text } : {}) });
+  }
+
+  /** The last lines between two friends (a report's evidence). */
+  evidence(a: string, b: string): string[] {
+    return [...(this.between.get([a, b].sort().join("|")) ?? [])];
+  }
+
+  /** A friend's peer, if both list each other and they're on. */
+  friend(of: Peer, fid: string): Peer | null {
+    const o = this.byFid.get(fid);
+    return o && this.mutual(of, o) ? o : null;
+  }
+
+  /** Drop what's older than a day. */
+  sweep(): void {
+    const t = Date.now();
+    for (const [k, v] of this.lastFriends) if (t - v.at > HOLD_MS) this.lastFriends.delete(k);
+    for (const [k, v] of this.held) if (!v.some((h) => t - h.at < HOLD_MS)) this.held.delete(k);
   }
 
   /** Invite a friend to the room `from` is in. Returns a note for the sender. */

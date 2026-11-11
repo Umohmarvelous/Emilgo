@@ -305,6 +305,8 @@ export class FfaMode implements GameMode {
       },
     });
     this.view = new FfaView({ crowd: h.crowd, hud: h.hud, sound: h.sound, me: me.index, layer: h.ui, places: world.layout.landmarks });
+    // v6 max (3.11): text chat in an online match (the room's chat: the server cleans every line).
+    h.controls.chatBtn.hidden = !online;
     // v6 max (3.10): the badges worn, over heads: yours, what the others' phones sent, a few for the bots.
     this.view.badges = m.contestants.map((c, i) => (c === me ? badgeOf(h.settings.awards) : wire[i] ? (wire[i]!.aw ?? "") : botBadge(m.seed, i)));
     h.scene.add(this.ms.group, this.view.group);
@@ -1606,6 +1608,7 @@ export class FfaMode implements GameMode {
     const h = this.host;
     this.sendBoards();
     this.gone = true;
+    h.controls.chatBtn.hidden = true;
     this.endKillCam();
     this.kcUi?.dispose();
     if (this.boards) {

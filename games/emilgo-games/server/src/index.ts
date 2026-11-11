@@ -148,6 +148,8 @@ function withStreak(look: WireLook, streak: number): WireLook {
 // Billboards (SPEC-V3 §8): the feed per match, the seconds seen added up and sent each minute.
 const billboards = new Billboards(adsBackendFromEnv(process.env));
 setInterval(() => void billboards.flush(), 60_000).unref();
+// v6 max (3.11): held direct messages and absent players' friend lists go after a day.
+setInterval(() => presence.sweep(), 3_600_000).unref();
 const adCalls = new Map<string, number[]>();
 
 /** The ads routes: open CORS (no cookies; nothing in them says who you are). */
@@ -561,6 +563,34 @@ function handle(peer: Peer, msg: ClientMsg): void {
     case "inv":
       peer.send({ t: "note", text: presence.invite(peer, msg.fid) });
       break;
+    // ── v6 max (3.11): direct messages and the public card ──
+    case "dm":
+      presence.dm(peer, msg.to, msg.text, msg.n);
+      break;
+    case "dmrep": {
+      const lines = presence.evidence(peer.fid, msg.fid);
+      reports.push({ at: new Date().toISOString(), reason: msg.reason, name: `(direct messages) ${lines.length ? "" : "no lines held"}`.trim(), lines });
+      if (reports.length > 500) reports.shift();
+      console.log(`report ${msg.reason} on direct messages (${reports.length} held)`);
+      peer.send({ t: "note", text: "Reported. Thank you — we'll look at it." });
+      break;
+    }
+    case "card": {
+      // The rank from the server's own profile when there is one; the rest is the phone's (cosmetic).
+      const xp = peer.profile ? profiles.get(peer.profile)?.xp : undefined;
+      peer.card = { ...msg.c, ...(xp !== undefined ? { r: rankOf(xp).k } : {}) };
+      peer.acceptsDms = msg.dms;
+      break;
+    }
+    case "cardq": {
+      const target = msg.fid ? presence.friend(peer, msg.fid) : msg.id ? (room?.peerInSeat(msg.id) ?? peers.get(msg.id) ?? null) : null;
+      const where = msg.fid ? { fid: msg.fid } : { id: msg.id };
+      if (!target || target.blockedWith(peer)) return void peer.send({ t: "card", ...where, name: "", c: null });
+      const c = target.card;
+      // A private card: the name, rank and badge only.
+      peer.send({ t: "card", ...where, name: target.name, c: c ? (c.p ? { r: c.r, ...(c.aw ? { aw: c.aw } : {}), m: 0, w: 0, k: 0, hs: 0, b: 0, h: 0, p: 1 } : c) : null });
+      break;
+    }
     case "vmatch":
       lobby
         .playMatch(peer, msg.id, msg.session)
