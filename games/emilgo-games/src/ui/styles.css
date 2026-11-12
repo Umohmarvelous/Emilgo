@@ -1670,3 +1670,24 @@ input { font: inherit; color: inherit; }
 @media (orientation: portrait) {
   .tr-carry { top: calc(var(--safe-t, 0px) + 298px); }
 }
+/* 2.7 the day streak: its flame on the results (under the chest), on the chest's label, in the lobby's meta. */
+.pm-streak { position: absolute; top: calc(var(--safe-t) + var(--gap) + 38px); right: calc(var(--safe-r) + var(--gap) + 206px); display: flex; align-items: center; gap: 8px; padding: 5px 12px 5px 8px; border: 1px solid rgba(255, 120, 40, 0.55); border-radius: 8px; background: linear-gradient(90deg, rgba(80, 26, 8, 0.92), rgba(22, 16, 12, 0.88)); transition: opacity 0.5s ease 0.15s; }
+.screen.cined .pm-streak { opacity: 0; pointer-events: none; }
+.pm-streak .st-flame { position: relative; display: grid; place-items: center; width: 34px; height: 34px; color: #ff7a2a; filter: drop-shadow(0 0 6px rgba(255, 110, 30, 0.8)); animation: st-flick 1.4s ease-in-out infinite; }
+.pm-streak .st-flame svg { fill: currentColor; stroke: #ffd27a; stroke-width: 1; }
+.pm-streak .st-flame b { position: absolute; bottom: -2px; right: -6px; min-width: 18px; padding: 0 3px; border-radius: 9px; background: #ffb23a; color: #1a0e04; font: 900 11px/16px var(--mono, monospace); text-align: center; }
+.pm-streak .st-body { display: flex; flex-direction: column; gap: 2px; }
+.pm-streak .label { font: 800 9px var(--head); letter-spacing: 0.14em; text-transform: uppercase; color: #ffb27a; }
+.pm-streak .st-cp { font: 900 14px var(--mono, monospace); color: #ffd76a; }
+.pm-streak .st-note, .pm-streak .st-next { display: flex; align-items: center; gap: 4px; font-size: 10px; color: #f0e4d0; }
+.pm-streak .st-next { opacity: 0.75; }
+.pm-streak.big { border-color: #ffb23a; box-shadow: 0 0 18px rgba(255, 150, 40, 0.45); }
+@keyframes st-flick { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08) translateY(-1px); } }
+.pm-chest .ch-run { display: inline-flex; align-items: center; gap: 2px; margin-left: 8px; color: #ff8a3a; }
+.pm-chest .ch-run svg { fill: currentColor; }
+.pm-chest .ch-run .sh { color: #8fd6ff; fill: none; }
+.profile .meta .dayrun { display: inline-flex; align-items: center; gap: 2px; color: #ff8a3a; }
+.profile .meta .dayrun svg:first-child { fill: currentColor; }
+.profile .meta .dayrun b { color: #ffd27a; }
+@media (orientation: portrait) { .pm-streak { top: calc(var(--safe-t) + var(--gap) + 98px); right: calc(var(--safe-r) + var(--gap)); } }
+@media (prefers-reduced-motion: reduce) { .pm-streak .st-flame { animation: none; } }

@@ -26,7 +26,8 @@ import { PHASES } from "../../src/game/rules";
 import type { ServerMsg } from "../../src/net/protocol";
 import { divisionStart, rankOf, rankUp, TOP_DIVISION } from "../../src/rank/ladder";
 import { matchXp, runXp } from "../../src/rank/xp";
-import { badgeOf, botBadge, cleanAwards, freshAwards, parseBadge, recordMatch, TIER_CP, type MatchFeats } from "../../src/rank/awards";
+import { badgeOf, botBadge, cleanAwards, countDay, freshAwards, liveRun, parseBadge, recordMatch, TIER_CP, type AwardState, type MatchFeats } from "../../src/rank/awards";
+import { CHEST_CP, chestOffer } from "../../src/game/chest";
 import { Identity, SqliteProfiles } from "../src/profiles";
 
 let failures = 0;
@@ -128,6 +129,37 @@ console.log("\nawards (v6 max, 3.10):");
   check(allowedLook({ aw: "veteran.2" }, new Set()).aw === "veteran.2" && allowedLook({ aw: "veteran.9" }, new Set()).aw === undefined, "the server passes a well-formed badge on the look, drops a bad one");
   const bots = Array.from({ length: 40 }, (_, i) => botBadge(7, i));
   check(bots.every((b) => b === "" || parseBadge(b)) && bots.filter(Boolean).length > 8 && bots.filter(Boolean).length < 32, `bots wear a badge about half the time (${bots.filter(Boolean).length} of 40)`);
+}
+
+console.log("\nthe day streak (v7, 2.7):");
+{
+  const base: MatchFeats = { mode: "treasure-hunt", online: true, ranked: false, won: false, place: 4, sides: 8, seconds: 600, kills: 1, heads: 0, deaths: 1, treasures: 0, uploads: 0, crates: 0, items: 0, boosters: [], downs: 0, helps: 0, swum: 0, hour: 15 };
+  const days = (n: number) => Array.from({ length: n }, (_, i) => { const d = new Date(2026, 10, 1 + i); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; });
+  const D = days(40);
+  const s = freshAwards();
+  let last: ReturnType<typeof countDay> = null;
+  const play = (day: string, f: MatchFeats = base) => recordMatch(s, f, (a: AwardState) => (last = countDay(a, day)));
+  play(D[0]);
+  check(s.run === 1 && s.day === D[0], "the first match: day 1");
+  check(play(D[0]).length >= 0 && s.run === 1 && last === null, "a second match the same day: still day 1, no second count");
+  play(D[1]);
+  const third = play(D[2]);
+  const l3 = last as ReturnType<typeof countDay>;
+  check(s.run === 3 && l3?.cp === 30 && third.some((u) => u.id === "devoted" && u.tier === 1), "day 3: +30 CP and Daily Devotion (Bronze)");
+  for (let i = 3; i < 7; i++) play(D[i]);
+  check(s.run === 7 && s.shield === 1 && s.got["week-warrior"] === 1 && s.got.devoted === 2, "day 7: a shield, Week Warrior, Devotion Silver");
+  // Miss one day: the shield keeps the run.
+  const saved = play(D[8]);
+  check(s.run === 8 && s.shield === 0 && saved.some((u) => u.id === "comeback"), "one day missed: the shield spent, the run goes on (Saved by the Shield)");
+  // Miss again with no shield: back to day 1, the best kept.
+  play(D[10]);
+  check(s.run === 1 && s.stats.days === 8, "missed again, no shield: day 1 again, the best (8) kept");
+  check(recordMatch(s, { ...base, seconds: 20 }, (a: AwardState) => (last = countDay(a, D[11]))).length === 0 && s.day === D[10], "a match left in its first minute counts no day");
+  check(liveRun({ day: D[10], run: 4, shield: 0 }, D[11]) === 4 && liveRun({ day: D[10], run: 4, shield: 0 }, D[12]) === 0 && liveRun({ day: D[10], run: 4, shield: 1 }, D[12]) === 4, "the lobby's flame: alive today and tomorrow (the day after with a shield)");
+  const ch = { day: "", streak: 0 };
+  check(chestOffer(ch, D[20], 9)?.day === 2 && chestOffer(ch, D[20], 7)?.day === CHEST_CP.length && chestOffer(ch, D[20], 1)?.day === 1, "the chest's ladder follows the day streak (day 9 → step 2)");
+  const back = cleanAwards(JSON.parse(JSON.stringify({ ...s, run: 5, shield: 3, day: "bad" })));
+  check(back.run === 0 && back.shield === 1 && back.day === "", "a saved streak is cleaned");
 }
 
 console.log("\nfigurines (v6 max, 3.8):");

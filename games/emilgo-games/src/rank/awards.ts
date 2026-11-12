@@ -12,6 +12,15 @@
 //                 only by playing: an award is reached only by playing).
 //
 // Ids are kept for ever (saves and the wire carry them); new awards go last.
+//
+// v7 (2.7, the owner: "give badges and awards and rewards for daily streak"):
+// the day streak: days in a row with a counted match. Its best is a milestone
+// (Daily Devotion: 3, 7, 30, 100 days); its days 3, 7, 14, 30, 60, 100 pay a
+// reward of their own (STREAK_REWARDS); every 7th day earns a shield (one held)
+// that saves the run over one missed day. The daily chest's ladder follows it.
+
+import { dayBefore } from "../game/chest";
+import { today } from "../game/progress";
 
 export const AWARD_TIERS = ["Bronze", "Silver", "Gold", "Diamond"] as const;
 /** CP for reaching each milestone step, and for an achievement (its own figure when it has one). */
@@ -21,6 +30,8 @@ export const FEAT_CP = 40;
 /** What is counted, over every match. */
 export const STAT_IDS = [
   "matches", "wins", "podiums", "kills", "heads", "treasures", "uploads", "crates", "items", "downs", "helps", "swum", "runs", "seconds",
+  // v7 (2.7): the best day streak.
+  "days",
 ] as const;
 export type StatId = (typeof STAT_IDS)[number];
 
@@ -107,7 +118,35 @@ export const AWARDS: readonly AwardDef[] = [
   { id: "night-owl", name: "Night Owl", blurb: "Finish a match between midnight and 4 am", icon: "moon", feat: (f) => f.hour >= 0 && f.hour < 4 },
   { id: "explorer", name: "Explorer", blurb: "Play 5 different modes", icon: "map", feat: (_f, s) => s.modes.length >= 5 },
   { id: "deep-end", name: "In the Deep End", blurb: "Swim 100 m in one match", icon: "wave", feat: (f) => f.swum >= 100 },
+  // ── v7 (2.7): the day streak ──
+  { id: "devoted", name: "Daily Devotion", blurb: "Days in a row played", icon: "fire", stat: "days", steps: [3, 7, 30, 100] },
+  { id: "week-warrior", name: "Week Warrior", blurb: "Play 7 days in a row", icon: "shield", feat: (_f, s) => s.run >= 7, cp: 75 },
+  { id: "comeback", name: "Saved by the Shield", blurb: "A shield kept your day streak alive", icon: "shield", feat: (_f, s) => s.saved > 0 },
 ];
+
+/** v7 (2.7): the day streak's own rewards, on reaching each of these days in a row (CP; every one a moment). */
+export const STREAK_REWARDS: readonly { day: number; cp: number }[] = [
+  { day: 3, cp: 30 },
+  { day: 7, cp: 100 },
+  { day: 14, cp: 200 },
+  { day: 30, cp: 500 },
+  { day: 60, cp: 800 },
+  { day: 100, cp: 1500 },
+];
+/** v7 (2.7): every this many days in a row earns a shield (one held at a time). */
+export const SHIELD_EVERY = 7;
+
+/** v7 (2.7): the day streak still alive now (today or yesterday counted; the day before with a shield), else 0. */
+export function liveRun(s: Pick<AwardState, "day" | "run" | "shield">, now = today()): number {
+  if (!s.day || s.run <= 0) return 0;
+  if (s.day === now || s.day === dayBefore(now)) return s.run;
+  return s.shield > 0 && s.day === dayBefore(dayBefore(now)) ? s.run : 0;
+}
+
+/** The next streak reward after `run` days, or null past the last. */
+export function nextStreakReward(run: number): { day: number; cp: number } | null {
+  return STREAK_REWARDS.find((r) => r.day > run) ?? null;
+}
 
 export const AWARD_BY_ID: Readonly<Record<string, AwardDef>> = Object.fromEntries(AWARDS.map((a) => [a.id, a]));
 
@@ -124,10 +163,16 @@ export interface AwardState {
   wear: string;
   /** Reached but not looked at yet (the Awards button's dot). */
   fresh: string[];
+  /** v7 (2.7): the day streak: the last day counted (YYYY-MM-DD, ""), days in a row to it, shields held (0–1). */
+  day: string;
+  run: number;
+  shield: number;
+  /** Times a shield saved the run (the last match's count, for its achievement). */
+  saved: number;
 }
 
 export function freshAwards(): AwardState {
-  return { stats: Object.fromEntries(STAT_IDS.map((k) => [k, 0])) as Record<StatId, number>, got: {}, modes: [], streak: 0, wear: "", fresh: [] };
+  return { stats: Object.fromEntries(STAT_IDS.map((k) => [k, 0])) as Record<StatId, number>, got: {}, modes: [], streak: 0, wear: "", fresh: [], day: "", run: 0, shield: 0, saved: 0 };
 }
 
 /** One award reached: which, its step (1 … 4; an achievement 1), the CP it pays. */
@@ -151,11 +196,38 @@ export function shown(def: AwardDef, n: number): number {
 }
 
 /**
+ * v7 (2.7): a counted match on `now`: the day streak moves. The first match of a day after one the day before adds a
+ * day; after a missed day, a shield (if held) keeps the run going; else it starts again at 1. Returns the streak
+ * reward reached today (its CP), if any.
+ */
+export function countDay(s: AwardState, now = today()): { day: number; cp: number; shield: boolean; saved: boolean } | null {
+  s.saved = 0;
+  if (s.day === now) return null;
+  const was = s.day;
+  let saved = false;
+  if (was && was === dayBefore(now)) s.run++;
+  else if (was && s.shield > 0 && was === dayBefore(dayBefore(now))) {
+    s.run++;
+    s.shield = 0;
+    s.saved = 1;
+    saved = true;
+  } else s.run = 1;
+  s.day = now;
+  s.stats.days = Math.max(s.stats.days ?? 0, s.run);
+  const shield = s.run % SHIELD_EVERY === 0 && s.shield < 1;
+  if (shield) s.shield = 1;
+  const r = STREAK_REWARDS.find((x) => x.day === s.run);
+  return { day: s.run, cp: r?.cp ?? 0, shield, saved };
+}
+
+/**
  * One match in: the counts go up, and what it reached comes out (each pays
  * once). Quitting in the first minute counts nothing (no farming by walking out).
+ * v7: `day` (when given) takes the day streak's step first (countDay), so its awards come out with the match's.
  */
-export function recordMatch(s: AwardState, f: MatchFeats): Unlock[] {
+export function recordMatch(s: AwardState, f: MatchFeats, day?: (s: AwardState) => void): Unlock[] {
   if (f.seconds < 60 && !f.won && !f.run?.finished) return [];
+  day?.(s);
   const add = (k: StatId, v: number) => (s.stats[k] = Math.max(0, (s.stats[k] ?? 0) + Math.max(0, Number.isFinite(v) ? v : 0)));
   add("matches", 1);
   if (f.won) add("wins", 1);
@@ -234,6 +306,10 @@ export function cleanAwards(v: unknown): AwardState {
   out.streak = Math.max(0, Math.floor(Number(a.streak)) || 0);
   out.wear = typeof a.wear === "string" && out.got[a.wear] ? a.wear : "";
   out.fresh = Array.isArray(a.fresh) ? a.fresh.filter((id): id is string => typeof id === "string" && !!out.got[id]) : [];
+  out.day = typeof a.day === "string" && /^\d{4}-\d{2}-\d{2}$/.test(a.day) ? a.day : "";
+  out.run = out.day ? Math.max(0, Math.min(100000, Math.floor(Number(a.run)) || 0)) : 0;
+  out.shield = Number(a.shield) >= 1 ? 1 : 0;
+  out.saved = 0;
   return out;
 }
 

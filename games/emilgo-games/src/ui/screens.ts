@@ -15,7 +15,7 @@ import { CATEGORIES, MAPS, SKY_LABEL, SKY_STATES, mapOf, thumbSvg, type MapCateg
 import type { GameEntry, ModeEntry } from "../content/catalog";
 import { BUILTIN_MANIFEST } from "../content/modes";
 import type { RoomInfo, WireCard } from "../net/protocol";
-import type { AwardState, Unlock } from "../rank/awards";
+import { liveRun, type AwardState, type Unlock } from "../rank/awards";
 import type { DmThread } from "../social/profile";
 import type { Rank } from "../rank/ladder";
 import type { Host, Leaderboard, MatchView } from "../platform/types";
@@ -116,8 +116,10 @@ export interface FfaResultView {
   kills?: number;
   /** v6: the CP this match paid, line by line (shop/boosts cpForMatch). */
   cp?: number;
-  /** v6: today's chest, while unopened today (game/chest.ts), and whether it was opened on this screen. */
-  chest?: { day: number; cp: number; opened?: boolean };
+  /** v6: today's chest, while unopened today (game/chest.ts), and whether it was opened on this screen. v7: the day streak. */
+  chest?: { day: number; cp: number; opened?: boolean; run?: number; shield?: boolean };
+  /** v7 (2.7): the day streak, when this match counted a new day: its run, today's reward, the shield. */
+  streak?: { run: number; cp: number; shield: boolean; gotShield: boolean; saved: boolean; next: { day: number; cp: number } | null };
   cpParts?: { label: string; cp: number }[];
   /** v6 max (3.10): the awards this match reached (each paid its CP, already in `cp`). */
   awards?: Unlock[];
@@ -145,14 +147,28 @@ const CHEST_SVG = `<svg viewBox="0 0 64 60" width="52" height="49" aria-hidden="
   </g>
 </svg>`;
 
-/** v6: today's chest on the results card: the 7-day ladder, then a tap opens it. */
-function chestHtml(c: { day: number; cp: number; opened?: boolean }): string {
+/** v6: today's chest on the results card: the 7-day ladder, then a tap opens it. v7: the day streak's flame on it. */
+function chestHtml(c: { day: number; cp: number; opened?: boolean; run?: number; shield?: boolean }): string {
   const pips = CHEST_CP.map((cp, i) => `<i class="${i + 1 < c.day ? "got" : i + 1 === c.day ? "now" : ""}${i === CHEST_CP.length - 1 ? " big" : ""}" title="${cp} CP"></i>`).join("");
+  const run = c.run && c.run > 1 ? `<span class="ch-run" aria-label="${esc(`${c.run} ${t("days in a row")}`)}">${icon("fire", "", 13)}<b class="num">${c.run}</b>${c.shield ? icon("shield", "sh", 12) : ""}</span>` : "";
   return `<button class="pm-chest${c.opened ? " open" : ""}" data-act="chest" ${c.opened ? "disabled" : ""} aria-label="${esc(t("Open the daily chest"))}">
       <span class="ch-art"><i class="ch-glow"></i>${CHEST_SVG}<b class="ch-cp">+${c.cp}</b></span>
-      <span class="ch-txt"><span class="k">${c.day}/${CHEST_CP.length}</span><span class="pips">${pips}</span>
+      <span class="ch-txt"><span class="k">${c.day}/${CHEST_CP.length}${run}</span><span class="pips">${pips}</span>
         <span class="ch-cta" aria-hidden="true">${icon("hand", "", 18)}</span><span class="ch-got">+${c.cp} CP</span></span>
     </button>`;
+}
+
+/**
+ * v7 (2.7): the day streak on the results, when this match counted a new day: the flame and its days, today's
+ * reward (a milestone day), the shield earned or spent, and the next reward to play for. Icons and numbers.
+ */
+function streakHtml(s: NonNullable<FfaResultView["streak"]>): string {
+  const note = s.saved ? `${icon("shield", "", 13)}<span>${esc(t("Shield used: streak saved"))}</span>` : s.gotShield ? `${icon("shield", "", 13)}<span>${esc(t("Shield earned"))}</span>` : "";
+  const next = s.next ? `<span class="st-next">${icon("fire", "", 11)}<b class="num">${s.next.day}</b> +${s.next.cp} CP</span>` : "";
+  return `<div class="pm-streak glass${s.cp ? " big" : ""}" aria-label="${esc(`${t("Day streak")}: ${s.run}`)}">
+      <span class="st-flame">${icon("fire", "", 26)}<b class="num">${s.run}</b></span>
+      <span class="st-body"><span class="label">${esc(t("Day streak"))}</span>${s.cp ? `<span class="st-cp">+${s.cp} CP</span>` : ""}${note ? `<span class="st-note">${note}</span>` : ""}${next}</span>
+    </div>`;
 }
 
 function rankLine(r: Pick<ResultInfo, "rank" | "xp" | "rankUp" | "xpNote"> & { cp?: number }): string {
@@ -373,7 +389,7 @@ export class Screens {
         <div class="who">
           <span class="nm" data-name></span>
           <span class="lv" title="${rk.into.toLocaleString()} / ${rk.need.toLocaleString()} XP${s.rankSaved ? "" : " (this device)"}"><b>${esc(rk.name.toUpperCase())}</b><span class="bar gold"><i style="width:${rk.top ? 100 : Math.round((rk.into / rk.need) * 100)}%"></i></span>${settings.founder ? `<span class="founder">FOUNDER</span>` : ""}${honourTitle(settings.honour) ? `<span class="founder honour">${esc(t(honourTitle(settings.honour)!).toUpperCase())}</span>` : ""}</span>
-          <span class="meta">${settings.form ? `<span class="form" title="${esc(t("Form: your last five online matches"))}">FORM <b>${[...settings.form].map((x) => `<i class="${x === "W" ? "w" : "l"}">${x}</i>`).join("")}</b></span>` : ""}${settings.streak >= 2 ? `<span class="streak">STREAK <b>${settings.streak}</b></span>` : ""}${s.board ? `<span>BOARD <b>${esc(s.board)}</b></span>` : ""}${s.dms ? `<span class="dm-new">${icon("chat", "", 11)}<b>${s.dms > 9 ? "9+" : s.dms}</b></span>` : ""}<span>BEST <b>${settings.best || 0}</b></span><span>CP <b>${settings.cp}</b></span><span class="money" data-act="money" role="button" tabindex="0" aria-label="${esc(t("Your Lagos Life money"))}">${icon("wallet", "", 11)}<b data-money>${s.money === null ? "₦ —" : naira(s.money)}</b></span></span>
+          <span class="meta">${settings.form ? `<span class="form" title="${esc(t("Form: your last five online matches"))}">FORM <b>${[...settings.form].map((x) => `<i class="${x === "W" ? "w" : "l"}">${x}</i>`).join("")}</b></span>` : ""}${settings.streak >= 2 ? `<span class="streak">STREAK <b>${settings.streak}</b></span>` : ""}${liveRun(settings.awards) >= 2 ? `<span class="dayrun" title="${esc(t("Days in a row played"))}">${icon("fire", "", 11)}<b>${liveRun(settings.awards)}</b>${settings.awards.shield ? icon("shield", "", 10) : ""}</span>` : ""}${s.board ? `<span>BOARD <b>${esc(s.board)}</b></span>` : ""}${s.dms ? `<span class="dm-new">${icon("chat", "", 11)}<b>${s.dms > 9 ? "9+" : s.dms}</b></span>` : ""}<span>BEST <b>${settings.best || 0}</b></span><span>CP <b>${settings.cp}</b></span><span class="money" data-act="money" role="button" tabindex="0" aria-label="${esc(t("Your Lagos Life money"))}">${icon("wallet", "", 11)}<b data-money>${s.money === null ? "₦ —" : naira(s.money)}</b></span></span>
         </div>
       </div>
       ${tabsHtml("lobby")}
@@ -1099,6 +1115,7 @@ export class Screens {
       `${cine}<div class="pm-head"><span class="h">${esc(r.mode)}</span><span class="sub ${r.won ? "win" : "lose"}">${head}</span></div>
        <div class="pm-return glass" data-return>${returnIn > 0 ? `Returning to lobby in <span class="num">${returnIn}</span>` : ""}</div>
        ${r.chest ? chestHtml(r.chest) : ""}
+       ${r.streak ? streakHtml(r.streak) : ""}
        <div class="pm-plates">${plates
          .map((p, i) => `<div class="plate glass" data-plate="${i}" style="left:-999px"><span class="pl">${i + 1}</span><span class="pn"><b>${esc(p.name)}${p.me ? " · You" : ""}</b><small class="num">${esc(p.line)}</small></span></div>`)
          .join("")}</div>

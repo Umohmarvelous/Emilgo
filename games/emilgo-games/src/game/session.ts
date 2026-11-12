@@ -90,8 +90,8 @@ import { setTextureAnisotropy } from "../world/tex";
 import type { buildAtlas } from "../world/textures";
 import type { BotBrain } from "./bots";
 import { chestOffer, openChest } from "./chest";
-import { addProgress, ensureDaily } from "./progress";
-import { badgeOf, recordMatch } from "../rank/awards";
+import { addProgress, ensureDaily, today } from "./progress";
+import { badgeOf, countDay, nextStreakReward, recordMatch, type AwardState } from "../rank/awards";
 import { initKtx2 } from "../assets/ktx";
 import { dashCp } from "./runner/dash";
 import { DashMode, type DashResult } from "../modes/dash";
@@ -3570,7 +3570,8 @@ export class Game {
         // v6: the daily chest: its CP paid now, the lid opened on screen.
         const f = this.ffaRes;
         if (!f?.chest || f.chest.opened) break;
-        const cp = openChest(this.settings.chest);
+        const aw = this.settings.awards;
+        const cp = openChest(this.settings.chest, undefined, aw.day === today() ? aw.run : 0);
         f.chest.opened = true;
         if (cp > 0) this.settings.cp += cp;
         saveSettings(this.host, this.settings);
@@ -4243,11 +4244,15 @@ export class Game {
       }
       if (r.level >= st.dash.open && st.dash.open < 9) st.dash.open = r.level + 1;
     }
+    let day: ReturnType<typeof countDay> = null;
     const got = recordMatch(st.awards, {
       mode: "horde-dash", online: false, ranked: false, won: r.finished, place: r.finished ? 1 : 0, sides: 1, seconds: r.seconds,
       kills: 0, heads: 0, deaths: r.finished ? 0 : 1, treasures: 0, uploads: 0, crates: 0, items: 0, boosters: [], downs: 0, helps: 0, swum: 0, hour: new Date().getHours(),
-    });
-    const awardCp = got.reduce((a, u) => a + u.cp, 0);
+    }, (a: AwardState) => (day = countDay(a)));
+    // v7 (2.7): a day streak's reward, if today reached one.
+    const dayCp = (day as ReturnType<typeof countDay>)?.cp ?? 0;
+    st.cp += dayCp;
+    const awardCp = got.reduce((a, u) => a + u.cp, 0) + dayCp;
     st.cp += awardCp;
     st.history = addHistory(st.history, { mode: "Horde Dash", won: r.finished, place: 0, sides: 1, kills: 0, cp: pay.cp + awardCp, online: false, at: Date.now() });
     saveSettings(this.host, st);
@@ -4330,11 +4335,27 @@ export class Game {
     // v6 max (3.10): the awards: the match's feats counted, what they reached shown, each paying its CP once.
     if (r.feats) {
       const ty = r.run?.tally;
-      const got = recordMatch(this.settings.awards, {
-        ...r.feats,
-        ranked: !!this.ranked && !!online,
-        ...(ty ? { run: { finished: ty.finished, seconds: ty.seconds, kills: ty.kills, heads: ty.headshots, hurt: ty.hurt } } : {}),
-      });
+      let day: ReturnType<typeof countDay> = null;
+      const got = recordMatch(
+        this.settings.awards,
+        {
+          ...r.feats,
+          ranked: !!this.ranked && !!online,
+          ...(ty ? { run: { finished: ty.finished, seconds: ty.seconds, kills: ty.kills, heads: ty.headshots, hurt: ty.hurt } } : {}),
+        },
+        (a: AwardState) => (day = countDay(a)),
+      );
+      // v7 (2.7): the day streak: today counted (a new day in a row, or a shield's save), its reward if it reached one.
+      const d = day as ReturnType<typeof countDay>;
+      if (d) {
+        const aw = this.settings.awards;
+        this.ffaRes.streak = { run: d.day, cp: d.cp, shield: aw.shield > 0, gotShield: d.shield, saved: d.saved, next: nextStreakReward(d.day) };
+        if (d.cp > 0) {
+          this.settings.cp += d.cp;
+          this.ffaRes.cp = (this.ffaRes.cp ?? 0) + d.cp;
+          this.ffaRes.cpParts = [...(this.ffaRes.cpParts ?? []), { label: `Day streak ${d.day}`, cp: d.cp }];
+        }
+      }
       if (got.length) {
         const cp = got.reduce((a, u) => a + u.cp, 0);
         this.settings.cp += cp;
@@ -4347,8 +4368,9 @@ export class Game {
     this.settings.history = addHistory(this.settings.history, { mode: r.run ? "Dead Streets" : this.ffaRes.mode, won: r.won, place: me?.place ?? 0, sides: this.ffaRes.sides, kills: r.kills ?? 0, cp: this.ffaRes.cp ?? 0, online: !!online, at: Date.now() });
     this.sendCard();
     // v6: the day's chest, until it's opened (on this screen or the next match's).
-    const chest = chestOffer(this.settings.chest);
-    if (chest) this.ffaRes.chest = chest;
+    const aw = this.settings.awards;
+    const chest = chestOffer(this.settings.chest, undefined, aw.day === today() ? aw.run : 0);
+    if (chest) this.ffaRes.chest = { ...chest, run: aw.day === today() ? aw.run : 0, shield: aw.shield > 0 };
     if (online && !r.run && me) {
       this.ffaRes.rewards = xpParts({
         players: this.ffaRes.sides,

@@ -4,6 +4,9 @@
 //
 // CP is earned only by playing (SPEC-V6, the CP system): the chest only appears after a match, never in the
 // lobby. Kept on the phone like CP itself. Pure: no DOM.
+//
+// v7 (2.7): the ladder follows the day streak (rank/awards.ts countDay: days in a row with a counted match, a
+// shield keeping it over one missed day) when it's given, so the chest and the streak never disagree.
 
 import { today } from "./progress";
 
@@ -24,17 +27,20 @@ export function dayBefore(day: string): string {
   return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
 }
 
-/** Today's chest, if it hasn't been opened yet: which day of the ladder it is (1 … 7) and its CP. */
-export function chestOffer(s: ChestState, now = today()): { day: number; cp: number } | null {
+/**
+ * Today's chest, if it hasn't been opened yet: which day of the ladder it is (1 … 7) and its CP. v7: `run`, the day
+ * streak counted today (1 …): the ladder's day follows it.
+ */
+export function chestOffer(s: ChestState, now = today(), run = 0): { day: number; cp: number } | null {
   if (s.day === now) return null;
-  const run = s.day && s.day === dayBefore(now) ? s.streak : 0;
-  const day = (run % CHEST_CP.length) + 1;
+  const was = s.day && s.day === dayBefore(now) ? s.streak : 0;
+  const day = run > 0 ? ((run - 1) % CHEST_CP.length) + 1 : (was % CHEST_CP.length) + 1;
   return { day, cp: CHEST_CP[day - 1] };
 }
 
 /** Open today's chest: the CP to pay (0 when it was already opened today). Updates `s`. */
-export function openChest(s: ChestState, now = today()): number {
-  const o = chestOffer(s, now);
+export function openChest(s: ChestState, now = today(), run = 0): number {
+  const o = chestOffer(s, now, run);
   if (!o) return 0;
   s.day = now;
   s.streak = o.day;
