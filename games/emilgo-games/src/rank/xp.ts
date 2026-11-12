@@ -20,6 +20,8 @@ export interface MatchFacts {
   assists?: number;
   /** Rivals killed (v5: kills are rewarded too). */
   kills?: number;
+  /** v7 (H10): Treasure Hunt bounties claimed (the leader killed). */
+  bounties?: number;
   ranked?: boolean;
   /** The first counted match of the player's day (the server knows). */
   firstToday?: boolean;
@@ -33,6 +35,10 @@ export interface MatchFacts {
 /** XP per rival killed, and the most kills can earn in a match. */
 export const KILL_XP = 8;
 export const KILL_XP_CAP = 80;
+
+/** v7 (H10): XP per bounty claimed, and the most claims that pay in a match. */
+export const BOUNTY_XP = 40;
+export const BOUNTY_MAX = 3;
 
 /** A full match: XP is paid in proportion below this. */
 export const FULL_MATCH_S = 480;
@@ -63,6 +69,8 @@ export function xpParts(f: MatchFacts): XpPart[] {
   if (objective > 0) out.push({ label: "Objective", xp: objective });
   const kills = f.kills ?? 0;
   if (kills > 0) out.push({ label: "Kills", xp: Math.min(KILL_XP_CAP, KILL_XP * kills), note: `×${kills}` });
+  const bounties = Math.min(BOUNTY_MAX, f.bounties ?? 0);
+  if (bounties > 0) out.push({ label: "Bounty", xp: BOUNTY_XP * bounties, note: `×${bounties}` });
   const play = Math.min(40, 4 * (f.displacements ?? 0) + 6 * (f.steals ?? 0) + 5 * (f.crates ?? 0) + 3 * (f.assists ?? 0));
   if (play > 0) out.push({ label: "Big plays", xp: play });
   const base = out.reduce((a, p) => a + p.xp, 0);

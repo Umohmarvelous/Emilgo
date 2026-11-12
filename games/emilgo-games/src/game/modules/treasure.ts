@@ -74,6 +74,9 @@ export class TreasureModule implements RuleModule {
   readonly pulse: number;
   readonly pulseAt: number;
   private pulseN = 0;
+  /** v7 (H10): whoever leads alone (the most carried) has a bounty on them: body index, −1 nobody. */
+  readonly bounty: boolean;
+  bountyOn = -1;
   /** The last pulse: whom it showed (body indices) and where, until when. */
   pulsed: { who: number[]; x: number[]; z: number[]; until: number } = { who: [], x: [], z: [], until: -1 };
   private readonly circle: Circle = { x: 0, z: 0, r: 0 };
@@ -104,6 +107,29 @@ export class TreasureModule implements RuleModule {
     this.pickpocket = params.pickpocket === true;
     this.pulse = Math.max(0, Math.min(600, num("pulse", 0)));
     this.pulseAt = Math.max(1, Math.min(9, Math.floor(num("pulseAt", 3))));
+    this.bounty = params.bounty === true;
+  }
+
+  /**
+   * v7 (H10): who leads alone: the most carried (at least one), alive. A tie at the top: the holder keeps it if they
+   * are in it, else nobody has it.
+   */
+  leader(m: Match): number {
+    let best = -1;
+    let top = 0;
+    let tie = false;
+    for (const c of m.contestants) {
+      if (c.status !== "alive") continue;
+      const n = this.count[c.index];
+      if (n > top) {
+        top = n;
+        best = c.index;
+        tie = false;
+      } else if (n > 0 && n === top) tie = true;
+    }
+    if (!tie) return best;
+    const h = this.bountyOn;
+    return h >= 0 && m.contestants[h]?.status === "alive" && this.count[h] === top ? h : -1;
   }
 
   /**
@@ -362,6 +388,14 @@ export class TreasureModule implements RuleModule {
       tr.z = c.z;
       tr.h = c.h;
     }
+    // v7 (H10): the bounty follows the lead.
+    if (this.bounty) {
+      const b = this.leader(m);
+      if (b !== this.bountyOn) {
+        this.bountyOn = b;
+        m.emit({ type: "tbounty", id: b >= 0 ? m.contestants[b].id : null });
+      }
+    }
     // The upload.
     if (this.uploader >= 0) {
       const c = m.contestants[this.uploader];
@@ -405,6 +439,13 @@ export class TreasureModule implements RuleModule {
       return;
     }
     if (e.type === "hit" && this.pickpocket) return this.pick(m, e.id, e.tg);
+    // v7 (H10): the bounty holder killed by a rival: claimed (the XP is the server's, from this event).
+    if (e.type === "kill" && this.bounty && this.bountyOn >= 0 && e.by && e.by !== e.tg) {
+      const v = m.get(e.tg);
+      const k = m.get(e.by);
+      if (v && k && v.index === this.bountyOn && !m.sameSquad(k, v)) m.emit({ type: "bclaim", id: k.id, tg: v.id });
+      return;
+    }
     if (e.type !== "eliminated") return;
     const c = m.get(e.id);
     if (!c) return;
@@ -504,6 +545,10 @@ export class TreasureModule implements RuleModule {
         const tr = this.treasures[k];
         if (tr && tr.box !== -1 && tr.holder < 0) tr.box = e.b[j];
       });
+      return;
+    }
+    if (e.type === "tbounty") {
+      this.bountyOn = e.id ? (m.get(e.id)?.index ?? -1) : -1;
       return;
     }
     if (e.type === "tpulse") {

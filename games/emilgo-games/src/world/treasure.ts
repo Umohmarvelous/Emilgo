@@ -39,6 +39,7 @@ import {
   Euler,
   Group,
   IcosahedronGeometry,
+  OctahedronGeometry,
   InstancedMesh,
   type Material,
   Matrix4,
@@ -420,6 +421,9 @@ export class TreasureView {
   private sightOk = new Uint8Array(0);
   private readonly machine = new Group();
   private readonly beacon: Mesh;
+  /** v7 (H10): over the bounty holder's head: a red diamond spinning inside a ring, seen by all. */
+  private readonly bountyMark = new Group();
+  private bountySaid = -99;
   /** v7 (H6): the ring and its disc (scaled as the ring narrows with the zone), and the upload's pulses. */
   private readonly ringParts: Mesh[] = [];
   private readonly pulses: Mesh[] = [];
@@ -520,6 +524,14 @@ export class TreasureView {
       this.pulses.push(pm);
       this.machine.add(pm);
     }
+    {
+      const red = new MeshBasicMaterial({ color: 0xff3a2a, transparent: true, opacity: 0.95, depthWrite: false });
+      const ring = new Mesh(new RingGeometry(0.34, 0.42, 32), new MeshBasicMaterial({ color: 0xff3a2a, transparent: true, opacity: 0.8, side: DoubleSide, depthWrite: false, blending: AdditiveBlending }));
+      this.bountyMark.add(new Mesh(new OctahedronGeometry(0.2), red), ring);
+      this.bountyMark.visible = false;
+      this.bountyMark.renderOrder = 4;
+      this.group.add(this.bountyMark);
+    }
     this.beacon = new Mesh(
       // From above the header up: it marks the spot from afar without hiding the kiosk close up.
       new CylinderGeometry(0.3, 0.45, 140, 12, 1, true).translate(0, 72.6, 0),
@@ -554,6 +566,27 @@ export class TreasureView {
     const who = (id: string | null | undefined) => (id ? (m.get(id) ?? null) : null);
     let dropped: { name: string; n: number; mine: boolean } | null = null;
     for (const e of list) {
+      if (e.type === "tbounty") {
+        // v7 (H10): the bounty moves with the lead.
+        const c = who(e.id);
+        if (c === me) {
+          hud.pushFeed(t("You lead: there's a bounty on you"), "out");
+          this.o.sound?.zoneAlert();
+        } else if (c && this.time - this.bountySaid > 8) {
+          this.bountySaid = this.time;
+          hud.pushFeed(`${t("Bounty on")} ${c.name}${m.sameSquad(c, me) ? `: ${t("cover them")}` : ""}`, m.sameSquad(c, me) ? "out" : "info");
+        }
+        continue;
+      }
+      if (e.type === "bclaim") {
+        const k = who(e.id);
+        const v = who(e.tg);
+        if (k === me) {
+          hud.pushFeed(`${t("Bounty claimed!")} ${v ? v.name : ""}`, "safe");
+          this.o.sound?.treasure(true);
+        } else if (k && v) hud.pushFeed(`${k.name} ${t("claimed the bounty on")} ${v === me ? t("you") : v.name}`, m.sameSquad(k, me) ? "safe" : "info");
+        continue;
+      }
       if (e.type === "tpulse") {
         // v7 (H9): the carriers' pulse: a sonar sweep, and who is on every map.
         if (!e.who.length) continue;
@@ -828,6 +861,18 @@ export class TreasureView {
       marks.push({ x: tr.x, z: tr.z, kind: "flag" });
       aim(tr.x, tr.z, "flag");
     }
+    // v7 (H10): the bounty holder's mark, over the carried treasures (not over you).
+    {
+      const b = tm.bountyOn >= 0 ? m.contestants[tm.bountyOn] : null;
+      const show = !!b && b !== me && b.status === "alive" && Math.hypot(b.x - cam.x, b.z - cam.z) < 90;
+      this.bountyMark.visible = show;
+      if (show && b) {
+        this.bountyMark.position.set(b.x, b.h + b.y + 3, b.z);
+        this.bountyMark.children[0].rotation.y = this.time * 2.4;
+        this.bountyMark.children[1].quaternion.copy(camera.quaternion);
+        this.bountyMark.children[1].scale.setScalar(1 + 0.12 * Math.sin(this.time * 6));
+      }
+    }
     // v7 (H9): the carriers' pulse: where each was, on the map (not you: you know where you are).
     if (tm.pulsed.until > m.elapsed) {
       tm.pulsed.who.forEach((i, j) => {
@@ -960,7 +1005,7 @@ export class TreasureView {
     // v7 (H4): what the load costs you.
     const share = tm.speedShare(me.index);
     const laden = tm.laden(me.index);
-    if (sig) sig += `|${share.toFixed(2)}|${laden ? 1 : 0}`;
+    if (sig) sig += `|${share.toFixed(2)}|${laden ? 1 : 0}|${tm.bountyOn === me.index ? 1 : 0}`;
     if (sig === this.carrySig) return;
     this.carrySig = sig;
     if (!sig) {
@@ -977,6 +1022,8 @@ export class TreasureView {
       const cost = `−${Math.round((1 - share) * 100)}%`;
       html += `<b class="tr-heavy${laden ? " laden" : ""}" role="img" aria-label="${t("Heavy loot")}: ${cost}${laden ? `, ${t("no sprint")}` : ""}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7a3 3 0 1 1 6 0M5.5 9h13l2 11h-17z"/></svg>${cost}${laden ? `<small>${t("no sprint")}</small>` : ""}</b>`;
     }
+    // v7 (H10): the bounty is on you.
+    if (tm.bountyOn === me.index) html += `<b class="tr-bounty" role="img" aria-label="${t("Bounty on you")}"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><path d="M12 2.5v5M12 16.5v5M2.5 12h5M16.5 12h5"/></svg></b>`;
     this.carry.innerHTML = html;
   }
 

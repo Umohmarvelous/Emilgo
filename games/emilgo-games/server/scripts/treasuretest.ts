@@ -16,7 +16,7 @@ import type { ItemsModule } from "../../src/game/modules/items";
 import type { GunsModule } from "../../src/game/modules/guns";
 import { builtLoot, ITEM_DEFS, LOOT_TABLES, type ItemId } from "../../src/content/items";
 import type { GadgetsModule } from "../../src/game/modules/gadgets";
-import { KILL_XP, KILL_XP_CAP, matchXp, xpParts, type MatchFacts } from "../../src/rank/xp";
+import { BOUNTY_MAX, BOUNTY_XP, KILL_XP, KILL_XP_CAP, matchXp, xpParts, type MatchFacts } from "../../src/rank/xp";
 import { worldFor } from "../src/ffa";
 import { decodeEvent, encodeEvent } from "../../src/net/matchWire";
 
@@ -622,6 +622,82 @@ console.log("v7 (H7–H9), over the wire:");
   check(loose?.type === "tre" && loose.how === "loose" && loose.id === "q2" && loose.by === "me", "a pickpocket: the carrier and the thief arrive");
   const pulse = round({ type: "tpulse", who: [0, 2], x: [1.25, 3], z: [4, 5.5] });
   check(pulse?.type === "tpulse" && pulse.who.join() === "0,2" && pulse.x[0] === 1.25, "the carriers' pulse arrives");
+}
+
+console.log("v7 (H10), the bounty:");
+{
+  const m = fresh(18, 6, [0, 1, 2, 3, 4, 4], 99, false, live);
+  const tm = tmOf(m);
+  const guns = m.module<GunsModule>("guns")!;
+  check(tm.bounty, "the live mode has a bounty");
+  const give = (i: number, k: number) => {
+    // Back in a box (not lying loose at their feet, where they'd take it straight back).
+    for (const t of tm.treasures) if (t.holder === i) {
+      t.holder = -1;
+      t.box = 0;
+    }
+    tm.count[i] = 0;
+    for (const t of tm.treasures) {
+      if (tm.count[i] >= k) break;
+      if (t.holder >= 0) continue;
+      t.holder = i;
+      t.box = -1;
+      tm.count[i]++;
+    }
+  };
+  const c = tm.machine!;
+  // 6 m apart: no squad hand-overs (3.5 m).
+  ["p0", "p1", "p2", "p3", "p4", "p5"].forEach((id, j) => put(m, id, c.x + 4 + j * 6, c.z + 4, c.h));
+  const ev: MatchEvent[] = [];
+  run(m, 0.1, ev);
+  check(tm.bountyOn === -1 && !ev.some((e) => e.type === "tbounty"), "nobody carries: no bounty");
+  give(1, 2);
+  give(2, 1);
+  const ev1: MatchEvent[] = [];
+  run(m, DT * 2, ev1);
+  check(tm.bountyOn === 1 && ev1.some((e) => e.type === "tbounty" && e.id === "p1"), "P1 leads (2 to 1): the bounty is on P1");
+  give(2, 2);
+  run(m, DT * 2);
+  check(tm.bountyOn === 1, "P2 draws level: P1 keeps it");
+  give(1, 1);
+  const ev2: MatchEvent[] = [];
+  run(m, DT * 2, ev2);
+  check(tm.bountyOn === 2 && ev2.some((e) => e.type === "tbounty" && e.id === "p2"), "P2 ahead: it moves to P2");
+  // A mate's kill claims nothing; a rival's does.
+  give(1, 0);
+  give(2, 0);
+  give(5, 3);
+  run(m, DT * 2);
+  check(tm.bountyOn === 5, "P5 leads with 3");
+  const kill = (by: string, tg: string) => {
+    const out: MatchEvent[] = [];
+    guns.hurt(m, m.get(tg)!, 999, m.get(by)!, false, "shot");
+    run(m, DT * 2, out);
+    return out;
+  };
+  const ev3 = kill("p4", "p5");
+  check(!ev3.some((e) => e.type === "bclaim"), "killed by a squad mate: no claim");
+  run(m, 8);
+  for (let i = 0; i < 6; i++) give(i, 0);
+  give(3, 3);
+  run(m, DT * 2);
+  check(tm.bountyOn === 3, "P3 leads with 3");
+  const ev4 = kill("p0", "p3");
+  const claim = ev4.find((e) => e.type === "bclaim");
+  check(claim?.type === "bclaim" && claim.id === "p0" && claim.tg === "p3", "a rival kills the holder: the bounty is claimed");
+  check(ev4.some((e) => e.type === "tbounty") && tm.bountyOn !== 3, "and it moves on (the treasures dropped)");
+  const xp0 = xpParts({ players: 6, place: 3, won: false, stayed: true, objective: 0, objectiveTop: 5 });
+  const xp2 = xpParts({ players: 6, place: 3, won: false, stayed: true, objective: 0, objectiveTop: 5, bounties: 2 });
+  const line = xp2.find((x) => x.label === "Bounty");
+  check(line?.xp === 2 * BOUNTY_XP && matchXp({ players: 6, place: 3, won: false, stayed: true, objective: 0, objectiveTop: 5, bounties: 9 }) - matchXp({ players: 6, place: 3, won: false, stayed: true, objective: 0, objectiveTop: 5 }) === BOUNTY_XP * BOUNTY_MAX && !xp0.some((x) => x.label === "Bounty"), `XP: ${BOUNTY_XP} a claim, at most ${BOUNTY_MAX}`);
+  const copy = fresh(18, 6, [0, 1, 2, 3, 4, 4], 99, true, live);
+  const round = (e: MatchEvent) => decodeEvent(JSON.parse(JSON.stringify(encodeEvent(e, (id) => m.get(id)?.index ?? -1))), (i) => copy.contestants[i]?.id ?? null);
+  const tb = round({ type: "tbounty", id: "p2" });
+  if (tb) tmOf(copy).apply(copy, tb);
+  check(tmOf(copy).bountyOn === 2, "the copy knows who has it (over the wire)");
+  const none = round({ type: "tbounty", id: null });
+  if (none) tmOf(copy).apply(copy, none);
+  check(none?.type === "tbounty" && none.id === null && tmOf(copy).bountyOn === -1, "and when nobody does");
 }
 
 console.log(failures ? `\n${failures} FAILED` : "\nall passed");

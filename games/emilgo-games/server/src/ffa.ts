@@ -140,6 +140,8 @@ export class FfaGame {
 
   /** Rivals each seat has killed. */
   private readonly kills = new Map<string, number>();
+  /** v7 (H10): bounties claimed, by seat. */
+  private readonly bounties = new Map<string, number>();
 
   constructor(
     readonly def: ModeDef,
@@ -210,6 +212,7 @@ export class FfaGame {
         const b = m.get(e.tg);
         if (a && b && !m.sameSquad(a, b)) this.kills.set(e.by, (this.kills.get(e.by) ?? 0) + 1);
       }
+      if (e.type === "bclaim") this.bounties.set(e.id, (this.bounties.get(e.id) ?? 0) + 1);
       out.push(encodeEvent(e, (id) => this.index.get(id) ?? -1));
     }
     if (this.log.length < LOG_MAX) this.log.push(...out);
@@ -353,6 +356,7 @@ export class FfaGame {
       objectiveTop: top,
       seconds: this.match.elapsed,
       kills: this.kills.get(seat) ?? 0,
+      ...(this.bounties.get(seat) ? { bounties: this.bounties.get(seat) } : {}),
       ...(this.ranked ? { ranked: true } : {}),
     };
   }

@@ -183,6 +183,8 @@ export class FfaMode implements GameMode {
   private wasOut = false;
   /** Rivals you killed this match. */
   private kills = 0;
+  /** v7 (H10): bounties claimed. */
+  private bounties = 0;
   /** v6 max (3.10): what you did this match, for the awards (rank/awards.ts MatchFeats). */
   private readonly feats = { heads: 0, deaths: 0, deadAt: -9, treasures: 0, uploads: 0, crates: 0, items: 0, boosters: [] as string[], downs: 0, helps: 0, swum: 0 };
   /** Dead Streets' screen side (a run only). */
@@ -724,6 +726,7 @@ export class FfaMode implements GameMode {
         if (e.head) this.feats.heads++;
       }
     }
+    if (e.type === "bclaim" && e.id === me.id) this.bounties++;
     this.tally(e, m, me);
     if (e.type === "kill" && e.tg === me.id && e.by && e.by !== me.id && e.how !== "zone" && m.phase === "play") this.killedBy(m, me, e);
     switch (e.type) {
@@ -1633,6 +1636,7 @@ export class FfaMode implements GameMode {
       seconds: m.elapsed,
       measure: measureName(m),
       kills: this.kills,
+      ...(this.bounties ? { bounties: this.bounties } : {}),
       feats: {
         mode: this.src.def.id,
         online: !!this.online,

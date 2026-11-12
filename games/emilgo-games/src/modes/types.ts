@@ -89,6 +89,8 @@ export interface ModeResult {
   play?: string;
   /** Rivals you killed (v5: kills are rewarded). */
   kills?: number;
+  /** v7 (H10): bounties you claimed. */
+  bounties?: number;
   /** Where you went (§10.22): x, z every second, and 1 where you had the objective in hand. */
   trail?: [number, number, number][];
   /** A Dead Streets run: what it did, and where it went (t, x, z, the floor's height, a second apart) for the server's check. */

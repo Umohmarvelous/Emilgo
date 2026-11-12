@@ -4390,6 +4390,7 @@ export class Game {
         objective: me.objective,
         objectiveTop: Math.max(0, ...r.standings.map((x) => x.objective)),
         kills: r.kills ?? 0,
+        ...(r.bounties ? { bounties: r.bounties } : {}),
         seconds: r.seconds,
         ...(this.ranked ? { ranked: true } : {}),
       });

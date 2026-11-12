@@ -59,6 +59,9 @@ export type MatchEvent =
   | { type: "landed-fly"; flight: number; x: number; z: number; h: number; hit: string | null }
   // ── Treasure Hunt (v5): a box opened (found: the treasure in it, −1 empty); a treasure moves; the upload ──
   | { type: "tbox"; box: number; id: string; found: number; trap?: boolean }
+  /** v7 (H10): the bounty moved to whoever leads (null: nobody leads alone); claimed by killing them. */
+  | { type: "tbounty"; id: string | null }
+  | { type: "bclaim"; id: string; tg: string }
   /** v7 (H9): the carriers' pulse: who carries enough (body indices), and where they were (everyone's map, TREASURE.pulseShow s). */
   | { type: "tpulse"; who: number[]; x: number[]; z: number[] }
   | { type: "tre"; t: number; how: "find" | "take" | "give" | "drop" | "loose"; id: string | null; x: number; z: number; h: number; by?: string }
