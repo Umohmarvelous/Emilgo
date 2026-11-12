@@ -1399,6 +1399,27 @@ export class Sound {
     this.tone(2093, t + 0.28, 0.9, { type: "sine", gain: g * 0.35, attack: 0.002 });
   }
 
+  /**
+   * v7 (H6): an upload has started: a klaxon everyone hears, wherever they are
+   * (two falling whoops and a low horn): the hunt ends at the machine.
+   */
+  uploadAlarm(): void {
+    const t = this.now;
+    for (let i = 0; i < 2; i++) {
+      this.tone(980, t + i * 0.55, 0.5, { type: "sawtooth", gain: 0.06, to: 420, attack: 0.02 });
+      this.tone(990, t + i * 0.55, 0.5, { type: "square", gain: 0.025, to: 430, attack: 0.02 });
+    }
+    this.tone(hz(45) * 1.5, t + 1.15, 0.9, { type: "sawtooth", gain: 0.07, attack: 0.05 });
+  }
+
+  /** v7 (H6): the machine's pulse while it uploads, a deep thump with a rising tail; `near` 0…1 (never silent). */
+  uploadPulse(near: number): void {
+    const t = this.now;
+    const g = 0.3 + 0.7 * Math.max(0, Math.min(1, near));
+    this.tone(70, t, 0.45, { type: "sine", gain: 0.3 * g, to: 42 });
+    this.tone(330, t + 0.05, 0.4, { type: "triangle", gain: 0.03 * g, to: 660 });
+  }
+
   /** The upload machine: a scanning beep each `step` (0…1 along), then a long confirm tone when done. */
   uploadBeep(along: number, done = false): void {
     const t = this.now;

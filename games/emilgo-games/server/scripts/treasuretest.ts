@@ -10,7 +10,7 @@ import { GROWTH, GUNS, TREASURE } from "../../src/config";
 import { BUILTIN_MANIFEST, type ModeDef } from "../../src/content/modes";
 import { Match, settingsOf } from "../../src/game/core/match";
 import type { MatchEvent } from "../../src/game/core/module";
-import type { TreasureModule } from "../../src/game/modules/treasure";
+import { RING_MIN, type TreasureModule } from "../../src/game/modules/treasure";
 import type { ZoneModule } from "../../src/game/modules/zone";
 import type { ItemsModule } from "../../src/game/modules/items";
 import type { GunsModule } from "../../src/game/modules/guns";
@@ -431,6 +431,39 @@ console.log("v7 (H5), trapped chests:");
   check(!!box2 && box2.type === "tbox" && !box2.trap, "an empty, untrapped chest is just empty");
   if (box) tmOf(copy).apply(copy, box);
   check(tmOf(copy).isTrapped(b.index), "the copy learns the trap as it goes off");
+}
+
+console.log("v7 (H6), the upload alarm and the narrowing ring:");
+{
+  const m = fresh(14, 6, undefined, 99, false, live);
+  const tm = tmOf(m);
+  const zone = m.module<ZoneModule>("zone")!;
+  check(tm.ringShrink, "the live mode's ring narrows with the zone");
+  check(tm.ringAt(m) === TREASURE.ring, "early on: the full ring");
+  const c = tm.machine!;
+  const at = (t: number) => {
+    m.elapsed = t;
+    return tm.ringAt(m);
+  };
+  const late = at(2000);
+  check(zone.at(2000, { x: 0, z: 0, r: 0 }).r <= 60 && Math.abs(late - RING_MIN) < 1e-6, `the last circle: the ring down to ${late.toFixed(1)} m (never under ${RING_MIN})`);
+  check(late >= RING_MIN && late < TREASURE.ring, "narrower, but room to stand and fight");
+  let prev = Infinity;
+  let mono = true;
+  for (let t = 0; t <= 2000; t += 10) {
+    const r = at(t);
+    if (r > prev + 1e-9) mono = false;
+    prev = r;
+  }
+  check(mono, "it only ever narrows");
+  m.elapsed = 2000;
+  put(m, "p2", c.x + late + 1, c.z, c.h);
+  check(!tm.inRing(m, m.get("p2")!), "a step outside the narrowed ring: out");
+  put(m, "p2", c.x + late - 0.5, c.z, c.h);
+  check(tm.inRing(m, m.get("p2")!), "inside it: in");
+  const off = fresh(14, 6);
+  off.elapsed = 2000;
+  check(tmOf(off).ringAt(off) === TREASURE.ring, "without ringShrink the ring stays");
 }
 
 console.log(failures ? `\n${failures} FAILED` : "\nall passed");

@@ -25,6 +25,12 @@ import type { Match } from "../core/match";
 import type { MatchEvent, RuleModule } from "../core/module";
 import { nearOpen } from "./flags";
 import type { MeleeModule } from "./melee";
+import type { Circle, ZoneModule } from "./zone";
+
+/** v7 (H6): the machine's ring never narrows below this (room to stand and fight). */
+export const RING_MIN = 3;
+/** ...and starts to narrow once the zone is smaller than this radius. */
+const RING_FROM = 300;
 
 export interface TreasureBox {
   readonly index: number;
@@ -59,6 +65,9 @@ export class TreasureModule implements RuleModule {
   readonly heavyAt: number;
   /** v7 (H5): the share of the empty chests that are trapped (they shriek and fire a flare when opened). */
   readonly traps: number;
+  /** v7 (H6): the machine's ring narrows with the zone's last circles. */
+  readonly ringShrink: boolean;
+  private readonly circle: Circle = { x: 0, z: 0, r: 0 };
   /** The trapped boxes (the server's secret: the copy learns one only as it goes off). */
   private readonly trapped = new Set<number>();
   readonly boxes: TreasureBox[] = [];
@@ -82,6 +91,19 @@ export class TreasureModule implements RuleModule {
     this.heavy = Math.max(0, Math.min(0.1, num("heavy", 0)));
     this.heavyAt = Math.max(0, Math.min(9, Math.floor(num("heavyAt", 0))));
     this.traps = Math.max(0, Math.min(1, num("traps", 0)));
+    this.ringShrink = params.ringShrink === true;
+  }
+
+  /**
+   * v7 (H6): the ring's radius now. With `ringShrink`, once the zone is under
+   * 300 m it narrows with it (√ of the zone's share: 140 m → 4.8, 50 m → 3).
+   */
+  ringAt(m: Match): number {
+    if (!this.ringShrink) return TREASURE.ring;
+    const zone = m.module<ZoneModule>("zone");
+    if (!zone) return TREASURE.ring;
+    const r = zone.at(m.elapsed, this.circle).r;
+    return Math.max(RING_MIN, Math.min(TREASURE.ring, TREASURE.ring * Math.sqrt(r / RING_FROM)));
   }
 
   /** v7 (H5): is this box trapped? (The server's answer; the copy knows only those gone off.) */
@@ -234,9 +256,9 @@ export class TreasureModule implements RuleModule {
     return Math.min(1, (this.openT[i] ?? 0) / TREASURE.open);
   }
 
-  inRing(c: Contestant): boolean {
+  inRing(m: Match, c: Contestant): boolean {
     const p = this.machine;
-    return !!p && Math.hypot(c.x - p.x, c.z - p.z) <= TREASURE.ring;
+    return !!p && Math.hypot(c.x - p.x, c.z - p.z) <= this.ringAt(m);
   }
 
   private canAct(m: Match, c: Contestant): boolean {
@@ -323,7 +345,7 @@ export class TreasureModule implements RuleModule {
     // The upload.
     if (this.uploader >= 0) {
       const c = m.contestants[this.uploader];
-      if (!this.canAct(m, c) || !this.inRing(c) || this.count[this.uploader] < this.need) {
+      if (!this.canAct(m, c) || !this.inRing(m, c) || this.count[this.uploader] < this.need) {
         m.emit({ type: "upl", id: c.id, how: "stop" });
         this.uploader = -1;
         this.uploaded = 0;
@@ -338,7 +360,7 @@ export class TreasureModule implements RuleModule {
     if (this.uploader < 0) {
       for (const c of m.contestants) {
         // Only a squad's leader uploads (on your own, you are your leader).
-        if (this.count[c.index] >= this.need && this.canAct(m, c) && this.inRing(c) && this.leaderOf(m, m.squads[c.index]) === c.index) {
+        if (this.count[c.index] >= this.need && this.canAct(m, c) && this.inRing(m, c) && this.leaderOf(m, m.squads[c.index]) === c.index) {
           this.uploader = c.index;
           this.uploaded = 0;
           m.emit({ type: "upl", id: c.id, how: "start" });

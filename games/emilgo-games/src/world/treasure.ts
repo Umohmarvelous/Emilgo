@@ -104,6 +104,10 @@ export const TREASURE_KIND_NAME: Record<TreasureKind, string> = {
 const BOX_RANGE = 140;
 /** The machine's body drawn within this; its beacon always. */
 const MACHINE_RANGE = 260;
+/** v7 (H6): an upload's pulse: how often, how long it rolls, how far out. */
+const PULSE_EVERY = 2;
+const PULSE_LIFE = 1.8;
+const PULSE_REACH = 70;
 /** v7: a find hangs over its chest this long (rising, then bobbing) before it goes with its finder. */
 const RISE_S = 2.4;
 const MAX_GLOWS = 16;
@@ -412,6 +416,10 @@ export class TreasureView {
   private sightOk = new Uint8Array(0);
   private readonly machine = new Group();
   private readonly beacon: Mesh;
+  /** v7 (H6): the ring and its disc (scaled as the ring narrows with the zone), and the upload's pulses. */
+  private readonly ringParts: Mesh[] = [];
+  private readonly pulses: Mesh[] = [];
+  private pulseAt = -99;
   private readonly screenMat: ShaderMaterial;
   private readonly ringMat: ShaderMaterial;
   private readonly discMat: ShaderMaterial;
@@ -490,7 +498,19 @@ export class TreasureView {
     ringMesh.position.y = 0.07;
     disc.position.y = 0.05;
     ringMesh.renderOrder = disc.renderOrder = 2;
+    this.ringParts.push(ringMesh, disc);
     this.machine.add(body, lit, screen, ringMesh, disc);
+    // v7 (H6): while an upload runs, a pulse rolls out from the machine across the ground every PULSE_EVERY s.
+    const pulseMat = new MeshBasicMaterial({ color: 0x5dffa0, transparent: true, opacity: 0, blending: AdditiveBlending, depthWrite: false, side: DoubleSide });
+    for (let k = 0; k < 2; k++) {
+      const pm = new Mesh(new RingGeometry(0.9, 1, 96, 1).rotateX(-Math.PI / 2), k ? pulseMat.clone() : pulseMat);
+      pm.position.y = 0.12;
+      pm.renderOrder = 3;
+      pm.visible = false;
+      pm.frustumCulled = false;
+      this.pulses.push(pm);
+      this.machine.add(pm);
+    }
     this.beacon = new Mesh(
       // From above the header up: it marks the spot from afar without hiding the kiosk close up.
       new CylinderGeometry(0.3, 0.45, 140, 12, 1, true).translate(0, 72.6, 0),
@@ -573,7 +593,8 @@ export class TreasureView {
         const c = who(e.id);
         if (!c) continue;
         if (e.how === "start") {
-          this.o.sound?.zoneAlert();
+          // v7 (H6): the alarm, across the whole map.
+          this.o.sound?.uploadAlarm();
           this.o.sound?.voice.say(c === me ? "tre_upload" : m.sameSquad(c, me) ? "tre_upload" : "tre_enemy_upload");
           if (c === me) hud.pushFeed(t("Uploading: stay in the ring"), "safe");
           else hud.pushFeed(`${m.sameSquad(c, me) ? t("Your leader") : c.name} ${t("is uploading the treasures")}${m.sameSquad(c, me) ? "" : `: ${t("stop them")}`}`, m.sameSquad(c, me) ? "safe" : "out");
@@ -595,7 +616,7 @@ export class TreasureView {
     const tm = this.tm(m);
     const me = m.contestants[this.o.me];
     if (!tm || me.status !== "alive" || m.phase !== "play") return null;
-    if (tm.inRing(me)) {
+    if (tm.inRing(m, me)) {
       const lead = tm.leaderOf(m, m.squads[me.index]);
       const label =
         tm.uploader === me.index ? t("Uploading… stay in the ring") :
@@ -792,7 +813,11 @@ export class TreasureView {
       const d = Math.hypot(p.x - cam.x, p.z - cam.z);
       this.machine.visible = d < MACHINE_RANGE;
       const up = tm.uploader >= 0;
-      const someoneNear = m.contestants.some((c) => c.status === "alive" && tm.inRing(c));
+      const someoneNear = m.contestants.some((c) => c.status === "alive" && tm.inRing(m, c));
+      // v7 (H6): the ring narrows with the zone's last circles.
+      const ring = tm.ringAt(m);
+      const rs = ring / TREASURE.ring;
+      for (const r of this.ringParts) r.scale.set(rs, 1, rs);
       const state = up ? 2 : someoneNear ? 1 : 0;
       const prog = up ? Math.min(1, tm.uploaded / tm.uploadTime) : 0;
       this.ringMat.uniforms.state.value = state;
@@ -801,7 +826,26 @@ export class TreasureView {
       this.screenMat.uniforms.act.value = up ? 1 : 0;
       this.screenMat.uniforms.prog.value = prog;
       (this.beacon.material as ShaderMaterial).uniforms.tint.value.setRGB(...((up ? [0.35, 1, 0.5] : someoneNear ? [1, 0.72, 0.2] : [0.2, 0.8, 1]) as [number, number, number]));
-      marks.push({ x: p.x, z: p.z, kind: "goal", r: TREASURE.ring });
+      marks.push({ x: p.x, z: p.z, kind: "goal", r: ring });
+      // v7 (H6): the upload's pulse: rolling out over the ground, heard across the map.
+      if (up && this.time - this.pulseAt >= PULSE_EVERY) {
+        this.pulseAt = this.time;
+        const pm = this.pulses.find((x) => !x.visible) ?? this.pulses[0];
+        pm.userData.at = this.time;
+        pm.visible = true;
+        this.o.sound?.uploadPulse(1 - Math.min(1, d / 200));
+      }
+      for (const pm of this.pulses) {
+        if (!pm.visible) continue;
+        const u = (this.time - (pm.userData.at as number)) / PULSE_LIFE;
+        if (u >= 1) {
+          pm.visible = false;
+          continue;
+        }
+        const r = ring + (PULSE_REACH - ring) * (1 - (1 - u) * (1 - u));
+        pm.scale.set(r, 1, r);
+        (pm.material as MeshBasicMaterial).opacity = 0.85 * (1 - u);
+      }
       // Carrying them all (or a squad's leader with them): the machine is where to go.
       const lead = tm.leaderOf(m, m.squads[me.index]);
       if (tm.count[me.index] >= tm.need || (up && tm.uploader !== me.index)) aim(p.x, p.z, "goal", -1000);
@@ -825,6 +869,7 @@ export class TreasureView {
         }
       }
       // A beep as the upload goes (yours, or near you).
+      if (!up) this.pulseAt = -99;
       if (up && this.time - this.beepAt > 0.5 && (tm.uploader === me.index || d < 40)) {
         this.beepAt = this.time;
         this.o.sound?.uploadBeep(prog);
@@ -879,7 +924,8 @@ export class TreasureView {
     }
     if (c) {
       this.panelFill.style.transform = `scaleX(${prog.toFixed(3)})`;
-      const pct = `${Math.floor(prog * 100)}%`;
+      // v7 (H6): the countdown, the same for everyone.
+      const pct = `${Math.max(0, Math.ceil(tm.uploadTime - tm.uploaded))} s`;
       if (this.panelPct.textContent !== pct) this.panelPct.textContent = pct;
     }
   }
