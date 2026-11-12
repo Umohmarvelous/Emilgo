@@ -116,6 +116,7 @@ import type { FfaMode } from "../modes/ffa";
 type V3 = typeof import("../modes/v3");
 /** Ball Haunt's chunk (modes/rlgl.ts; SPEC-V3 §1.2). */
 type Rl = typeof import("../modes/rlgl");
+import { AdvertiseSheet } from "../ui/advertise";
 import { HowTo } from "../ui/howto";
 import type { ModeHost, ModeResult } from "../modes/types";
 import { Content } from "../content/load";
@@ -352,6 +353,8 @@ export class Game {
   private rl: Rl | null = null;
   private rlp: Promise<Rl> | null = null;
   private readonly cards: HowTo;
+  /** v7 (2.9): the advertiser portal inside the game (the web host). */
+  private readonly adSheet: AdvertiseSheet;
 
   // Lagos Life matches
   private vmatch: MatchView | null = null;
@@ -470,6 +473,7 @@ export class Game {
     });
     this.tutorial = new TutorialPlayer(ui);
     this.cards = new HowTo(ui);
+    this.adSheet = new AdvertiseSheet(ui);
     this.cards.staked = !!host.matches;
     this.tutorial.onClose(() => this.endTutorial());
     this.countdown = new Countdown(this.hud, (last) => this.sound.countTick(last));
@@ -3053,6 +3057,7 @@ export class Game {
 
   private back(): void {
     if (this.cards.open) return this.cards.cancel();
+    if (this.adSheet.open) return this.adSheet.close();
     const s = this.screens.name;
     if (this.tut && !s) return this.endTutorial();
     if ((this.round || this.gm) && !this.paused && !s) this.pause();
@@ -3617,9 +3622,10 @@ export class Game {
         break;
       case "advertise":
         // v6 (the owner: "ads purchase in a place players can see it"): the advertiser portal, where a business
-        // books a numbered billboard for 1 or 2 weeks. The app opens its own; the web its site's. Never in Lagos Life.
+        // books a numbered billboard for 1 or 2 weeks. The app opens its own over the game; the web, since v7 (2.9),
+        // a sheet inside the game with the portal in it, never a browser tab. Never in Lagos Life.
         if (this.host.kind === "emilgo") (this.host as unknown as { advertise(): void }).advertise();
-        else if (this.host.kind === "web") window.open((import.meta.env.VITE_ADVERTISE_URL as string | undefined) ?? "https://emilgo.app/advertise", "_blank", "noopener");
+        else if (this.host.kind === "web") this.adSheet.intro();
         break;
       case "money":
         this.screens.toast(this.moneyNow === null ? "Your Lagos Life money shows here once Lagos Life shares it with games." : "Your Lagos Life money.", 3200);

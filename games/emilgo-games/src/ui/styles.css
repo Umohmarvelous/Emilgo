@@ -1691,3 +1691,29 @@ input { font: inherit; color: inherit; }
 .profile .meta .dayrun b { color: #ffd27a; }
 @media (orientation: portrait) { .pm-streak { top: calc(var(--safe-t) + var(--gap) + 98px); right: calc(var(--safe-r) + var(--gap)); } }
 @media (prefers-reduced-motion: reduce) { .pm-streak .st-flame { animation: none; } }
+/* 2.9: the advertiser portal inside the game */
+.adv-card { width: min(560px, calc(100% - 24px)); height: calc(100% - var(--safe-t) - var(--safe-b) - 20px); max-height: none; }
+.adv-card .fc-top .h { flex: 1; margin: 0 8px; }
+.adv-hero { display: flex; gap: 12px; align-items: center; }
+.adv-hero p { margin: 0; font-size: 13px; line-height: 1.4; opacity: 0.9; }
+.adv-board { flex: none; display: grid; place-items: center; width: 64px; height: 64px; border-radius: 12px; background: linear-gradient(160deg, rgba(0, 154, 67, 0.35), rgba(245, 166, 35, 0.25)); color: var(--white); }
+.adv-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.adv-steps li { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.05); }
+.adv-steps b { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.adv-steps b span { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--green); font-size: 11px; }
+.adv-steps small { font-size: 12px; opacity: 0.75; padding-left: 28px; line-height: 1.35; }
+.adv-rules { margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.6; opacity: 0.85; }
+.adv-note { margin: 0; font-size: 11px; opacity: 0.6; }
+.adv-go { flex: none; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.adv-portal { width: min(760px, calc(100% - 16px)); padding-bottom: 8px; }
+.adv-frame { position: relative; flex: 1; min-height: 0; border-radius: 10px; overflow: hidden; background: #0b0d10; }
+.adv-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #fff; opacity: 0; transition: opacity 0.25s; }
+.adv-frame.ready iframe { opacity: 1; }
+.adv-frame.ready .adv-wait { display: none; }
+.adv-wait { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 12px; align-items: center; justify-content: center; font-size: 13px; opacity: 0.85; }
+.adv-wait .spin { width: 26px; height: 26px; border-radius: 50%; border: 3px solid rgba(255, 255, 255, 0.15); border-top-color: var(--green); animation: adv-spin 0.9s linear infinite; }
+@keyframes adv-spin { to { transform: rotate(360deg); } }
+.adv-wait { text-align: center; padding: 0 16px; }
+.adv-row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.adv-row .btn { height: 40px; padding: 0 16px; }
+.adv-card .ht-scroll { flex: 1; }

@@ -57,6 +57,18 @@ import {
   type PayProvider,
 } from "@/src/services/billboards";
 
+/**
+ * v7 (games 2.9): the web game shows this portal inside itself, in a frame. Payment
+ * providers refuse to be framed, so there the checkout opens in a tab of its own
+ * (it returns to /advertise in that tab, which settles it), and the game's sheet
+ * has its own close, so the back arrow goes.
+ */
+const framed = Platform.OS === "web" && typeof window !== "undefined" && window.self !== window.top;
+function goPay(url: string): void {
+  if (framed) window.open(url, "_blank", "noopener");
+  else window.location.href = url;
+}
+
 const naira = (n: number) => `₦${n.toLocaleString("en-NG", { maximumFractionDigits: 2 })}`;
 
 type Where = "all" | "naija-world" | "spooky-world";
@@ -209,7 +221,7 @@ export default function AdvertiseScreen() {
     try {
       const c = await startCheckout(provider, n, mine[0]?.id ?? null);
       if (c.checkout_url) {
-        if (Platform.OS === "web") window.location.href = c.checkout_url;
+        if (Platform.OS === "web") goPay(c.checkout_url);
         else {
           await WebBrowser.openBrowserAsync(c.checkout_url);
           const r = await verifyPayment(c.reference);
@@ -240,7 +252,7 @@ export default function AdvertiseScreen() {
     try {
       const c = await bookBoard(provider, b.id, weeks === "2" ? 2 : 1, ad);
       if (c.checkout_url) {
-        if (Platform.OS === "web") window.location.href = c.checkout_url;
+        if (Platform.OS === "web") goPay(c.checkout_url);
         else {
           await WebBrowser.openBrowserAsync(c.checkout_url);
           const r = await verifyPayment(c.reference);
@@ -571,9 +583,11 @@ export default function AdvertiseScreen() {
       <View style={[styles.bar, { paddingTop: insets.top, height: topInset }]}>
         <Glass variant="regular" style={StyleSheet.absoluteFill} pointerEvents="none" fallbackIntensity={60} fallbackTint={t.systemBackground} />
         <View style={styles.barRow}>
-          <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))} hitSlop={12} accessibilityLabel="Back">
-            <HugeiconsIcon icon={ArrowLeft01Icon} size={24} color={t.label} strokeWidth={2} />
-          </Pressable>
+          {framed && !router.canGoBack() ? null : (
+            <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))} hitSlop={12} accessibilityLabel="Back">
+              <HugeiconsIcon icon={ArrowLeft01Icon} size={24} color={t.label} strokeWidth={2} />
+            </Pressable>
+          )}
           <Text style={[styles.barTitle, { color: t.label }]}>Advertise</Text>
         </View>
       </View>
