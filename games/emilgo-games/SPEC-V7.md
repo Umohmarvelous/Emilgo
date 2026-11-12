@@ -83,7 +83,7 @@ of where the treasures are, and gets tougher ideas of its own: the "Treasure Hun
 | 2.3 | **Near death** (in the gas or badly shot): slower and slower, laboured breath, a slow heartbeat, a struggling voice, COD-style | Done (54bd224). Under 30% health: down to 60% speed, the world muffled, the heart slowing 68 → 42 bpm, breath in and out, a groan past 45% weakness; the server's pace matches |
 | 2.4 | **Backpedal** COD-style: back walks you backwards, still facing forward | Done (7c2d3fb). Back (past 112° off your aim) walks you backwards at 60% speed, no sprint, still facing your aim; the legs play the walk in reverse |
 | 2.5 | **Sprint and slide** in Free For All, as in the runner | Done (edc3919). While sprinting the crouch button is the slide (its own icon, an orange ring): 0.95 s at 1.1× the sprint, then back up into the sprint. C on the keyboard |
-| 2.6 | **Solid world**: no walking into buildings, stones, trees, props; only items are walked through | In progress: the audit is built (below), the fixes not yet |
+| 2.6 | **Solid world**: no walking into buildings, stones, trees, props; only items are walked through | Done. Every audited prefab now stops a body where it is drawn (only the ramps' drawn steps and a room's 0.5 m beds remain: false alarms). Pines: the boughs start above head height (drawn tiers lifted to clear 1.9 m; the scanned pine impostors cut their lowest needles away, the trunk kept), trunk solid 0.7. Rocks: the scan's own measured footprint, turned as drawn. Tanks and silos: a dodecagon round them. Mangrove roots, the hangar's walls, the plane wreck's tilted wing and debris, the vans, the portrait boards' plinths, plane-tree trunks: solids widened. Posts, poles, goods on tables, ladders, signs, gate posts, planters: their own solids (`bodyParts`, never drawn from). The house gate stands open (its leaves solid). Solids: Naija 1468 → 1844, Meridian Max 4265 → 4853; worldtest, spacetest, maxtest, sharedtest pass |
 | 2.7 | **Daily streak**: badges, awards and rewards | Not started |
 | 2.8 | The **pickup orbit**: new designs, electric sparks, more cinematic | Not started |
 | 2.9 | The **advertiser screen inside the game**, not a browser tab | Not started. Today `session.ts`'s "advertise" opens `VITE_ADVERTISE_URL` in a tab on the web; Lagos Life's in-app screen is the model |
@@ -91,7 +91,7 @@ of where the treasures are, and gets tougher ideas of its own: the "Treasure Hun
 | 2.11 | The **backpack straps** follow the shoulder and upper arm's curve | Not started |
 | 2.12 | The **welcome screen**: no zombie text, a first-timer's "how it plays" in three pictures, a cinematic background from the game's own world | Not started |
 
-### 2.6, what the audit found
+### 2.6, what the audit found (all fixed 12 Nov but the false alarms; `solidaudit` now reads only those)
 
 `server/scripts/solidaudit.ts` draws every placement of both worlds (Naija City, Meridian Max) and samples the
 drawn surfaces between 0.5 m and 1.6 m up (where a body would touch them) that no solid covers (12 cm grace).

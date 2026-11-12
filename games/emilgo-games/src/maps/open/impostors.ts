@@ -22,6 +22,7 @@ import { BufferGeometry, Float32BufferAttribute, InstancedBufferAttribute, Insta
 import type { TierSpec } from "../../graphics/tiers";
 import { ktxFile, ktxOn, libJson } from "../../assets/ktx";
 import type { TreeAt } from "./art";
+import { PINE_CLEAR } from "./prefabs";
 
 export type Species = "broadA" | "broadB" | "pine";
 
@@ -127,6 +128,8 @@ export function impostorMaterial(spec: TierSpec, sp: Species, imp: Impostor, tim
       uTexPx: { value: [imp.meta.cols * imp.tile, imp.meta.rows * imp.tile] },
       uGrade: { value: GRADE[sp] },
       uTime: time,
+      // v7 (2.6): a pine's lowest needles are cut away up to PINE_CLEAR, the trunk kept (a body walks under them).
+      uClear: { value: sp === "pine" ? PINE_CLEAR : 0 },
     });
     sh.vertexShader = sh.vertexShader
       .replace(
@@ -135,7 +138,7 @@ export function impostorMaterial(spec: TierSpec, sp: Species, imp: Impostor, tim
         attribute float aYaw;
         attribute float aSnow;
         uniform float uViews; uniform float uCols; uniform float uRows; uniform float uQuad; uniform float uTime;
-        varying vec2 vUvA; varying vec2 vUvB; varying float vMix; varying float vSnow;
+        varying vec2 vUvA; varying vec2 vUvB; varying float vMix; varying float vSnow; varying vec2 vMet;
         varying vec3 vRight; varying vec3 vFwd;
         vec2 tileUv(float i, vec2 l) {
           float col = mod(i, uCols); float row = floor(i / uCols);
@@ -165,6 +168,9 @@ export function impostorMaterial(spec: TierSpec, sp: Species, imp: Impostor, tim
         vUvA = tileUv(i0, l);
         vUvB = tileUv(mod(i0 + 1.0, uViews), l);
         vSnow = aSnow;
+        // Metres from the trunk's axis, and up from the foot (the instance's scale is the tree's height).
+        float hM = length(instanceMatrix[1].xyz);
+        vMet = vec2(position.x * uQuad * hM, position.y * uQuad * hM);
         vRight = rightW;
         vFwd = vec3(dIr.x, 0.0, dIr.y);`,
       );
@@ -172,8 +178,8 @@ export function impostorMaterial(spec: TierSpec, sp: Species, imp: Impostor, tim
       .replace(
         "#include <common>",
         `#include <common>
-        uniform sampler2D uA; uniform sampler2D uN; uniform vec2 uTexPx; uniform vec3 uGrade;
-        varying vec2 vUvA; varying vec2 vUvB; varying float vMix; varying float vSnow;
+        uniform sampler2D uA; uniform sampler2D uN; uniform vec2 uTexPx; uniform vec3 uGrade; uniform float uClear;
+        varying vec2 vUvA; varying vec2 vUvB; varying float vMix; varying float vSnow; varying vec2 vMet;
         varying vec3 vRight; varying vec3 vFwd;`,
       )
       .replace(
@@ -191,6 +197,7 @@ export function impostorMaterial(spec: TierSpec, sp: Species, imp: Impostor, tim
           imC.a *= 1.0 + lod * 0.3;
         }
         if (imC.a < 0.5) discard;
+        if (vMet.y < uClear && abs(vMet.x) > 0.3 - 0.1 * vMet.y / max(uClear, 0.01)) discard;
         diffuseColor.rgb *= imC.rgb * uGrade;`,
       )
       .replace(
@@ -224,7 +231,7 @@ export function impostorMaterial(spec: TierSpec, sp: Species, imp: Impostor, tim
         #endif`,
       );
   };
-  m.customProgramCacheKey = () => `impostor3:${withN}`;
+  m.customProgramCacheKey = () => `impostor4:${withN}`;
   mats.set(key, m);
   return m;
 }

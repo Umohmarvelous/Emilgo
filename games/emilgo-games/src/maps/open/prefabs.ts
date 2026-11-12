@@ -218,7 +218,10 @@ export function footprint(id: PrefabId, v: number): [number, number] {
 }
 
 /** A house's front path through its fence. */
-const GATE = 2.4;
+export const GATE = 2.4;
+
+/** v7 (2.6): a pine's lowest boughs clear this (m), so a body walks under them to the trunk (art.ts, impostors.ts). */
+export const PINE_CLEAR = 1.9;
 
 /** The solid parts of a prefab variant, in its own axes. */
 /**
@@ -383,8 +386,9 @@ export function parts(id: PrefabId, v: number): Part[] {
       for (let i = 0; i < 6; i++) for (const z of [-4, 4]) out.push(box(-15 + i * 6, z - 14, 0.3, 0.3, 0, 4.2));
       out.push(box(0, -14, 34, 10, 4.0, 4.4, "metal"));
       for (const x of [-12, 0, 12]) out.push(box(x, 21, 2.4, 2.4, 0, 2.7));
-      for (let i = 0; i < 5; i++) out.push(box(-14 + i * 7, 6, 2.0, 4.8, 0, 2.4, "metal"));
-      for (let i = 0; i < 4; i++) out.push(box(-10.5 + i * 7, 13.5, 2.0, 4.8, 0, 2.4, "metal"));
+      // The vans (drawn by art.ts's van(), a little wider than v6's boxes with their mirrors).
+      for (let i = 0; i < 5; i++) out.push(box(-14 + i * 7, 6, 2.8, 5.0, 0, 2.4, "metal"));
+      for (let i = 0; i < 4; i++) out.push(box(-10.5 + i * 7, 13.5, 2.8, 5.0, 0, 2.4, "metal"));
       break;
     case "market": {
       // Rows of stalls with aisles between; a covered shed in the middle.
@@ -424,8 +428,9 @@ export function parts(id: PrefabId, v: number): Part[] {
       // The steel pole behind the panel's middle, and the panel up top (the face is on its +z side).
       const q = boardSize(v);
       if ((v & 4) !== 0) {
-        // v6 max: the portrait tower: one solid from the plinth to its top.
+        // v6 max: the portrait tower: one solid from the plinth to its top. v7 (2.6): the plinth is wider than the case.
         out.push(box(0, 0, q.w + 0.4, BOARD_DEPTH + 0.2, 0, q.y + q.h + 0.2, "metal"));
+        out.push(box(0, 0, q.w + 0.6, BOARD_DEPTH + 0.5, 0, q.y - 0.1, "metal"));
         break;
       }
       // v6 max: a two-sided board's pole stands under the panel's middle (a face each side).
@@ -466,7 +471,8 @@ export function parts(id: PrefabId, v: number): Part[] {
       out.push(box(0, 0, 0.6, 0.6, 0, 6, "wood"));
       break;
     case "palm":
-      out.push(box(0, 0, 0.5, 0.5, 0, 8, "wood"));
+      // v7 (2.6): the plane tree's trunk as drawn (v6: 0.5).
+      out.push(box(0, 0, 0.7, 0.7, 0, 8, "wood"));
       break;
     case "bush":
       break;
@@ -474,8 +480,9 @@ export function parts(id: PrefabId, v: number): Part[] {
       out.push(box(0, 0, 4.2, 4.2, 0, 9, "wood"));
       break;
     case "hut": {
+      // v7 (2.6): the silo is round (radius r) and 4.4 m to its eaves: a dodecagon round it (v6: a square inside).
       const p = hutP(v);
-      out.push(box(0, 0, p.r * 1.7, p.r * 1.7, 0, 3.6));
+      round(out, p.r, 0, 4.4, "metal");
       break;
     }
     case "mudhouse": {
@@ -542,7 +549,8 @@ export function parts(id: PrefabId, v: number): Part[] {
     // ── v4 Phase 7: the big world's places ──
     case "pine":
     case "snowpine":
-      out.push(box(0, 0, 0.5, 0.5, 0, 8, "wood"));
+      // v7 (2.6): the trunk, flared at the foot; the boughs start above head height (art.ts, impostors.ts).
+      out.push(box(0, 0, 0.7, 0.7, 0, 8, "wood"));
       break;
     case "prop": {
       const q = propOf(v);
@@ -578,8 +586,9 @@ export function parts(id: PrefabId, v: number): Part[] {
       out.push(box(0, 0, 30, 22, 0, 9, "metal"));
       break;
     case "tank": {
+      // v7 (2.6): round (16 sides, radius r): three boxes turned 0°, 30°, 60° (a dodecagon round it; v6: a square inside).
       const r = 7 + (v % 4) * 1.5;
-      out.push(box(0, 0, r * 1.7, r * 1.7, 0, 12 + (v % 3) * 2, "metal"));
+      round(out, r, 0, 12 + (v % 3) * 2, "metal");
       break;
     }
     case "flarestack":
@@ -591,8 +600,9 @@ export function parts(id: PrefabId, v: number): Part[] {
       break;
     case "hangar":
       // v6 max (3.3, the v4 picture): a Quonset hut: one corrugated arch (radius 16) open at the front.
-      out.push(box(-15.3, 0, 0.8, 30, 0, 8, "metal"));
-      out.push(box(15.3, 0, 0.8, 30, 0, 8, "metal"));
+      // v7 (2.6): the side walls where the arch meets the ground (x ±16; v6: ±15.3).
+      out.push(box(-15.9, 0, 0.7, 30, 0, 8, "metal"));
+      out.push(box(15.9, 0, 0.7, 30, 0, 8, "metal"));
       out.push(box(0, -14.7, 32, 0.6, 0, 12, "metal"));
       out.push(box(0, 0, 32, 30, 15.6, 16, "metal"));
       break;
@@ -600,10 +610,18 @@ export function parts(id: PrefabId, v: number): Part[] {
       out.push(box(0, 0, 4, 4, 0, 18, "concrete"));
       out.push(box(0, 0, 7, 7, 18, 21, "concrete"));
       break;
-    case "planewreck":
-      out.push(box(0, 0, 4.2, 22, 0, 4.2, "metal"));
-      out.push(box(0, -1, 22, 4, 1.6, 2.2, "metal"));
+    case "planewreck": {
+      // v7 (2.6): the fuselage as wide as drawn; the wing tilts (0.08 rad: its tip 1 m up on one side, near the
+      // ground on the other), so four boxes follow it; the scorched debris beside it.
+      out.push(box(0, 0, 5, 22, 0, 4.2, "metal"));
+      for (let j = 0; j < 4; j++) {
+        const xa = -11 + j * 5.5;
+        const xb = xa + 5.5;
+        out.push(box((xa + xb) / 2, -1, 5.5, 4.2, Math.max(0, 1.6 + Math.sin(0.08) * xa), 2.2 + Math.sin(0.08) * xb, "metal"));
+      }
+      out.push(box(5, 2, 3.8, 4.4, 0, 0.8, "metal"));
       break;
+    }
     case "dune": {
       // A long sand ridge you run up and over: two slopes.
       const w = 18 + (v % 5) * 4;
@@ -613,6 +631,9 @@ export function parts(id: PrefabId, v: number): Part[] {
     }
     case "mangrove":
       out.push(box(0, 0, 0.8, 0.8, 0, 6, "wood"));
+      // v7 (2.6): the arching roots (to 1.1 m out, 1.3 m up): two crossed boxes round them.
+      out.push(box(0, 0, 2.0, 2.0, 0, 1.3, "wood"));
+      out.push({ ...box(0, 0, 2.0, 2.0, 0, 1.3, "wood"), rot: Math.PI / 4 });
       break;
     case "deadtree":
       out.push(box(0, 0, 0.6, 0.6, 0, 7, "wood"));
@@ -678,10 +699,12 @@ export function ruinP(v: number): { w: number; d: number; h: number } {
   return { w: 8 + (v % 3) * 2, d: 6 + ((v >>> 3) % 3) * 1.5, h: 3.4 + ((v >>> 6) % 3) * 0.6 };
 }
 
-export function solidsOf(p: Placement, out: Solid[]): void {
+export function solidsOf(p: Placement, out: Solid[], sandy?: (x: number, z: number) => boolean): void {
   const c = Math.cos(p.rot);
   const s = Math.sin(p.rot);
-  for (const q of parts(p.prefab, p.v)) {
+  // v7 (2.6): a rock is drawn by its scan (where the layout knows the ground): its solid is the scan's, turned as it is.
+  const list = p.prefab === "rock" && sandy ? rockParts(p.v, sandy(p.x, p.z)) : [...parts(p.prefab, p.v), ...bodyParts(p.prefab, p.v)];
+  for (const q of list) {
     out.push({
       x: p.x + q.x * c + q.z * s,
       z: p.z - q.x * s + q.z * c,
@@ -695,4 +718,121 @@ export function solidsOf(p: Placement, out: Solid[]): void {
       surface: q.surface ?? "concrete",
     });
   }
+}
+
+/** Boxes turned 0°, 30° and 60°: a dodecagon round a circle of radius r (its corners 3.5% out). */
+function round(out: Part[], r: number, y0: number, y1: number, surface: Surface): void {
+  for (let k = 0; k < 3; k++) out.push({ ...box(0, 0, r * 2, r * 2, y0, y1, surface), rot: (k * Math.PI) / 6 });
+}
+
+/**
+ * v7 (2.6): the scanned rocks' footprints (the model library's, as build.ts draws them: each part centred, its
+ * longest side scaled to 2.1 × the rock's size): the mossy set on grass (one per part, by the variant), the granite
+ * on sand and snow. Measured from the library (x, height, z, metres as made).
+ */
+const ROCK_SCANS = {
+  grass: [[2.237, 1.461, 3.363], [2.642, 1.256, 3.254], [2.105, 1.095, 2.078], [2.128, 1.763, 1.962], [1.814, 1.201, 2.997], [2.126, 1.255, 2.753]],
+  sand: [[2.524, 0.88, 1.233]],
+} as const;
+
+/** A scanned rock's solid: its footprint (a little inside: a rock is round), turned as build.ts turns it, to its top. */
+function rockParts(v: number, sand: boolean): Part[] {
+  const s = 1.2 + (v % 7) * 0.4;
+  const set = sand ? ROCK_SCANS.sand : ROCK_SCANS.grass;
+  const [px, py, pz] = set[v % set.length];
+  const k = (s * 2.1) / Math.max(px, pz);
+  const top = py * k * (0.8 + ((v >> 3) % 5) * 0.1) - 0.1 * s;
+  return [{ ...box(0, 0, px * k * 0.88, pz * k * 0.88, 0, Math.max(0.3, top * 0.92), "concrete"), rot: ((v >> 6) % 628) / 100 }];
+}
+
+/**
+ * v7 (2.6, the owner: "I do not want character to be able to walk into an object ... nothing except the items"):
+ * solids for what art.ts draws at body height that `parts` (which art.ts also draws from) leaves out: posts, poles,
+ * goods on tables, a ladder, a sign, the house's open gate. Never drawn from: only stopped by.
+ */
+function bodyParts(id: PrefabId, v: number): Part[] {
+  const out: Part[] = [];
+  const post = (x: number, z: number, h: number, w = 0.16) => out.push(box(x, z, w, w, 0, h, "metal"));
+  switch (id) {
+    case "house": {
+      const p = houseP(v);
+      if (!p.fence) break;
+      // The iron gate stands open, its two leaves swung in against the fence's ends (art.ts).
+      const front = (p.d + 3) / 2 - 0.1;
+      for (const sx of [-1, 1]) out.push(box(sx * (GATE / 2 - 0.06), front - 0.6, 0.1, 1.1, 0, 1.6, "metal"));
+      break;
+    }
+    case "market": {
+      for (let row = 0; row < 6; row++) {
+        const z = -25 + row * 10;
+        if (row === 2 || row === 3) continue;
+        for (let i = 0; i < 9; i++) {
+          const x = -18 + i * 4.5;
+          // The gazebo's four poles; the crates of produce on the trestle.
+          for (const dx of [-1.6, 1.6]) for (const dz of [-1.4, 1.4]) post(x + dx, z + dz, 2.4, 0.12);
+          out.push(box(x, z, 2.8, 0.7, 1.0, 1.32, "wood"));
+        }
+      }
+      // The umbrellas over the aisles; the fruit on the covered shed's tables.
+      for (let i = 0; i < 8; i++) post(-16 + (i % 4) * 10.5, i < 4 ? -20 : 20, 2.6, 0.14);
+      for (let i = 0; i < 5; i++) out.push(box(-12 + i * 6, 0, 3.0, 0.5, 0.9, 1.3, "wood"));
+      break;
+    }
+    case "suya":
+      // The skewers over the grill; the canopy's poles.
+      out.push(box(-2.2, -1.2, 2.4, 1.6, 1.0, 1.15, "metal"));
+      for (const [x, z] of [[-4, 3.2], [4, 3.2], [-4, 0.6], [4, 0.6]]) post(x, z, 2.5, 0.14);
+      break;
+    case "school":
+      // The football goalposts.
+      for (const x of [-12, 12]) for (const z of [2, 7]) post(x, z, 2.2, 0.14);
+      break;
+    case "viewing":
+      // The tables outside.
+      for (const x of [-4, 4]) out.push(box(x, 5.2, 1.2, 0.8, 0, 0.8, "metal"));
+      break;
+    case "petrol":
+      // The price board's pole.
+      post(11, 8, 6, 0.34);
+      break;
+    case "palmwine":
+      // The pots on the bench.
+      out.push(box(0, 1, 4.2, 0.45, 0.45, 0.95, "wood"));
+      break;
+    case "watertower":
+      // The ladder up a leg.
+      out.push(box(2.4, 2.75, 0.55, 0.12, 0, 14, "metal"));
+      break;
+    case "busstop":
+      // The timetable board.
+      out.push(box(2, 1.05, 1.4, 0.12, 0.5, 2.3, "metal"));
+      break;
+    case "chief":
+      // The stone gate posts.
+      for (const x of [-2.2, 2.2]) out.push(box(x, 13, 0.8, 0.8, 0, 3.4, "concrete"));
+      break;
+    case "okada":
+      // The jerrycans on the drums.
+      for (let i = 0; i < 4; i++) out.push(box(-3 + i * 2 + 0.12, 0, 0.36, 0.24, 1.1, 1.3, "metal"));
+      break;
+    case "compound": {
+      // The planters (and their bushes) down the yard.
+      const p = compoundP(v);
+      for (let i = 0; i < 3; i++) out.push(box(-p.w / 3 + i * (p.w / 3), 0, 1.2, 1.2, 0, 1.0, "concrete"));
+      break;
+    }
+    case "plaza":
+      // The tree on the planter.
+      out.push(box(0, 0, 0.4, 0.4, 0.55, 3, "wood"));
+      break;
+    case "stand":
+      // The floodlights' masts.
+      for (const x of [-29, 0, 29]) post(x, -6.5, 18, 0.5);
+      break;
+    case "uncompleted":
+      // The half-built block wall.
+      out.push(box(-2, -4.5, 8, 0.25, 0, 1.45, "concrete"));
+      break;
+  }
+  return out;
 }

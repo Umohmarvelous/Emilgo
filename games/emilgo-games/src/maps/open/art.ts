@@ -12,7 +12,7 @@ import { BoxGeometry, BufferGeometry, ConeGeometry, CylinderGeometry, Matrix4, O
 
 import { Kit, type Chunk, type Level, type TexKind } from "../kit";
 import { merge, part, type V3 } from "../../world/geo";
-import { BOARD_DEPTH, boardSize, COURTYARD, compoundP, houseP, hutP, mudP, officeP, parts, propOf, shopsP, storeyP, type Part, type Placement } from "./prefabs";
+import { BOARD_DEPTH, boardSize, COURTYARD, compoundP, GATE as GATE_W, houseP, hutP, mudP, officeP, parts, PINE_CLEAR, propOf, shopsP, storeyP, type Part, type Placement } from "./prefabs";
 
 /** The atlas's tiles, in order (4 × 2). */
 export const TEX_KINDS: TexKind[] = ["plaster", "concrete", "brick", "wood", "mud", "zinc", "glass", "thatch"];
@@ -342,8 +342,14 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
       allParts(k, ps.slice(1), () => ({ tex: "brick", color: "#b89a88", tile: 2 }));
       for (const q2 of ps.slice(1)) if (q2.kind !== "ramp" && q2.y1 > 0.5) k.box("#cfcac0", [q2.hx * 2 + 0.08, 0.08, q2.hz * 2 + 0.08], [q2.x, q2.y1 + 0.04, q2.z], "detail", q2.rot ? [0, q2.rot, 0] : undefined);
       if (q.fence) {
-        for (let i = 0; i < 9; i++) k.box("#1c1e20", [0.04, 1.6, 0.04], [-1.0 + i * 0.25, 0.8, (q.d + 3) / 2 - 0.1], "main"); // the gate
-        k.box("#1c1e20", [2.3, 0.06, 0.06], [0, 1.55, (q.d + 3) / 2 - 0.1], "main");
+        // v7 (2.6): the gate stands open, its two leaves swung in against the fence's ends (solid: prefabs.ts).
+        const front = (q.d + 3) / 2 - 0.1;
+        for (const sx of [-1, 1]) {
+          const x = sx * (GATE_W / 2 - 0.06);
+          for (let i = 0; i < 5; i++) k.box("#1c1e20", [0.04, 1.6, 0.04], [x, 0.8, front - 0.1 - i * 0.24], "main");
+          k.box("#1c1e20", [0.06, 0.06, 1.1], [x, 1.55, front - 0.6], "main");
+          k.box("#1c1e20", [0.06, 0.06, 1.1], [x, 0.15, front - 0.6], "main");
+        }
       }
       break;
     }
@@ -871,13 +877,17 @@ function drawPrefab(k: PrefabKit, p: Placement, night: boolean): void {
       // v5, Frostline: snow on it, more toward the top.
       const greens = (p.prefab === "snowpine" ? ["#b9c9c6", "#a7bbb8", "#dfe7e8", "#8fa6a0"] : ["#1d3822", "#24402a", "#2b472d", "#203a26"]).map((c) => shadeHex(c, tint));
       const n = hi ? 7 : 5;
+      // v7 (2.6, "no walking into trees"): the boughs start above head height. The lowest tier's tips droop to
+      // 0.62 of its height below its centre: lift it until they clear PINE_CLEAR, the tiers above less and less.
+      const lift = Math.max(0, PINE_CLEAR - h * (0.2 - 0.26 * 1.15 * 0.62));
       for (let i = 0; i < n; i++) {
         const t = i / (n - 1);
         const rad = (2.7 - t * 2.15) * r.range(0.88, 1.08);
         const th = h * (0.26 - t * 0.1);
+        const up = lift * (1 - t);
         // v5: Medium and up, jagged drooping boughs (kit.ts BOUGH); Low, the light cones.
-        if (hi) k.bough(r.pick(greens), rad * 1.08, th * 1.15, [r.range(-0.1, 0.1), h * (0.2 + t * 0.66), r.range(-0.1, 0.1)], "foliage", [r.range(-0.06, 0.06), r.range(0, 6.28), r.range(-0.06, 0.06)]);
-        else k.cone(r.pick(greens), rad, th, [r.range(-0.1, 0.1), h * (0.2 + t * 0.66), r.range(-0.1, 0.1)], "foliage", [r.range(-0.07, 0.07), r.range(0, 6.28), r.range(-0.07, 0.07)], 6);
+        if (hi) k.bough(r.pick(greens), rad * 1.08, th * 1.15, [r.range(-0.1, 0.1), h * (0.2 + t * 0.66) + up, r.range(-0.1, 0.1)], "foliage", [r.range(-0.06, 0.06), r.range(0, 6.28), r.range(-0.06, 0.06)]);
+        else k.cone(r.pick(greens), rad, th, [r.range(-0.1, 0.1), h * (0.2 + t * 0.66) + up, r.range(-0.1, 0.1)], "foliage", [r.range(-0.07, 0.07), r.range(0, 6.28), r.range(-0.07, 0.07)], 6);
       }
       break;
     }

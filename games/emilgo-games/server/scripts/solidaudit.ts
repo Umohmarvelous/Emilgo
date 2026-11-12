@@ -5,6 +5,8 @@
 // each drawn surface between LO and HI metres up; a sample no solid holds (MARGIN of grace) is walked through.
 // Prints, per prefab (props by table index), the count and the uncovered parts' boxes in the placement's own axes.
 // A ramp's drawn steps read as uncovered: a false alarm. Not a pass/fail test: a list to work from.
+// The rocks are left out: the game draws their scans (the model library), whose solids are the scans' own
+// footprints (prefabs.ts rockParts); the drawn rock here is only the fallback without the library.
 //
 //   node server/build-tools.mjs && node server/dist/solidaudit.mjs          (MARGIN=0.2 to loosen)
 import type { BufferGeometry } from "three";
@@ -47,11 +49,12 @@ for (const [name, L] of [["Naija City", buildNaijaWorld()], ["Meridian Max", bui
   const covered = (x: number, y: number, z: number) => (grid.get(`${Math.floor(x / G)},${Math.floor(z / G)}`) ?? []).some((i) => inside(L.solids[i], x, y, z));
   const kit = new PrefabKit(1957);
   kit.tier = 1;
-  const per = new Map<string, { n: number; pts: number; parts: string[] }>();
-  for (const p of L.placements) {
+  const per = new Map<string, { n: number; pts: number; parts: string[]; from: number }>();
+  for (const [pi, p] of L.placements.entries()) {
+    if (p.prefab === "rock") continue;
     const { chunk } = kit.draw(p, false);
     const key = p.prefab === "prop" ? `prop:${p.v & 255}` : p.prefab;
-    const e = per.get(key) ?? { n: 0, pts: 0, parts: [] };
+    const e = per.get(key) ?? { n: 0, pts: 0, parts: [], from: -1 };
     e.n++;
     const c = Math.cos(p.rot);
     const s = Math.sin(p.rot);
@@ -85,7 +88,9 @@ for (const [name, L] of [["Naija City", buildNaijaWorld()], ["Meridian Max", bui
               bb = bb ? [Math.min(bb[0], lx), Math.max(bb[1], lx), Math.min(bb[2], y), Math.max(bb[3], y), Math.min(bb[4], lz), Math.max(bb[5], lz)] : [lx, lx, y, y, lz, lz];
             }
         }
-        if (bb && e.n === 1 && e.parts.length < 8) e.parts.push(`${bucket} x[${bb[0].toFixed(1)}, ${bb[1].toFixed(1)}] y[${bb[2].toFixed(1)}, ${bb[3].toFixed(1)}] z[${bb[4].toFixed(1)}, ${bb[5].toFixed(1)}]`);
+        // The parts of the first placement with any uncovered (every placement of a prefab differs a little).
+        if (bb && (e.from < 0 || e.from === pi) && e.parts.length < 8) e.from = pi;
+        if (bb && e.from === pi && e.parts.length < 8) e.parts.push(`${bucket} x[${bb[0].toFixed(1)}, ${bb[1].toFixed(1)}] y[${bb[2].toFixed(1)}, ${bb[3].toFixed(1)}] z[${bb[4].toFixed(1)}, ${bb[5].toFixed(1)}]`);
       }
     per.set(key, e);
   }

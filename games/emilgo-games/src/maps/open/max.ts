@@ -419,7 +419,8 @@ export function buildMaxWorld(seed = 1957): OpenLayout {
   const solids: Solid[] = city.solids.filter(
     (s) => !(s.kind === "box" && s.y0 === 0 && s.y1 === EDGE.h && (Math.abs(Math.abs(s.x) - (CITY - EDGE.t / 2)) < 0.01 || Math.abs(Math.abs(s.z) - (CITY - EDGE.t / 2)) < 0.01) && Math.max(s.hx, s.hz) >= CITY - 1),
   );
-  for (const p of placements) solidsOf(p, solids);
+  // v7 (2.6): the rocks' solids follow their scans, which hang on the ground under them: added once that's known (below).
+  for (const p of placements) if (p.prefab !== "rock") solidsOf(p, solids);
   for (const w of WATERS) {
     for (let i = 0; i + 1 < w.pts.length; i++) {
       const [ax, az] = w.pts[i];
@@ -498,6 +499,12 @@ export function buildMaxWorld(seed = 1957): OpenLayout {
     for (const p of PLACES) if (Math.hypot(p.x - x, p.z - z) <= p.r) return p.ground === "grass" && inPatch(x, z, 26, 0.2, 31) ? "earth" : p.ground;
     return inPatch(x, z, 40, 0.333, 32) ? "earth" : "grass";
   };
+
+  const sandy = (x: number, z: number) => {
+    const g = groundAt(x, z);
+    return g === "sand" || g === "snow";
+  };
+  for (const p of placements) if (p.prefab === "rock") solidsOf(p, solids, sandy);
 
   return {
     id: "max-world",

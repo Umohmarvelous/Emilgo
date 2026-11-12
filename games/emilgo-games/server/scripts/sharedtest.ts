@@ -457,7 +457,9 @@ console.log("walk-through pickup:");
   const dropped = ev5.find((e) => e.type === "drop" && e.id === "p4");
   const back = dropped && dropped.type === "drop" ? it4.items[dropped.item] : null;
   check(!!back && !back.taken, "your own drop stays on the ground while you stand by it");
-  runTo(m4, m4.elapsed + 0.2, [], () => put(m4, "p4", g4.x + 6, g4.z));
+  // Away: 6 m off, wherever there's ground (the item may lie by the world's edge).
+  const away = ([[6, 0], [-6, 0], [0, 6], [0, -6]] as const).find(([dx, dz]) => reach.at(g4.x + dx, g4.z + dz)) ?? [6, 0];
+  runTo(m4, m4.elapsed + 0.2, [], () => put(m4, "p4", g4.x + away[0], g4.z + away[1]));
   runTo(m4, m4.elapsed + 0.2, [], () => put(m4, "p4", back ? back.x : g4.x, back ? back.z : g4.z));
   check(!!back && back.taken, "walk away and back: it's picked up again");
   // A full backpack leaves it, silently (no "full" every step).
