@@ -72,6 +72,10 @@ if (set === "outfits") {
 } else if (set === "figs") {
   // v6 max (3.8): the five figurines (with &gear=0), in their own suits.
   for (const f of FIGURINES) looks.push(figurineLook(base({ body: "m" }), f));
+} else if (set === "pack") {
+  // v7 (2.11): the backpack's straps from four sides (with &gear=0): back, three-quarter, side, front; m and f.
+  // &only=0..3: one of the four, close up.
+  for (let i = 0; i < (q.get("only") ? 1 : 4); i++) looks.push(base({ body: q.get("body") === "f" ? "f" : "m", hoodie: 5 }));
 } else if (set === "poses") {
   for (const p of ["relaxed", "hip", "hair", "hero", "arms"]) looks.push(base({ body: p === "hero" || p === "arms" ? "m" : "f", hair: "afro", outfit: p === "hero" ? "hero" : "patch_dress", skin: 3 }));
 }
@@ -108,6 +112,8 @@ looks.forEach((l, i) => {
     h.hold = hd;
   }
   if (q.get("torch")) h.torch = true;
+  if (set === "pack" || q.get("pack")) h.wearPack(true);
+  if (set === "pack") h.mesh.rotation.y = [Math.PI, Math.PI * 0.75, Math.PI / 2, 0.35][Number(q.get("only") ?? i)];
   // v6 max: the tactical sprint's pose (?tac=1, with &speed=10.5).
   if (q.get("tac")) h.anim.tacWant = 1;
   // v6 max: the suit's effects (?camo=1; ?power=1 strength | 2 speed).
@@ -143,6 +149,10 @@ const camera = new PerspectiveCamera(set === "face" ? 20 : 35, innerWidth / inne
 if (set === "face" || set === "afro" || cam === "face") {
   camera.position.set(0, 1.6, 1.6);
   camera.lookAt(0, 1.58, 0);
+} else if (set === "pack") {
+  camera.fov = 24;
+  camera.position.set(0, 1.3, Number(q.get("dist") ?? 3.3));
+  camera.lookAt(0, 1.28, 0);
 } else if (q.get("zoom") === "hand") {
   camera.fov = 22;
   camera.position.set(0.9, 0.95, 1.1);

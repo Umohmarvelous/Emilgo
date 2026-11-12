@@ -36,7 +36,7 @@ import { shadowOnly } from "../../graphics/shadowOnly";
 import { buildBody, nearDetail, type BuiltBody, type Detail, type Tier } from "./mesh";
 import { paintLook, TEX_SIZE } from "./paint";
 import { FALL_TIME, type FallKind } from "./ragdoll";
-import { packMesh } from "./pack";
+import { packMesh, refitPack } from "./pack";
 import { armbandMesh } from "./armband";
 import { BONES, PARENT, type BoneName } from "./skeleton";
 import { applyHold, type Hold } from "./hold";
@@ -964,16 +964,26 @@ export class Human {
   /** Wear a backpack, or not (SPEC-V3 §3.3: worn, so everyone sees you carry one). */
   wearPack(on: boolean): void {
     if (on && !this.pack) {
-      this.pack = packMesh();
+      // v7 (2.11): its straps fitted to this body's shoulders.
+      this.pack = packMesh(this.body);
+      this.packRest = this.body.rest;
       this.bone("chest").add(this.pack);
     }
-    if (this.pack) this.pack.visible = on;
+    this.showPack(on);
   }
 
   /** Is the backpack drawn (worn, and near enough to matter)? */
   showPack(on: boolean): void {
-    if (this.pack) this.pack.visible = on;
+    if (!this.pack) return;
+    this.pack.visible = on;
+    // The body changed under it (the operator's suit, another look): straps fitted to the new one.
+    if (on && this.packRest !== this.body.rest) {
+      refitPack(this.pack, this.body);
+      this.packRest = this.body.rest;
+    }
   }
+  /** The rest joints the pack's straps were fitted to. */
+  private packRest: object | null = null;
 
   get wearsPack(): boolean {
     return !!this.pack;
