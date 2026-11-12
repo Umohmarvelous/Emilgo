@@ -267,8 +267,11 @@ export const MOVE = {
   /**
    * The slide (SPEC-V2 §7.4 #8): crouch while sprinting and you slide on,
    * low, for this long, slowing from sprint to a crouch; you can't steer.
+   * v7 (the owner: "sprint/slide in free for all just like in the runner"): longer (0.75 → 0.95 s), launched a
+   * little faster than the sprint (`slideBoost`); the phone stands you back up into the sprint after it.
    */
-  slideTime: 0.75,
+  slideTime: 0.95,
+  slideBoost: 1.1,
 } as const;
 
 /** Stance: 0 standing, 1 crouching, 2 prone. */

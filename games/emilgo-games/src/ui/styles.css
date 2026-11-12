@@ -1655,3 +1655,6 @@ input { font: inherit; color: inherit; }
 @media (max-width: 900px), (max-height: 540px) {
   .pdesc { display: none !important; }
 }
+/* 2.5 the slide: while sprinting the crouch button is the slide (its own icon, a sprint-orange ring). */
+.abtn.crouch.slide { border-color: #ffb23a; box-shadow: 0 0 0 2px #ffb23a66; }
+.abtn.crouch.slide svg { color: #ffd27a; }

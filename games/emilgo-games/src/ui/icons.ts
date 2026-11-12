@@ -127,6 +127,8 @@ const P: Record<string, string> = {
   "c-fire": `<g fill="currentColor" stroke="none"><path d="M12 2.2c2.3 1.9 3.3 4.4 3.3 7.4v1.6H8.7V9.6c0-3 1-5.5 3.3-7.4z"/><rect x="8.7" y="12.2" width="6.6" height="7.4" rx=".6"/><rect x="8" y="20.3" width="8" height="1.8" rx=".5"/></g>`,
   "c-ads": `<circle cx="12" cy="12" r="7.2" stroke-width="2.4"/><path d="M12 1.8v5.2M12 17v5.2M1.8 12H7M17 12h5.2" stroke-width="2.4"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/>`,
   "c-jump": `<g fill="currentColor" stroke="none"><path d="M12 3.2 20 11l-2.5 2.4L12 8l-5.5 5.4L4 11z"/><path d="M12 10.6 20 18.4 17.5 20.8 12 15.4l-5.5 5.4L4 18.4z"/></g>`,
+  // v7: the slide: leaning back, legs out front along the ground, a speed line behind.
+  "c-slide": `<circle cx="16.8" cy="7.6" r="2.4" fill="currentColor" stroke="none"/><path d="M15.4 10.4 11.2 15.4 4.4 17.2M11.2 15.4l-1.2 3.2M14.8 11.4l3.8 2.2M2.6 20.6h18.8M17.6 4.2h4" stroke-width="3"/>`,
   "c-crouch": `<circle cx="14.6" cy="5.4" r="2.5" fill="currentColor" stroke="none"/><path d="M13.6 8.8 10 13.4l4.6 1.6-.6 5.6M10 13.4l-2.2 4.3 2.4 2.7M12.4 10.6l5.2 1.2" stroke-width="3.1"/>`,
   "c-sprint": `<circle cx="16.2" cy="4.2" r="2.4" fill="currentColor" stroke="none"/><path d="M15 7.6 11.6 13.6M11.6 13.6l4.4 2.4-.8 5.4M11.6 13.6 8 16.6 4.4 15.8M14.6 8.4l4.6 2.6M14 8.2l-4.2.4-2.4 3" stroke-width="3.1"/>`,
   "c-pack": `<g fill="currentColor" stroke="none"><path d="M9.2 5.2V4a2.8 2.8 0 0 1 5.6 0v1.2h-1.6V4a1.2 1.2 0 0 0-2.4 0v1.2z"/><path d="M6.4 9.6A4.4 4.4 0 0 1 10.8 5.2h2.4a4.4 4.4 0 0 1 4.4 4.4V20a1.6 1.6 0 0 1-1.6 1.6H8a1.6 1.6 0 0 1-1.6-1.6z"/></g><path d="M9.2 13.2h5.6v4.4H9.2z" stroke="#000" stroke-opacity=".45" stroke-width="1.6"/>`,

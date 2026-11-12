@@ -37,7 +37,7 @@
 // slap (R) shows only while someone is pulling at your door.
 
 import { gameSize, toGame } from "../ui/rotate";
-import { ATTACK_KINDS, type AttackKind, type Stance } from "../config";
+import { ATTACK_KINDS, MOVE, type AttackKind, type Stance } from "../config";
 import { icon } from "../ui/icons";
 import { applySpots, type CtlId, type CtlSpot } from "./layout";
 
@@ -376,12 +376,15 @@ export class Controls {
     press(
       this.crouchBtn,
       () => {
+        // v7: sprinting, the crouch button is the slide: at once, on the press.
+        if (this.slideFromSprint()) return;
         this.crouchDownAt = performance.now();
         clearTimeout(this.crouchTimer);
         // Hold: lie down.
         this.crouchTimer = window.setTimeout(() => this.setStance(2), PRONE_HOLD_MS);
       },
       () => {
+        if (this.slid) return void (this.slid = false);
         clearTimeout(this.crouchTimer);
         if (performance.now() - this.crouchDownAt < PRONE_HOLD_MS) this.setStance(this.stance === 0 ? 1 : 0);
       },
@@ -778,6 +781,35 @@ export class Controls {
     if (!on) this.tac = false;
     this.sprintBtn.classList.toggle("on", on);
     this.sprintBtn.classList.toggle("tac", on && this.tac);
+    this.crouchIcon();
+  }
+
+  /**
+   * v7: a crouch out of a sprint is the slide (the body kernel slides you on, low, MOVE.slideTime); then, as in
+   * the runner, you're back on your feet and sprinting. False: not sprinting, an ordinary crouch.
+   */
+  private slideFromSprint(): boolean {
+    if (!this.sprint || this.stance !== 0) return false;
+    this.slid = true;
+    clearTimeout(this.crouchTimer);
+    clearTimeout(this.slideTimer);
+    this.setStance(1);
+    this.slideTimer = window.setTimeout(() => {
+      if (this.stance !== 1) return;
+      this.setStance(0);
+      this.setSprint(true);
+    }, MOVE.slideTime * 1000 + 120);
+    return true;
+  }
+  private slid = false;
+  private slideTimer = 0;
+
+  /** The crouch button's face: the slide while sprinting on your feet, else crouch or prone. */
+  private crouchIcon(): void {
+    const slide = this.sprint && this.stance === 0;
+    this.crouchBtn.classList.toggle("slide", slide);
+    this.crouchBtn.innerHTML = icon(slide ? "c-slide" : this.stance === 2 ? "prone" : "crouch", "", 22);
+    this.crouchBtn.setAttribute("aria-label", slide ? "Slide" : this.stance === 2 ? "Lying down (tap to stand)" : "Crouch (hold to lie down)");
   }
 
   /** v6 max: the double push: sprinting, tactically. */
@@ -790,8 +822,7 @@ export class Controls {
     this.stance = s;
     if (s > 0) this.setSprint(false);
     this.crouchBtn.classList.toggle("on", s > 0);
-    this.crouchBtn.innerHTML = icon(s === 2 ? "prone" : "crouch", "", 22);
-    this.crouchBtn.setAttribute("aria-label", s === 2 ? "Lying down (tap to stand)" : "Crouch (hold to lie down)");
+    this.crouchIcon();
   }
 
   jump(): void {
@@ -1079,6 +1110,7 @@ export class Controls {
         else this.setSprint(true);
       }
     } else if (k === "c") {
+      if (e.repeat || this.slideFromSprint()) return;
       this.crouchDownAt = performance.now();
       clearTimeout(this.crouchTimer);
       this.crouchTimer = window.setTimeout(() => this.setStance(2), PRONE_HOLD_MS);
@@ -1108,6 +1140,7 @@ export class Controls {
       this.shiftSprint = false;
       this.setSprint(false);
     } else if (k === "c") {
+      if (this.slid) return void (this.slid = false);
       clearTimeout(this.crouchTimer);
       if (performance.now() - this.crouchDownAt < PRONE_HOLD_MS) this.setStance(this.stance === 0 ? 1 : 0);
     }

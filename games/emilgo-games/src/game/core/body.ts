@@ -182,7 +182,7 @@ export function moveContestant(c: Contestant, dt: number, course: Course = DEFAU
     c.slide = Math.max(0, c.slide - dt);
     const sp = Math.hypot(c.vx, c.vz);
     // Slowing evenly from where it started to a crouch's pace; no steering.
-    const want = MOVE.crouch + (MOVE.sprint - MOVE.crouch) * (c.slide / MOVE.slideTime);
+    const want = MOVE.crouch + (MOVE.sprint * MOVE.slideBoost - MOVE.crouch) * (c.slide / MOVE.slideTime);
     if (sp > 1e-3) {
       c.vx *= want / sp;
       c.vz *= want / sp;
