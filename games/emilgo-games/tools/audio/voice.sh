@@ -7,6 +7,8 @@
 #   AUDITION=1 games/emilgo-games/tools/audio/voice.sh   one line in 8 voices, to choose by ear
 #   VOICE="zf_xiaoyi:0.8,af_heart:0.2" games/emilgo-games/tools/audio/voice.sh   that voice instead
 #   SPEED=1.05 ...                                       a touch quicker
+#   SET=us games/emilgo-games/tools/audio/voice.sh       v7 (2.10): the American woman → assets-site/voice-us/
+#   SET=us AUDITION=1 ...                                her line in 8 American voices
 #
 # The model: Kokoro-82M (Apache-2.0). English words in a Mandarin woman's voice
 # (blended with a fifth of an English one, so every word stays clear).
@@ -16,7 +18,15 @@
 set -e
 G="$(cd "$(dirname "$0")/../.." && pwd)"
 T="$G/tools/audio"
-W="$T/in/voice"
+# v7 (2.10): two announcers. zh: the Mandarin-accented woman (voice/); us: an American woman (voice-us/).
+SET="${SET:-zh}"
+case "$SET" in
+  zh) DIR=voice ;;
+  us) DIR=voice-us; export VOICE="${VOICE:-af_heart}" ;;
+  *) echo "SET is zh or us"; exit 1 ;;
+esac
+export AUDITION_SET="$SET"
+W="$T/in/$DIR"
 VENV="$T/in/voice-venv"
 mkdir -p "$W"
 
@@ -44,12 +54,12 @@ if [ -n "$AUDITION" ]; then
   "$VENV/bin/python" "$T/voice_speak.py" "$W/lines.json" "$W/audition" --audition
   echo ""
   echo "Listen to $W/audition, then run again with the one you like, e.g."
-  echo "  VOICE=\"zf_xiaoyi:0.8,af_heart:0.2\" $0"
+  if [ "$SET" = us ]; then echo "  SET=us VOICE=\"af_bella\" $0"; else echo "  VOICE=\"zf_xiaoyi:0.8,af_heart:0.2\" $0"; fi
   open "$W/audition" 2>/dev/null || true
   exit 0
 fi
 rm -rf "$W/wav"
 "$VENV/bin/python" "$T/voice_speak.py" "$W/lines.json" "$W/wav"
-node "$T/voice.mjs" encode "$W/wav" "$G/assets-site/voice"
+node "$T/voice.mjs" encode "$W/wav" "$G/assets-site/$DIR"
 echo ""
 echo "Done. Hear them in a match (npm run dev); ship them with scripts/deploy-site.sh."

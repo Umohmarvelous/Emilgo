@@ -92,7 +92,7 @@ function preloadScans(): Plugin {
 /**
  * The site's downloaded assets (v4 rework: the CC0 music, textures, skies and
  * models the tools build into assets-site/, git-ignored; v6: the announcer's
- * recorded lines, voice/): served at the root in
+ * recorded lines, voice/; v7: the American announcer's, voice-us/): served at the root in
  * dev, copied into the site's build. ASSET_DIR overrides where they are (the
  * deploy script builds from a clean checkout). The EMILGO app's single file
  * never carries them; it streams them from the site.
@@ -109,7 +109,7 @@ function siteAssets(): Plugin {
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         const url = decodeURIComponent((req.url ?? "").split("?")[0]);
-        if (!/^\/(music|lib|voice)\//.test(url)) return next();
+        if (!/^\/(music|lib|voice|voice-us)\//.test(url)) return next();
         const file = normalize(join(dir, url));
         if (!file.startsWith(dir) || !existsSync(file) || !statSync(file).isFile()) return next();
         res.setHeader("Content-Type", TYPES[extname(file)] ?? "application/octet-stream");
@@ -120,7 +120,7 @@ function siteAssets(): Plugin {
     },
     closeBundle() {
       if (!existsSync(dir) || !out) return;
-      for (const sub of ["music", "lib", "voice"]) if (existsSync(join(dir, sub))) cpSync(join(dir, sub), join(out, sub), { recursive: true });
+      for (const sub of ["music", "lib", "voice", "voice-us"]) if (existsSync(join(dir, sub))) cpSync(join(dir, sub), join(out, sub), { recursive: true });
     },
   };
 }

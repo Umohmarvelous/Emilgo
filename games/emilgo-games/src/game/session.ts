@@ -3714,6 +3714,9 @@ export class Game {
         if (key === "mapSize" && (d.val === "small" || d.val === "medium" || d.val === "large")) this.settings.mapSize = d.val;
         if (key === "sprintMode" && (d.val === "toggle" || d.val === "hold" || d.val === "auto")) this.settings.sprintMode = d.val;
         if (key === "lang" && (d.val === "en" || d.val === "pcm")) this.settings.lang = d.val;
+        // v7 (2.10): the announcer's voice, heard at once so the choice is by ear.
+        const hear = key === "announcer" && (d.val === "zh" || d.val === "us") && d.val !== this.settings.announcer;
+        if (hear) this.settings.announcer = d.val as Settings["announcer"];
         if (key === "lightMode" && (d.val === "auto" || d.val === "light" || d.val === "dark")) {
           this.settings.lightMode = d.val;
           // Everything in the world follows at once: sky, light, lamps, neon.
@@ -3723,6 +3726,7 @@ export class Game {
         this.applySettings();
         saveSettings(this.host, this.settings);
         this.showSettings();
+        if (hear) this.sound.voice.preview();
         break;
       }
       case "range": {
@@ -4565,6 +4569,7 @@ export class Game {
     this.stage?.setLightMode(s.lightMode);
     this.controls.oneThumb = s.oneThumb;
     this.sound.voice.enabled = s.voice && s.sound;
+    this.sound.voice.use(s.announcer);
     this.controls.setLayout(s.leftHanded, s.moveStick === "fixed", s.ctlLayout);
     // Touch look: "Camera sensitivity" scales both axes; the horizontal and vertical sliders (0.3 = 1×) each axis.
     this.controls.setPad(s.sens, s.sensH / 0.3, (s.sensV / 0.3) * 0.8, s.lookAccel, s.lookDead, s.lookDot, s.fireAim);

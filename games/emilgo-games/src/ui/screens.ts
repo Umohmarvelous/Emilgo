@@ -1309,6 +1309,7 @@ export class Screens {
         ${sw("sound", "Sound effects")}
         ${range("sfxVol", "Sound effects volume", "Lasers, hits, footsteps, the drum", !s.sound)}
         ${sw("voice", "Announcer", "A voice for your orders and for who is eliminated (your phone's own speech voice until recorded lines arrive)")}
+        <div class="row-set${s.voice ? "" : " off"}"><span class="lbl"><b>Announcer voice</b><small>Whose voice gives your orders</small></span>${seg("announcer", s.announcer, [["zh", "Mandarin-accented"], ["us", "American"]])}</div>
         ${ads ? `${sw("adsAudio", "Ads audio", "Sound from a billboard's film, when its advertiser allows it. Off: always silent")}
         ${range("adsVol", "Ads volume", "Billboard films", !s.adsAudio)}` : ""}
         ${sw("haptics", "Vibration")}

@@ -28,6 +28,11 @@ AUDITION = [
     "zf_xiaoxiao:0.8,af_heart:0.2", "zf_xiaoyi:0.8,af_heart:0.2",
     "zf_xiaoxiao:0.67,af_heart:0.33", "zf_xiaoyi:0.67,af_bella:0.33",
 ]
+# v7 (2.10): the American announcer's audition (SET=us): Kokoro's American women, alone and blended.
+AUDITION_US = [
+    "af_heart", "af_bella", "af_nicole", "af_aoede",
+    "af_kore", "af_sarah", "af_heart:0.6,af_bella:0.4", "af_heart:0.6,af_nicole:0.4",
+]
 AUDITION_LINE = "start_treasure"
 
 
@@ -68,7 +73,7 @@ def main():
     pipe = KPipeline(lang_code="a", repo_id="hexgrad/Kokoro-82M")
     if "--audition" in sys.argv:
         text = lines[AUDITION_LINE]
-        for i, spec in enumerate(AUDITION):
+        for i, spec in enumerate(AUDITION_US if os.environ.get("AUDITION_SET") == "us" else AUDITION):
             name = f"{i + 1}_" + spec.replace(":", "-").replace(",", "+")
             sf.write(os.path.join(out, f"{name}.wav"), speak(pipe, blend(pipe, spec), text, speed), RATE, subtype="PCM_16")
             print(f"{i + 1}. VOICE=\"{spec}\"")
