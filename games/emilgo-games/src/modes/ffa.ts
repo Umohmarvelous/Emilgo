@@ -65,7 +65,6 @@ import { MatchScene } from "../world/matchScene";
 import { GadgetView } from "../world/gadgets";
 import { ModesView } from "../world/modesView";
 import { TreasureView } from "../world/treasure";
-import type { TreasureModule } from "../game/modules/treasure";
 import { GrowthView } from "../world/growth";
 import { PowerView, RISE_SECONDS } from "../world/power";
 import { WaterFx } from "../world/water";
@@ -692,10 +691,6 @@ export class FfaMode implements GameMode {
       case "tre":
         if (e.id === me.id && (e.how === "find" || e.how === "take")) f.treasures++;
         break;
-      case "tbox":
-        // v7: an instant hunt's find never travels as "tre": it is the box.
-        if (e.id === me.id && e.found >= 0 && m.module<TreasureModule>("treasure")?.instant) f.treasures++;
-        break;
       case "upl":
         if (e.id === me.id && e.how === "done") f.uploads++;
         break;
@@ -1141,8 +1136,8 @@ export class FfaMode implements GameMode {
     // The announcer: the time, and stepping outside the circle.
     if (m.phase === "play" && !this.over) {
       const left = m.timeLeft;
-      // v7: an instant hunt has no clock to call (its 30 minutes are only a backstop).
-      const clock = !m.module<TreasureModule>("treasure")?.instant;
+      // v7: when the zone is the clock there is no match clock to call.
+      const clock = !m.module<ZoneModule>("zone")?.clock;
       if (clock && this.lastLeft > 120 && left <= 120 && m.settings.time > 240) h.sound.voice.say("time_two");
       if (clock && this.lastLeft > 30 && left <= 30) h.sound.voice.say("time_thirty");
       this.lastLeft = left;
@@ -1322,17 +1317,18 @@ export class FfaMode implements GameMode {
     } else {
       const z = ps?.zone;
       const left = m.contestants.filter((c) => c.status === "alive").length;
-      // v7 (the owner: "remove the timer"): an instant hunt's watch shows the zone's countdown when there is one, else
-      // the boxes still shut; never the match clock.
-      const hunt = m.module<TreasureModule>("treasure");
-      const noClock = !!hunt?.instant;
-      const shut = noClock ? hunt!.boxes.reduce((n, b) => n + (b.opened ? 0 : 1), 0) : 0;
-      const big = z && z.closesIn >= 0 && !z.closing ? fmtTime(z.closesIn) : noClock ? String(shut) : fmtTime(m.phase === "play" ? m.timeLeft : m.settings.time);
+      // v7 (the owner: "remove the timer"): when the zone is the clock the watch counts down to the next circle, or to
+      // the closing one shutting; never the match clock.
+      const zm = m.module<ZoneModule>("zone");
+      const zoneClock = !!zm?.clock;
+      const playing = m.phase === "play";
+      const zc = zoneClock && playing ? zm!.clockAt(m.elapsed) : null;
+      const big = zoneClock ? fmtTime(zc ? zc.left : playing ? m.timeLeft : 0) : z && z.closesIn >= 0 && !z.closing ? fmtTime(z.closesIn) : fmtTime(playing ? m.timeLeft : m.settings.time);
       watch = {
         big,
         line: `${z?.closing ? t("Zone closing") : z?.final ? t("Final circle") : t("Zone")} · ${leftLine(left)}`,
-        arc: noClock ? shut / Math.max(1, hunt!.boxes.length) : m.phase === "play" ? m.timeLeft / m.settings.time : 1,
-        urgent: !!z?.closing || (!noClock && m.phase === "play" && m.timeLeft <= 30),
+        arc: zoneClock ? (zc ? Math.min(1, zc.left / 210) : 0) : playing ? m.timeLeft / m.settings.time : 1,
+        urgent: !!z?.closing || !!zc?.closing || (!zoneClock && playing && m.timeLeft <= 30),
       };
       if (g) {
         health = g.hp[me.index] / GUNS.hp;

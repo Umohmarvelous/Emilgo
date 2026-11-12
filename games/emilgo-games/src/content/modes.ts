@@ -102,16 +102,17 @@ export const BUILTIN_MANIFEST: Manifest = {
   modes: [
     // ── Free For All (Naija World) ──
     {
-      // v7 (the owner: "remove the timer, the game ends immediately a treasure is found ... any box can be opened but
-      // not all boxes will have treasures in them"): 32 boxes round the zone's centre, 5 with a treasure in; the first
-      // to open one wins at once. No machine, no clock on screen (30 minutes is only a backstop; the zone ends it).
-      id: "treasure-hunt", v: 2, family: "ffa", minRank: "rookie-1", players: SOLO_OR_SQUAD, map: "max-world", time: 1800,
+      // v7, 12 Nov (the owner: "treasure hunt rules ... remain the same where players have to find all 5 hidden
+      // treasures and upload them"; "no hint of where the treasures are"): the v6 rules, the 32 boxes round the
+      // machine (within 240 m; the zone closes on it). The zone is the clock (no clock on screen): the match ends as the
+      // last circle shuts (870 + 90 s), the most carried winning.
+      id: "treasure-hunt", v: 3, family: "ffa", minRank: "rookie-1", players: SOLO_OR_SQUAD, map: "max-world", time: 960,
       name: { en: "Treasure Hunt", pcm: "Treasure Hunt" },
-      blurb: { en: "Open a box with a treasure in it first. 5 of the boxes hold one.", pcm: "Na who first open box wey get treasure win. 5 box get treasure." },
+      blurb: { en: "Find the 5 hidden treasures and upload them at the machine. Kill for what others found.", pcm: "Find the 5 treasure wey hide, go upload am for the machine. Kill person collect wetin e find." },
       respawn: { on: true, delay: 6 },
-      modules: { zone: ZONE_FFA, items: ITEMS, vehicles: CARS, airfall: AIRFALL, melee: MELEE, treasure: { need: 5, boxes: 32, instant: true, area: 240 } },
-      win: { kind: "first", event: "treasure.found" },
-      ranked: { ...RANKED, "respawn.on": false, "treasure.need": 3 },
+      modules: { zone: { ...ZONE_FFA, clock: true }, items: ITEMS, vehicles: CARS, airfall: AIRFALL, melee: MELEE, treasure: { need: 5, boxes: 32, upload: 12, area: 240 } },
+      win: { kind: "most", measure: "treasure.count" },
+      ranked: { ...RANKED, "respawn.on": false, "treasure.upload": 18 },
     },
     {
       id: "find-the-flag", v: 3, family: "ffa", minRank: "rookie-1", players: SOLO_OR_SQUAD, map: "max-world", time: 540,

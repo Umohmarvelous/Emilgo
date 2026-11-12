@@ -12,12 +12,12 @@
 // Which boxes are real is the server's secret (the phone learns on opening). The
 // boxes' places and the machine come from the public seed, so a copy agrees.
 //
-// v7, the instant hunt (`instant`, the owner: "the game ends immediately a treasure
-// is found ... any box can be opened but not all boxes will have treasures in
-// them"): no machine and no carrying. Every box lies within `area` of the hunt's
-// centre (the zone closes on it, so they're in the circle or just outside it), the
-// real ones within TREASURE.core of it; the first to open a real one wins at once
-// (in a squad, the squad). Each real box holds one kind (TREASURE_KINDS by index).
+// v7 (the owner, 12 Nov: "treasure hunt rules ... remain the same where players
+// have to find all 5 hidden treasures and upload them"): the v6 rules, with the
+// boxes gathered round the hunt's centre (`area`, metres: the machine, which the
+// zone closes on), so they're in the circle or just outside it, the real ones
+// within TREASURE.core of it. Time up (the last circle shut: the zone is the
+// clock): the most carried wins, then the most still standing.
 
 import { TREASURE } from "../../config";
 import type { Contestant } from "../core/body";
@@ -52,15 +52,11 @@ export class TreasureModule implements RuleModule {
   readonly need: number;
   readonly boxCount: number;
   readonly uploadTime: number;
-  /** v7: the first real box opened wins (no machine, no carrying). */
-  readonly instant: boolean;
-  /** v7: the boxes' circle round the centre, metres (instant hunts). */
+  /** v7: the boxes' circle round the machine, metres (0: the whole world, as v5). */
   readonly area: number;
   readonly boxes: TreasureBox[] = [];
   readonly treasures: Treasure[] = [];
   machine: { x: number; z: number; h: number } | null = null;
-  /** The hunt's centre (the machine's spot; an instant hunt has no machine there). The zone closes on it. */
-  private centre: { x: number; z: number; h: number } | null = null;
   /** Who is uploading (body index, −1), and how far along, seconds. */
   uploader = -1;
   uploaded = 0;
@@ -74,21 +70,21 @@ export class TreasureModule implements RuleModule {
     this.need = Math.max(1, Math.min(9, Math.floor(num("need", TREASURE.need))));
     this.boxCount = Math.max(this.need, Math.min(80, Math.floor(num("boxes", TREASURE.boxes))));
     this.uploadTime = Math.max(1, num("upload", TREASURE.upload));
-    this.instant = params.instant === true;
-    this.area = Math.max(60, num("area", TREASURE.area));
+    const area = num("area", 0);
+    this.area = area > 0 ? Math.max(60, area) : 0;
   }
 
   /** How far from each circle's centre the hunt's centre may lie, as a share of its radius (zone.ts). */
   get anchorSlack(): number {
-    return this.instant ? 0.3 : 0.6;
+    return this.area > 0 ? 0.3 : 0.6;
   }
 
   /**
    * The machine's spot: open ground with nothing near, from the public seed. The zone closes on it (zone.ts), so it
-   * can always be reached. An instant hunt's centre: open ground nearer the middle (no kiosk, so no clear field).
+   * can always be reached. v7: with an `area`, nearer the middle of the world.
    */
   spot(m: Match): { x: number; z: number; h: number } {
-    if (this.centre) return this.centre;
+    if (this.machine) return this.machine;
     const b = m.world.space.bounds;
     const half = Math.max(b.x1 - b.x0, b.z1 - b.z0) / 2;
     const rng = m.rng("treasure.machine");
@@ -96,11 +92,11 @@ export class TreasureModule implements RuleModule {
     let best: { x: number; z: number; h: number } | null = null;
     for (let t = 0; t < 400 && !best; t++) {
       const a = rng.range(0, Math.PI * 2);
-      const d = this.instant ? rng.range(half * 0.05, half * 0.3) : rng.range(half * 0.12, half * 0.5);
+      const d = this.area > 0 ? rng.range(half * 0.05, half * 0.3) : rng.range(half * 0.12, half * 0.5);
       const cell = nearOpen(m, (b.x0 + b.x1) / 2 + Math.cos(a) * d, (b.z0 + b.z1) / 2 + Math.sin(a) * d, 3);
       if (cell < 0) continue;
       const [x, z] = reach.centre(cell);
-      if (!this.instant && m.world.space.near(x, z, TREASURE.field).length) continue;
+      if (m.world.space.near(x, z, TREASURE.field).length) continue;
       best = { x, z, h: reach.h[cell] };
     }
     if (!best) {
@@ -108,8 +104,7 @@ export class TreasureModule implements RuleModule {
       const [x, z] = reach.centre(cell);
       best = { x, z, h: reach.h[cell] };
     }
-    this.centre = best;
-    if (!this.instant) this.machine = best;
+    this.machine = best;
     return best;
   }
 
@@ -121,8 +116,8 @@ export class TreasureModule implements RuleModule {
     const centre = this.spot(m);
     const rng = m.rng("treasure");
     const reach = m.reach;
-    // v7: an instant hunt keeps every box within its area round the centre.
-    const within = (x: number, z: number, r = this.area) => !this.instant || Math.hypot(x - centre.x, z - centre.z) <= r;
+    // v7: with an area, every box within it round the machine.
+    const within = (x: number, z: number, r = this.area) => this.area <= 0 || Math.hypot(x - centre.x, z - centre.z) <= r;
     const put = (x0: number, z0: number): boolean => {
       if (!within(x0, z0)) return false;
       const cell = nearOpen(m, x0, z0, 4);
@@ -151,7 +146,7 @@ export class TreasureModule implements RuleModule {
       put(s.x, s.z);
     }
     for (let k = 0; k < 600 && this.boxes.length < this.boxCount; k++) {
-      if (this.instant) {
+      if (this.area > 0) {
         // Anywhere in the area, evenly over its disc.
         const a = rng.range(0, Math.PI * 2);
         const d = Math.sqrt(rng.next()) * this.area;
@@ -165,8 +160,8 @@ export class TreasureModule implements RuleModule {
     // The real ones: the secret stream. The copy doesn't know until a box is opened.
     if (!m.mirror) {
       const secret = m.secretRng("treasure");
-      // v7: an instant hunt hides its treasures in the boxes nearest the centre (inside TREASURE.core when it has enough).
-      const inner = this.instant ? this.boxes.filter((b) => within(b.x, b.z, TREASURE.core)) : [];
+      // v7: with an area, the treasures hide in the boxes nearest the machine (inside TREASURE.core when it has enough).
+      const inner = this.area > 0 ? this.boxes.filter((b) => within(b.x, b.z, TREASURE.core)) : [];
       const order = secret.shuffle((inner.length >= this.need * 2 ? inner : this.boxes).map((b) => b.index));
       for (let k = 0; k < this.need; k++) this.treasures.push({ index: k, box: order[k % order.length], holder: -1, x: 0, z: 0, h: 0, droppedBy: -1, droppedAt: -99 });
     } else for (let k = 0; k < this.need; k++) this.treasures.push({ index: k, box: -2, holder: -1, x: 0, z: 0, h: 0, droppedBy: -1, droppedAt: -99 });
@@ -246,12 +241,6 @@ export class TreasureModule implements RuleModule {
         box.opened = true;
         const tr = this.treasures.find((x) => x.box === box.index) ?? null;
         m.emit({ type: "tbox", box: box.index, id: c.id, found: tr ? tr.index : -1 });
-        if (tr && this.instant) {
-          // v7: found: it stays in its box (the reveal plays there) and the match is won.
-          tr.box = box.index;
-          this.count[i]++;
-          return void m.win(c);
-        }
         if (tr) this.take(m, tr, c, "find");
       }
     }
@@ -349,12 +338,22 @@ export class TreasureModule implements RuleModule {
     this.count[c.index] = 0;
   }
 
-  /** Time up: the squad with the most treasures wins; a tie, nobody. */
+  /**
+   * Time up: the squad with the most treasures wins; v7 (question 7): a tie goes to the squad with the most still
+   * standing; still a tie, nobody.
+   */
   timeUp(m: Match): void {
-    const by = new Map<number, number>();
-    for (const c of m.contestants) by.set(m.squads[c.index], (by.get(m.squads[c.index]) ?? 0) + this.count[c.index]);
-    const sorted = [...by.entries()].sort((a, b) => b[1] - a[1]);
-    if (!sorted.length || sorted[0][1] <= 0 || (sorted[1] && sorted[1][1] === sorted[0][1])) return;
+    const by = new Map<number, { n: number; up: number }>();
+    for (const c of m.contestants) {
+      const q = m.squads[c.index];
+      const s = by.get(q) ?? { n: 0, up: 0 };
+      s.n += this.count[c.index];
+      if (c.status === "alive") s.up++;
+      by.set(q, s);
+    }
+    const sorted = [...by.entries()].sort((a, b) => b[1].n - a[1].n || b[1].up - a[1].up);
+    if (!sorted.length || sorted[0][1].n <= 0) return;
+    if (sorted[1] && sorted[1][1].n === sorted[0][1].n && sorted[1][1].up === sorted[0][1].up) return;
     const q = sorted[0][0];
     m.win(m.contestants[this.leaderOf(m, q)] ?? null, q);
   }
@@ -398,10 +397,6 @@ export class TreasureModule implements RuleModule {
       const b = this.boxes[e.box];
       if (b) b.opened = true;
       if (e.found >= 0 && this.treasures[e.found]) this.treasures[e.found].box = e.box;
-      if (e.found >= 0 && this.instant) {
-        const c = e.id ? m.get(e.id) : null;
-        if (c) this.count[c.index]++;
-      }
     } else if (e.type === "tre") {
       const tr = this.treasures[e.t];
       if (!tr) return;

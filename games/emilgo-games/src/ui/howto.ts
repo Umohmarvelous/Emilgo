@@ -35,14 +35,14 @@ interface Words {
 
 export const MODE_WORDS: Record<string, Words> = {
   "treasure-hunt": {
-    // v7: the instant hunt.
-    text: "Chests stand round the middle of the zone, each in a gold beam you can see from far. Most are empty; 5 hold a treasure: a diamond, gold bars, silver bars, an emerald, a ruby. Hold the interact button at a chest to open it.",
-    win: "Open a chest with a treasure in it before anyone else. The hunt ends the moment one is found.",
+    // v7, 12 Nov: the v6 rules back; the chests nearer the zone; no hints of where.
+    text: "Five treasures are hidden in chests among many empty ones: a diamond, gold bars, silver bars, an emerald and a ruby. The chests stand round the upload machine, and the zone closes on it. Hold the interact button at a chest to open it. Real and empty chests look the same.",
+    win: "Carry all 5 treasures to the machine and stay in its ring while they upload. There is no clock: if nobody uploads before the last circle shuts, the most treasures carried wins.",
     tips: [
-      "The chests near you are on your map, and your compass points at the nearest.",
-      "The treasures hide nearer the middle: the zone closes on them.",
-      "Outside the zone the gas wears you down: get back in, or use a Med Kit.",
-      "In a squad, any of you finding one wins it for all of you.",
+      "Kill a carrier and everything they found drops where they fell: walk over it to take it.",
+      "Die in the ring and you lose them all. Clear the area before you upload.",
+      "In a squad, only your leader uploads. Walk up to them to hand over what you found, then protect them.",
+      "Someone carrying all but one is marked on everyone's map. Outside the zone the gas wears you down: a Med Kit holds it off.",
     ],
   },
   "find-the-flag": {

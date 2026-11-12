@@ -1658,3 +1658,15 @@ input { font: inherit; color: inherit; }
 /* 2.5 the slide: while sprinting the crouch button is the slide (its own icon, a sprint-orange ring). */
 .abtn.crouch.slide { border-color: #ffb23a; box-shadow: 0 0 0 2px #ffb23a66; }
 .abtn.crouch.slide svg { color: #ffd27a; }
+/* H3 the five treasures: a strip under the objective; lit, you carry it; ringed, your squad does; dim, still hidden. */
+.tr-carry { position: absolute; left: 50%; top: calc(var(--safe-t, 0px) + 94px); transform: translateX(-50%); display: flex; gap: 5px; pointer-events: none; z-index: 5; }
+.tr-carry:empty { display: none; }
+.tr-carry .tk-slot { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: rgba(10, 12, 10, 0.55); border: 1px solid rgba(255, 255, 255, 0.14); }
+.tr-carry .tk-slot .tk { opacity: 0.28; filter: grayscale(0.85); transition: opacity 0.2s, filter 0.2s; }
+.tr-carry .tk-slot.mine { border-color: #ffd36a; box-shadow: 0 0 10px rgba(255, 200, 80, 0.55); background: rgba(40, 30, 6, 0.7); }
+.tr-carry .tk-slot.mine .tk { opacity: 1; filter: none; }
+.tr-carry .tk-slot.mate { border-color: #6fd2ff; }
+.tr-carry .tk-slot.mate .tk { opacity: 0.8; filter: none; }
+@media (orientation: portrait) {
+  .tr-carry { top: calc(var(--safe-t, 0px) + 298px); }
+}

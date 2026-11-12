@@ -14,6 +14,9 @@
 // Once the meter is full the laser is certain: it takes ZONE.laser seconds to
 // come down (everyone sees it coming, it follows you), then hits. The meter
 // itself is the warning you can act on.
+//
+// v7 (`clock`): the zone is the clock. No match clock on screen: the watch
+// counts down to the next circle, or to the closing one shutting.
 
 import { ZONE } from "../../config";
 import { ITEM_DEFS } from "../../content/items";
@@ -48,6 +51,8 @@ export class ZoneModule implements RuleModule {
   rate = 0;
   /** Phases announced so far. */
   shown = 0;
+  /** v7: the zone is the clock (the HUD shows no match clock). */
+  readonly clock: boolean;
   private exposure = new Float64Array(0);
   private doom = new Float64Array(0);
   /** Seconds since the grace ran out, for the slow loss. */
@@ -58,6 +63,7 @@ export class ZoneModule implements RuleModule {
 
   constructor(params: Record<string, unknown>) {
     const scale = typeof params.scale === "number" ? params.scale : 1;
+    this.clock = params.clock === true;
     const list = Array.isArray(params.phases) ? (params.phases as number[][]) : [];
     this.phases = list.map(([start, r, over, rate]) => ({ start, r: r * scale, over, rate })).sort((a, b) => a.start - b.start);
   }
@@ -86,7 +92,7 @@ export class ZoneModule implements RuleModule {
     // Treasure Hunt: every circle keeps the upload machine well inside, or the last one could shut it out.
     const hunt = m.module<TreasureModule>("treasure");
     const anchor = hunt?.spot(m) ?? null;
-    // v7: an instant hunt's centre stays nearer each circle's middle (0.3 of its radius; v5: 0.6), so its boxes are in.
+    // v7: a hunt with its boxes round the machine keeps it nearer each circle's middle (0.3 of its radius; v5: 0.6).
     const slack = hunt?.anchorSlack ?? 0.6;
     for (const p of this.phases) {
       const prev = this.circles[this.circles.length - 1];
@@ -234,6 +240,18 @@ export class ZoneModule implements RuleModule {
   /** Where it's going to be safe: the latest circle announced (or the whole world before any). */
   safe(): Circle {
     return this.circles[this.shown] ?? this.circles[0];
+  }
+
+  /**
+   * v7 (`clock`): the zone's own clock at time t: seconds until the next circle starts closing, or (closing) until it's
+   * shut; null once the last is shut. From the phases alone (public), so the phone's copy agrees.
+   */
+  clockAt(t: number): { left: number; closing: boolean } | null {
+    for (const p of this.phases) {
+      if (t < p.start) return { left: p.start - t, closing: false };
+      if (t < p.start + p.over) return { left: p.start + p.over - t, closing: true };
+    }
+    return null;
   }
 
   /** The next circle once it's announced and not yet closed, with when it closes; else null. */
