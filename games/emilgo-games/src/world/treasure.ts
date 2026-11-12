@@ -68,6 +68,7 @@ import { cdnOn, modelFor } from "../assets/cdn";
 import type { Tier } from "../graphics/tiers";
 import { t } from "../ui/i18n";
 import { merge, part } from "./geo";
+import { TrapFlares } from "./trapFlare";
 
 /** v7: a treasure's kind, by its index. */
 export function kindOf(i: number): TreasureKind {
@@ -416,6 +417,8 @@ export class TreasureView {
   private readonly discMat: ShaderMaterial;
   private readonly mats: ShaderMaterial[] = [];
   private readonly flashes: Flash[] = [];
+  /** v7 (H5): the flares of trapped chests gone off. */
+  private readonly traps = new TrapFlares();
   private readonly falls = new Map<number, Fall>();
   private placed = false;
   /** v5 (3.7): the boxes are the scanned chest (an opened one is gone: you can't see into a scan). */
@@ -454,7 +457,7 @@ export class TreasureView {
     const orbit = glowMaterial(GLOW_VERT, ORBIT_FRAG, { time });
     this.mats.push(orbit);
     this.orbits = instanced(new PlaneGeometry(1, 1).rotateX(-Math.PI / 2), orbit, MAX_ORBITS * 2, true);
-    this.group.add(this.closed, this.opened, ...this.relics, this.columns, this.glowRings, this.orbits);
+    this.group.add(this.closed, this.opened, ...this.relics, this.columns, this.glowRings, this.orbits, this.traps.group);
     // v5 (3.7, realism): Medium and up, the scanned metal chest from the model library (CC0, Poly Haven) when the site has it.
     if (o.tier >= 1 && cdnOn()) {
       void modelFor("prop", 1, o.tier, "metal_tool_chest").then((m) => {
@@ -537,6 +540,13 @@ export class TreasureView {
             this.o.sound?.voice.say(n >= tm.need ? "tre_all" : "tre_found");
           }
           else if (c) hud.pushFeed(`${c.name} ${t("found")} ${what}`, m.sameSquad(c, me) ? "safe" : "info");
+        } else if (e.trap && b) {
+          // v7 (H5): trapped: it shrieks and fires a red flare 30 m up; everyone near knows.
+          this.traps.fire(b.x, b.h, b.z, this.time);
+          this.flashes.push({ x: b.x, y: b.h, z: b.z, at: this.time, life: 1.2, r: 1.6 });
+          this.o.sound?.shriek(c === me ? 1 : near(b.x, b.z, 160));
+          if (c === me) hud.pushFeed(t("Trapped! A flare is up over you: move"), "out");
+          else if (Math.hypot(b.x - me.x, b.z - me.z) < 220) hud.pushFeed(t("A trapped chest went off: someone's there"), "info");
         } else if (c === me) {
           this.o.sound?.empty();
           hud.pushFeed(t("Empty box"));
@@ -622,6 +632,7 @@ export class TreasureView {
     if (!tm) return { pin: null };
     this.time += dt;
     for (const mat of this.mats) if (mat.uniforms.time) mat.uniforms.time.value = this.time;
+    this.traps.update(this.time, camera.position);
     const me = m.contestants[this.o.me];
     const cam = camera.position;
     const p = tm.machine;
@@ -895,6 +906,7 @@ export class TreasureView {
 
   dispose(): void {
     this.gone = true;
+    this.traps.dispose();
     for (const r of this.relics) r.geometry.dispose();
     for (const mat of this.relicMats) mat.dispose();
     for (const mesh of [this.closed, this.opened, this.columns, this.glowRings, this.orbits]) {

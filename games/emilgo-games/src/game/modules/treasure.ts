@@ -57,6 +57,10 @@ export class TreasureModule implements RuleModule {
   /** v7 (H4, heavy loot): the speed each treasure carried costs (0.03: 3%), and from how many there's no sprint or slide (0: never). */
   readonly heavy: number;
   readonly heavyAt: number;
+  /** v7 (H5): the share of the empty chests that are trapped (they shriek and fire a flare when opened). */
+  readonly traps: number;
+  /** The trapped boxes (the server's secret: the copy learns one only as it goes off). */
+  private readonly trapped = new Set<number>();
   readonly boxes: TreasureBox[] = [];
   readonly treasures: Treasure[] = [];
   machine: { x: number; z: number; h: number } | null = null;
@@ -77,6 +81,12 @@ export class TreasureModule implements RuleModule {
     this.area = area > 0 ? Math.max(60, area) : 0;
     this.heavy = Math.max(0, Math.min(0.1, num("heavy", 0)));
     this.heavyAt = Math.max(0, Math.min(9, Math.floor(num("heavyAt", 0))));
+    this.traps = Math.max(0, Math.min(1, num("traps", 0)));
+  }
+
+  /** v7 (H5): is this box trapped? (The server's answer; the copy knows only those gone off.) */
+  isTrapped(box: number): boolean {
+    return this.trapped.has(box);
   }
 
   /** v7 (H4): the share of your speed you keep with what you carry (5 at 3%: 0.85). */
@@ -180,7 +190,17 @@ export class TreasureModule implements RuleModule {
       const inner = this.area > 0 ? this.boxes.filter((b) => within(b.x, b.z, TREASURE.core)) : [];
       const order = secret.shuffle((inner.length >= this.need * 2 ? inner : this.boxes).map((b) => b.index));
       for (let k = 0; k < this.need; k++) this.treasures.push({ index: k, box: order[k % order.length], holder: -1, x: 0, z: 0, h: 0, droppedBy: -1, droppedAt: -99 });
+      // v7 (H5): one empty chest in four (`traps`) is trapped, from its own secret stream.
+      if (this.traps > 0) {
+        const real = new Set(this.treasures.map((t) => t.box));
+        const empty = this.secretTraps(m, this.boxes.filter((b) => !real.has(b.index)).map((b) => b.index));
+        for (const b of empty.slice(0, Math.round(empty.length * this.traps))) this.trapped.add(b);
+      }
     } else for (let k = 0; k < this.need; k++) this.treasures.push({ index: k, box: -2, holder: -1, x: 0, z: 0, h: 0, droppedBy: -1, droppedAt: -99 });
+  }
+
+  private secretTraps(m: Match, ids: number[]): number[] {
+    return m.secretRng("treasure.traps").shuffle(ids);
   }
 
   /** The squad's leader: its first body still in the match (their first seat, so the party's leader). */
@@ -263,7 +283,7 @@ export class TreasureModule implements RuleModule {
         this.openOn[i] = -1;
         box.opened = true;
         const tr = this.treasures.find((x) => x.box === box.index) ?? null;
-        m.emit({ type: "tbox", box: box.index, id: c.id, found: tr ? tr.index : -1 });
+        m.emit({ type: "tbox", box: box.index, id: c.id, found: tr ? tr.index : -1, ...(!tr && this.trapped.has(box.index) ? { trap: true } : {}) });
         if (tr) this.take(m, tr, c, "find");
       }
     }
@@ -419,6 +439,7 @@ export class TreasureModule implements RuleModule {
     if (e.type === "tbox") {
       const b = this.boxes[e.box];
       if (b) b.opened = true;
+      if (e.trap) this.trapped.add(e.box);
       if (e.found >= 0 && this.treasures[e.found]) this.treasures[e.found].box = e.box;
     } else if (e.type === "tre") {
       const tr = this.treasures[e.t];

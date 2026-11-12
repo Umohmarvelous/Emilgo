@@ -395,5 +395,43 @@ console.log("v7 (H4), heavy loot:");
   check(stuck.slide === 0, "4 carried: no slide");
 }
 
+console.log("v7 (H5), trapped chests:");
+{
+  const m = fresh(13, 6, undefined, 99, false, live);
+  const tm = tmOf(m);
+  const real = new Set(tm.treasures.map((t) => t.box));
+  const empty = tm.boxes.filter((b) => !real.has(b.index));
+  const trapped = empty.filter((b) => tm.isTrapped(b.index));
+  check(tm.traps === 0.25 && trapped.length === Math.round(empty.length * 0.25), `one empty chest in four is trapped (${trapped.length} of ${empty.length})`);
+  check(tm.boxes.every((b) => !real.has(b.index) || !tm.isTrapped(b.index)), "a chest with a treasure is never trapped");
+  // Another secret: other traps; the same secret: the same.
+  const again = tmOf(fresh(13, 6, undefined, 99, false, live));
+  const other = tmOf(fresh(13, 6, undefined, 7, false, live));
+  const key = (t: TreasureModule) => t.boxes.filter((b) => t.isTrapped(b.index)).map((b) => b.index).join(",");
+  check(key(again) === key(tm) && key(other) !== key(tm), "the traps come from the server's secret, the same each time for it");
+  // The phone's copy knows none until one goes off.
+  const copy = fresh(13, 6, undefined, 99, true, live);
+  check(tmOf(copy).boxes.every((b) => !tmOf(copy).isTrapped(b.index)), "the phone's copy doesn't know which are trapped");
+  // Opening one: the event says so.
+  const b = trapped[0];
+  put(m, "p2", b.x + 0.6, b.z, b.h);
+  hold(m, "p2", true);
+  const ev: MatchEvent[] = [];
+  run(m, TREASURE.open + 0.1, ev);
+  hold(m, "p2", false);
+  const box = ev.find((e) => e.type === "tbox" && e.box === b.index);
+  check(!!box && box.type === "tbox" && box.trap === true && box.found === -1, "opened, the trapped chest goes off (the event says so)");
+  const plain = empty.find((x) => !tm.isTrapped(x.index))!;
+  put(m, "p2", plain.x + 0.6, plain.z, plain.h);
+  hold(m, "p2", true);
+  const ev2: MatchEvent[] = [];
+  run(m, TREASURE.open + 0.1, ev2);
+  hold(m, "p2", false);
+  const box2 = ev2.find((e) => e.type === "tbox" && e.box === plain.index);
+  check(!!box2 && box2.type === "tbox" && !box2.trap, "an empty, untrapped chest is just empty");
+  if (box) tmOf(copy).apply(copy, box);
+  check(tmOf(copy).isTrapped(b.index), "the copy learns the trap as it goes off");
+}
+
 console.log(failures ? `\n${failures} FAILED` : "\nall passed");
 process.exit(failures ? 1 : 0);

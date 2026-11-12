@@ -1440,6 +1440,23 @@ export class Sound {
   }
 
   /** A stash spot searched and empty: a hollow knock. */
+  /**
+   * v7 (H5): a trapped chest goes off: a shrill, wavering shriek (three detuned
+   * screams climbing), a crack, then the flare's hiss going up. `near` 0…1.
+   */
+  shriek(near: number): void {
+    if (near <= 0.02) return;
+    const t = this.now;
+    const g = Math.max(0.25, near);
+    this.noise(t, 0.12, { gain: 0.18 * g, freq: 2400, type: "highpass" });
+    for (const [f, d] of [[1150, 0], [1210, 0.03], [1590, 0.06]] as const) {
+      this.tone(f, t + d, 0.5, { type: "sawtooth", gain: 0.035 * g, to: f * 1.9, attack: 0.03 });
+      this.tone(f * 1.9, t + d + 0.5, 0.7, { type: "sawtooth", gain: 0.03 * g, to: f * 1.4 });
+    }
+    this.tone(2600, t + 0.1, 1.1, { type: "square", gain: 0.012 * g, to: 3400 });
+    this.flare(near);
+  }
+
   empty(): void {
     const t = this.now;
     this.tone(210, t, 0.09, { type: "triangle", gain: 0.1, to: 160 });

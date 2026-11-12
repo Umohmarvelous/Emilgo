@@ -41,6 +41,7 @@ export const MODE_WORDS: Record<string, Words> = {
     tips: [
       "Kill a carrier and everything they found drops where they fell: walk over it to take it.",
       "Treasure is heavy: each one you carry slows you a little, and with 4 or more you can't sprint or slide.",
+      "Some empty chests are trapped: they shriek and fire a red flare everyone near can see. Opening is a gamble.",
       "Die in the ring and you lose them all. Clear the area before you upload.",
       "In a squad, only your leader uploads. Walk up to them to hand over what you found, then protect them.",
       "Someone carrying all but one is marked on everyone's map. Outside the zone the gas wears you down: a Med Kit holds it off.",
