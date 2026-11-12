@@ -48,6 +48,7 @@ import type { LineId } from "../audio/voice";
 import { gunStats, type GunsModule } from "../game/modules/guns";
 import { CombatHud, GUN_NAMES } from "../ui/combat";
 import { FieldKit, leftLine, type ZombieBar } from "../ui/fieldkit";
+import { Vitals } from "../ui/vitals";
 import { armourTier, KITS } from "../world/human/gear";
 import { WorldSound } from "../audio/world";
 import { emittersOf, Scenery } from "../world/scenery";
@@ -208,6 +209,8 @@ export class FfaMode implements GameMode {
   /** Guns (v4): the guns drawn, and the gun HUD (Free For All's shooter modes only). */
   private readonly gunsView: GunsView | null;
   private readonly combat: CombatHud | null;
+  /** v7 (3.1): the big shooters' vitals (a health bar, armour plates) and ALIVE · KILLS under the map; guns only. */
+  private readonly vitals: Vitals | null;
   /** v6 2.11: the kill cam (the shooter modes; Dead Streets' zombies have none), its tag, what it says, and on screen. */
   private readonly killCam: KillCam | null;
   private readonly kcUi: ReplayOverlay | null;
@@ -358,6 +361,7 @@ export class FfaMode implements GameMode {
     const guns = m.module<GunsModule>("guns");
     this.gunsView = guns ? new GunsView({ crowd: h.crowd, sound: h.sound, tier: h.spec.tier, me: me.index, blood: h.settings.blood }) : null;
     this.combat = guns || m.module("survival") ? new CombatHud() : null;
+    this.vitals = guns ? new Vitals() : null;
     if (this.gunsView) h.scene.add(this.gunsView.group);
     this.killCam = guns && !m.module("survival") ? new KillCam(h.crowd) : null;
     this.kcUi = this.killCam ? new ReplayOverlay(h.ui) : null;
@@ -421,6 +425,10 @@ export class FfaMode implements GameMode {
     if (this.combat) {
       h.ui.append(this.combat.root);
       this.combat.onSwap = () => h.controls.swap();
+    }
+    if (this.vitals) {
+      h.ui.append(this.vitals.root);
+      h.hud.map.root.after(this.vitals.count);
     }
     this.play.onInteract = (down) => this.interact(down);
     this.play.onUse = (slot) => (this.packAct = ((++this.packN & 511) << 5) | slot);
@@ -1519,6 +1527,13 @@ export class FfaMode implements GameMode {
       ads: h.rig.ads > 0.5,
       two: g.gun[i][1] >= 0,
     });
+    const vt = this.vitals;
+    if (vt) {
+      vt.show(live || (me.status === "alive" && m.phase === "countdown"));
+      let alive = 0;
+      for (const o of m.contestants) if (o.status === "alive") alive++;
+      vt.update({ name: me.name, hp: g.hp[i], hpMax: GUNS.hp, armour: g.armour[i], armourMax: GUNS.armour.max, alive, kills: this.kills });
+    }
   }
 
   /**
@@ -1697,6 +1712,8 @@ export class FfaMode implements GameMode {
       this.gunsView.dispose();
     }
     this.combat?.root.remove();
+    this.vitals?.root.remove();
+    this.vitals?.count.remove();
     this.fk.dispose();
     this.worldSound.dispose();
     h.scene.remove(this.scenery.group);

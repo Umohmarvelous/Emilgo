@@ -1777,3 +1777,34 @@ input { font: inherit; color: inherit; }
   .lb-squad { bottom: calc(var(--safe-b) + 70px); }
   .lobby-a .modecard { bottom: calc(var(--safe-b) + 126px); }
 }
+/* v7 (3.1): the match HUD's vitals: name, armour plates and a long health bar bottom centre; ALIVE · KILLS under the map. */
+.vitals { position: absolute; left: 50%; bottom: calc(var(--safe-b) + 62px); transform: translateX(-50%); width: min(300px, 40vw); display: flex; flex-direction: column; gap: 3px; pointer-events: none; z-index: 1; }
+.vitals[hidden], .vt-count[hidden] { display: none; }
+.vt-top { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; padding: 0 4px; }
+.vt-who { font: 800 9px var(--head); letter-spacing: 0.1em; text-transform: uppercase; color: #fff; text-shadow: 0 1px 2px #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 55%; }
+.vt-plates { display: flex; gap: 3px; }
+.vt-plates i { width: 22px; height: 6px; transform: skewX(-20deg); background: rgba(255, 255, 255, 0.12); position: relative; overflow: hidden; border: 1px solid rgba(120, 190, 255, 0.45); }
+.vt-plates i::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, #4aa8ff, #a8dcff); transform-origin: left; transform: scaleX(var(--v, 1)); }
+.vt-plates i.empty { border-color: rgba(255, 255, 255, 0.14); }
+.vt-bar { position: relative; height: 10px; transform: skewX(-20deg); background: rgba(0, 0, 0, 0.55); border: 1px solid rgba(255, 255, 255, 0.25); overflow: hidden; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35); }
+.vt-bar i { position: absolute; inset: 0; transform-origin: left; }
+.vt-trail { background: rgba(255, 236, 214, 0.7); transition: transform 0.45s ease-out 0.35s; }
+.vt-trail.snap { transition: none; }
+.vt-fill { background: linear-gradient(90deg, #d9efe0, #ffffff); transition: transform 0.12s; }
+.vt-bar.mid .vt-fill { background: linear-gradient(90deg, #f5a623, #ffd36a); }
+.vt-bar.low { border-color: rgba(255, 80, 60, 0.75); box-shadow: 0 0 10px rgba(255, 40, 20, 0.45); }
+.vt-bar.low .vt-fill { background: linear-gradient(90deg, #c8180c, #ff4a3a); animation: vt-beat 0.9s ease-in-out infinite; }
+.vt-n { position: absolute; right: -34px; bottom: -3px; width: 30px; font: 800 13px/1 var(--num); color: #fff; text-shadow: 0 1px 3px #000; text-align: left; }
+.vt-count { display: flex; justify-content: center; gap: 6px; margin-top: 6px; pointer-events: none; }
+.vt-c { display: flex; align-items: baseline; gap: 4px; padding: 3px 8px; background: rgba(8, 10, 12, 0.62); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 3px; transform: skewX(-12deg); }
+.vt-c b { display: inline-block; font: 800 13px/1 var(--num); color: #fff; }
+.vt-c i { font: 800 7px var(--head); font-style: normal; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255, 255, 255, 0.62); }
+.vt-c.kills b { color: #ff6a55; }
+.vt-c b.pop { animation: vt-pop 0.4s ease-out; }
+@keyframes vt-pop { 0% { transform: scale(1.7); } 100% { transform: scale(1); } }
+@keyframes vt-beat { 50% { opacity: 0.6; } }
+@media (prefers-reduced-motion: reduce) { .vt-bar.low .vt-fill, .vt-c b.pop { animation: none; } }
+@media (orientation: portrait) {
+  .hud .tr .vt-count { position: absolute; top: 6px; right: calc(100% + 6px); margin: 0; flex-direction: column; align-items: flex-end; gap: 4px; }
+  .vitals { width: min(260px, 64vw); }
+}
