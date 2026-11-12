@@ -1224,6 +1224,10 @@ export class Sound {
         this.noise(t + 0.45, 0.6, { gain: 0.035, freq: 700, type: "lowpass" });
         this.tone(330, t + 0.5, 0.5, { type: "sine", gain: 0.03, to: 520 });
         break;
+      case "fools-gold": // v7 (H8): a pouch shaken out: stones clinking onto the ground.
+        this.noise(t, 0.12, { gain: 0.05, freq: 900, type: "bandpass" });
+        for (let k = 0; k < 4; k++) this.tone(2400 + k * 330, t + 0.12 + k * 0.07, 0.07, { type: "triangle", gain: 0.04 });
+        break;
       case "map-print": // Paper unfolded, then a sweep and three pings.
         this.noise(t, 0.18, { gain: 0.08, freq: 1500, type: "bandpass" });
         this.tone(500, t + 0.15, 0.3, { type: "sine", gain: 0.07, to: 1400 });
@@ -1410,6 +1414,15 @@ export class Sound {
       this.tone(990, t + i * 0.55, 0.5, { type: "square", gain: 0.025, to: 430, attack: 0.02 });
     }
     this.tone(hz(45) * 1.5, t + 1.15, 0.9, { type: "sawtooth", gain: 0.07, attack: 0.05 });
+  }
+
+  /** v7 (H8): Fool's Gold sprung: a dull clunk of stone, then a falling two-note honk; `near` 0…1. */
+  fooled(near = 1): void {
+    const t = this.now;
+    const g = Math.max(0.2, Math.min(1, near));
+    this.noise(t, 0.06, { gain: 0.1 * g, freq: 600, type: "bandpass" });
+    this.tone(330, t + 0.08, 0.22, { type: "sawtooth", gain: 0.05 * g, to: 300 });
+    this.tone(220, t + 0.32, 0.4, { type: "sawtooth", gain: 0.05 * g, to: 150 });
   }
 
   /** v7 (H6): the machine's pulse while it uploads, a deep thump with a rising tail; `near` 0…1 (never silent). */

@@ -111,6 +111,8 @@ const PULSE_REACH = 70;
 /** v7: a find hangs over its chest this long (rising, then bobbing) before it goes with its finder. */
 const RISE_S = 2.4;
 const MAX_GLOWS = 16;
+/** v7 (H8): Fool's Gold drawn at once. */
+const MAX_FAKES = 4;
 /** v7: a closed box's orbit drawn within this, when the eye can see it (checked every SIGHT_EVERY s a box). */
 const ORBIT_RANGE = 35;
 const SIGHT_EVERY = 0.3;
@@ -401,6 +403,8 @@ export class TreasureView {
   private readonly opened: InstancedMesh;
   /** v7 (H3): one model a treasure, by its index (hidden unless out). */
   private readonly relics: Mesh[] = [];
+  /** v7 (H8): Fool's Gold lying loose: drawn as the treasure it copies (its kind's model and light). */
+  private readonly fakes: Mesh[] = [];
   private readonly relicMats: Material[] = [];
   private readonly columns: InstancedMesh;
   private readonly glowRings: InstancedMesh;
@@ -456,6 +460,11 @@ export class TreasureView {
       r.visible = false;
       this.relics.push(r);
     }
+    for (let k = 0; k < MAX_FAKES; k++) {
+      const f = new Mesh(this.relics[0].geometry, this.relicMats[0]);
+      f.visible = false;
+      this.fakes.push(f);
+    }
     const time = { value: 0 };
     const col = glowMaterial(GLOW_VERT, COLUMN_FRAG, { time });
     const ring = glowMaterial(GLOW_VERT, `uniform float time;\nvarying vec2 vUv;\nvarying vec3 vC;\nvoid main(){ gl_FragColor = vec4(vC * (0.8 + 0.2 * sin(time * 5.0)), 1.0); }`, { time });
@@ -465,7 +474,7 @@ export class TreasureView {
     const orbit = glowMaterial(GLOW_VERT, ORBIT_FRAG, { time });
     this.mats.push(orbit);
     this.orbits = instanced(new PlaneGeometry(1, 1).rotateX(-Math.PI / 2), orbit, MAX_ORBITS * 2, true);
-    this.group.add(this.closed, this.opened, ...this.relics, this.columns, this.glowRings, this.orbits, this.traps.group);
+    this.group.add(this.closed, this.opened, ...this.relics, ...this.fakes, this.columns, this.glowRings, this.orbits, this.traps.group);
     // v5 (3.7, realism): Medium and up, the scanned metal chest from the model library (CC0, Poly Haven) when the site has it.
     if (o.tier >= 1 && cdnOn()) {
       void modelFor("prop", 1, o.tier, "metal_tool_chest").then((m) => {
@@ -803,6 +812,36 @@ export class TreasureView {
       glow(tr.x, tr.h, tr.z, 0.35, 26, "#ffb020", 1);
       marks.push({ x: tr.x, z: tr.z, kind: "flag" });
       aim(tr.x, tr.z, "flag");
+    }
+    // v7 (H8): Fool's Gold: the same as a loose treasure in every way (the model, the bob, the light, the map, the compass).
+    for (const f of this.fakes) f.visible = false;
+    const gad = m.module<GadgetsModule>("gadgets");
+    let nf = 0;
+    if (gad) {
+      for (const p of gad.placed) {
+        if (!p || p.kind !== "fool" || p.until <= m.elapsed || nf >= MAX_FAKES) continue;
+        const dx = p.x - cam.x;
+        const dz = p.z - cam.z;
+        const i = p.look ?? 0;
+        const k = TREASURE_KINDS.indexOf(kindOf(i));
+        // Dropped from the hip, like a real one falling out of a body.
+        const u = Math.min(1, (m.elapsed - p.at) / 0.75);
+        const rest = p.h + 0.55 + Math.sin(this.time * 2 + i) * 0.08;
+        const y = u < 1 ? p.h + 1.2 + (rest - p.h - 1.2) * u + Math.sin(u * Math.PI) * 0.6 : rest;
+        if (dx * dx + dz * dz < BOX_RANGE * BOX_RANGE) {
+          const f = this.fakes[nf];
+          f.geometry = this.relics[k].geometry;
+          f.material = this.relicMats[k];
+          f.visible = true;
+          f.position.set(p.x, y - 0.15, p.z);
+          f.rotation.set(0, this.time * 1.5 + i, 0);
+          f.scale.setScalar(1.6);
+        }
+        nf++;
+        glow(p.x, p.h, p.z, 0.35, 26, "#ffb020", 1);
+        marks.push({ x: p.x, z: p.z, kind: "flag" });
+        aim(p.x, p.z, "flag");
+      }
     }
     // The moments of light.
     for (let i = this.flashes.length - 1; i >= 0; i--) {

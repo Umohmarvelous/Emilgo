@@ -219,6 +219,20 @@ export class GadgetView {
           s?.empty();
           break;
         }
+        case "fooled": {
+          // v7 (H8): Fool's Gold sprung: a puff of brass dust, a mocking honk; the one fooled is stunned and on every map.
+          for (let k = 0; k < 16; k++) this.burst({ x: e.x, y: e.h + 0.5, z: e.z, vx: (Math.random() - 0.5) * 3, vy: 1 + Math.random() * 2.5, vz: (Math.random() - 0.5) * 3, age: 0, life: 0.9, size: 0.14 }, k % 2 ? 0xd8b84a : 0x8a6a2a);
+          this.ringList.push({ x: e.x, y: e.h + 0.1, z: e.z, age: 0, life: 0.5, r0: 0.4, r1: 3, color: 0xd8b84a, pulse: false });
+          const c = e.id ? m.get(e.id) : null;
+          if (c === me) {
+            this.o.hud.pushFeed(t("Fool's Gold! Stunned, and everyone can see you"), "out");
+            this.o.hud.flashRed();
+          } else if (c && near(e.x, e.z, 400) > 0) this.o.hud.pushFeed(`${c.name} ${t("grabbed Fool's Gold")}`, m.sameSquad(c, me) ? "out" : "info");
+          if (c === me || near(e.x, e.z, 50) > 0) {
+            s?.fooled(c === me ? 1 : near(e.x, e.z, 50));
+          }
+          break;
+        }
         case "smoke":
           if (near(e.x, e.z, 40) > 0) s?.crash(0.15);
           break;
@@ -305,7 +319,8 @@ export class GadgetView {
     let cols = 0;
     if (g) {
       for (const r of g.reveals) {
-        if (r.by !== this.o.me || r.until <= t) continue;
+        // v7 (H8): by −1 (Fool's Gold): everyone sees them (but you, over yourself).
+        if ((r.by !== this.o.me && r.by !== -1) || r.until <= t || (r.by === -1 && r.tg === this.o.me)) continue;
         const c = m.contestants[r.tg];
         if (!c || c.status !== "alive" || cols >= MAX_COLUMNS) continue;
         _m.makeScale(1, 40, 1).setPosition(c.x, c.h, c.z);

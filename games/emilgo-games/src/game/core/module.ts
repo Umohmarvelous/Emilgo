@@ -96,9 +96,9 @@ export type MatchEvent =
   | { type: "dodge"; id: string }
   // ── The §10 items (Phase 6, gadgets.ts) ──
   /** Something an item did or left: a smoke cloud, a peel, a decoy (n: its index), the powder, a megaphone's wind-up and wave, a slip, a pop, a sneeze, a wave lost. */
-  | { type: "gadget"; kind: GadgetKind; n: number; id: string | null; x: number; z: number; h: number; hd?: number }
+  | { type: "gadget"; kind: GadgetKind; n: number; id: string | null; x: number; z: number; h: number; hd?: number; k?: number }
   /** A Talking Drum: who it showed to whom (tg null: nobody near), until when. */
-  | { type: "reveal"; id: string; tg: string | null; until: number }
+  | { type: "reveal"; id: string; tg: string | null; until: number; all?: boolean }
   /** Aso-ebi: the squad someone now wears (−1: their own again). */
   | { type: "disguise"; id: string; squad: number; until: number }
   // ── Chase & Reverse (Phase 6, tag.ts) ──

@@ -59,6 +59,7 @@ export const ITEM_ICON: Record<ItemId, string> = {
   zanku: "dance", shaku: "fire", odogwu: "crown", breakdance: "dance",
   bandage: "heal", medkit: "heal", ammo: "ammo", armour: "brace", battery: "bolt", nv: "eye",
   "titan-serum": "serum", "map-print": "map", "strength-booster": "fist", "speed-booster": "bolt", "med-kit": "heal",
+  "fools-gold": "fool",
 };
 
 export function itemName(k: ItemId): string {

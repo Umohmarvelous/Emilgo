@@ -44,14 +44,15 @@ import type { Contestant } from "../core/body";
 import type { Match } from "../core/match";
 import type { MatchEvent, RuleModule } from "../core/module";
 import type { MeleeModule } from "./melee";
+import type { TreasureModule } from "./treasure";
 import type { VehiclesModule } from "./vehicles";
 
-export type GadgetKind = "smoke" | "peel" | "powder" | "wave-up" | "wave" | "decoy" | "pop" | "slip" | "sneeze" | "lost" | "zanku" | "shaku" | "odogwu" | "sweep" | "pulse";
+export type GadgetKind = "smoke" | "peel" | "powder" | "wave-up" | "wave" | "decoy" | "pop" | "slip" | "sneeze" | "lost" | "zanku" | "shaku" | "odogwu" | "sweep" | "pulse" | "fool" | "fooled";
 
 /** Something an item left in the world: a smoke cloud, a peel, a decoy flag. */
 export interface Placed {
   readonly index: number;
-  readonly kind: "smoke" | "peel" | "decoy";
+  readonly kind: "smoke" | "peel" | "decoy" | "fool";
   readonly x: number;
   readonly z: number;
   readonly h: number;
@@ -59,6 +60,8 @@ export interface Placed {
   readonly by: number;
   readonly at: number;
   until: number;
+  /** v7 (H8): Fool's Gold: the treasure it looks like (its index). */
+  readonly look?: number;
 }
 
 /** v6 max: what `wearing` holds for camouflage (a disguise with no squad to copy). */
@@ -67,7 +70,7 @@ export const CAMO = -2;
 export class GadgetsModule implements RuleModule {
   readonly id = "gadgets" as const;
   readonly placed: Placed[] = [];
-  /** The Talking Drum: who sees whom, until when. */
+  /** The Talking Drum: who sees whom, until when (v7, H8: by −1: everyone). */
   readonly reveals: { by: number; tg: number; until: number }[] = [];
   /** Aso-ebi: the squad each body wears (−1: their own; CAMO: camouflage, solo), until when. */
   wearing = new Int32Array(0);
@@ -91,6 +94,7 @@ export class GadgetsModule implements RuleModule {
     if ((kind === "zanku" || kind === "odogwu" || kind === "breakdance" || kind === "shaku") && (m.effect(c, "dance") > 0 || m.effect(c, "pose") > 0 || m.effect(c, "shaku-after") > 0)) return false;
     // v6 max: the decoy and the disguise in every mode.
     if (kind === "aso-ebi") return this.wearing[c.index] === -1;
+    if (kind === "fools-gold") return !!m.module("treasure");
     if (kind === "megaphone") return !this.waves.some((w) => w.by === c.index);
     return true;
   }
@@ -152,6 +156,14 @@ export class GadgetsModule implements RuleModule {
       case "decoy-flag":
         this.place(m, c, "decoy", c.x, c.z, G.decoy.s);
         break;
+      case "fools-gold": {
+        // v7 (H8): it looks like one still hidden (nobody has seen that one lying loose), else any of them.
+        const tm = m.module<TreasureModule>("treasure");
+        const hid = tm ? tm.treasures.filter((x) => x.box !== -1 && x.holder < 0) : [];
+        const pool = hid.length ? hid : (tm?.treasures ?? []);
+        this.place(m, c, "fool", c.x, c.z, G.fool.s, pool.length ? pool[this.placed.length % pool.length].index : 0);
+        break;
+      }
       case "pepper-powder": {
         m.emit({ type: "gadget", kind: "powder", n: -1, id: c.id, x: c.x, z: c.z, h: c.h, hd: c.heading });
         const melee = m.module<MeleeModule>("melee");
@@ -247,11 +259,11 @@ export class GadgetsModule implements RuleModule {
     }
   }
 
-  private place(m: Match, c: Contestant, kind: Placed["kind"], x: number, z: number, s: number): void {
+  private place(m: Match, c: Contestant, kind: Placed["kind"], x: number, z: number, s: number, look?: number): void {
     const h = m.world.space.floorAt(x, z, c.h + 0.3).h;
-    const p: Placed = { index: this.placed.length, kind, x, z, h, by: c.index, at: m.elapsed, until: m.elapsed + s };
+    const p: Placed = { index: this.placed.length, kind, x, z, h, by: c.index, at: m.elapsed, until: m.elapsed + s, ...(look !== undefined ? { look } : {}) };
     this.placed.push(p);
-    m.emit({ type: "gadget", kind, n: p.index, id: c.id, x, z, h });
+    m.emit({ type: "gadget", kind, n: p.index, id: c.id, x, z, h, ...(look !== undefined ? { k: look } : {}) });
   }
 
   /** The nearest other squad's number (Aso-ebi copies it), or −1 in a mode without squads. */
@@ -334,8 +346,19 @@ export class GadgetsModule implements RuleModule {
         // The one who put it down has a moment to walk off it; squad mates know it's there.
         if (o === owner && t - p.at < G.peel.safe) continue;
         if (o !== owner && m.sameSquad(owner, o)) continue;
-        if (Math.hypot(o.x - p.x, o.z - p.z) > (p.kind === "peel" ? G.peel.r : G.decoy.r) || Math.abs(o.h - p.h) > 0.6) continue;
-        if (p.kind === "peel") {
+        if (Math.hypot(o.x - p.x, o.z - p.z) > (p.kind === "peel" ? G.peel.r : p.kind === "fool" ? G.fool.r : G.decoy.r) || Math.abs(o.h - p.h) > 0.6) continue;
+        if (p.kind === "fool") {
+          // v7 (H8): grabbed like a real one (so only by a body that could take one): stunned, and on every map.
+          if (o === owner || o.stun > 0 || melee?.isDown(o.index)) continue;
+          p.until = t;
+          m.emit({ type: "gadget", kind: "fooled", n: p.index, id: o.id, x: p.x, z: p.z, h: p.h });
+          o.stun = Math.max(o.stun, G.fool.stun);
+          o.sprinting = false;
+          if (melee) melee.shove(m, o, 0, 0, 0, G.fool.stun, 0);
+          const until = t + G.fool.ping;
+          this.reveals.push({ by: -1, tg: o.index, until });
+          m.emit({ type: "reveal", id: owner.id, tg: o.id, until, all: true });
+        } else if (p.kind === "peel") {
           // Walking (or crouching) past it is safe; running over it isn't.
           if (Math.hypot(o.vx, o.vz) <= MOVE.walk + 0.2 || o.stance > 0) continue;
           p.until = t;
@@ -391,11 +414,11 @@ export class GadgetsModule implements RuleModule {
   apply(m: Match, e: MatchEvent): void {
     switch (e.type) {
       case "gadget": {
-        if ((e.kind === "smoke" || e.kind === "peel" || e.kind === "decoy") && e.n >= 0 && !this.placed[e.n]) {
+        if ((e.kind === "smoke" || e.kind === "peel" || e.kind === "decoy" || e.kind === "fool") && e.n >= 0 && !this.placed[e.n]) {
           const by = m.get(e.id ?? "")?.index ?? -1;
-          const s = e.kind === "smoke" ? GADGETS.smoke.s : e.kind === "peel" ? GADGETS.peel.s : GADGETS.decoy.s;
-          this.placed[e.n] = { index: e.n, kind: e.kind, x: e.x, z: e.z, h: e.h, by, at: m.elapsed, until: m.elapsed + s };
-        } else if ((e.kind === "slip" || e.kind === "pop") && this.placed[e.n]) this.placed[e.n].until = m.elapsed;
+          const s = e.kind === "smoke" ? GADGETS.smoke.s : e.kind === "peel" ? GADGETS.peel.s : e.kind === "fool" ? GADGETS.fool.s : GADGETS.decoy.s;
+          this.placed[e.n] = { index: e.n, kind: e.kind, x: e.x, z: e.z, h: e.h, by, at: m.elapsed, until: m.elapsed + s, ...(e.k !== undefined ? { look: e.k } : {}) };
+        } else if ((e.kind === "slip" || e.kind === "pop" || e.kind === "fooled") && this.placed[e.n]) this.placed[e.n].until = m.elapsed;
         // A dance: the copy roots the dancer too (a phone predicts its own body).
         const c = e.id ? m.get(e.id) : null;
         if (c && e.kind === "zanku") m.setEffect(c, "dance", GADGETS.zanku.s);
@@ -409,7 +432,7 @@ export class GadgetsModule implements RuleModule {
       case "reveal": {
         const by = m.get(e.id);
         const tg = e.tg ? m.get(e.tg) : null;
-        if (by && tg) this.reveals.push({ by: by.index, tg: tg.index, until: e.until });
+        if (by && tg) this.reveals.push({ by: e.all ? -1 : by.index, tg: tg.index, until: e.until });
         break;
       }
       case "disguise": {

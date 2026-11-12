@@ -19,7 +19,9 @@ export type ItemId =
   // v6 max (3.2): the boosters, taken the moment you touch them.
   | "strength-booster" | "speed-booster"
   // v7 (2.2): the Med Kit.
-  | "med-kit";
+  | "med-kit"
+  // v7 (H8): Fool's Gold.
+  | "fools-gold";
 
 export type ItemEffect =
   /** Faster for a while: run and sprint × mult. */
@@ -117,6 +119,8 @@ export const ITEM_DEFS: Record<ItemId, ItemDef> = {
   "speed-booster": { ...def("speed-booster", "Speed Booster", "Speed Booster", "Taken at once: 20 s much faster, sprinting twice as long", "E go work sharp sharp: 20 seconds you go fast well well, sprint go last double", { kind: "power", power: "speed", s: 20 }), instant: true, counter: { en: "Lead your shots: the sparks show where they're going", pcm: "Shoot for front of dem: the spark dey show where dem dey go" } },
   // v7 (2.2): carried, used from the backpack (up to 2 in it): health back, and the gas held off while it works.
   "med-kit": { ...def("med-kit", "Med Kit", "Med Kit", "+60 health over 3 s; the gas can't hurt you while it works", "+60 health inside 3 seconds; gas no fit touch you as e dey work", { kind: "heal", hp: 60, s: 3 }, false, "guns"), counter: { en: "Rush them while they patch up: they can't fire", pcm: "Rush dem as dem dey patch: dem no fit shoot" } },
+  // v7 (H8): Treasure Hunt only: a fake treasure dropped at your feet, the same look as a real one lying loose.
+  "fools-gold": { ...def("fools-gold", "Fool's Gold", "Fool's Gold", "Drop a fake treasure at your feet. Whoever grabs it is stunned 1.5 s and shown on every map for 3 s", "Drop fake treasure for your leg. Who carry am go hang 1.5 seconds, and everybody go see am for map 3 seconds", { kind: "gadget" }, true, "treasure"), counter: { en: "A real treasure dropped falls out of a body; one lying alone near a rival may be bait", pcm: "Real treasure dey fall comot from person body; the one wey dey alone near enemy fit be trap" } },
   // Vehicles' (Phase 5).
   jerrycan: def("jerrycan", "Fuel Jerrycan", "Fuel Jerrycan", "+15 s of fuel for the car you're in or beside", "+15 seconds fuel for the motor wey you dey inside or near", { kind: "fuel" }, true, "vehicles"),
   "danfo-key": def("danfo-key", "Van Key", "Van Key", "Calls a minibus to the road nearby", "E go call minibus come the road wey near", { kind: "call" }, true, "vehicles"),
@@ -134,8 +138,8 @@ export const LOOT_TABLES: Record<string, LootTable> = {
   // v6 max: the two boosters join (3.2).
   // v7 (the owner: "Remove the smoke canister item"): out of both tables; its rule and look stay in the code, unused.
   // v7 (2.2, the owner: "players pick up health ... and use it when they are about to die outside of safe zone"): the Med Kit.
-  "ffa-core": [["med-kit", 2.6], ["decoy-flag", 1.2], ["talking-drum", 2.4], ["aso-ebi", 1.6], ["titan-serum", 2], ["map-print", 0.5], ["strength-booster", 1.1], ["speed-booster", 1.3]],
-  airfall: [["med-kit", 1], ["titan-serum", 1.4], ["map-print", 1], ["talking-drum", 0.5], ["strength-booster", 0.9], ["speed-booster", 0.9]],
+  "ffa-core": [["med-kit", 2.6], ["decoy-flag", 1.2], ["talking-drum", 2.4], ["aso-ebi", 1.6], ["titan-serum", 2], ["map-print", 0.5], ["strength-booster", 1.1], ["speed-booster", 1.3], ["fools-gold", 0.5]],
+  airfall: [["med-kit", 1], ["fools-gold", 0.5], ["titan-serum", 1.4], ["map-print", 1], ["talking-drum", 0.5], ["strength-booster", 0.9], ["speed-booster", 0.9]],
   "ds-core": [["bandage", 5], ["medkit", 1.5], ["ammo", 6], ["armour", 1.2], ["battery", 3], ["nv", 0.8]],
 };
 

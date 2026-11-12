@@ -949,6 +949,11 @@ export const GADGETS = {
   wave: { windup: 0.8, r: 6, knock: 2.6, stun: 0.5, wobble: 0.15 },
   /** v6 max: the trap stuns longer, and marks whoever springs it for its owner for `mark` s. */
   decoy: { s: 90, r: 1.3, stun: 2, wobble: 0.3, mark: 8 },
+  /**
+   * v7 (H8): Fool's Gold: a fake treasure that lies `s` s; whoever walks onto it (as onto a real one: within `r`) is
+   * stunned `stun` s and shown on every map for `ping` s.
+   */
+  fool: { s: 120, r: 1.3, stun: 1.5, ping: 3 },
   /** v6 max: the Pulse Scanner finds every rival within range (up to `most`), each for s. */
   drum: { s: 6, range: 160, most: 8 },
   disguise: { s: 20 },

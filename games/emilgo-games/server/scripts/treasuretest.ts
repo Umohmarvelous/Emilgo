@@ -14,7 +14,8 @@ import { RING_MIN, type TreasureModule } from "../../src/game/modules/treasure";
 import type { ZoneModule } from "../../src/game/modules/zone";
 import type { ItemsModule } from "../../src/game/modules/items";
 import type { GunsModule } from "../../src/game/modules/guns";
-import type { ItemId } from "../../src/content/items";
+import { builtLoot, ITEM_DEFS, LOOT_TABLES, type ItemId } from "../../src/content/items";
+import type { GadgetsModule } from "../../src/game/modules/gadgets";
 import { KILL_XP, KILL_XP_CAP, matchXp, xpParts, type MatchFacts } from "../../src/rank/xp";
 import { worldFor } from "../src/ffa";
 
@@ -528,6 +529,45 @@ console.log("v7 (H7), pickpocket:");
   // Off in a mode without it.
   const off = fresh(15, 6);
   check(!tmOf(off).pickpocket, "without pickpocket, a hit is just a hit");
+}
+
+console.log("v7 (H8), Fool's Gold:");
+{
+  const m = fresh(16, 6, [0, 0, 1, 1, 2, 2], 99, false, live);
+  const tm = tmOf(m);
+  const items = m.module<ItemsModule>("items")!;
+  const gad = m.module<GadgetsModule>("gadgets")!;
+  const c = tm.machine!;
+  check(LOOT_TABLES["ffa-core"].some(([k]) => k === "fools-gold") && ITEM_DEFS["fools-gold"].rare === true, "a rare item in the loot");
+  check(builtLoot("ffa-core", (id) => id !== "treasure").every(([k]) => k !== "fools-gold"), "only where there are treasures");
+  put(m, "p0", c.x + 5, c.z, c.h);
+  put(m, "p2", c.x - 6, c.z, c.h);
+  put(m, "p1", c.x, c.z + 6, c.h);
+  items.packs[0][0] = "fools-gold";
+  const ev: MatchEvent[] = [];
+  m.setPack("p0", (1 << 5) | 0);
+  run(m, DT * 2, ev);
+  const fool = gad.placed.find((p) => p.kind === "fool");
+  const drop = ev.find((e) => e.type === "gadget" && e.kind === "fool");
+  check(!!fool && items.packs[0][0] === null && Math.hypot(fool.x - (c.x + 5), fool.z - c.z) < 0.5, "used: a fake treasure lies at P0's feet");
+  check(!!fool && fool.look !== undefined && tm.treasures[fool.look].box >= 0 && drop?.type === "gadget" && drop.k === fool.look, "it copies a treasure still hidden (the event says which)");
+  run(m, 2);
+  check(!!fool && fool.until > m.elapsed, "its owner walks on it: nothing");
+  put(m, "p1", fool!.x, fool!.z, fool!.h);
+  run(m, 0.2);
+  check(fool!.until > m.elapsed && m.get("p1")!.stun <= 0, "a squad mate knows it: nothing");
+  const ev2: MatchEvent[] = [];
+  put(m, "p2", fool!.x + 0.5, fool!.z, fool!.h);
+  run(m, DT * 2, ev2);
+  const p2 = m.get("p2")!;
+  check(ev2.some((e) => e.type === "gadget" && e.kind === "fooled" && e.id === "p2") && p2.stun > 1.3, "a rival grabs it: stunned 1.5 s");
+  check(ev2.some((e) => e.type === "reveal" && e.all === true && e.tg === "p2") && gad.reveals.some((r) => r.by === -1 && r.tg === p2.index && Math.abs(r.until - m.elapsed - 3) < 0.1), "and on every map for 3 s");
+  check(tm.count[p2.index] === 0 && fool!.until <= m.elapsed, "no treasure: the fake is gone");
+  // The phone's copy.
+  const copy = fresh(16, 6, [0, 0, 1, 1, 2, 2], 99, true, live);
+  const cg = copy.module<GadgetsModule>("gadgets")!;
+  for (const e of [...ev, ...ev2]) for (const md of copy.modules) md.apply?.(copy, e);
+  check(cg.placed.some((p) => p.kind === "fool" && p.look === fool!.look) && cg.reveals.some((r) => r.by === -1 && r.tg === p2.index), "the copy draws it and sees the ping");
 }
 
 console.log(failures ? `\n${failures} FAILED` : "\nall passed");

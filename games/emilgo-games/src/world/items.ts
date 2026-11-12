@@ -53,8 +53,8 @@ const ITEM_VIEW = [40, 55, 70] as const;
 const FALL_S = 8;
 const FALL_H = 70;
 
-type Look = "kola" | "zobo" | "big-bag" | "zone-shield" | "titan-serum" | "map-print" | "smoke-pot" | "decoy-flag" | "talking-drum" | "aso-ebi" | "strength-booster" | "speed-booster" | "med-kit" | "bundle";
-const LOOKS: Look[] = ["kola", "zobo", "big-bag", "zone-shield", "titan-serum", "map-print", "smoke-pot", "decoy-flag", "talking-drum", "aso-ebi", "strength-booster", "speed-booster", "med-kit", "bundle"];
+type Look = "kola" | "zobo" | "big-bag" | "zone-shield" | "titan-serum" | "map-print" | "smoke-pot" | "decoy-flag" | "talking-drum" | "aso-ebi" | "strength-booster" | "speed-booster" | "med-kit" | "fools-gold" | "bundle";
+const LOOKS: Look[] = ["kola", "zobo", "big-bag", "zone-shield", "titan-serum", "map-print", "smoke-pot", "decoy-flag", "talking-drum", "aso-ebi", "strength-booster", "speed-booster", "med-kit", "fools-gold", "bundle"];
 const lookOf = (k: ItemId): Look => ((LOOKS as string[]).includes(k) ? (k as Look) : "bundle");
 
 /**
@@ -74,6 +74,7 @@ const GLOW: Partial<Record<ItemId, readonly [number, number, number]>> = {
   bandage: [0.25, 1.35, 0.45],
   medkit: [0.25, 1.35, 0.45],
   "med-kit": [0.25, 1.45, 0.5],
+  "fools-gold": [1.5, 1.15, 0.2],
   ammo: [1.35, 0.8, 0.2],
   armour: [0.3, 0.65, 1.55],
   battery: [1.3, 1.2, 0.2],
@@ -175,6 +176,15 @@ function itemGeometry(l: Look): BufferGeometry {
         part(new BoxGeometry(0.3, 0.07, 0.24), 0x6a2a9a, { p: [0, 0.035, 0] }),
         part(new BoxGeometry(0.3, 0.03, 0.08), 0x4d1d72, { p: [0, 0.08, -0.08] }),
         part(new BoxGeometry(0.08, 0.012, 0.06), 0xf2c230, { p: [0.08, 0.075, 0.05] }),
+      ]);
+    case "fools-gold":
+      // v7 (H8): a drawstring pouch spilling pyrite: brassy cubes grown into each other.
+      return merge([
+        part(new SphereGeometry(0.1, 10, 8), 0x6a4a2a, { p: [0, 0.08, 0], s: [1, 0.8, 1] }),
+        part(new CylinderGeometry(0.035, 0.055, 0.05, 8), 0x5a3e22, { p: [0, 0.165, 0] }),
+        part(new BoxGeometry(0.06, 0.06, 0.06), 0xc9a640, { p: [0.12, 0.03, 0.05], r: [0.3, 0.6, 0.1] }, 1.3),
+        part(new BoxGeometry(0.045, 0.045, 0.045), 0xd8b84a, { p: [0.15, 0.025, -0.04], r: [0.1, 0.2, 0.4] }, 1.3),
+        part(new BoxGeometry(0.035, 0.035, 0.035), 0xb8943a, { p: [0.08, 0.02, 0.12], r: [0.5, 0.1, 0.2] }, 1.3),
       ]);
     case "med-kit":
       // v7: a field medic's pouch: a white hard case, a red cross on its lid, a black strap and buckle.

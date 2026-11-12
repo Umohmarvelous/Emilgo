@@ -38,6 +38,8 @@ const P: Record<string, string> = {
   timer: `<circle cx="12" cy="13" r="7.5"/><path d="M12 9v4l2.5 2M9.5 3h5"/>`,
   people: `<circle cx="8" cy="9" r="2.8"/><circle cx="16" cy="9" r="2.8"/><path d="M3 19c.5-3 2.5-4.6 5-4.6s4.5 1.6 5 4.6M11 19c.5-3 2.5-4.6 5-4.6s4.5 1.6 5 4.6"/>`,
   star: `<path d="M12 3.2l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.5l-5.2 2.8 1-5.8L3.5 9.4l5.9-.8z" fill="currentColor" stroke="none"/>`,
+  // v7 (H8): Fool's Gold: a cut gem with a question mark in it.
+  fool: `<path d="M7 4.5h10l3.5 4.5L12 20 3.5 9z"/><path d="M10 9.2a2 2 0 1 1 2.6 1.9c-.5.2-.6.6-.6 1.1v.6"/><path d="M12 15.4v.1"/>`,
   crown: `<path d="M4 18h16l1-10-5 4-4-6-4 6-5-4z"/><path d="M5 21h14"/>`,
   medal: `<circle cx="12" cy="15" r="5.5"/><path d="M8.5 10.5 6 3h4l2 4.5L14 3h4l-2.5 7.5"/>`,
   // Fighting and the ball (SPEC-V2 §2.4: icons only)
