@@ -392,14 +392,14 @@ export class Screens {
           <span class="meta">${settings.form ? `<span class="form" title="${esc(t("Form: your last five online matches"))}">FORM <b>${[...settings.form].map((x) => `<i class="${x === "W" ? "w" : "l"}">${x}</i>`).join("")}</b></span>` : ""}${settings.streak >= 2 ? `<span class="streak">STREAK <b>${settings.streak}</b></span>` : ""}${liveRun(settings.awards) >= 2 ? `<span class="dayrun" title="${esc(t("Days in a row played"))}">${icon("fire", "", 11)}<b>${liveRun(settings.awards)}</b>${settings.awards.shield ? icon("shield", "", 10) : ""}</span>` : ""}${s.board ? `<span>BOARD <b>${esc(s.board)}</b></span>` : ""}${s.dms ? `<span class="dm-new">${icon("chat", "", 11)}<b>${s.dms > 9 ? "9+" : s.dms}</b></span>` : ""}<span>BEST <b>${settings.best || 0}</b></span><span>CP <b>${settings.cp}</b></span><span class="money" data-act="money" role="button" tabindex="0" aria-label="${esc(t("Your Lagos Life money"))}">${icon("wallet", "", 11)}<b data-money>${s.money === null ? "₦ —" : naira(s.money)}</b></span></span>
         </div>
       </div>
-      ${tabsHtml("lobby")}
+      <div class="lb-topbar">${navHtml(s)}
       <div class="lb-tr">
         <button class="ibtn" data-act="tutorial" aria-label="Tutorial">${icon("help")}</button>
         ${host.kind !== "lagoslife" ? `<button class="ibtn adv" data-act="advertise" aria-label="${esc(t("Advertise on our billboards"))}" title="${esc(t("Advertise on our billboards"))}">${icon("billboard", "", 18)}<span>${esc(t("Advertise"))}</span></button>` : ""}
 
         <button class="ibtn" data-act="settings" aria-label="Settings">${icon("gear", "ico-spin")}</button>
         ${exit}
-      </div>
+      </div></div>
       <div class="lb-center-right">${s.daily
         .map(
           (d) => `<div class="challenge ${d.progress >= d.def.goal ? "done" : ""}">
@@ -409,6 +409,7 @@ export class Screens {
         )
         .join("")}
         <div class="label pdesc" style="text-align:center">Daily · resets at midnight</div>
+        ${careerHtml(settings)}
       </div>
       <button class="lb-bl friends-w" data-act="friends" aria-label="Friends">
         <div class="row"><span class="label">Friends</span>${icon("friends", "", 16)}</div>
@@ -424,13 +425,6 @@ export class Screens {
       <div class="lb-name glass">${s.awards?.wear ? badgeEmblem(s.awards.wear, 20, "lb-emb") : ""}<span data-name></span>${s.badge ? `<span class="badge-star">${icon("star", "", 12)}</span>` : ""}</div>
       ${this.modeCard(s)}
       ${this.lobbyA(s)}
-      <div class="lb-bar glass-fill">
-        <button class="act" data-act="loadout">${icon("loadout")}<span>Loadout</span></button>
-        <button class="act" data-act="customize">${icon("customize")}<span>Customize</span></button>
-        <button class="act" data-act="emotes">${icon("emote")}<span>Emotes</span></button>
-        <button class="act" data-act="awards">${icon("medal")}<span>Awards</span>${s.awards?.fresh ? `<i class="dot-badge">${s.awards.fresh > 9 ? "9+" : s.awards.fresh}</i>` : ""}</button>
-        <button class="act" data-act="invite" ${s.online !== "ready" ? "disabled" : ""}>${icon("invite")}<span>Invite</span></button>
-      </div>
       <button class="lb-play" data-act="start" aria-label="Play">PLAY</button>`,
       "lobby",
     );
@@ -1664,18 +1658,39 @@ export class Screens {
   }
 }
 
-function tabsHtml(on: LobbyTab): string {
-  const tabs: [LobbyTab, string, boolean][] = [
-    ["lobby", "Lobby", false],
-    ["loadout", "Loadout", false],
-    ["store", "Store", false],
-    ["friends", "Friends", false],
-    ["clan", "Clan", true],
-    ["board", "Leaderboard", false],
+/**
+ * v7 (3.1, the owner: "the top bar buttons ... added to the bottom tab section and the entire bottom tab moved to
+ * the top"): one bar at the top with every section and action: a strip in landscape, a 5 × 2 grid of big buttons in
+ * portrait (easy to reach).
+ */
+function navHtml(s: LobbyState): string {
+  const badge = (n: number | undefined) => (n ? `<i class="dot-badge">${n > 9 ? "9+" : n}</i>` : "");
+  const items: { label: string; ico: string; act: string; tab?: LobbyTab; extra?: string; off?: boolean }[] = [
+    { label: "Lobby", ico: "home", act: "tab", tab: "lobby" },
+    { label: "Loadout", ico: "loadout", act: "loadout" },
+    { label: "Customize", ico: "customize", act: "customize" },
+    { label: "Emotes", ico: "emote", act: "emotes" },
+    { label: "Store", ico: "store", act: "tab", tab: "store" },
+    { label: "Friends", ico: "friends", act: "tab", tab: "friends", extra: badge(s.dms) },
+    { label: "Clan", ico: "clan", act: "tab", tab: "clan", extra: `<span class="soon">Soon</span>` },
+    { label: "Awards", ico: "medal", act: "awards", extra: badge(s.awards?.fresh) },
+    { label: "Leaderboard", ico: "trophy", act: "tab", tab: "board" },
+    { label: "Invite", ico: "invite", act: "invite", off: s.online !== "ready" },
   ];
-  return `<nav class="lb-tabs tabs" style="padding:0 6px" aria-label="Sections">${tabs
-    .map(([id, label, soon]) => `<button class="tab ${on === id ? "on" : ""}" data-act="tab" data-tab="${id}">${label}${soon ? `<span class="soon">Soon</span>` : ""}</button>`)
+  return `<nav class="lb-nav" aria-label="${esc(t("Sections"))}">${items
+    .map(
+      (it) =>
+        `<button class="nv${it.tab === "lobby" ? " on" : ""}" data-act="${it.act}"${it.tab ? ` data-tab="${it.tab}"` : ""}${it.off ? " disabled" : ""} aria-label="${esc(t(it.label))}">${icon(it.ico, "", 18)}<span>${esc(t(it.label))}</span>${it.extra ?? ""}</button>`,
+    )
     .join("")}</nav>`;
+}
+
+/** v7 (3.1): the lobby's career line: matches, wins, the win rate, kills (the last 30 matches), the day streak. */
+function careerHtml(st: Settings): string {
+  const played = st.played || 0;
+  const kills = st.history.reduce((a, h) => a + (h.kills || 0), 0);
+  const cell = (v: string, label: string, title = label) => `<span title="${esc(t(title))}"><b>${esc(v)}</b><i>${esc(t(label))}</i></span>`;
+  return `<div class="lb-career"><span class="h">${esc(t("Career"))}</span><div class="row">${cell(String(played), "Matches")}${cell(String(st.wins || 0), "Wins")}${cell(played ? `${Math.round(((st.wins || 0) / played) * 100)}%` : "—", "Win rate")}${cell(String(kills), "Kills", "Kills, last 30 matches")}${cell(String(liveRun(st.awards)), "Days", "Days in a row played")}</div></div>`;
 }
 
 function ago(at: number): string {
