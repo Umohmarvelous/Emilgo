@@ -351,5 +351,49 @@ console.log("v7, 12 Nov, the live mode (the v6 rules, the chests round the machi
   check(r.respawn.on === false && r.modules.treasure?.upload === 18 && r.modules.treasure?.need === 5, "Ranked: no respawn, 18 s to upload, still all 5");
 }
 
+console.log("v7 (H4), heavy loot:");
+{
+  const m = fresh(12, 6, undefined, 99, false, live);
+  const tm = tmOf(m);
+  check(tm.heavy === 0.03 && tm.heavyAt === 4, "3% a treasure, no sprint from 4");
+  const c = tm.machine!;
+  // Carry n of the five (the module's own books: who holds which).
+  const carry = (i: number, n: number) => {
+    tm.count[i] = n;
+    tm.treasures.forEach((t, j) => j < n && (t.holder = i));
+  };
+  const runOff = (n: number, crouch = false) => {
+    for (const t of tm.treasures) t.holder = -1;
+    tm.count.fill(0);
+    carry(3, n);
+    put(m, "p3", c.x, c.z + 1.5, c.h);
+    m.setInput("p3", 0, -1);
+    m.setButtons("p3", true, 0, 0);
+    run(m, 0.6);
+    if (crouch) {
+      m.setButtons("p3", true, 1, 0);
+      run(m, 0.1);
+    }
+    const p = m.get("p3")!;
+    const out = { speed: Math.hypot(p.vx, p.vz), sprinting: p.sprinting, slide: p.slide };
+    m.setButtons("p3", false, 0, 0);
+    m.setInput("p3", 0, 0);
+    run(m, 0.5);
+    return out;
+  };
+  const free = runOff(0);
+  const two = runOff(2);
+  const four = runOff(4);
+  const five = runOff(5);
+  check(free.sprinting && two.sprinting, "with 0 or 2 carried you can sprint");
+  check(Math.abs(two.speed / free.speed - 0.94) < 0.02, `2 carried: 94% of the sprint (${(two.speed / free.speed).toFixed(3)})`);
+  check(!four.sprinting && !five.sprinting, "4 or 5 carried: no sprint");
+  check(five.speed < four.speed && five.speed < free.speed * 0.7, `5 carried: a run at 85% (${five.speed.toFixed(2)} m/s, free sprint ${free.speed.toFixed(2)})`);
+  const slid = runOff(1, true);
+  const stuck = runOff(4, true);
+  check(slid.slide > 0, "1 carried: sprint then crouch slides");
+  check(stuck.slide === 0, "4 carried: no slide");
+}
+
 console.log(failures ? `\n${failures} FAILED` : "\nall passed");
 process.exit(failures ? 1 : 0);

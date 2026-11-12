@@ -638,6 +638,13 @@ export class Controls {
     this.autoSprint = sprintMode === "auto";
   }
 
+  /** v7 (H4): carrying too much to sprint or slide: the sprint button greys, with a weight on it. */
+  setLaden(on: boolean): void {
+    if (this.sprintBtn.classList.contains("laden") === on) return;
+    this.sprintBtn.classList.toggle("laden", on);
+    this.sprintBtn.setAttribute("aria-label", on ? "Sprint: too heavy" : "Sprint");
+  }
+
   /** Stamina 0…1: the ring round the sprint button and the bar above the move stick. */
   setStamina(v: number, sprinting: boolean): void {
     const c = 188.5; // 2π × 30

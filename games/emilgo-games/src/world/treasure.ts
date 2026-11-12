@@ -829,6 +829,10 @@ export class TreasureView {
     const me = m.contestants[this.o.me];
     let sig = m.phase === "play" ? "p" : "";
     if (sig) for (const tr of tm.treasures) sig += tr.holder === me.index ? "2" : tr.holder >= 0 && m.sameSquad(m.contestants[tr.holder], me) ? "1" : "0";
+    // v7 (H4): what the load costs you.
+    const share = tm.speedShare(me.index);
+    const laden = tm.laden(me.index);
+    if (sig) sig += `|${share.toFixed(2)}|${laden ? 1 : 0}`;
     if (sig === this.carrySig) return;
     this.carrySig = sig;
     if (!sig) {
@@ -841,6 +845,10 @@ export class TreasureView {
       const k = kindOf(tr.index);
       html += `<i class="tk-slot${st === "2" ? " mine" : st === "1" ? " mate" : ""}" role="img" aria-label="${t(TREASURE_KIND_NAME[k])}${st === "2" ? `: ${t("you carry it")}` : st === "1" ? `: ${t("your squad carries it")}` : ""}">${kindIcon(k)}</i>`;
     });
+    if (share < 1) {
+      const cost = `−${Math.round((1 - share) * 100)}%`;
+      html += `<b class="tr-heavy${laden ? " laden" : ""}" role="img" aria-label="${t("Heavy loot")}: ${cost}${laden ? `, ${t("no sprint")}` : ""}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7a3 3 0 1 1 6 0M5.5 9h13l2 11h-17z"/></svg>${cost}${laden ? `<small>${t("no sprint")}</small>` : ""}</b>`;
+    }
     this.carry.innerHTML = html;
   }
 

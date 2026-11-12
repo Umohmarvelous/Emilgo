@@ -146,7 +146,11 @@ export interface MoveEnv {
 }
 export const NORMAL_ENV: Readonly<MoveEnv> = { grav: 1, slip: 1 };
 
-export function moveContestant(c: Contestant, dt: number, course: Course = DEFAULT_COURSE, space: Space | null = null, env: Readonly<MoveEnv> = NORMAL_ENV): void {
+/**
+ * `laden` (v7 H4, Treasure Hunt's heavy loot): too much carried to sprint or
+ * slide this step; walking and running as usual (the speed share is the bst's).
+ */
+export function moveContestant(c: Contestant, dt: number, course: Course = DEFAULT_COURSE, space: Space | null = null, env: Readonly<MoveEnv> = NORMAL_ENV, laden = false): void {
   if (c.status === "eliminated") return;
 
   if (c.stun > 0) c.stun = Math.max(0, c.stun - dt);
@@ -160,7 +164,7 @@ export function moveContestant(c: Contestant, dt: number, course: Course = DEFAU
   let ix = c.inX;
   let iz = c.inZ;
   let wantStance = c.inStance;
-  let wantSprint = c.inSprint;
+  let wantSprint = c.inSprint && !laden;
   if (c.status === "finished") {
     // Walk on into the safe zone, then stand still. Input is ignored.
     ix = 0;
@@ -194,7 +198,7 @@ export function moveContestant(c: Contestant, dt: number, course: Course = DEFAU
     if (c.stanceT > 0) c.stanceT = Math.max(0, c.stanceT - dt);
     return;
   }
-  if (c.status === "alive" && c.sprinting && grounded && c.stance === 0 && wantStance > 0 && c.stanceT === 0 && Math.hypot(c.vx, c.vz) > MOVE.run) {
+  if (c.status === "alive" && c.sprinting && !laden && grounded && c.stance === 0 && wantStance > 0 && c.stanceT === 0 && Math.hypot(c.vx, c.vz) > MOVE.run) {
     c.slide = MOVE.slideTime;
     c.sprinting = false;
     c.stance = 1;

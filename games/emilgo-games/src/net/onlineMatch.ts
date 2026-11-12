@@ -30,6 +30,7 @@ import type { HarmattanModule } from "../game/modules/harmattan";
 import type { ZipsModule } from "../game/modules/zips";
 import type { RoomsModule } from "../game/modules/rooms";
 import type { GunsModule } from "../game/modules/guns";
+import type { TreasureModule } from "../game/modules/treasure";
 import type { TagModule } from "../game/modules/tag";
 import type { VehiclesModule } from "../game/modules/vehicles";
 import type { NetClient } from "./client";
@@ -188,7 +189,7 @@ export class OnlineMatch {
       const zips = m.module<ZipsModule>("zips");
       if (zips?.riding(m, me)) zips.place(m, me);
       else if (!follow) {
-        m.predict(me, dt, this.share(me));
+        m.predict(me, dt, this.share(me), !!m.module<TreasureModule>("treasure")?.laden(me.index));
         // Compound Wars: a shut door is solid on the phone too; the Harmattan's wind pushes you here as there.
         m.module<RoomsModule>("rooms")?.keepOut(m, me);
         m.module<HarmattanModule>("harmattan")?.drift(m, me, dt);
@@ -276,6 +277,9 @@ export class OnlineMatch {
     // v7: near death, slower (as the server has it).
     const guns = m.module<GunsModule>("guns");
     if (guns) k *= guns.weakShare(me.index);
+    // v7 (H4): the treasures you carry weigh on you.
+    const tr = m.module<TreasureModule>("treasure");
+    if (tr) k *= tr.speedShare(me.index);
     return k;
   }
 

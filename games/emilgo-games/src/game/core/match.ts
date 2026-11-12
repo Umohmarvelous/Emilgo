@@ -209,6 +209,8 @@ export class Match {
   readonly aims: Aim[];
   /** This step's speed share from the modules (a brace, a flag), reset every step. */
   private readonly mul: number[];
+  /** v7 (H4): too laden to sprint or slide this step (set by a module, cleared after the move). */
+  private readonly laden: boolean[];
   private readonly slowed: BoostMods[];
   private readonly fx: Map<string, Effect>[];
   private readonly base: BoostMods[];
@@ -273,6 +275,7 @@ export class Match {
     this.inBrace = new Array(n).fill(false);
     this.aims = Array.from({ length: n }, () => ({ yaw: 0, pitch: 0, trigger: false, ads: false, reload: 0, swap: 0 }));
     this.mul = new Array(n).fill(1);
+    this.laden = new Array(n).fill(false);
     this.slowed = this.contestants.map((c) => ({ ...c.bst }));
     this.squads = opts.contestants.map((p, i) => (Number.isInteger(p.squad) && (p.squad as number) >= 0 ? (p.squad as number) : 1000 + i));
     this.fx = Array.from({ length: n }, () => new Map());
@@ -451,6 +454,11 @@ export class Match {
   /** A module slows c this step (×k on run and sprint): a brace, a flag carried, a clinch. */
   slow(c: Contestant, k: number): void {
     this.mul[c.index] *= k;
+  }
+
+  /** v7 (H4): c carries too much to sprint or slide this step. */
+  noSprint(c: Contestant): void {
+    this.laden[c.index] = true;
   }
 
   /** A new backpack request from c (its low 5 bits), or −1. */
@@ -691,8 +699,10 @@ export class Match {
       }
       const k = this.mul[i];
       this.mul[i] = 1;
+      const laden = this.laden[i];
+      this.laden[i] = false;
       if (!this.moves(c) || this.seats[i] >= 0) continue;
-      this.move(c, dt, k, space);
+      this.move(c, dt, k, space, laden);
     }
     this.separate();
   }
@@ -700,13 +710,13 @@ export class Match {
   /**
    * The online client's own body, moved as the server will move it (a phone
    * predicts only itself; Match.mirror). `k`: the speed share the modules
-   * would give it this step (a brace, a flag held, a clinch).
+   * would give it this step (a brace, a flag held, a clinch); `laden`: too much carried to sprint (v7 H4).
    */
-  predict(c: Contestant, dt: number, k = 1): void {
-    if (c.status === "alive" && this.seats[c.index] < 0) this.move(c, dt, k, this.world.space);
+  predict(c: Contestant, dt: number, k = 1, laden = false): void {
+    if (c.status === "alive" && this.seats[c.index] < 0) this.move(c, dt, k, this.world.space, laden);
   }
 
-  private move(c: Contestant, dt: number, k: number, space: Space): void {
+  private move(c: Contestant, dt: number, k: number, space: Space, laden = false): void {
     const i = c.index;
     const fast = this.fast[i];
     const src = fast && this.effect(c, "speed") > 0 ? fast : this.base[i];
@@ -717,7 +727,7 @@ export class Match {
       c.bst = s;
     } else c.bst = src;
     const course = this.world.course;
-    moveContestant(c, dt, course ?? DEFAULT_COURSE, course ? null : space, this.env);
+    moveContestant(c, dt, course ?? DEFAULT_COURSE, course ? null : space, this.env, laden);
   }
 
   /** Who moves and is bumped: the living (and, on Ball Haunt's corridor, those safe over the line). */

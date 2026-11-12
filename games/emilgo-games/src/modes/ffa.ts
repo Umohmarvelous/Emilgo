@@ -41,6 +41,7 @@ import { BillboardView } from "../world/billboards";
 import { DeadView } from "../world/deadView";
 import type { SurvivalModule } from "../game/modules/survival";
 import type { ItemsModule } from "../game/modules/items";
+import type { TreasureModule } from "../game/modules/treasure";
 import type { ZoneModule } from "../game/modules/zone";
 import type { FlagsModule as FlagsRules } from "../game/modules/flags";
 import type { LineId } from "../audio/voice";
@@ -1169,6 +1170,8 @@ export class FfaMode implements GameMode {
     const mel = m.module<MeleeModule>("melee");
     h.controls.setFinisher(!!mel && live && mel.clinchOf(me.index) >= 0);
     h.controls.setStamina(me.stamina, me.sprinting);
+    // v7 (H4): heavy loot: too much carried to sprint or slide.
+    h.controls.setLaden(live && !!m.module<TreasureModule>("treasure")?.laden(me.index));
 
     // Lights Out: the film look darkens with the city.
     if (this.dimmed > 0.01) {

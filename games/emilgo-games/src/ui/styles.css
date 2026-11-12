@@ -1717,3 +1717,9 @@ input { font: inherit; color: inherit; }
 .adv-row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
 .adv-row .btn { height: 40px; padding: 0 16px; }
 .adv-card .ht-scroll { flex: 1; }
+/* H4: heavy loot */
+.tr-carry .tr-heavy { display: inline-flex; align-items: center; gap: 3px; height: 28px; padding: 0 8px; margin-left: 2px; border-radius: 14px; background: rgba(10, 12, 10, 0.55); border: 1px solid rgba(255, 255, 255, 0.14); font: 800 11px/1 var(--num, system-ui); color: #ffd36a; }
+.tr-carry .tr-heavy svg { width: 13px; height: 13px; fill: currentColor; }
+.tr-carry .tr-heavy small { font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; margin-left: 3px; }
+.tr-carry .tr-heavy.laden { color: #ff8a5a; border-color: rgba(255, 120, 70, 0.6); }
+.abtn.sprint.laden { opacity: 0.45; filter: grayscale(1); }

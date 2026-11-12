@@ -54,6 +54,9 @@ export class TreasureModule implements RuleModule {
   readonly uploadTime: number;
   /** v7: the boxes' circle round the machine, metres (0: the whole world, as v5). */
   readonly area: number;
+  /** v7 (H4, heavy loot): the speed each treasure carried costs (0.03: 3%), and from how many there's no sprint or slide (0: never). */
+  readonly heavy: number;
+  readonly heavyAt: number;
   readonly boxes: TreasureBox[] = [];
   readonly treasures: Treasure[] = [];
   machine: { x: number; z: number; h: number } | null = null;
@@ -72,6 +75,19 @@ export class TreasureModule implements RuleModule {
     this.uploadTime = Math.max(1, num("upload", TREASURE.upload));
     const area = num("area", 0);
     this.area = area > 0 ? Math.max(60, area) : 0;
+    this.heavy = Math.max(0, Math.min(0.1, num("heavy", 0)));
+    this.heavyAt = Math.max(0, Math.min(9, Math.floor(num("heavyAt", 0))));
+  }
+
+  /** v7 (H4): the share of your speed you keep with what you carry (5 at 3%: 0.85). */
+  speedShare(i: number): number {
+    const n = this.count[i] ?? 0;
+    return n > 0 && this.heavy > 0 ? Math.max(0.5, 1 - this.heavy * n) : 1;
+  }
+
+  /** v7 (H4): too laden to sprint or slide. */
+  laden(i: number): boolean {
+    return this.heavyAt > 0 && (this.count[i] ?? 0) >= this.heavyAt;
   }
 
   /** How far from each circle's centre the hunt's centre may lie, as a share of its radius (zone.ts). */
@@ -225,6 +241,13 @@ export class TreasureModule implements RuleModule {
   step(m: Match, dt: number): void {
     const t = m.elapsed;
     this.solid(m);
+    // v7 (H4): heavy loot: the greedy are slower, and from heavyAt on they can't sprint or slide.
+    for (const c of m.contestants) {
+      if (c.status !== "alive" || !this.count[c.index]) continue;
+      const k = this.speedShare(c.index);
+      if (k < 1) m.slow(c, k);
+      if (this.laden(c.index)) m.noSprint(c);
+    }
     // Opening boxes.
     for (const c of m.contestants) {
       const i = c.index;
