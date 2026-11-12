@@ -556,13 +556,13 @@ export class TreasureView {
     for (const e of list) {
       if (e.type === "tpulse") {
         // v7 (H9): the carriers' pulse: a sonar sweep, and who is on every map.
-        if (!e.ids.length) continue;
-        const mine = e.ids.includes(me.id);
+        if (!e.who.length) continue;
+        const mine = e.who.includes(me.index);
         this.o.sound?.talkingDrum();
         if (mine) hud.pushFeed(`${t("Carrying")} ${tm.pulseAt}+: ${t("you're on every map")}`, "out");
         else {
-          const rivals = e.ids.filter((id) => {
-            const c = who(id);
+          const rivals = e.who.filter((i) => {
+            const c = m.contestants[i];
             return !!c && !m.sameSquad(c, me);
           }).length;
           if (rivals) hud.pushFeed(`${t("Carriers' pulse")}: ${rivals} ${rivals === 1 ? t("carrier on the map") : t("carriers on the map")}`, "info");

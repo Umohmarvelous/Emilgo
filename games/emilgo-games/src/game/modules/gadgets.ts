@@ -263,7 +263,7 @@ export class GadgetsModule implements RuleModule {
     const h = m.world.space.floorAt(x, z, c.h + 0.3).h;
     const p: Placed = { index: this.placed.length, kind, x, z, h, by: c.index, at: m.elapsed, until: m.elapsed + s, ...(look !== undefined ? { look } : {}) };
     this.placed.push(p);
-    m.emit({ type: "gadget", kind, n: p.index, id: c.id, x, z, h, ...(look !== undefined ? { k: look } : {}) });
+    m.emit({ type: "gadget", kind, n: p.index, id: c.id, x, z, h, ...(look !== undefined ? { look } : {}) });
   }
 
   /** The nearest other squad's number (Aso-ebi copies it), or −1 in a mode without squads. */
@@ -417,7 +417,7 @@ export class GadgetsModule implements RuleModule {
         if ((e.kind === "smoke" || e.kind === "peel" || e.kind === "decoy" || e.kind === "fool") && e.n >= 0 && !this.placed[e.n]) {
           const by = m.get(e.id ?? "")?.index ?? -1;
           const s = e.kind === "smoke" ? GADGETS.smoke.s : e.kind === "peel" ? GADGETS.peel.s : e.kind === "fool" ? GADGETS.fool.s : GADGETS.decoy.s;
-          this.placed[e.n] = { index: e.n, kind: e.kind, x: e.x, z: e.z, h: e.h, by, at: m.elapsed, until: m.elapsed + s, ...(e.k !== undefined ? { look: e.k } : {}) };
+          this.placed[e.n] = { index: e.n, kind: e.kind, x: e.x, z: e.z, h: e.h, by, at: m.elapsed, until: m.elapsed + s, ...(e.look !== undefined ? { look: e.look } : {}) };
         } else if ((e.kind === "slip" || e.kind === "pop" || e.kind === "fooled") && this.placed[e.n]) this.placed[e.n].until = m.elapsed;
         // A dance: the copy roots the dancer too (a phone predicts its own body).
         const c = e.id ? m.get(e.id) : null;

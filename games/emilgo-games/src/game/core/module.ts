@@ -59,8 +59,8 @@ export type MatchEvent =
   | { type: "landed-fly"; flight: number; x: number; z: number; h: number; hit: string | null }
   // ── Treasure Hunt (v5): a box opened (found: the treasure in it, −1 empty); a treasure moves; the upload ──
   | { type: "tbox"; box: number; id: string; found: number; trap?: boolean }
-  /** v7 (H9): the carriers' pulse: who carries enough, and where they were (everyone's map, TREASURE.pulseShow s). */
-  | { type: "tpulse"; ids: string[]; x: number[]; z: number[] }
+  /** v7 (H9): the carriers' pulse: who carries enough (body indices), and where they were (everyone's map, TREASURE.pulseShow s). */
+  | { type: "tpulse"; who: number[]; x: number[]; z: number[] }
   | { type: "tre"; t: number; how: "find" | "take" | "give" | "drop" | "loose"; id: string | null; x: number; z: number; h: number; by?: string }
   | { type: "upl"; id: string; how: "start" | "stop" | "done" }
   /** A Map Print (v5): which box each treasure still in one is in. Only to the seat that used it (Match.whisper). */
@@ -98,7 +98,7 @@ export type MatchEvent =
   | { type: "dodge"; id: string }
   // ── The §10 items (Phase 6, gadgets.ts) ──
   /** Something an item did or left: a smoke cloud, a peel, a decoy (n: its index), the powder, a megaphone's wind-up and wave, a slip, a pop, a sneeze, a wave lost. */
-  | { type: "gadget"; kind: GadgetKind; n: number; id: string | null; x: number; z: number; h: number; hd?: number; k?: number }
+  | { type: "gadget"; kind: GadgetKind; n: number; id: string | null; x: number; z: number; h: number; hd?: number; look?: number }
   /** A Talking Drum: who it showed to whom (tg null: nobody near), until when. */
   | { type: "reveal"; id: string; tg: string | null; until: number; all?: boolean }
   /** Aso-ebi: the squad someone now wears (−1: their own again). */

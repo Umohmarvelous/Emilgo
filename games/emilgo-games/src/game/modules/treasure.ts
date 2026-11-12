@@ -308,7 +308,7 @@ export class TreasureModule implements RuleModule {
       this.pulseN = Math.floor(t / this.pulse);
       const who = m.contestants.filter((c) => c.status === "alive" && this.count[c.index] >= this.pulseAt);
       this.pulsed = { who: who.map((c) => c.index), x: who.map((c) => c.x), z: who.map((c) => c.z), until: t + TREASURE.pulseShow };
-      m.emit({ type: "tpulse", ids: who.map((c) => c.id), x: this.pulsed.x, z: this.pulsed.z });
+      m.emit({ type: "tpulse", who: [...this.pulsed.who], x: [...this.pulsed.x], z: [...this.pulsed.z] });
     }
     // Opening boxes.
     for (const c of m.contestants) {
@@ -507,8 +507,7 @@ export class TreasureModule implements RuleModule {
       return;
     }
     if (e.type === "tpulse") {
-      const who = e.ids.map((id) => m.get(id)?.index ?? -1);
-      this.pulsed = { who, x: [...e.x], z: [...e.z], until: m.elapsed + TREASURE.pulseShow };
+      this.pulsed = { who: [...e.who], x: [...e.x], z: [...e.z], until: m.elapsed + TREASURE.pulseShow };
       return;
     }
     if (e.type === "tbox") {

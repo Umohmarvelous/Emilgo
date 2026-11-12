@@ -18,6 +18,7 @@ import { builtLoot, ITEM_DEFS, LOOT_TABLES, type ItemId } from "../../src/conten
 import type { GadgetsModule } from "../../src/game/modules/gadgets";
 import { KILL_XP, KILL_XP_CAP, matchXp, xpParts, type MatchFacts } from "../../src/rank/xp";
 import { worldFor } from "../src/ffa";
+import { decodeEvent, encodeEvent } from "../../src/net/matchWire";
 
 let failures = 0;
 function check(ok: boolean, label: string): void {
@@ -550,7 +551,7 @@ console.log("v7 (H8), Fool's Gold:");
   const fool = gad.placed.find((p) => p.kind === "fool");
   const drop = ev.find((e) => e.type === "gadget" && e.kind === "fool");
   check(!!fool && items.packs[0][0] === null && Math.hypot(fool.x - (c.x + 5), fool.z - c.z) < 0.5, "used: a fake treasure lies at P0's feet");
-  check(!!fool && fool.look !== undefined && tm.treasures[fool.look].box >= 0 && drop?.type === "gadget" && drop.k === fool.look, "it copies a treasure still hidden (the event says which)");
+  check(!!fool && fool.look !== undefined && tm.treasures[fool.look].box >= 0 && drop?.type === "gadget" && drop.look === fool.look, "it copies a treasure still hidden (the event says which)");
   run(m, 2);
   check(!!fool && fool.until > m.elapsed, "its owner walks on it: nothing");
   put(m, "p1", fool!.x, fool!.z, fool!.h);
@@ -597,7 +598,7 @@ console.log("v7 (H9), the carriers' pulse:");
   const p = ev.filter((e) => e.type === "tpulse");
   check(p.length === 1, "at 90 s: one pulse");
   const e = p[0];
-  check(e?.type === "tpulse" && e.ids.length === 1 && e.ids[0] === "p1" && Math.abs(e.x[0] - m.get("p1")!.x) < 0.5, "it shows P1 (3 carried) where P1 is, not P2 (2)");
+  check(e?.type === "tpulse" && e.who.length === 1 && e.who[0] === 1 && Math.abs(e.x[0] - m.get("p1")!.x) < 0.5, "it shows P1 (3 carried) where P1 is, not P2 (2)");
   check(e?.type === "tpulse" && !("box" in e) && tm.pulsed.until > m.elapsed && tm.pulsed.until - m.elapsed <= 2, "players only, never chests; on the map 2 s");
   const ev2: MatchEvent[] = [];
   run(m, 5, ev2);
@@ -605,6 +606,22 @@ console.log("v7 (H9), the carriers' pulse:");
   const copy = fresh(17, 6, undefined, 99, true, live);
   if (e) tmOf(copy).apply(copy, e);
   check(tmOf(copy).pulsed.who[0] === 1 && tmOf(copy).pulsed.until > copy.elapsed, "the copy shows it");
+}
+
+console.log("v7 (H7–H9), over the wire:");
+{
+  // The phone's own id differs from its seat's: the wire sends bodies as roster indices.
+  const seat = ["s0", "s1", "s2"];
+  const phone = ["me", "q1", "q2"];
+  const round = (e: MatchEvent) => decodeEvent(JSON.parse(JSON.stringify(encodeEvent(e, (id) => seat.indexOf(id)))), (i) => phone[i] ?? null);
+  const fool = round({ type: "gadget", kind: "fool", n: 3, id: "s1", x: 1.5, z: 2, h: 0, look: 2 });
+  check(fool?.type === "gadget" && fool.kind === "fool" && fool.look === 2 && fool.id === "q1", "Fool's Gold: its kind and look arrive");
+  const rev = round({ type: "reveal", id: "s1", tg: "s0", until: 12, all: true });
+  check(rev?.type === "reveal" && rev.all === true && rev.tg === "me", "the everyone-ping arrives");
+  const loose = round({ type: "tre", t: 1, how: "loose", id: "s2", by: "s0", x: 1, z: 2, h: 0 });
+  check(loose?.type === "tre" && loose.how === "loose" && loose.id === "q2" && loose.by === "me", "a pickpocket: the carrier and the thief arrive");
+  const pulse = round({ type: "tpulse", who: [0, 2], x: [1.25, 3], z: [4, 5.5] });
+  check(pulse?.type === "tpulse" && pulse.who.join() === "0,2" && pulse.x[0] === 1.25, "the carriers' pulse arrives");
 }
 
 console.log(failures ? `\n${failures} FAILED` : "\nall passed");
