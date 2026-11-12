@@ -67,3 +67,10 @@ Objects you should remove in free for all mode, i have attached the screeshots o
 and as usual, you mustunderstand this prompt and the context first and orderly arrange this prompt, in order of hierarchy where you strictly start building the features that does not require heavy autonomous first then wait for my go-ahead before proceeding to the heavy build. you can make suggestion/recommendations and ask questions where necessary.
 
 (Then: "continue building".)
+
+---
+
+## The owner's second message (12 Nov 2026), word for word
+
+while you continue building in a new session, i need you to also add these prompt to the latest version (7) you are building, and prepare the ground so that i can continue this session in a new session to build everything together to completion.
+when i said make the game easier i did not say give the players hint of here the treasures are, also treasure hunt rules, gameplay ideas remain the same where players have the find all 5 hidden treasures and upload them), you can add a more tougher gameplay ideas to this treasure hunt to make it highly interesting, fun and competitive so it can stand out from other games that might have similar gameplay ideas as this game and be different from them.
