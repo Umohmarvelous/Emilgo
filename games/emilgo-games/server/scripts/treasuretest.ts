@@ -466,5 +466,69 @@ console.log("v7 (H6), the upload alarm and the narrowing ring:");
   check(tmOf(off).ringAt(off) === TREASURE.ring, "without ringShrink the ring stays");
 }
 
+console.log("v7 (H7), pickpocket:");
+{
+  const m = fresh(15, 6, undefined, 99, false, live);
+  const tm = tmOf(m);
+  check(tm.pickpocket, "the live mode: a hit from behind knocks one loose");
+  const c = tm.machine!;
+  let n = 0;
+  const give = (i: number, k: number) => {
+    for (const t of tm.treasures) if (t.holder === i) t.holder = -1;
+    tm.count[i] = 0;
+    for (const t of tm.treasures) {
+      if (tm.count[i] >= k) break;
+      if (t.holder >= 0) continue;
+      t.holder = i;
+      t.box = -1;
+      tm.count[i]++;
+    }
+  };
+  // P2 faces +z; the thief stands `behind` (true: at its back; false: in front of it, face to face).
+  const stage = (behind: boolean) => {
+    put(m, "p2", c.x + 4, c.z, c.h);
+    m.get("p2")!.heading = 0;
+    put(m, "p1", c.x + 4, c.z + (behind ? -1 : 1), c.h);
+    m.get("p1")!.heading = behind ? 0 : Math.PI;
+  };
+  const swing = (ev: MatchEvent[]) => {
+    m.setActions("p1", (++n << 2) | 2, 0);
+    run(m, 0.7, ev);
+  };
+  const loose = (ev: MatchEvent[]) => ev.filter((e) => e.type === "tre" && e.how === "loose");
+  give(2, 2);
+  stage(true);
+  const ev: MatchEvent[] = [];
+  swing(ev);
+  const hit = ev.some((e) => e.type === "hit" && e.id === "p1" && e.tg === "p2");
+  const l = loose(ev);
+  check(hit && l.length === 1 && tm.count[2] === 1, "hit from behind: one of P2's two knocked loose, no kill");
+  check(l[0]?.type === "tre" && l[0].by === "p1" && l[0].id === "p2", "the event names the thief and the carrier");
+  check(tm.count[1] === 1 && m.get("p2")!.status === "alive", "it lands at the thief's feet: P1 has it on the run");
+  // Again at once: one a body every 2 s.
+  stage(true);
+  const ev2: MatchEvent[] = [];
+  swing(ev2);
+  check(ev2.some((e) => e.type === "hit") && !loose(ev2).length && tm.count[2] === 1, "a second hit within 2 s: nothing more comes loose");
+  // Face to face: a hit, nothing loose.
+  run(m, 2);
+  stage(false);
+  const ev3: MatchEvent[] = [];
+  swing(ev3);
+  check(ev3.some((e) => e.type === "hit" && e.tg === "p2") && !loose(ev3).length && tm.count[2] === 1, "from the front: a hit, but nothing loose");
+  // The phone's copy follows the event.
+  const copy = fresh(15, 6, undefined, 99, true, live);
+  const ct = tmOf(copy);
+  if (l[0]?.type === "tre") {
+    ct.treasures[l[0].t].holder = 2;
+    ct.count[2] = 1;
+    ct.apply(copy, l[0]);
+  }
+  check(!!l[0] && ct.treasures[(l[0] as { t: number }).t].holder === -1 && ct.count[2] === 0, "the copy drops it too");
+  // Off in a mode without it.
+  const off = fresh(15, 6);
+  check(!tmOf(off).pickpocket, "without pickpocket, a hit is just a hit");
+}
+
 console.log(failures ? `\n${failures} FAILED` : "\nall passed");
 process.exit(failures ? 1 : 0);

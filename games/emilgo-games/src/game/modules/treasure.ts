@@ -67,6 +67,9 @@ export class TreasureModule implements RuleModule {
   readonly traps: number;
   /** v7 (H6): the machine's ring narrows with the zone's last circles. */
   readonly ringShrink: boolean;
+  /** v7 (H7): a melee hit from behind knocks one treasure loose (steal on the run). */
+  readonly pickpocket: boolean;
+  private pickedAt = new Float64Array(0);
   private readonly circle: Circle = { x: 0, z: 0, r: 0 };
   /** The trapped boxes (the server's secret: the copy learns one only as it goes off). */
   private readonly trapped = new Set<number>();
@@ -92,6 +95,7 @@ export class TreasureModule implements RuleModule {
     this.heavyAt = Math.max(0, Math.min(9, Math.floor(num("heavyAt", 0))));
     this.traps = Math.max(0, Math.min(1, num("traps", 0)));
     this.ringShrink = params.ringShrink === true;
+    this.pickpocket = params.pickpocket === true;
   }
 
   /**
@@ -161,6 +165,7 @@ export class TreasureModule implements RuleModule {
     this.count = new Int32Array(n);
     this.openT = new Float64Array(n);
     this.openOn = new Int32Array(n).fill(-1);
+    this.pickedAt = new Float64Array(n).fill(-99);
     const centre = this.spot(m);
     const rng = m.rng("treasure");
     const reach = m.reach;
@@ -384,6 +389,7 @@ export class TreasureModule implements RuleModule {
       m.whisper(e.id, { type: "tmap", t: hid.map((t) => t.index), b: hid.map((t) => t.box) });
       return;
     }
+    if (e.type === "hit" && this.pickpocket) return this.pick(m, e.id, e.tg);
     if (e.type !== "eliminated") return;
     const c = m.get(e.id);
     if (!c) return;
@@ -401,6 +407,33 @@ export class TreasureModule implements RuleModule {
       m.emit({ type: "tre", t: tr.index, how: "drop", id: c.id, x: tr.x, z: tr.z, h: tr.h });
     }
     this.count[c.index] = 0;
+  }
+
+  /**
+   * v7 (H7): `byId`'s melee hit landed on `tgId`. From behind, on a rival carrying, it knocks the last treasure they
+   * took loose at the thief's feet (theirs if they stay on it; the carrier can't retake it at once). No kill needed.
+   */
+  private pick(m: Match, byId: string, tgId: string): void {
+    const by = m.get(byId);
+    const tg = m.get(tgId);
+    if (!by || !tg || by === tg || tg.status !== "alive" || m.sameSquad(by, tg) || !this.count[tg.index]) return;
+    if (m.elapsed - this.pickedAt[tg.index] < TREASURE.pick.cool) return;
+    const dx = by.x - tg.x;
+    const dz = by.z - tg.z;
+    const d = Math.hypot(dx, dz);
+    if (d < 1e-4 || (dx * Math.sin(tg.heading) + dz * Math.cos(tg.heading)) / d > -TREASURE.pick.cone) return;
+    let tr: Treasure | null = null;
+    for (const x of this.treasures) if (x.holder === tg.index) tr = x;
+    if (!tr) return;
+    this.pickedAt[tg.index] = m.elapsed;
+    this.count[tg.index]--;
+    tr.holder = -1;
+    tr.droppedBy = tg.index;
+    tr.droppedAt = m.elapsed;
+    tr.x = by.x;
+    tr.z = by.z;
+    tr.h = by.h;
+    m.emit({ type: "tre", t: tr.index, how: "loose", id: tg.id, by: by.id, x: tr.x, z: tr.z, h: tr.h });
   }
 
   /**
@@ -472,7 +505,7 @@ export class TreasureModule implements RuleModule {
       tr.x = e.x;
       tr.z = e.z;
       tr.h = e.h;
-      if (e.how === "drop" || !c) tr.holder = -1;
+      if (e.how === "drop" || e.how === "loose" || !c) tr.holder = -1;
       else {
         tr.holder = c.index;
         this.count[c.index]++;

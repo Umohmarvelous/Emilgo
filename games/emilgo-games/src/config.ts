@@ -566,6 +566,11 @@ export const TREASURE = {
    */
   area: 240,
   core: 150,
+  /**
+   * v7 (H7, pickpocket): a melee hit landing from behind (the thief within 60° of straight behind the carrier's
+   * facing: `cone` is −cos of that) knocks one treasure loose at the thief's feet; a body loses at most one each `cool` s.
+   */
+  pick: { cone: 0.5, cool: 2 },
 } as const;
 
 /** v7: what each of an instant hunt's treasures is, by its index (the reveal draws it, the feed names it). */

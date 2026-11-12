@@ -579,6 +579,18 @@ export class TreasureView {
           if (!dropped && c) dropped = { name: c.name, n: 0, mine: c === me };
           if (dropped) dropped.n++;
           if (dropped?.n === 1) this.flashes.push({ x: e.x, y: e.h, z: e.z, at: this.time, life: 1.6, r: 2.4 });
+        } else if (e.how === "loose") {
+          // v7 (H7): pickpocketed: one flies out of the carrier's pack to the thief's feet.
+          const by = who(e.by);
+          const what = t(TREASURE_KIND_NAME[kindOf(e.t)]);
+          this.falls.set(e.t, { x: c?.x ?? e.x, y: (c?.h ?? e.h) + 1.3, z: c?.z ?? e.z, at: this.time });
+          this.flashes.push({ x: e.x, y: e.h, z: e.z, at: this.time, life: 0.9, r: 1.2 });
+          this.o.sound?.treasure(by === me, by === me || c === me ? 1 : near(e.x, e.z, 50));
+          if (c === me) {
+            this.o.sound?.voice.say("tre_lost");
+            hud.pushFeed(`${t("Pickpocketed!")} ${by ? `${by.name} ${t("knocked loose")}` : t("You lost")} ${what}`, "out");
+          } else if (by === me) hud.pushFeed(`${t("Pickpocket!")} ${what} ${t("knocked loose")}`, "safe");
+          else if (by && c) hud.pushFeed(`${by.name} ${t("pickpocketed")} ${c.name}`, m.sameSquad(by, me) ? "safe" : m.sameSquad(c, me) ? "out" : "info");
         } else if (e.how === "take") {
           if (c === me) {
             this.o.sound?.treasure(true);
