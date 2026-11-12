@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#050607" />
     <meta name="referrer" content="no-referrer" />
-    <meta name="description" content="Free For All across Naija World and Dead Streets in Spooky World: play online with friends, right in the browser." />
+    <meta name="description" content="Free in your browser: find the five hidden treasures, upload them at the machine, and fight for what the others found. Play online with friends." />
     <title>Silo Zone · EMILGO Games</title>
     <!-- v5 (3.9): the name and the icon (dev/icon.mjs); a phone's home screen uses them. -->
     <link rel="manifest" href="manifest.webmanifest" />
@@ -29,22 +29,52 @@
       }
       #boot.done { opacity: 0; pointer-events: none; }
       /* v4 Welcome A: this week's place full-bleed (the game's own shot), the wordmark on the left, two modes, a thin amber bar. */
-      #boot .art { position: absolute; inset: 0; background: center 40% / cover no-repeat; opacity: 0; transform: scale(1.06); transition: opacity 0.8s, transform 6s ease-out; filter: brightness(0.9); }
-      #boot .art.in { opacity: 1; transform: scale(1); }
+      /* v7 (2.12): the world's own shot, graded like a film: a slow push in, letterbox bars, a light that passes, grain. */
+      #boot .art { position: absolute; inset: -3%; background: center 40% / cover no-repeat; opacity: 0; transform: scale(1.1) translateX(1.5%); transition: opacity 1s, transform 10s cubic-bezier(.2,.6,.3,1); filter: contrast(1.1) saturate(1.15) brightness(0.82); }
+      #boot .art.in { opacity: 1; transform: scale(1.01) translateX(-1%); }
+      #boot .grade { position: absolute; inset: 0; background: linear-gradient(110deg, rgba(0,70,90,.32) 0%, rgba(0,0,0,0) 45%, rgba(255,140,40,.18) 100%); mix-blend-mode: soft-light; pointer-events: none; }
+      #boot .sweep { position: absolute; inset: 0; background: linear-gradient(105deg, transparent 35%, rgba(255,214,150,.13) 48%, transparent 60%); transform: translateX(-100%); animation: bootsweep 3.2s 0.6s ease-in-out both; pointer-events: none; }
+      #boot .grain { position: absolute; inset: -50%; opacity: .07; pointer-events: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); animation: bootgrain 0.6s steps(3) infinite; }
+      #boot .lb { position: absolute; left: 0; right: 0; height: 5.5vh; background: #000; z-index: 1; }
+      #boot .lb.t { top: 0; } #boot .lb.b { bottom: 0; }
+      @keyframes bootsweep { to { transform: translateX(100%); } }
+      @keyframes bootgrain { 0% { transform: translate(0, 0); } 33% { transform: translate(-7%, 4%); } 66% { transform: translate(5%, -6%); } 100% { transform: translate(-3%, 7%); } }
       #boot .shade { position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0,0,0,.9) 0%, rgba(0,0,0,0) 45%), linear-gradient(90deg, rgba(0,0,0,.75) 0%, rgba(0,0,0,0) 55%); }
-      #boot .logo { position: absolute; left: calc(34px + env(safe-area-inset-left, 0px)); top: 26%; line-height: 1; animation: bootrise 0.8s ease-out both; }
+      #boot .logo { position: absolute; z-index: 2; left: calc(34px + env(safe-area-inset-left, 0px)); top: 26%; line-height: 1; animation: bootrise 0.8s ease-out both; }
       #boot .logo .e { font: 800 12px Montserrat, "Arial Black", sans-serif; letter-spacing: 0.5em; color: #f5a623; }
       #boot .logo .g { font: 900 min(52px, 10.5vw) Montserrat, "Arial Black", Impact, sans-serif; letter-spacing: 0.02em; text-shadow: 0 3px 0 rgba(0,0,0,.5); }
-      #boot .logo .tag { font: 600 10px system-ui, sans-serif; letter-spacing: 0.14em; opacity: 0.85; margin-top: 8px; }
-      #boot .logo .chips { display: flex; gap: 6px; margin-top: 14px; }
-      #boot .logo .chips span { font: 800 8px system-ui, sans-serif; letter-spacing: 0.08em; padding: 4px 8px; border: 1px solid rgba(255,255,255,.55); }
-      #boot .logo .chips span.ds { border-color: #ff5a4a; color: #ff8a7a; }
-      #boot .drop { position: absolute; right: calc(34px + env(safe-area-inset-right, 0px)); top: 22px; text-align: right; font: 800 10px system-ui, sans-serif; letter-spacing: 0.3em; color: #ffb53a; text-shadow: 0 1px 4px #000, 0 0 2px #000; }
+      /* v7 (2.12): how it plays, in three pictures (the game's own shots), lit one after another. */
+      #boot .how { position: absolute; z-index: 2; left: calc(34px + env(safe-area-inset-left, 0px)); top: calc(26% + min(52px, 10.5vw) + 34px); animation: bootrise 0.8s 0.25s ease-out both; }
+      #boot .how > b { display: block; font: 800 9px system-ui, sans-serif; letter-spacing: 0.3em; color: #f5a623; margin-bottom: 8px; }
+      #boot .how ol { list-style: none; margin: 0; padding: 0; display: flex; gap: 10px; }
+      #boot .how li { width: min(150px, calc((100vw - 88px) / 3)); opacity: .55; transform: translateY(4px); transition: opacity .5s, transform .5s; }
+      #boot .how li.on { opacity: 1; transform: none; }
+      #boot .how .pic { position: relative; aspect-ratio: 16 / 9; border-radius: 6px; background: #13201a center / cover no-repeat; box-shadow: 0 6px 18px rgba(0,0,0,.55), inset 0 0 0 1px rgba(255,255,255,.18); overflow: hidden; }
+      #boot .how li.on .pic { box-shadow: 0 6px 18px rgba(0,0,0,.55), inset 0 0 0 2px #f5a623; }
+      #boot .how .pic i { position: absolute; left: 6px; top: 5px; font: 900 13px Montserrat, "Arial Black", sans-serif; font-style: normal; color: #fff; text-shadow: 0 1px 3px #000; }
+      #boot .how h3 { margin: 7px 0 2px; font: 800 10px system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+      #boot .how p { margin: 0; font: 500 9.5px/1.35 system-ui, sans-serif; opacity: .85; }
+      #boot .tap { position: absolute; z-index: 2; right: calc(34px + env(safe-area-inset-right, 0px)); bottom: calc(30px + env(safe-area-inset-bottom, 0px)); font: 800 10px system-ui, sans-serif; letter-spacing: 0.3em; color: #f5a623; opacity: 0; transition: opacity .4s; }
+      #boot.ready .tap { opacity: 1; animation: boottap 1.4s ease-in-out infinite; }
+      #boot.ready .ver { opacity: 0; }
+      @keyframes boottap { 50% { opacity: .45; } }
+      @media (orientation: landscape) and (max-height: 460px) {
+        #boot .logo { top: 14%; }
+        #boot .how { top: calc(14% + min(52px, 10.5vw) + 30px); }
+      }
+      @media (orientation: portrait) {
+        #boot .logo { top: 18%; }
+        #boot .how { top: calc(18% + min(52px, 10.5vw) + 40px); right: calc(20px + env(safe-area-inset-right, 0px)); left: calc(20px + env(safe-area-inset-left, 0px)); }
+        #boot .how ol { flex-direction: column; gap: 12px; }
+        #boot .how li { width: auto; display: grid; grid-template-columns: 42% 1fr; gap: 0 12px; align-items: center; }
+        #boot .how h3 { margin-top: 0; }
+      }
+      #boot .drop { position: absolute; z-index: 2; right: calc(34px + env(safe-area-inset-right, 0px)); top: 22px; text-align: right; font: 800 10px system-ui, sans-serif; letter-spacing: 0.3em; color: #ffb53a; text-shadow: 0 1px 4px #000, 0 0 2px #000; }
       #boot .drop b { display: block; font: 900 18px Montserrat, "Arial Black", sans-serif; letter-spacing: 0.02em; color: #fff; margin-top: 3px; }
-      #boot .bar { position: absolute; left: calc(34px + env(safe-area-inset-left, 0px)); right: calc(34px + env(safe-area-inset-right, 0px)); bottom: calc(22px + env(safe-area-inset-bottom, 0px)); height: 2px; background: rgba(255,255,255,.15); }
+      #boot .bar { position: absolute; z-index: 2; left: calc(34px + env(safe-area-inset-left, 0px)); right: calc(34px + env(safe-area-inset-right, 0px)); bottom: calc(22px + env(safe-area-inset-bottom, 0px)); height: 2px; background: rgba(255,255,255,.15); }
       #boot .bar i { display: block; height: 100%; width: 8%; background: #f5a623; box-shadow: 0 0 10px #f5a623; transition: width 0.3s; }
-      #boot .txt { position: absolute; left: calc(34px + env(safe-area-inset-left, 0px)); bottom: calc(30px + env(safe-area-inset-bottom, 0px)); letter-spacing: 0.3em; text-transform: uppercase; font: 800 9px system-ui, sans-serif; opacity: 0.9; }
-      #boot .ver { position: absolute; right: calc(34px + env(safe-area-inset-right, 0px)); bottom: calc(30px + env(safe-area-inset-bottom, 0px)); font: 600 8px system-ui, sans-serif; letter-spacing: 0.12em; opacity: 0.6; text-transform: uppercase; }
+      #boot .txt { position: absolute; z-index: 2; left: calc(34px + env(safe-area-inset-left, 0px)); bottom: calc(30px + env(safe-area-inset-bottom, 0px)); letter-spacing: 0.3em; text-transform: uppercase; font: 800 9px system-ui, sans-serif; opacity: 0.9; }
+      #boot .ver { position: absolute; z-index: 2; right: calc(34px + env(safe-area-inset-right, 0px)); bottom: calc(30px + env(safe-area-inset-bottom, 0px)); font: 600 8px system-ui, sans-serif; letter-spacing: 0.12em; opacity: 0.6; text-transform: uppercase; }
       @keyframes bootrise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
       .boot-fail { position: absolute; left: 50%; top: 62%; transform: translateX(-50%); max-width: 300px; text-align: center; }
       .boot-fail b { font-size: 14px; }
@@ -54,17 +84,28 @@
   <body>
     <div id="boot" role="status" aria-live="polite">
       <div class="art" id="boot-art"></div>
+      <div class="grade"></div>
+      <div class="sweep"></div>
       <div class="shade"></div>
+      <div class="grain"></div>
+      <div class="lb t"></div><div class="lb b"></div>
       <div class="logo" aria-label="Silo Zone, by EMILGO Games">
         <div class="e">EMILGO</div>
         <div class="g">SILO ZONE</div>
-        <div class="tag">SURVIVE THE NIGHT · OWN THE STREETS</div>
-        <div class="chips"><span>FREE FOR ALL</span><span class="ds">DEAD STREETS</span></div>
       </div>
+      <div class="how" aria-label="How it plays">
+        <b>HOW IT PLAYS</b>
+        <ol>
+          <li><div class="pic" data-pic="drop"><i>1</i></div><div><h3>Drop in</h3><p>Land anywhere. Grab guns, armour and gear.</p></div></li>
+          <li><div class="pic" data-pic="find"><i>2</i></div><div><h3>Find the five</h3><p>A diamond, gold, silver, an emerald and a ruby hide in chests.</p></div></li>
+          <li><div class="pic" data-pic="upload"><i>3</i></div><div><h3>Upload, or outlast</h3><p>Carry all five to the machine while the zone closes.</p></div></li>
+        </ol>
+      </div>
+      <div class="tap" id="boot-tap">TAP TO START</div>
       <div class="drop" id="boot-drop"></div>
       <div class="bar"><i id="boot-fill"></i></div>
       <div class="txt" id="boot-text">Loading Lagos...</div>
-      <div class="ver">v4 · Max Mode</div>
+      <div class="ver">v7</div>
     </div>
     <canvas id="scene"></canvas>
     <div id="ui"></div>
