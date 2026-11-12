@@ -27,7 +27,7 @@ import { t } from "../ui/i18n";
 import type { Crowd } from "./crowd";
 import { Footprints, type Ground } from "./footprints";
 import { glowOf, ItemsView, type ItemsState } from "./items";
-import { PickupFx } from "./pickupFx";
+import { PickupFx, styleOf } from "./pickupFx";
 import { SkyLaser } from "./skyLaser";
 import { ZoneWall } from "./zone";
 import type { VehiclesModule } from "../game/modules/vehicles";
@@ -133,7 +133,7 @@ export class MatchScene {
             // The light, in the item's colour, for anyone near enough to see it.
             const kind = e.type === "take" ? e.kind : e.kinds[0];
             // (A booster's light is its rise's vortex: power.ts.)
-            if (kind && !ITEM_DEFS[kind].instant && near(who.x, who.z, 70) > 0) this.pickFx.spawn(who.index, glowOf(kind));
+            if (kind && !ITEM_DEFS[kind].instant && near(who.x, who.z, 70) > 0) this.pickFx.spawn(who.index, glowOf(kind), false, styleOf(kind));
           }
           if (e.id === me.id) {
             this.o.sound?.pickup();
