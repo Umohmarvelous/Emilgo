@@ -570,5 +570,42 @@ console.log("v7 (H8), Fool's Gold:");
   check(cg.placed.some((p) => p.kind === "fool" && p.look === fool!.look) && cg.reveals.some((r) => r.by === -1 && r.tg === p2.index), "the copy draws it and sees the ping");
 }
 
+console.log("v7 (H9), the carriers' pulse:");
+{
+  const m = fresh(17, 6, undefined, 99, false, live);
+  const tm = tmOf(m);
+  check(tm.pulse === 90 && tm.pulseAt === 3, "every 90 s, carriers of 3 or more");
+  const give = (i: number, k: number) => {
+    for (const t of tm.treasures) if (t.holder === i) t.holder = -1;
+    tm.count[i] = 0;
+    for (const t of tm.treasures) {
+      if (tm.count[i] >= k) break;
+      if (t.holder >= 0) continue;
+      t.holder = i;
+      t.box = -1;
+      tm.count[i]++;
+    }
+  };
+  give(1, 3);
+  give(2, 2);
+  const c = tm.machine!;
+  put(m, "p1", c.x + 5, c.z, c.h);
+  put(m, "p2", c.x - 5, c.z, c.h);
+  const ev: MatchEvent[] = [];
+  m.elapsed = 89.9;
+  run(m, 0.2, ev);
+  const p = ev.filter((e) => e.type === "tpulse");
+  check(p.length === 1, "at 90 s: one pulse");
+  const e = p[0];
+  check(e?.type === "tpulse" && e.ids.length === 1 && e.ids[0] === "p1" && Math.abs(e.x[0] - m.get("p1")!.x) < 0.5, "it shows P1 (3 carried) where P1 is, not P2 (2)");
+  check(e?.type === "tpulse" && !("box" in e) && tm.pulsed.until > m.elapsed && tm.pulsed.until - m.elapsed <= 2, "players only, never chests; on the map 2 s");
+  const ev2: MatchEvent[] = [];
+  run(m, 5, ev2);
+  check(!ev2.some((x) => x.type === "tpulse"), "nothing more until the next 90 s");
+  const copy = fresh(17, 6, undefined, 99, true, live);
+  if (e) tmOf(copy).apply(copy, e);
+  check(tmOf(copy).pulsed.who[0] === 1 && tmOf(copy).pulsed.until > copy.elapsed, "the copy shows it");
+}
+
 console.log(failures ? `\n${failures} FAILED` : "\nall passed");
 process.exit(failures ? 1 : 0);

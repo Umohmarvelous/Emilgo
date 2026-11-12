@@ -70,6 +70,12 @@ export class TreasureModule implements RuleModule {
   /** v7 (H7): a melee hit from behind knocks one treasure loose (steal on the run). */
   readonly pickpocket: boolean;
   private pickedAt = new Float64Array(0);
+  /** v7 (H9): every `pulse` s (0: never) each body carrying `pulseAt` or more shows on every map. */
+  readonly pulse: number;
+  readonly pulseAt: number;
+  private pulseN = 0;
+  /** The last pulse: whom it showed (body indices) and where, until when. */
+  pulsed: { who: number[]; x: number[]; z: number[]; until: number } = { who: [], x: [], z: [], until: -1 };
   private readonly circle: Circle = { x: 0, z: 0, r: 0 };
   /** The trapped boxes (the server's secret: the copy learns one only as it goes off). */
   private readonly trapped = new Set<number>();
@@ -96,6 +102,8 @@ export class TreasureModule implements RuleModule {
     this.traps = Math.max(0, Math.min(1, num("traps", 0)));
     this.ringShrink = params.ringShrink === true;
     this.pickpocket = params.pickpocket === true;
+    this.pulse = Math.max(0, Math.min(600, num("pulse", 0)));
+    this.pulseAt = Math.max(1, Math.min(9, Math.floor(num("pulseAt", 3))));
   }
 
   /**
@@ -295,6 +303,13 @@ export class TreasureModule implements RuleModule {
       if (k < 1) m.slow(c, k);
       if (this.laden(c.index)) m.noSprint(c);
     }
+    // v7 (H9): the carriers' pulse: the greedy show on every map (where the players are, never the chests).
+    if (this.pulse > 0 && Math.floor(t / this.pulse) > this.pulseN) {
+      this.pulseN = Math.floor(t / this.pulse);
+      const who = m.contestants.filter((c) => c.status === "alive" && this.count[c.index] >= this.pulseAt);
+      this.pulsed = { who: who.map((c) => c.index), x: who.map((c) => c.x), z: who.map((c) => c.z), until: t + TREASURE.pulseShow };
+      m.emit({ type: "tpulse", ids: who.map((c) => c.id), x: this.pulsed.x, z: this.pulsed.z });
+    }
     // Opening boxes.
     for (const c of m.contestants) {
       const i = c.index;
@@ -489,6 +504,11 @@ export class TreasureModule implements RuleModule {
         const tr = this.treasures[k];
         if (tr && tr.box !== -1 && tr.holder < 0) tr.box = e.b[j];
       });
+      return;
+    }
+    if (e.type === "tpulse") {
+      const who = e.ids.map((id) => m.get(id)?.index ?? -1);
+      this.pulsed = { who, x: [...e.x], z: [...e.z], until: m.elapsed + TREASURE.pulseShow };
       return;
     }
     if (e.type === "tbox") {

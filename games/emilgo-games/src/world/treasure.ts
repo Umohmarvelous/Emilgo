@@ -554,6 +554,21 @@ export class TreasureView {
     const who = (id: string | null | undefined) => (id ? (m.get(id) ?? null) : null);
     let dropped: { name: string; n: number; mine: boolean } | null = null;
     for (const e of list) {
+      if (e.type === "tpulse") {
+        // v7 (H9): the carriers' pulse: a sonar sweep, and who is on every map.
+        if (!e.ids.length) continue;
+        const mine = e.ids.includes(me.id);
+        this.o.sound?.talkingDrum();
+        if (mine) hud.pushFeed(`${t("Carrying")} ${tm.pulseAt}+: ${t("you're on every map")}`, "out");
+        else {
+          const rivals = e.ids.filter((id) => {
+            const c = who(id);
+            return !!c && !m.sameSquad(c, me);
+          }).length;
+          if (rivals) hud.pushFeed(`${t("Carriers' pulse")}: ${rivals} ${rivals === 1 ? t("carrier on the map") : t("carriers on the map")}`, "info");
+        }
+        continue;
+      }
       if (e.type === "tbox") {
         const c = who(e.id);
         const b = tm.boxes[e.box];
@@ -812,6 +827,12 @@ export class TreasureView {
       glow(tr.x, tr.h, tr.z, 0.35, 26, "#ffb020", 1);
       marks.push({ x: tr.x, z: tr.z, kind: "flag" });
       aim(tr.x, tr.z, "flag");
+    }
+    // v7 (H9): the carriers' pulse: where each was, on the map (not you: you know where you are).
+    if (tm.pulsed.until > m.elapsed) {
+      tm.pulsed.who.forEach((i, j) => {
+        if (i !== me.index) marks.push({ x: tm.pulsed.x[j], z: tm.pulsed.z[j], kind: "ping" });
+      });
     }
     // v7 (H8): Fool's Gold: the same as a loose treasure in every way (the model, the bob, the light, the map, the compass).
     for (const f of this.fakes) f.visible = false;

@@ -571,6 +571,8 @@ export const TREASURE = {
    * facing: `cone` is −cos of that) knocks one treasure loose at the thief's feet; a body loses at most one each `cool` s.
    */
   pick: { cone: 0.5, cool: 2 },
+  /** v7 (H9): the carriers' pulse shows its bodies on every map this long. */
+  pulseShow: 2,
 } as const;
 
 /** v7: what each of an instant hunt's treasures is, by its index (the reveal draws it, the feed names it). */
