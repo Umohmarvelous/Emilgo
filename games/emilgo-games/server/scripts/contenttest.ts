@@ -26,7 +26,7 @@ const own = checkManifest(BUILTIN_MANIFEST)!;
 check(own.dropped.length === 0, `every mode is valid (${own.dropped.map((d) => `${d.id}: ${d.errors.join(", ")}`).join("; ") || "none dropped"})`);
 const ffa = BUILTIN_MANIFEST.modes.filter((m) => m.family === "ffa" && !m.tags?.includes("staked"));
 check(ffa.filter((m) => !m.tags?.includes("dev")).length === 13, "thirteen Free For All modes (v4: the ten and Naija Max's two; v5: Treasure Hunt)");
-check(BUILTIN_MANIFEST.rotation[0] === "treasure-hunt" && ffa.some((m) => m.id === "treasure-hunt" && m.modules.treasure?.need === 5 && !!m.modules.treasure?.area && m.win.measure === "treasure.count" && m.modules.zone?.clock === true), "Treasure Hunt first in the rotation, won by uploading all 5 (v7, 12 Nov: the v6 rules, the chests round the machine, the zone the clock)");
+check(BUILTIN_MANIFEST.rotation[0] === "treasure-hunt" && ffa.some((m) => m.id === "treasure-hunt" && m.modules.treasure?.need === 4 && !!m.modules.treasure?.area && m.win.measure === "treasure.count" && m.modules.zone?.clock === true), "Treasure Hunt first in the rotation, won by uploading all 4 (v8: four treasures; v7: the chests round the machine, the zone the clock)");
 check(BUILTIN_MANIFEST.modes.some((m) => m.tags?.includes("staked") && m.players.max <= 4), "the staked duel: 2–4 seats");
 check(BUILTIN_MANIFEST.modes.some((m) => m.family === "survival"), "Dead Streets is there");
 check(own.manifest.rotation.length >= 3 && own.manifest.rotation.length <= 4, "a featured rotation of 3–4");
