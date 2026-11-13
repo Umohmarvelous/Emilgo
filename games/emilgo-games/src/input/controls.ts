@@ -144,7 +144,7 @@ export class Controls {
   layout: "rlgl" | "ffa" = "rlgl";
   /** Free For All: brace held (button, Ctrl or the right mouse button). */
   get brace(): boolean {
-    return this.braceKey || this.braceTouch || this.braceMouse;
+    return this.braceKey || this.braceTouch || this.braceMouse || this.padHeld.brace;
   }
   private braceKey = false;
   private braceTouch = false;
@@ -152,8 +152,18 @@ export class Controls {
   private finisher = false;
   /** Guns (v4): the trigger held (FIRE buttons, the left mouse button), aiming down the sights, the reload and swap counters. */
   get trigger(): boolean {
-    return this.fireTouch > 0 || this.fireMouse || this.autoTrigger;
+    return this.fireTouch > 0 || this.fireMouse || this.firePad || this.autoTrigger;
   }
+  /** v8 (A16): a gamepad's right trigger held, its aim trigger, its buttons last frame, and when it was last read. */
+  private firePad = false;
+  private adsPad = false;
+  private padPrev: boolean[] = [];
+  private readonly gpMove = { x: 0, y: 0 };
+  private readonly padLook = { x: 0, y: 0 };
+  private padHeld = { sprint: false, crouchAt: 0, interact: false, board: false, brace: false };
+  /** v8 (A16): a gamepad was used (the session says so once). */
+  onGamepad: ((name: string) => void) | null = null;
+  private padNamed = "";
   /** v5: auto-shoot, set by the mode each frame (the crosshair is on an enemy and the setting is on). */
   autoTrigger = false;
   ads = false;
@@ -865,6 +875,7 @@ export class Controls {
 
   /** Recompute move/look from sticks and keys. Call once per frame. */
   update(): void {
+    this.pollPad();
     const m = this.sticks.move;
     let mx = m.x;
     let my = m.y;
@@ -875,6 +886,11 @@ export class Controls {
       const mag = this.keys.has("alt") ? 0.6 : 1;
       mx = (kx / len) * mag;
       my = (ky / len) * mag;
+    }
+    // v8 (A16): a gamepad's left stick, when pushed.
+    if (this.gpMove.x || this.gpMove.y) {
+      mx = this.gpMove.x;
+      my = this.gpMove.y;
     }
     if (!this.enabled) mx = my = 0;
     // Dead Streets: FIRE (or the mouse) held shoots the gun at its pace.
@@ -907,8 +923,124 @@ export class Controls {
     // Q and E turn the camera in Red Light, Green Light; Free For All gives them to grab and interact.
     // (Touch look is the touchpad: consumePad.)
     const kl = this.layout === "ffa" ? 0 : (this.key("e") ? 1 : 0) - (this.key("q") ? 1 : 0);
-    this.look.x = this.enabled ? kl : 0;
-    this.look.y = 0;
+    this.look.x = this.enabled ? kl + this.padLook.x : 0;
+    this.look.y = this.enabled ? this.padLook.y : 0;
+  }
+
+  /**
+   * v8 (A16): a gamepad (PlayStation, Xbox: the browser's standard mapping; the app's WebView has the same API).
+   * Left stick moves, right stick looks; RT/R2 fires (a fist without guns), LT/L2 aims (a brace without guns); A/×
+   * jumps; X/□ interacts (held); B/○ crouches (held: prone; while sprinting: a slide); L3 sprints (twice: the
+   * tactical sprint); Y/△ the backpack; RB/R1 reloads; LB/L1 swaps; R3 a melee hit; Start/Options pauses;
+   * Back/Share the scoreboard (held); the D-pad up the map, down the emote wheel.
+   */
+  private pollPad(): void {
+    const list = typeof navigator !== "undefined" && navigator.getGamepads ? navigator.getGamepads() : [];
+    let gp: Gamepad | null = null;
+    for (const g of list) if (g && g.connected && (g.mapping === "standard" || !gp)) gp = g;
+    const now = performance.now();
+    this.gpMove.x = this.gpMove.y = this.padLook.x = this.padLook.y = 0;
+    if (!gp) {
+      if (this.firePad || this.adsPad) this.padRelease();
+      return;
+    }
+    const b = (i: number) => !!gp!.buttons[i]?.pressed;
+    const v = (i: number) => gp!.buttons[i]?.value ?? 0;
+    const prev = this.padPrev;
+    const down = (i: number) => b(i) && !prev[i];
+    const up = (i: number) => !b(i) && !!prev[i];
+    const dz = (x: number) => (Math.abs(x) < 0.18 ? 0 : Math.sign(x) * ((Math.abs(x) - 0.18) / 0.82));
+    const lx = dz(gp.axes[0] ?? 0);
+    const ly = dz(gp.axes[1] ?? 0);
+    const rx = dz(gp.axes[2] ?? 0);
+    const ry = dz(gp.axes[3] ?? 0);
+    const any = lx || ly || rx || ry || gp.buttons.some((x) => x.pressed);
+    if (any && this.padNamed !== gp.id) {
+      this.padNamed = gp.id;
+      this.touched();
+      this.onGamepad?.(gp.id);
+    }
+    // Start pauses even in a menu.
+    if (down(9)) this.onPauseKey?.();
+    if (this.enabled) {
+      // The left stick, when pushed, takes over from the touch stick and the keys (update() reads it).
+      if (lx || ly) {
+        const len = Math.min(1, Math.hypot(lx, ly));
+        const a = Math.atan2(lx, -ly);
+        this.gpMove.x = Math.sin(a) * len;
+        this.gpMove.y = Math.cos(a) * len;
+      }
+      // The right stick looks, on a curve (fine near the middle).
+      if (rx || ry) {
+        const c = (x: number) => Math.sign(x) * x * x;
+        this.padLook.x = c(rx) * 1.15;
+        this.padLook.y = -c(ry) * 0.85;
+      }
+      if (this.layout === "ffa") {
+        const rt = v(7) > 0.4;
+        const lt = v(6) > 0.4;
+        if (this.guns || this.survivalGun) {
+          this.firePad = rt;
+          if (!this.survivalGun && lt !== this.adsPad) {
+            this.adsPad = lt;
+            if (!this.adsMouse) this.setAds(lt);
+          }
+        } else {
+          if (rt && !prev[7]) this.attack("fist");
+          this.padHeld.brace = lt;
+        }
+        if (down(2)) {
+          this.padHeld.interact = true;
+          this.onInteract?.(true);
+        } else if (up(2) && this.padHeld.interact) {
+          this.padHeld.interact = false;
+          this.onInteract?.(false);
+        }
+        if (down(3)) this.onPack?.();
+        if (down(5) && this.guns) this.reload();
+        if (down(4) && this.guns) this.swap();
+        if (down(11)) this.attack(this.guns ? "fist" : "slap");
+        if (down(14)) this.onSlot?.(0, false);
+      }
+      if (down(0)) this.jump();
+      // L3: sprint (a second click soon after: the tactical sprint); it ends when the stick stops.
+      if (down(10) && this.stance === 0) {
+        const dbl = now - this.sprintPressAt < DOUBLE_TAP_MS;
+        this.sprintPressAt = now;
+        if (dbl) this.goTac();
+        else this.setSprint(true);
+      }
+      // B / ○: crouch on release (held: prone); while sprinting, a slide.
+      if (down(1)) {
+        if (this.slideFromSprint()) this.padHeld.crouchAt = -1;
+        else this.padHeld.crouchAt = now;
+      } else if (b(1) && this.padHeld.crouchAt > 0 && now - this.padHeld.crouchAt >= PRONE_HOLD_MS) {
+        this.setStance(2);
+        this.padHeld.crouchAt = -1;
+      } else if (up(1)) {
+        if (this.padHeld.crouchAt > 0) this.setStance(this.stance === 0 ? 1 : 0);
+        this.padHeld.crouchAt = 0;
+      }
+      if (down(12)) this.onMap?.();
+      if (down(13)) this.onWheel?.(true, gameSize().w / 2, gameSize().h / 2);
+    }
+    if (b(8) !== this.padHeld.board) {
+      this.padHeld.board = b(8);
+      this.onScoreboard?.(b(8));
+    }
+    this.padPrev = gp.buttons.map((x) => x.pressed);
+  }
+
+  private padRelease(): void {
+    this.firePad = false;
+    if (this.adsPad) {
+      this.adsPad = false;
+      if (!this.adsMouse) this.setAds(false);
+    }
+    if (this.padHeld.interact) this.onInteract?.(false);
+    this.padHeld.interact = false;
+    this.padHeld.brace = false;
+    this.padPrev = [];
   }
 
   /** Mouse drag on desktop: pixels moved since the last frame (added to the look rate). */

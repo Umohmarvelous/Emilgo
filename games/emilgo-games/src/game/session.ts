@@ -528,6 +528,8 @@ export class Game {
       else this.wheel.release();
     };
     this.controls.onWheelMove = (x, y) => this.wheel.hover(x, y);
+    // v8 (A16): a gamepad picked up: say so once (its name as the browser gives it).
+    this.controls.onGamepad = (name) => this.screens.toast(`${t("Controller connected")}: ${name.replace(/\s*\(.*$/, "").slice(0, 40)}`);
     this.controls.onChat = () => this.chat.toggle();
     // Quick chat: online it's a chat line to the room; in practice a bubble over you.
     this.controls.onQuick = () => {
