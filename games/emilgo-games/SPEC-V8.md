@@ -5,6 +5,10 @@ v7's rows that are not finished (3.2–3.5, now B2 and B9).
 
 ## Continue here (for the new session)
 
+> **13 Nov 2026: Tier A (A1–A19) is done and pushed** (last: 242d917). Waiting for the owner's go-ahead before Tier B
+> (B1 first). The owner's steps from Tier A: `scripts/deploy-site.sh`; the billboard switch and keys (A8); the
+> ElevenLabs key and voice id in `tools/audio/.env`, then `tools/audio/voice.sh` (A18).
+
 1. Read this file, then the top of [HANDOFF.md](HANDOFF.md) (the owner's steps, the traps). The brief:
    SPEC-V8-ORIGINAL.md.
 2. Run `git log --oneline -8`. v8 commits are named "LOOTLINE v8 (X): …"; the last v7 one is 8f19179 (3.2,
