@@ -24,6 +24,10 @@
 // (`need`). An uploaded treasure stays on the machine under its uploader's name. A solo player uploads in batches of
 // `soloBatch` (default: everything still needed, as before). Time up: the most uploaded wins, then the most carried,
 // then the most still standing.
+//
+// v8 (A10), solo players: they upload in twos (`soloBatch: 2`); a find exposes them (the view pings it on every
+// rival's map for TREASURE_EXPOSE s: the "find" event carries where); and killed by a rival after uploading, their
+// uploaded treasures come off the machine under their name and go to the killer's count (it can win them the match).
 
 import { TREASURE } from "../../config";
 import type { Contestant } from "../core/body";
@@ -32,6 +36,9 @@ import type { MatchEvent, RuleModule } from "../core/module";
 import { nearOpen } from "./flags";
 import type { MeleeModule } from "./melee";
 import type { Circle, ZoneModule } from "./zone";
+
+/** v8 (A10): a solo player's find shows on every rival's map this long, s (the owner's exception to "no hints"). */
+export const TREASURE_EXPOSE = 8;
 
 /** v7 (H6): the machine's ring never narrows below this (room to stand and fight). */
 export const RING_MIN = 3;
@@ -492,6 +499,9 @@ export class TreasureModule implements RuleModule {
       return;
     }
     if (e.type === "hit" && this.pickpocket) return this.pick(m, e.id, e.tg);
+    // v8 (A10): a solo player killed by a rival: their uploaded treasures pass to the killer (under the killer's name).
+    if (e.type === "kill" && e.by && e.by !== e.tg) this.transfer(m, e.tg, e.by);
+    if (m.winner) return;
     // v7 (H10): the bounty holder killed by a rival: claimed (the XP is the server's, from this event).
     if (e.type === "kill" && this.bounty && this.bountyOn >= 0 && e.by && e.by !== e.tg) {
       const v = m.get(e.tg);
@@ -516,6 +526,22 @@ export class TreasureModule implements RuleModule {
       m.emit({ type: "tre", t: tr.index, how: "drop", id: c.id, x: tr.x, z: tr.z, h: tr.h });
     }
     this.count[c.index] = 0;
+  }
+
+  /** v8 (A10): a solo victim's uploads to their killer; the killer's squad wins if that makes all of them. */
+  private transfer(m: Match, victimId: string, killerId: string): void {
+    const v = m.get(victimId);
+    const k = m.get(killerId);
+    if (!v || !k || v === k || m.sameSquad(v, k) || !this.solo(m, v) || !this.upCount[v.index]) return;
+    for (const tr of this.treasures) {
+      if (tr.up !== v.index) continue;
+      tr.up = k.index;
+      this.upCount[v.index]--;
+      this.upCount[k.index]++;
+      m.emit({ type: "tre", t: tr.index, how: "up", id: k.id, by: v.id, x: tr.x, z: tr.z, h: tr.h });
+    }
+    const q = m.squads[k.index];
+    if (this.upOf(m, q) >= this.need) m.win(k, q);
   }
 
   /**

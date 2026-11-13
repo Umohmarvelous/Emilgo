@@ -74,6 +74,8 @@ import type { Tier } from "../graphics/tiers";
 import { t } from "../ui/i18n";
 import { merge, part } from "./geo";
 import { TrapFlares } from "./trapFlare";
+import { TREASURE_EXPOSE } from "../game/modules/treasure";
+import type { Contestant } from "../game/core/body";
 
 /** v7: a treasure's kind, by its index. */
 export function kindOf(i: number): TreasureKind {
@@ -605,6 +607,8 @@ export class TreasureView {
   private beepAt = 0;
   /** v6: rivals already called out as carrying all but one (once each). */
   private readonly warned = new Set<number>();
+  /** v8 (A10): solo finders exposed: where they found it, their name, until when (the view's own clock). */
+  private exposed: { x: number; z: number; name: string; until: number }[] = [];
 
   constructor(o: TreasureViewOptions) {
     this.o = o;
@@ -704,6 +708,7 @@ export class TreasureView {
     const near = (x: number, z: number, range: number) => Math.max(0, 1 - Math.hypot(x - cam.x, z - cam.z) / range);
     const who = (id: string | null | undefined) => (id ? (m.get(id) ?? null) : null);
     let dropped: { name: string; n: number; mine: boolean } | null = null;
+    let took: { v: Contestant | null; k: Contestant | null; n: number } | null = null;
     for (const e of list) {
       if (e.type === "tbounty") {
         // v7 (H10): the bounty moves with the lead.
@@ -774,6 +779,22 @@ export class TreasureView {
         }
       } else if (e.type === "tre") {
         const c = who(e.id);
+        // v8 (A10): a solo player's find gives them away: a ping on every rival's map for TREASURE_EXPOSE s.
+        if (e.how === "find" && c && tm.solo(m, c)) {
+          if (c === me) {
+            hud.pushFeed(`${t("Your find gave you away")}: ${t("you're on every map for")} ${TREASURE_EXPOSE} s`, "out");
+            this.o.sound?.voice.say("tre_exposed");
+          } else if (!m.sameSquad(c, me)) this.exposed.push({ x: e.x, z: e.z, name: c.name, until: this.time + TREASURE_EXPOSE });
+        }
+        // v8 (A10): a solo player's uploads taken by their killer.
+        if (e.how === "up" && e.by) {
+          const v = who(e.by);
+          if (!took || took.v !== v || took.k !== c) {
+            if (took) this.tookFeed(m, took);
+            took = { v, k: c, n: 0 };
+          }
+          took.n++;
+        }
         if (e.how === "drop") {
           // They burst out of the body and fall round it.
           this.falls.set(e.t, { x: c?.x ?? e.x, y: (c?.h ?? e.h) + 1.2, z: c?.z ?? e.z, at: this.time });
@@ -824,11 +845,25 @@ export class TreasureView {
         }
       }
     }
+    if (took) this.tookFeed(m, took);
     if (dropped) {
       this.o.sound?.treasure(false, 0.6);
       if (dropped.mine) this.o.sound?.voice.say("tre_lost");
       hud.pushFeed(dropped.mine ? t("You dropped your treasures") : `${dropped.name} ${t("dropped")} ${dropped.n} ${dropped.n === 1 ? t("treasure") : t("treasures")}`, dropped.mine ? "out" : "info");
     }
+  }
+
+  /** v8 (A10): a killer took a solo player's uploaded treasures: say who, and how many. */
+  private tookFeed(m: Match, x: { v: Contestant | null; k: Contestant | null; n: number }): void {
+    const me = m.contestants[this.o.me];
+    const hud = this.o.hud;
+    if (!hud || !x.v || !x.k) return;
+    const n = `${x.n} ${x.n === 1 ? t("uploaded treasure") : t("uploaded treasures")}`;
+    if (x.v === me) {
+      hud.pushFeed(`${x.k.name} ${t("took your")} ${n}`, "out");
+      this.o.sound?.voice.say("tre_lost");
+    } else if (x.k === me) hud.pushFeed(`${t("You took")} ${n} ${t("from")} ${x.v.name}`, "safe");
+    else hud.pushFeed(`${x.k.name} ${t("took")} ${n} ${t("from")} ${x.v.name}`, m.sameSquad(x.k, me) ? "safe" : "info");
   }
 
   /** What interact would do here: open a box (held), or what the ring needs. */
@@ -1034,6 +1069,11 @@ export class TreasureView {
         this.bountyMark.children[1].quaternion.copy(camera.quaternion);
         this.bountyMark.children[1].scale.setScalar(1 + 0.12 * Math.sin(this.time * 6));
       }
+    }
+    // v8 (A10): solo finders exposed: one ping each, where they found it, for TREASURE_EXPOSE s.
+    if (this.exposed.length) {
+      this.exposed = this.exposed.filter((x) => x.until > this.time);
+      for (const x of this.exposed) marks.push({ x: x.x, z: x.z, kind: "ping", label: x.name });
     }
     // v7 (H9): the carriers' pulse: where each was, on the map (not you: you know where you are).
     if (tm.pulsed.until > m.elapsed) {

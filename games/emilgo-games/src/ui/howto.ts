@@ -44,6 +44,7 @@ export const MODE_WORDS: Record<string, Words> = {
       "Some empty chests are trapped: they shriek and fire a red flare everyone near can see. Opening is a gamble.",
       "Die in the ring and you drop what you carry. Clear the area before you upload.",
       "In a squad you win together: every member's find counts, and whoever carries treasure can upload it. Protect whoever is at the machine.",
+      "On your own you upload in twos. Every find puts you on every rival's map for 8 seconds, and a rival who kills you takes the treasures you uploaded.",
       "Someone carrying all but one is marked on everyone's map. Outside the zone the gas wears you down: a Med Kit holds it off.",
     ],
   },

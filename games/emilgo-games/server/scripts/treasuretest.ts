@@ -745,6 +745,68 @@ console.log("v8 (A9), the copy follows an upload:");
   check(tp.treasures[1].up === 1 && tp.upCount[1] === 1 && tp.count[1] === 0 && tp.upOf(ph, 0) === 1 && tp.uploader === -1, "the copy has it on the machine under P1's name");
 }
 
+console.log("v8 (A10), solo: uploads in twos, a killer takes the uploads:");
+{
+  const m = fresh(41, 3, undefined, 99, false, live);
+  const tm = tmOf(m);
+  check(tm.soloBatch === 2 && tm.batchFor(m, m.get("p0")!) === 2, "a solo player uploads in twos");
+  const p = tm.machine!;
+  const give = (i: number, ks: number[]) => {
+    for (const k of ks) {
+      const x = tm.treasures[k];
+      if (x.holder >= 0) tm.count[x.holder]--;
+      x.box = -1;
+      x.up = -1;
+      x.holder = i;
+      tm.count[i]++;
+    }
+  };
+  give(0, [0]);
+  put(m, "p0", p.x + 2, p.z, p.h);
+  put(m, "p1", p.x + 90, p.z, p.h);
+  put(m, "p2", p.x - 90, p.z, p.h);
+  run(m, 0.3);
+  check(tm.uploader < 0, "one carried: no upload");
+  give(0, [1]);
+  run(m, tm.uploadTime + 0.5);
+  check(tm.upCount[0] === 2 && tm.count[0] === 0 && !m.winner, "two carried: both uploaded, not yet a win");
+  // P1 kills P0: P0's two uploads come off the machine and go to P1.
+  const ev: MatchEvent[] = [];
+  m.emit({ type: "kill", tg: "p0", by: "p1", how: "shot", head: false });
+  ev.push(...m.drain());
+  check(tm.upCount[0] === 0 && tm.upCount[1] === 2 && tm.treasures[0].up === 1 && tm.treasures[1].up === 1, "killed after uploading: the killer has them");
+  check(ev.filter((e) => e.type === "tre" && e.how === "up" && e.id === "p1" && e.by === "p0").length === 2, "told, treasure by treasure (killer and victim)");
+  // P1 uploads the last two: the win counts what passed to them.
+  give(1, [2, 3]);
+  put(m, "p1", p.x + 2, p.z, p.h);
+  run(m, tm.uploadTime + 0.5);
+  check(m.winner?.id === "p1", "the win counts uploads after transfers");
+  // A squad's player killed keeps the squad's uploads (only solo players' pass).
+  const q = fresh(42, 4, [0, 0, 1, 1], 99, false, live);
+  const tq = tmOf(q);
+  tq.treasures[0].box = -1;
+  tq.treasures[0].up = 0;
+  tq.upCount[0] = 1;
+  q.emit({ type: "kill", tg: "p0", by: "p2", how: "shot", head: false });
+  check(tq.upCount[0] === 1 && tq.upCount[2] === 0, "a squad member's uploads stay the squad's");
+  // Killed by the zone: nothing passes.
+  const z = fresh(43, 2, undefined, 99, false, live);
+  const tz = tmOf(z);
+  tz.treasures[0].box = -1;
+  tz.treasures[0].up = 0;
+  tz.upCount[0] = 1;
+  z.emit({ type: "kill", tg: "p0", by: null, how: "zone", head: false });
+  check(tz.upCount[0] === 1, "the zone takes nothing");
+  // The copy follows a transfer.
+  const ph = fresh(41, 3, undefined, 0, true, live);
+  const tp = tmOf(ph);
+  tp.treasures[0].box = -1;
+  tp.treasures[0].up = 0;
+  tp.upCount[0] = 1;
+  tp.apply(ph, { type: "tre", t: 0, how: "up", id: "p1", by: "p0", x: 0, z: 0, h: 0 });
+  check(tp.upCount[0] === 0 && tp.upCount[1] === 1 && tp.treasures[0].up === 1, "the copy moves it to the killer");
+}
+
 console.log("v8 (A4), no match clock: the zone shuts and nobody's left:");
 {
   const m = fresh(31, 4, undefined, 99, false, live);

@@ -32,7 +32,7 @@ import type { Sound } from "./sound";
 export type LineId =
   | "start_treasure" | "start_flag" | "start_hold" | "start_deliver" | "start_rally" | "start_royale" | "start_generic"
   | "zone_closing" | "zone_outside" | "zone_final" | "time_two" | "time_thirty"
-  | "tre_found" | "tre_all" | "tre_upload" | "tre_enemy_upload" | "tre_lost" | "tre_mate"
+  | "tre_found" | "tre_all" | "tre_upload" | "tre_enemy_upload" | "tre_lost" | "tre_mate" | "tre_exposed"
   | "flag_taken" | "flag_enemy" | "airdrop" | "print" | "serum"
   | "you_down" | "enemy_down" | "mate_down" | "tre_carrier" | "victory" | "defeat";
 
@@ -56,6 +56,7 @@ export const LINES: Record<LineId, string> = {
   tre_enemy_upload: "Enemy uploading. Stop them.",
   tre_lost: "You lost your treasures.",
   tre_mate: "Your teammate found a treasure.",
+  tre_exposed: "Your find exposed you. Move.",
   flag_taken: "You have the flag.",
   flag_enemy: "The enemy has the flag.",
   airdrop: "Supply drop incoming.",
