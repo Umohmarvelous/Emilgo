@@ -1916,3 +1916,18 @@ input { font: inherit; color: inherit; }
   .pm8-drop { right: calc(var(--safe-r) + 16px); bottom: calc(var(--safe-b) + 20px); }
 }
 @media (prefers-reduced-motion: reduce) { .pm8 * { animation: none !important; } }
+
+/* ── v8 (A5): every in-match alert is kill-feed-style text at the top centre: no box, no background ── */
+.fk-radio { left: 50%; right: auto; top: calc(var(--safe-t) + 126px); width: min(460px, 72vw); transform: translateX(-50%); pointer-events: none; z-index: 3; }
+.fk-radio .feed { align-items: center; gap: 0; }
+.fk-radio .feed-item { background: none; border: 0; padding: 0 4px; font: 800 10.5px/1.35 var(--body); letter-spacing: 0.02em; color: #fff; text-align: center; text-shadow: 0 0 3px #000, 0 1px 2px #000, 0 0 8px #0009; }
+.fk-radio .feed-item::before { content: none; }
+.fk-radio .feed-item.out { color: #ff8a7a; }
+.fk-radio .feed-item.safe { color: #9fe39a; }
+.fk-radio .feed-item:nth-child(2) { opacity: 0.6; }
+.fk-radio .feed-item:nth-child(n + 3) { display: none; }
+@media (orientation: portrait) {
+  .fk-radio { right: auto; top: calc(var(--safe-t) + 186px); width: calc(100% - 32px); }
+  .fk-radio .feed-item { white-space: normal; }
+  .fk-radio .feed-item:nth-child(3) { display: block; opacity: 0.4; }
+}

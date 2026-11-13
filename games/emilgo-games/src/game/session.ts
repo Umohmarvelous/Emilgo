@@ -581,6 +581,12 @@ export class Game {
     };
     this.hud.pauseBtn.addEventListener("click", () => this.pause());
     this.screens.handle((act, node) => this.action(act, node));
+    // v8 (A5): during play (no menu over it), a toast is top-centre text, like the kill feed: no box.
+    this.screens.toastTo = (text) => {
+      if (this.view !== "game" || !this.gm || !this.settings.killFeed || this.screens.root.classList.contains("visible")) return false;
+      this.hud.pushFeed(text, "info");
+      return true;
+    };
     // v8 (A1): the end screen's sounds: the XP's tick per 50, the rank-up chime, the cards' flips and gold glint.
     this.screens.cue = (k) => (k === "tick" ? this.sound.xpTick() : k === "rankup" ? this.sound.rankChime() : k === "ui" ? this.sound.ui() : this.sound.cardFlip(k === "glint"));
 

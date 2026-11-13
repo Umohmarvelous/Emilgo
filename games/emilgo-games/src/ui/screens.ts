@@ -389,7 +389,11 @@ export class Screens {
     this.root.classList.remove("visible");
   }
 
+  /** v8 (A5): in a match, a toast becomes top-centre text in the HUD's feed instead (the session says where). */
+  toastTo: ((text: string) => boolean) | null = null;
+
   toast(text: string, ms = 2400): void {
+    if (this.toastTo?.(text)) return;
     this.toastEl.textContent = t(text);
     this.toastEl.classList.add("visible");
     clearTimeout(this.toastTimer);
