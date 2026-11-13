@@ -81,9 +81,17 @@ export class Birds {
   private readonly rng: Rng;
   private readonly uTime = { value: 0 };
   private time = 0;
+  /**
+   * v8 (A19): where the flocks cross (the big world: round the camera, set each frame by follow()). In Red Light,
+   * Green Light: x 0 and the field's middle, as before.
+   */
+  private ax = 0;
+  private az: number;
 
   /** `centreZ`: the middle of the field (flocks cross near it). */
-  constructor(seed: number, private readonly centreZ: number) {
+  /** v8 (A19): `near`: the big world's flocks cross closer to you, lower and a little larger (seen from the ground). */
+  constructor(seed: number, centreZ: number, private readonly near = false) {
+    this.az = centreZ;
     this.rng = new Rng(seed ^ 0x51ed27);
     const geo = birdGeometry();
     const phase = new Float32Array(FLOCKS * PER);
@@ -130,9 +138,10 @@ export class Birds {
   private launch(f: Flock): void {
     const r = this.rng;
     const side = r.chance(0.5) ? 1 : -1;
-    const z = this.centreZ + r.range(-120, 120);
-    f.at.set(side * 260, r.range(28, 60), z);
-    const to = new Vector3(-side * 260, f.at.y + r.range(-8, 8), this.centreZ + r.range(-160, 160));
+    const spread = this.near ? 45 : 120;
+    const z = this.az + r.range(-spread, spread);
+    f.at.set(this.ax + side * 260, this.ay + (this.near ? r.range(18, 34) : r.range(28, 60)), z);
+    const to = new Vector3(this.ax - side * 260, f.at.y + r.range(-8, 8), this.az + r.range(-spread * 1.3, spread * 1.3));
     f.dir.subVectors(to, f.at).normalize();
     f.speed = r.range(8, 12);
     f.active = true;
@@ -150,7 +159,7 @@ export class Birds {
         return;
       }
       f.at.addScaledVector(f.dir, f.speed * dt);
-      if (Math.abs(f.at.x) > 280) {
+      if (Math.abs(f.at.x - this.ax) > 280) {
         f.active = false;
         f.wait = this.rng.range(6, 18);
       }
@@ -159,13 +168,21 @@ export class Birds {
       f.offs.forEach((o, i) => {
         _p.copy(o).applyQuaternion(_q).add(f.at);
         _p.y += Math.sin(this.time * 0.8 + i) * 0.3;
-        _s.setScalar(1.6);
+        _s.setScalar(this.near ? 2.3 : 1.6);
         _m.compose(_p, _q, _s);
         this.mesh.setMatrixAt(fi * PER + i, _m);
       });
     });
     this.mesh.instanceMatrix.needsUpdate = true;
   }
+
+  /** v8 (A19): the flocks cross near here (x, the ground's height, z): the big world's camera. */
+  follow(x: number, y: number, z: number): void {
+    this.ax = x;
+    this.ay = y;
+    this.az = z;
+  }
+  private ay = 0;
 
   dispose(): void {
     this.mesh.geometry.dispose();

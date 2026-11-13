@@ -7,6 +7,7 @@
 // pulls the camera back and swings it behind the car); the session lends the renderer, the people, the HUD
 // and the controls (modes/types.ts).
 
+import { Birds } from "../maps/birds";
 import { Vector3 } from "three";
 
 import { RADIO_IDS, RADIO_NAME, type RadioId } from "../audio/radio";
@@ -216,6 +217,8 @@ export class FfaMode implements GameMode {
   private readonly killCam: KillCam | null;
   private readonly kcUi: ReplayOverlay | null;
   private kcCard = { who: "", what: "" };
+  /** v8 (A19): the flocks in the sky. */
+  private readonly birds: Birds | null;
   private kcOn = false;
   private dryAt = 0;
   private autoTick = 0;
@@ -329,6 +332,9 @@ export class FfaMode implements GameMode {
     this.cars = m.module<VehiclesModule>("vehicles") ? new VehicleView({ crowd: h.crowd, sound: h.sound, rig: h.rig, me: me.index, stands: m.world.fuel ?? [] }) : null;
     if (this.cars) h.scene.add(this.cars.group);
     this.gadgets = new GadgetView({ crowd: h.crowd, hud: h.hud, sound: h.sound, me: me.index });
+    // v8 (A19): the flocks from Ball Haunt's sky, crossing Free For All's (by day: not Dead Streets' night, not Lights Out).
+    this.birds = !m.module("survival") && !m.module("blackout") ? new Birds(m.seed, 0, true) : null;
+    if (this.birds) h.scene.add(this.birds.group);
     h.scene.add(this.gadgets.group);
     this.modes6 = new ModesView({ crowd: h.crowd, hud: h.hud, sound: h.sound, me: me.index });
     h.scene.add(this.modes6.group);
@@ -1047,6 +1053,10 @@ export class FfaMode implements GameMode {
     const cam = h.camera.position;
     const md = c.consumeMouse();
     const pd = c.consumePad();
+    if (this.birds) {
+      this.birds.follow(cam.x, me.h, cam.z);
+      this.birds.update(dt);
+    }
     // The kill cam: the bodies as they were, from behind whoever took you out.
     const kc = this.killCam?.frame(m) ?? null;
     if (!kc && this.kcOn) this.kcShow(false);
@@ -1719,6 +1729,10 @@ export class FfaMode implements GameMode {
   dispose(): void {
     const h = this.host;
     h.sound.muffle(0);
+    if (this.birds) {
+      h.scene.remove(this.birds.group);
+      this.birds.dispose();
+    }
     this.sendBoards();
     this.gone = true;
     h.controls.chatBtn.hidden = true;
