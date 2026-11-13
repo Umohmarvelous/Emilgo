@@ -46,6 +46,11 @@ of where the treasures are, and gets tougher ideas of its own: the "Treasure Hun
    foreign edits). When every row is Done, report to the owner and delete this cron job. If you are already
    working, ignore this."*
 
+8. **Where the last session stopped (13 Nov):** everything up to and including **3.1** is Done and pushed
+   (last: 11c7519). **3.2** is half-built and committed (see its row). Next: finish 3.2, then 3.3, 3.4, 3.5;
+   then rebuild the embed once (step 4) and report to the owner. The previous session's cron (fb599d1b) dies
+   with it: create a new one (step 7) in the new session.
+
 ## Questions (built as recommended until the owner says otherwise)
 
 | # | Question | Recommended, and built so |
@@ -135,7 +140,7 @@ The prefab solids are in `src/maps/open/prefabs.ts` `parts()`; the looks in `src
 | # | Item | Status |
 |---|---|---|
 | 3.1 | **Lobby and HUD redesign**: the top bar's buttons (Lobby, Loadout, Store, Friends, Clan, Leaderboard) join the tabs, and the tabs move to the top; easy to reach in portrait; the lobby with more detail; a HUD in the big shooters' league (COD, Free Fire), our own style | Done. **The lobby**: the top tabs and the old bottom bar are one bar at the top (Lobby, Loadout, Customize, Emotes, Store, Friends, Clan, Awards, Leaderboard, Invite; badges for new awards and messages), the help, Advertise and Settings buttons at its end: a strip in landscape, a 5 × 2 grid of big buttons in portrait; the bottom keeps only the squad and PLAY. More detail: a **career** card (matches, wins, win rate, kills over the last 30, days in a row). **The HUD** (`src/ui/vitals.ts`): the big shooters' vitals in our Field Kit style: your name, armour as plates over a long slanted health bar bottom centre, its damage trailing a beat behind, amber under 60%, red and beating under 30%; **ALIVE · KILLS** under the minimap (beside it in portrait), the kill count popping on a kill. The crosshair's health arc (the v4 pick) and the rest of HUD A stay |
-| 3.2 | **Realistic chests** (wood, iron bands, a lock, a lid that opens) and the **treasure reveal**: a diamond, gold bars, silver bars, an emerald… rising out of the right box and bouncing in the air | Not started (H3 moves today's rise to every find; 3.2 is the chest and the reveal's art) |
+| 3.2 | **Realistic chests** (wood, iron bands, a lock, a lid that opens) and the **treasure reveal**: a diamond, gold bars, silver bars, an emerald… rising out of the right box and bouncing in the air | **In progress** (13 Nov, committed half-way). Done: the chest itself (`src/world/treasure.ts`: `CHEST` size, `chestBody`/`chestLid`/`chestLock`, wood-grain `chestMaterial()` with iron bands and a lock, uv kept by `merge(parts, true)`; decoys in `gadgets.ts` use the same material, so real and decoy look alike). **Left:** the lid that opens: a pool of ~4 animated chests (body + a lid pivot at (0, CHEST.h, −CHEST.d/2) swinging to −`LID_OPEN` with a bounce, the lock popping off), started on a `tbox` event; the lid jiggling while someone holds to open (`tm.boxFor(c)`, `tm.opening(c.index) > 0`); while animating, draw the box from the pool instead of the instanced closed/opened meshes; a creak, the reveal's rise ~0.35 s later. Then a cdp screenshot, Done here, commit |
 | 3.3 | **3D trees**, light: a 2–4 k-triangle copy of each scan, instanced (question 6) | Not started |
 | 3.4 | **A real respawn** (a drop-in, the body landing and rising, the camera following) | Not started |
 | 3.5 | **The runner, rebuilt**: on Free For All's maps, billboards on every road (portrait and landscape, ads always running), obstacles that fight back, no levels, XP but not rank, the toughest runner going, competitive | Not started |

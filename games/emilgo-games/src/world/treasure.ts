@@ -31,11 +31,13 @@ import {
   AdditiveBlending,
   BoxGeometry,
   type BufferGeometry,
+  CanvasTexture,
   CircleGeometry,
   Color,
   CylinderGeometry,
   DoubleSide,
   DynamicDrawUsage,
+  Float32BufferAttribute,
   Euler,
   Group,
   IcosahedronGeometry,
@@ -49,8 +51,11 @@ import {
   type PerspectiveCamera,
   PlaneGeometry,
   Quaternion,
+  RepeatWrapping,
   RingGeometry,
   ShaderMaterial,
+  SRGBColorSpace,
+  TorusGeometry,
   Vector3,
 } from "three";
 
@@ -65,7 +70,6 @@ import type { MapMark } from "../ui/minimap";
 import type { PlayHudState } from "../ui/play";
 import type { Hud } from "../ui/hud";
 import { el } from "../ui/dom";
-import { cdnOn, modelFor } from "../assets/cdn";
 import type { Tier } from "../graphics/tiers";
 import { t } from "../ui/i18n";
 import { merge, part } from "./geo";
@@ -122,38 +126,189 @@ const MAX_ORBITS = 8;
 // ── The things ──────────────────────────────────────────────────────────────
 
 /** A wooden chest with iron bands and a brass lock; `open` lies its lid back. */
+/**
+ * v7 (3.2, the owner: "beautify these boxes to look realistic like a real one"): a treasure chest in three parts, so
+ * the lid can rattle and swing: the body (hollow: a dark floor, planked walls, iron corner brackets and straps with
+ * rivets, rope handles' iron rings, a hasp's staple), the lid (a curved slatted half-barrel with its straps and the
+ * hasp, built hinged at its back edge: y 0, z 0, closing toward +z), and the padlock. Every part carries a uv
+ * (projected on its own facing) for the shared wood grain (chestMaterial).
+ */
+export const CHEST = { w: 0.8, d: 0.5, h: 0.36 } as const;
+const C_WOOD = [0x7a4e2b, 0x6c4326, 0x845632, 0x744a29];
+const C_IRON = 0x2b2c2f;
+const C_RIVET = 0x4a4c50;
+const C_BRASS = 0xc9a03a;
+
+/** uv from position, by each face's own facing (flat shaded, so every vertex of a face shares its normal). */
+function projectUv(g: BufferGeometry, k = 2.4): BufferGeometry {
+  const pos = g.attributes.position;
+  const nor = g.attributes.normal;
+  const uv = new Float32Array(pos.count * 2);
+  for (let i = 0; i < pos.count; i++) {
+    const nx = Math.abs(nor.getX(i));
+    const ny = Math.abs(nor.getY(i));
+    const nz = Math.abs(nor.getZ(i));
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    // The grain runs along the planks: along x on the front, back and top, along z on the ends.
+    const [u, v] = ny >= nx && ny >= nz ? [x, z] : nx >= nz ? [z, y] : [x, y];
+    uv[i * 2] = u * k;
+    uv[i * 2 + 1] = v * k * 3;
+  }
+  g.setAttribute("uv", new Float32BufferAttribute(uv, 2));
+  return g;
+}
+
+export function chestBody(): BufferGeometry {
+  const { w, d, h } = CHEST;
+  const t = 0.03;
+  const parts: BufferGeometry[] = [
+    // The floor inside (dark), the plinth under it.
+    part(new BoxGeometry(w - 2 * t, 0.03, d - 2 * t), 0x22160c, { p: [0, 0.05, 0] }),
+    part(new BoxGeometry(w + 0.02, 0.035, d + 0.02), 0x4a2e19, { p: [0, 0.0175, 0] }),
+  ];
+  // The walls: three planks a side, each its own shade, a hair apart.
+  const rows = 3;
+  const ph = (h - 0.035) / rows;
+  for (let r = 0; r < rows; r++) {
+    const y = 0.035 + ph * (r + 0.5);
+    const c = (k: number) => C_WOOD[(r * 2 + k) % C_WOOD.length];
+    parts.push(
+      part(new BoxGeometry(w, ph - 0.006, t), c(0), { p: [0, y, d / 2 - t / 2] }),
+      part(new BoxGeometry(w, ph - 0.006, t), c(1), { p: [0, y, -d / 2 + t / 2] }),
+      part(new BoxGeometry(t, ph - 0.006, d - 2 * t), c(2), { p: [w / 2 - t / 2, y, 0] }),
+      part(new BoxGeometry(t, ph - 0.006, d - 2 * t), c(3), { p: [-w / 2 + t / 2, y, 0] }),
+    );
+  }
+  // Iron: an L bracket up each corner, two straps down the front and back with their rivets, a band round the foot.
+  for (const sx of [-1, 1])
+    for (const sz of [-1, 1]) {
+      parts.push(
+        part(new BoxGeometry(0.07, h, 0.008), C_IRON, { p: [sx * (w / 2 - 0.03), h / 2, sz * (d / 2 + 0.004)] }),
+        part(new BoxGeometry(0.008, h, 0.07), C_IRON, { p: [sx * (w / 2 + 0.004), h / 2, sz * (d / 2 - 0.03)] }),
+      );
+    }
+  for (const sz of [-1, 1]) {
+    for (const x of [-0.2, 0.2]) {
+      parts.push(part(new BoxGeometry(0.05, h, 0.008), C_IRON, { p: [x, h / 2, sz * (d / 2 + 0.006)] }));
+      for (let r = 0; r < 3; r++) parts.push(part(new BoxGeometry(0.016, 0.016, 0.01), C_RIVET, { p: [x, 0.07 + r * 0.11, sz * (d / 2 + 0.012)] }));
+    }
+    parts.push(part(new BoxGeometry(w + 0.016, 0.03, 0.008), C_IRON, { p: [0, 0.05, sz * (d / 2 + 0.006)] }));
+  }
+  // The ends: an iron ring handle on a plate.
+  for (const sx of [-1, 1]) {
+    parts.push(part(new BoxGeometry(0.008, 0.07, 0.12), C_IRON, { p: [sx * (w / 2 + 0.006), h * 0.62, 0] }));
+    parts.push(part(new TorusGeometry(0.045, 0.007, 4, 12, Math.PI), C_RIVET, { p: [sx * (w / 2 + 0.014), h * 0.62 + 0.01, 0], r: [Math.PI, Math.PI / 2, 0] }));
+  }
+  // The hasp's staple on the front, under the lid's edge.
+  parts.push(part(new BoxGeometry(0.05, 0.05, 0.012), C_IRON, { p: [0, h - 0.04, d / 2 + 0.008] }));
+  return projectUv(merge(parts));
+}
+
+export function chestLid(): BufferGeometry {
+  const { w, d } = CHEST;
+  const R = d / 2;
+  const parts: BufferGeometry[] = [];
+  // Five slats round the curve, a hair apart, each its own shade; the half-round ends.
+  const slats = 5;
+  for (let k = 0; k < slats; k++) {
+    const a0 = (k / slats) * Math.PI + 0.012;
+    const len = Math.PI / slats - 0.024;
+    parts.push(part(new CylinderGeometry(R, R, w - 0.04, 3, 1, true, a0, len), C_WOOD[k % C_WOOD.length], { r: [0, 0, Math.PI / 2] }));
+    parts.push(part(new CylinderGeometry(R - 0.025, R - 0.025, w - 0.04, 3, 1, true, a0, len), 0x3a2414, { r: [0, 0, Math.PI / 2] }));
+  }
+  for (const sx of [-1, 1]) parts.push(part(new CylinderGeometry(R, R, 0.02, 12, 1, false, 0, Math.PI), C_WOOD[1], { r: [0, 0, Math.PI / 2], p: [sx * (w / 2 - 0.01), 0, 0] }, 0.9));
+  // Iron: the straps over the curve (in line with the body's), a band at each end, the hasp hanging over the front.
+  for (const x of [-0.2, 0.2]) parts.push(part(new CylinderGeometry(R + 0.006, R + 0.006, 0.05, 12, 1, true, 0, Math.PI), C_IRON, { r: [0, 0, Math.PI / 2], p: [x, 0, 0] }));
+  for (const sx of [-1, 1]) parts.push(part(new CylinderGeometry(R + 0.005, R + 0.005, 0.03, 12, 1, true, 0, Math.PI), C_IRON, { r: [0, 0, Math.PI / 2], p: [sx * (w / 2 - 0.02), 0, 0] }));
+  parts.push(part(new BoxGeometry(0.06, 0.1, 0.012), C_IRON, { p: [0, -0.03, R + 0.01] }));
+  parts.push(part(new BoxGeometry(0.02, 0.02, 0.014), C_RIVET, { p: [0, 0.008, R + 0.016] }));
+  // Hinged at its back edge: the back of the curve at the origin, the lid reaching forward along +z.
+  return projectUv(merge(parts).translate(0, 0, R));
+}
+
+/** The padlock (brass body, iron shackle), about the shackle's top at its origin. */
+export function chestLock(): BufferGeometry {
+  return projectUv(
+    merge([
+      part(new BoxGeometry(0.07, 0.065, 0.028), C_BRASS, { p: [0, -0.06, 0] }, 1.05),
+      part(new BoxGeometry(0.012, 0.022, 0.03), 0x3a2e14, { p: [0, -0.066, 0.001] }),
+      part(new TorusGeometry(0.022, 0.006, 4, 10, Math.PI), 0x8a8e94, { p: [0, -0.028, 0] }),
+    ]),
+  );
+}
+
+/** Where the padlock hangs on a closed chest (the hasp's staple). */
+const LOCK_AT: [number, number, number] = [0, CHEST.h - 0.01, CHEST.d / 2 + 0.024];
+/** The lid swung open this far (radians, back past upright). */
+export const LID_OPEN = 1.95;
+
+/** A whole chest in one geometry, closed (the lock on) or open (the lid back, the lock in the dirt in front). */
 export function chestGeometry(open: boolean): BufferGeometry {
-  const wood = 0x6b4426;
-  const dark = 0x4a2e19;
-  const iron = 0x2a2b2e;
-  const brass = 0xc9a03a;
-  const parts = [
-    part(new BoxGeometry(0.72, 0.34, 0.44), wood, { p: [0, 0.17, 0] }),
-    part(new BoxGeometry(0.74, 0.04, 0.46), dark, { p: [0, 0.02, 0] }),
-    // Bands round the body.
-    part(new BoxGeometry(0.05, 0.35, 0.455), iron, { p: [-0.24, 0.175, 0] }),
-    part(new BoxGeometry(0.05, 0.35, 0.455), iron, { p: [0.24, 0.175, 0] }),
-    // Corners.
-    ...[-0.355, 0.355].flatMap((x) => [-0.215, 0.215].map((z) => part(new BoxGeometry(0.035, 0.36, 0.035), iron, { p: [x, 0.18, z] }))),
-  ];
-  // The lid: a half barrel, hinged at the back.
-  const lid = [
-    part(new CylinderGeometry(0.22, 0.22, 0.72, 10, 1, false, 0, Math.PI), wood, { r: [0, 0, Math.PI / 2], p: [0, 0, 0] }, 1.08),
-    part(new CylinderGeometry(0.228, 0.228, 0.05, 10, 1, false, 0, Math.PI), iron, { r: [0, 0, Math.PI / 2], p: [-0.24, 0, 0] }),
-    part(new CylinderGeometry(0.228, 0.228, 0.05, 10, 1, false, 0, Math.PI), iron, { r: [0, 0, Math.PI / 2], p: [0.24, 0, 0] }),
-    part(new BoxGeometry(0.1, 0.12, 0.03), brass, { p: [0, -0.02, 0.225] }),
-  ];
-  // Closed: the lid sits on the body. Open: swung back 110° round the back edge.
-  const lidGeo = merge(lid);
-  if (open) {
-    lidGeo.translate(0, 0, 0.22);
-    lidGeo.applyMatrix4(new Matrix4().makeRotationX(-1.9));
-    lidGeo.translate(0, 0.34, -0.22);
-  } else lidGeo.translate(0, 0.34, 0);
-  parts.push(lidGeo);
-  if (open) parts.push(part(new BoxGeometry(0.64, 0.02, 0.36), 0x1a120b, { p: [0, 0.33, 0] }));
-  else parts.push(part(new BoxGeometry(0.1, 0.12, 0.03), brass, { p: [0, 0.31, 0.225] }));
-  return merge(parts);
+  const { d, h } = CHEST;
+  const lid = chestLid().applyMatrix4(new Matrix4().makeRotationX(open ? -LID_OPEN : 0)).translate(0, h, -d / 2);
+  const lock = chestLock();
+  if (open) lock.applyMatrix4(new Matrix4().makeRotationFromEuler(new Euler(Math.PI / 2, 0, 0.6))).translate(0.12, 0.016, d / 2 + 0.16);
+  else lock.translate(...LOCK_AT);
+  return merge([chestBody(), lid, lock], true);
+}
+
+let woodTex: CanvasTexture | null = null;
+/** The chest's wood: grain, growth rings and a few knots, drawn once (256²), light so the vertex colours lead. */
+function woodGrain(): CanvasTexture | null {
+  if (woodTex) return woodTex;
+  if (typeof document === "undefined") return null;
+  const cv = document.createElement("canvas");
+  cv.width = cv.height = 256;
+  const g = cv.getContext("2d");
+  if (!g) return null;
+  g.fillStyle = "#ece4d8";
+  g.fillRect(0, 0, 256, 256);
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  // Long grain lines, wavering.
+  for (let k = 0; k < 90; k++) {
+    const y0 = rnd() * 256;
+    const a = 0.05 + rnd() * 0.16;
+    g.strokeStyle = `rgba(70, 40, 18, ${a.toFixed(3)})`;
+    g.lineWidth = 0.6 + rnd() * 1.6;
+    g.beginPath();
+    for (let x = -4; x <= 260; x += 8) {
+      const y = y0 + Math.sin(x * 0.03 + k) * 2.2 + Math.sin(x * 0.11 + k * 3) * 0.8;
+      if (x < 0) g.moveTo(x, y);
+      else g.lineTo(x, y);
+    }
+    g.stroke();
+  }
+  // Knots: dark rings with the grain bending round them.
+  for (let k = 0; k < 3; k++) {
+    const x = rnd() * 256;
+    const y = rnd() * 256;
+    for (let r = 9; r > 1; r -= 2) {
+      g.strokeStyle = `rgba(60, 32, 12, ${(0.12 + (9 - r) * 0.04).toFixed(2)})`;
+      g.lineWidth = 1.2;
+      g.beginPath();
+      g.ellipse(x, y, r * 2.2, r * 0.8, 0, 0, Math.PI * 2);
+      g.stroke();
+    }
+  }
+  // Wear: a light speckle.
+  for (let k = 0; k < 900; k++) {
+    g.fillStyle = `rgba(255, 255, 255, ${(rnd() * 0.08).toFixed(3)})`;
+    g.fillRect(rnd() * 256, rnd() * 256, 1 + rnd() * 2, 1);
+  }
+  woodTex = new CanvasTexture(cv);
+  woodTex.wrapS = woodTex.wrapT = RepeatWrapping;
+  woodTex.colorSpace = SRGBColorSpace;
+  woodTex.anisotropy = 4;
+  return woodTex;
+}
+
+/** The chests' material: vertex colours over the wood grain (the decoys use it too, so they look the same). */
+export function chestMaterial(): MeshLambertMaterial {
+  const map = woodGrain();
+  return new MeshLambertMaterial({ vertexColors: true, ...(map ? { map } : {}) });
 }
 
 /** v7 (H3): each treasure's model, about 0.3 m across, resting on y 0; and how it glows (its material's emissive). */
@@ -437,9 +592,8 @@ export class TreasureView {
   private readonly traps = new TrapFlares();
   private readonly falls = new Map<number, Fall>();
   private placed = false;
-  /** v5 (3.7): the boxes are the scanned chest (an opened one is gone: you can't see into a scan). */
-  private scanned = false;
-  private gone = false;
+  /** v7 (3.2): the chests' material (wood grain under vertex colours). */
+  private readonly chestMat: MeshLambertMaterial;
   private time = 0;
   /** The upload panel (middle of the screen) and what it shows now. */
   private readonly panel = el("div", "tr-upload");
@@ -454,7 +608,9 @@ export class TreasureView {
 
   constructor(o: TreasureViewOptions) {
     this.o = o;
-    const solid = new MeshLambertMaterial({ vertexColors: true });
+    // v7 (3.2): the wooden chest at every tier (the scanned metal tool chest is gone: a decoy must look the same).
+    const solid = chestMaterial();
+    this.chestMat = solid;
     this.closed = instanced(chestGeometry(false), solid, TREASURE.boxes + 8);
     this.opened = instanced(chestGeometry(true), solid, TREASURE.boxes + 8);
     for (const k of TREASURE_KINDS) {
@@ -479,23 +635,6 @@ export class TreasureView {
     this.mats.push(orbit);
     this.orbits = instanced(new PlaneGeometry(1, 1).rotateX(-Math.PI / 2), orbit, MAX_ORBITS * 2, true);
     this.group.add(this.closed, this.opened, ...this.relics, ...this.fakes, this.columns, this.glowRings, this.orbits, this.traps.group);
-    // v5 (3.7, realism): Medium and up, the scanned metal chest from the model library (CC0, Poly Haven) when the site has it.
-    if (o.tier >= 1 && cdnOn()) {
-      void modelFor("prop", 1, o.tier, "metal_tool_chest").then((m) => {
-        if (!m || this.gone) return;
-        const g = m.geometry.clone();
-        g.computeBoundingBox();
-        const bb = g.boundingBox!;
-        const k = 0.78 / Math.max(0.05, bb.max.x - bb.min.x, bb.max.z - bb.min.z);
-        g.translate(-(bb.min.x + bb.max.x) / 2, -bb.min.y, -(bb.min.z + bb.max.z) / 2);
-        g.scale(k, k, k);
-        this.closed.geometry.dispose();
-        this.closed.geometry = g;
-        this.closed.material = m.material;
-        this.scanned = true;
-      });
-    }
-
     // The machine.
     const body = new Mesh(machineGeometry(), new MeshLambertMaterial({ vertexColors: true }));
     const lit = new Mesh(machineLitGeometry(), new MeshBasicMaterial({ vertexColors: true }));
@@ -746,7 +885,7 @@ export class TreasureView {
       if (dx * dx + dz * dz > BOX_RANGE * BOX_RANGE) continue;
       _m.compose(_p.set(b.x, b.h, b.z), _q.setFromAxisAngle(_up, b.index * 2.39), _s.set(1, 1, 1));
       if (!b.opened) this.closed.setMatrixAt(nc++, _m);
-      else if (!this.scanned) this.opened.setMatrixAt(no++, _m);
+      else this.opened.setMatrixAt(no++, _m);
     }
     this.closed.count = nc;
     this.opened.count = no;
@@ -1070,7 +1209,6 @@ export class TreasureView {
   }
 
   dispose(): void {
-    this.gone = true;
     this.traps.dispose();
     for (const r of this.relics) r.geometry.dispose();
     for (const mat of this.relicMats) mat.dispose();
@@ -1078,8 +1216,8 @@ export class TreasureView {
       mesh.geometry.dispose();
       mesh.dispose();
     }
-    // The chests' own material (the scanned chest's belongs to the model library's cache: not ours to free).
-    (this.opened.material as Material).dispose();
+    // The chests' material (its wood grain is shared, kept for the next match).
+    this.chestMat.dispose();
     this.machine.traverse((o) => {
       const mesh = o as Mesh;
       if (!mesh.isMesh) return;

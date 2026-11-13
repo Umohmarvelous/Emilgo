@@ -1,5 +1,16 @@
 # EMILGO Games: session handoff
 
+> **13 Nov 2026: v7 in progress. Start at [SPEC-V7.md](SPEC-V7.md)'s "Continue here"** (step 8 says where
+> the build stopped). Done and pushed: H1–H10, 2.6–2.12, 3.1 (lobby top bar + career card; the HUD's vitals,
+> `src/ui/vitals.ts`). **3.2 (chests) is half-built and committed**: the wooden chest with iron bands and a
+> lock is in; the lid's opening animation and the reveal's timing are left. Then 3.3 (3D trees), 3.4 (a real
+> respawn), 3.5 (the runner rebuilt), then the embed rebuilt once from `git archive HEAD`. Protocol 25,
+> unreleased. **Wire trap:** `encodeEvent` (src/net/matchWire.ts) uses `k` for the event type and maps only
+> `id`/`tg`/`by` to roster indices: never name an event field `k`; send other bodies as contestant indices.
+> **Not mine, still left alone:** `src/config.ts` (`deadStreets: false`), the Play screen's start CSS in
+> `styles.css`, SPEC-V5's tables, this file's renumbered reading list and `++` marks, the repo root's
+> deleted/moved docs, `.cursor/`, `tools/assets/_plan.mts`.
+>
 > **10 Nov 2026: v6 Tiers 1 and 2 are built** (the brief: [SPEC-V6-ORIGINAL.md](SPEC-V6-ORIGINAL.md);
 > in build order with each row's Status: [SPEC-V6.md](SPEC-V6.md); v6 wins over v5). Silo Zone, PLAY
 > NOW, six kept items, no vehicles, COD-style zone, CP pay by win and level, walk-through pickups and
