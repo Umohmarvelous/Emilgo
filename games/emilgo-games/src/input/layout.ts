@@ -102,8 +102,11 @@ function defaults(w: number, h: number, on: (id: CtlId) => boolean = (id) => !DE
   const portrait = h > w;
   const out = {} as Record<CtlId, CtlSpot>;
   const at = (id: CtlId, px: number, py: number) => (out[id] = { x: px / w, y: py / h, s: 1 });
-  // Two rows of boxes along the bottom centre.
-  const rowY = [h - 18 - BH / 2, h - 18 - BH - GAP - BH / 2];
+  // v8 (A11, the owner: "every in-match control pushed to the far edges and corners, portrait most of all"): the two
+  // rows of boxes hug the bottom edge; the stick sits in the bottom-left corner; FIRE, aim and the weapon panel stack
+  // up the right edge. A player's own arrangement still wins (spotsFor).
+  const E = portrait ? 8 : 10;
+  const rowY = [h - E - BH / 2, h - E - BH - GAP - BH / 2];
   // A row narrower than the screen: the boxes shrink to fit (a portrait phone).
   const row = (ids: CtlId[], y: number) => {
     const step = Math.min(BW + GAP, (w - 12) / ids.length);
@@ -117,24 +120,26 @@ function defaults(w: number, h: number, on: (id: CtlId) => boolean = (id) => !DE
   const upper = UPPER.filter(on);
   const spare = [...LOWER, ...UPPER].filter((id) => !on(id));
   const rows: CtlId[][] = upper.length ? [lower, [...upper, ...spare]] : [lower, spare];
+  row(rows[0], rowY[0]);
+  if (rows[1].length) row(rows[1], rowY[1]);
   if (portrait) {
-    row(rows[0], rowY[0]);
-    if (rows[1].length) row(rows[1], rowY[1]);
-    at("move", 24 + 60, rowY[1] - BH / 2 - 26 - 60);
-    at("fire", w - 24 - 37, rowY[1] - BH / 2 - 60 - 37);
-    at("ads", w - 24 - 37 - 72, rowY[1] - BH / 2 - 60 - 70);
-    at("fireL", 24 + 26, rowY[1] - BH / 2 - 210 - 26);
-    at("interact", w / 2, rowY[1] - BH / 2 - 150);
-    at("weapon", w - 14 - 75, rowY[1] - BH / 2 - 34);
+    const top = rowY[1] - BH / 2;
+    const weaponY = top - E - 27;
+    const fireY = weaponY - 27 - 14 - 37;
+    at("weapon", w - E - 75, weaponY);
+    at("fire", w - E - 37, fireY);
+    at("ads", w - E - 25, fireY - 37 - 14 - 25);
+    at("move", E + 60, top - 14 - 60);
+    at("fireL", E + 26, top - 14 - 120 - 16 - 26);
+    at("interact", w / 2, top - 150);
   } else {
-    row(rows[0], rowY[0]);
-    if (rows[1].length) row(rows[1], rowY[1]);
-    at("move", 40 + 60, h - 40 - 60);
-    at("fire", w - 92 - 37, h * 0.6);
-    at("ads", w - 92 - 37 - 70, h * 0.6 - 62);
-    at("fireL", 40 + 60 + 16, h - 40 - 120 - 64);
+    const fireY = h - E - 54 - 14 - 37;
+    at("weapon", w - E - 75, h - E - 27);
+    at("fire", w - E - 37, fireY);
+    at("ads", w - E - 25, fireY - 37 - 14 - 25);
+    at("move", E + 60, h - E - 60);
+    at("fireL", E + 26, h - E - 120 - 16 - 26);
     at("interact", w / 2, rowY[1] - BH / 2 - 34);
-    at("weapon", w - 14 - 75, h - 14 - 27);
   }
   return out;
 }
