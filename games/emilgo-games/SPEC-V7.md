@@ -15,6 +15,8 @@ of where the treasures are, and gets tougher ideas of its own: the "Treasure Hun
 
 ## Continue here (for the new session)
 
+> **13 Nov: v7 is closed. Build from [SPEC-V8.md](SPEC-V8.md).** Its unfinished rows moved there.
+
 1. Read this file, then [HANDOFF.md](HANDOFF.md)'s top (owner steps, traps). The brief: SPEC-V7-ORIGINAL.md.
 2. `git log --oneline -8`: the last v7 commits are named "EMILGO Games v7 (X.Y): …". Branch `sdk-54-temp`.
 3. Build order: **H1–H3** (they undo what the owner didn't want: do these first), then **2.6 → 2.12**, then
@@ -140,7 +142,7 @@ The prefab solids are in `src/maps/open/prefabs.ts` `parts()`; the looks in `src
 | # | Item | Status |
 |---|---|---|
 | 3.1 | **Lobby and HUD redesign**: the top bar's buttons (Lobby, Loadout, Store, Friends, Clan, Leaderboard) join the tabs, and the tabs move to the top; easy to reach in portrait; the lobby with more detail; a HUD in the big shooters' league (COD, Free Fire), our own style | Done. **The lobby**: the top tabs and the old bottom bar are one bar at the top (Lobby, Loadout, Customize, Emotes, Store, Friends, Clan, Awards, Leaderboard, Invite; badges for new awards and messages), the help, Advertise and Settings buttons at its end: a strip in landscape, a 5 × 2 grid of big buttons in portrait; the bottom keeps only the squad and PLAY. More detail: a **career** card (matches, wins, win rate, kills over the last 30, days in a row). **The HUD** (`src/ui/vitals.ts`): the big shooters' vitals in our Field Kit style: your name, armour as plates over a long slanted health bar bottom centre, its damage trailing a beat behind, amber under 60%, red and beating under 30%; **ALIVE · KILLS** under the minimap (beside it in portrait), the kill count popping on a kill. The crosshair's health arc (the v4 pick) and the rest of HUD A stay |
-| 3.2 | **Realistic chests** (wood, iron bands, a lock, a lid that opens) and the **treasure reveal**: a diamond, gold bars, silver bars, an emerald… rising out of the right box and bouncing in the air | **In progress** (13 Nov, committed half-way). Done: the chest itself (`src/world/treasure.ts`: `CHEST` size, `chestBody`/`chestLid`/`chestLock`, wood-grain `chestMaterial()` with iron bands and a lock, uv kept by `merge(parts, true)`; decoys in `gadgets.ts` use the same material, so real and decoy look alike). **Left:** the lid that opens: a pool of ~4 animated chests (body + a lid pivot at (0, CHEST.h, −CHEST.d/2) swinging to −`LID_OPEN` with a bounce, the lock popping off), started on a `tbox` event; the lid jiggling while someone holds to open (`tm.boxFor(c)`, `tm.opening(c.index) > 0`); while animating, draw the box from the pool instead of the instanced closed/opened meshes; a creak, the reveal's rise ~0.35 s later. Then a cdp screenshot, Done here, commit |
-| 3.3 | **3D trees**, light: a 2–4 k-triangle copy of each scan, instanced (question 6) | Not started |
-| 3.4 | **A real respawn** (a drop-in, the body landing and rising, the camera following) | Not started |
-| 3.5 | **The runner, rebuilt**: on Free For All's maps, billboards on every road (portrait and landscape, ads always running), obstacles that fight back, no levels, XP but not rank, the toughest runner going, competitive | Not started |
+| 3.2 | **Realistic chests** (wood, iron bands, a lock, a lid that opens) and the **treasure reveal**: a diamond, gold bars, silver bars, an emerald… rising out of the right box and bouncing in the air | **Moved to SPEC-V8 B4.** Part 1 done (8f19179): the wooden chest with iron bands and a lock. B4 finishes it with the lid and the real treasure models |
+| 3.3 | **3D trees**, light: a 2–4 k-triangle copy of each scan, instanced (question 6) | **Moved to SPEC-V8 B9** |
+| 3.4 | **A real respawn** (a drop-in, the body landing and rising, the camera following) | **Moved to SPEC-V8 B9** |
+| 3.5 | **The runner, rebuilt**: on Free For All's maps, billboards on every road (portrait and landscape, ads always running), obstacles that fight back, no levels, XP but not rank, the toughest runner going, competitive | **Moved to SPEC-V8 B9** |

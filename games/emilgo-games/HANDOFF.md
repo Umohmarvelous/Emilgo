@@ -1,5 +1,12 @@
 # EMILGO Games: session handoff
 
+> **13 Nov 2026 (later): v8 is next. Start at [SPEC-V8.md](SPEC-V8.md)'s "Continue here".** The owner's final
+> launch polish (the brief word for word: [SPEC-V8-ORIGINAL.md](SPEC-V8-ORIGINAL.md)): concept A's victory and
+> defeat and the pre-match screen, the name LOOTLINE, 4 treasures with squads winning together, solo rules,
+> billboards behind an owner switch, gamepads, the shooting overhaul with real guns, the services split
+> (nothing created on Fly), the male ElevenLabs announcer, the Goku power-up, Ball Haunt purged. **Tier A first
+> (A1–A19), then stop for the owner's go-ahead before Tier B.** v7's unfinished rows (3.2–3.5) moved into it.
+>
 > **13 Nov 2026: v7 in progress. Start at [SPEC-V7.md](SPEC-V7.md)'s "Continue here"** (step 8 says where
 > the build stopped). Done and pushed: H1–H10, 2.6–2.12, 3.1 (lobby top bar + career card; the HUD's vitals,
 > `src/ui/vitals.ts`). **3.2 (chests) is half-built and committed**: the wooden chest with iron bands and a
