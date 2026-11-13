@@ -372,9 +372,28 @@ export class LobbyStage {
     d.root.rotation.x = -d.tilt * 0.6;
   }
 
-  emote(id: EmoteId): void {
+  /**
+   * Your emote on the stage: your figure (the lobby, the waiting room), or on the results your figure in the winner's
+   * circle. v8 (A15). False when you're not on the stage to see it (the results, off the podium).
+   */
+  emote(id: EmoteId): boolean {
+    if (this.mode === "podium") {
+      const h = this.podiumMe >= 0 ? this.podium[this.podiumMe] : null;
+      h?.emote(id);
+      return !!h;
+    }
     this.me?.emote(id);
+    return !!this.me;
   }
+
+  /** v8 (A15): a room member's emote, on their figure in the circle. */
+  emoteMember(id: string, emote: EmoteId): void {
+    if (this.mode !== "squad") return;
+    this.members.find((m) => m.id === id)?.human.emote(emote);
+  }
+
+  /** v8 (A15): which of the winner's circle is you (−1: not there). */
+  private podiumMe = -1;
 
   /** Room members (not you): the rest of the circle. */
   setSquad(list: { id: string; name: string; look: Look }[]): void {
@@ -416,7 +435,8 @@ export class LobbyStage {
 
   /** The winner's circle: up to three people, first in the middle. */
   /** The winner's circle; v4: in their operator kits, as they played (kits[i], or as they are). */
-  setPodium(looks: Look[], kits: (Kit | null)[] = []): void {
+  setPodium(looks: Look[], kits: (Kit | null)[] = [], meAt = -1): void {
+    this.podiumMe = meAt;
     for (const h of this.podium) h.dispose();
     this.podium = looks.slice(0, 3).map((l, i) => {
       const h = new Human(l, i === 0 ? this.spec.tier : (Math.max(0, this.spec.tier - 1) as 0 | 1), { featured: i === 0, seed: 11 + i, lit: this.spec.pbr ? "standard" : "lambert" });

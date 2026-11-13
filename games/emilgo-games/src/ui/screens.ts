@@ -435,6 +435,7 @@ export class Screens {
       <div class="lb-topbar">${navHtml(s)}
       <div class="lb-tr">
         <button class="ibtn" data-act="tutorial" aria-label="Tutorial">${icon("help")}</button>
+        <button class="ibtn" data-act="emote-quick" aria-label="${esc(t("Emote"))}" title="${esc(t("Emote"))}">${icon("emote", "", 18)}</button>
         ${host.kind !== "lagoslife" && s.advertise ? `<button class="ibtn adv" data-act="advertise" aria-label="${esc(t("Advertise on our billboards"))}" title="${esc(t("Advertise on our billboards"))}">${icon("billboard", "", 18)}<span>${esc(t("Advertise"))}</span></button>` : ""}
 
         <button class="ibtn" data-act="settings" aria-label="Settings">${icon("gear", "ico-spin")}</button>
@@ -1195,7 +1196,7 @@ export class Screens {
          ${r.completed?.length ? `<div class="status ok">${icon("check", "", 14)} Daily done: ${r.completed.map((c) => esc(t(c))).join(", ")}</div>` : ""}
        </div>
        ${grid}
-       <div class="ek-acts"><button class="ek-btn dim ek-rep" data-ek="report">${icon("trophy", "", 14)}${U("Report")}</button>${acts}</div>
+       <div class="ek-acts"><button class="ek-btn dim ek-rep" data-act="emote-quick" aria-label="${esc(t("Emote"))}">${icon("emote", "", 14)}</button><button class="ek-btn dim ek-rep" data-ek="report">${icon("trophy", "", 14)}${U("Report")}</button>${acts}</div>
        ${report}
        <button class="ek-back ek-btn" data-ek="spec">${U("Back")}</button>
        </div>`,
@@ -1713,6 +1714,7 @@ export class Screens {
        <div class="sq-bar glass">
          <button class="btn secondary" data-act="leave-room">${icon("exit", "", 16)}Leave</button>
          <button class="btn secondary" data-act="dummy" aria-label="Shove the practice dummy">${icon("hand", "", 16)}Dummy</button>
+         <button class="btn secondary" data-act="emote-quick" aria-label="${esc(t("Emote"))}">${icon("emote", "", 16)}${esc(t("Emote"))}</button>
          ${canReady ? `<button class="btn ${me?.ready ? "secondary" : "primary"}" data-act="ready" data-on="${me?.ready ? "0" : "1"}">${icon("check", "", 16)}${me?.ready ? "Not ready" : "Ready"}</button>` : ""}
        </div>`,
     );

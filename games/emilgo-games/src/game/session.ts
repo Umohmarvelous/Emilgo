@@ -2307,7 +2307,11 @@ export class Game {
       case "emote":
         if (m.from !== this.seatId && !this.chat.isMuted(m.from)) {
           if (this.round?.get(m.from)) this.playEmote(m.from, m.e);
-          else if (this.settings.chat) {
+          else {
+            // v8 (A15): in the waiting room, on their figure in the circle.
+            this.stage.emoteMember(m.from, m.e);
+          }
+          if (!this.round && this.settings.chat) {
             const who = this.room?.players.find((p) => p.id === m.from)?.name ?? "Someone";
             this.chat.add({ from: m.from, name: who, text: EMOTE_BY_ID[m.e].label, mine: false });
           }
@@ -2933,9 +2937,11 @@ export class Game {
   private sendEmote(id: EmoteId): void {
     const round = this.round;
     if (!round) {
-      // In a room: show it on your character and tell the room.
-      this.stage.emote(id);
+      // In a room: show it on your character and tell the room. v8 (A15): the lobby and the results too.
+      const seen = this.stage.emote(id);
+      if (!seen) this.screens.toast(`${t("You")}: ${t(EMOTE_BY_ID[id].label)}`);
       if (this.room) this.net?.send({ t: "emote", e: id });
+      addProgress(this.settings.daily, "emotes", 1);
       return;
     }
     this.playEmote(this.meId, id);
@@ -3158,6 +3164,12 @@ export class Game {
         this.setLook(randomLook(new Rng(randomSeed())));
         this.showCustomize();
         break;
+      case "emote-quick": {
+        // v8 (A15): emotes everywhere: the lobby, the waiting room, the results.
+        const r = node.getBoundingClientRect();
+        this.wheel.open(r.left + r.width / 2, r.top + r.height / 2);
+        break;
+      }
       case "emotes":
         this.showEmotes();
         break;
@@ -4498,7 +4510,7 @@ export class Game {
     this.hud.show(false);
     this.view = "lobby";
     this.stage.setMode("podium");
-    this.stage.setPodium(top.map((x) => x.look), top.map((x) => KITS[x.look.hoodie % KITS.length]));
+    this.stage.setPodium(top.map((x) => x.look), top.map((x) => KITS[x.look.hoodie % KITS.length]), top.findIndex((x) => x.me));
     this.stage.interactive = false;
     this.flow.reset("post");
     this.returnAt = online === null || online === "quick" ? performance.now() + RETURN_AFTER * 1000 : 0;
