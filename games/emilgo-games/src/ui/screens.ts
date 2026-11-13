@@ -1483,7 +1483,7 @@ export class Screens {
             ? `<span style="display:flex;gap:6px"><button class="btn secondary" style="height:30px" data-act="reset-no">Cancel</button><button class="btn primary" style="height:30px" data-act="reset-yes">Reset</button></span>`
             : `<button class="btn secondary" style="height:30px" data-act="reset">Reset</button>`
         }</div>
-        <div class="row-set"><span class="lbl"><b>Credits</b><small>Bodies and moves: Quaternius (Universal Animation Library, CC0). Dances: the CMU Graphics Lab Motion Capture Database, mocap.cs.cmu.edu, created with funding from NSF EIA-0196217. Voice efforts: cicifyre (CC0). Everything else: EMILGO Games.</small></span></div>`;
+        <div class="row-set"><span class="lbl"><b>Credits</b><small>Bodies and moves: Quaternius (Universal Animation Library, CC0). Dances: the CMU Graphics Lab Motion Capture Database, mocap.cs.cmu.edu, created with funding from NSF EIA-0196217. Voice efforts: cicifyre (CC0). Everything else: LOOTLINE.</small></span></div>`;
     }
     this.sheet("settings", "Settings", body, { tabs, side: "wide", back: from === "pause" ? "pause-menu" : "back" });
   }

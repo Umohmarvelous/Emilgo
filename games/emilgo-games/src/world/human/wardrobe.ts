@@ -332,7 +332,7 @@ export const HOODIE_COLORS: readonly HoodieColor[] = [
   { id: "grey", name: "Heather grey", hex: "#9b9da1" },
   { id: "white", name: "Off-white", hex: "#e9e7e1" },
   { id: "navy", name: "Navy", hex: "#23314f" },
-  { id: "green", name: "EMILGO green", hex: "#0a8a4a" },
+  { id: "green", name: "Line green", hex: "#0a8a4a" },
   { id: "maroon", name: "Maroon", hex: "#6b2533" },
   { id: "mustard", name: "Mustard", hex: "#c79a32" },
   { id: "sky", name: "Sky", hex: "#8db2d6" },

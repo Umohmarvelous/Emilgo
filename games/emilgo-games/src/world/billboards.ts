@@ -200,7 +200,7 @@ function paintHouse(g: CanvasRenderingContext2D, x: number, y: number, w: number
       line(g, t("THIS WEEK IN FREE FOR ALL"), pad, h * 0.2, h * 0.08, tw, GOLD, 700);
       line(g, m?.name ?? "Free For All", pad, h * 0.45, h * 0.2, tw, "#ffffff", 800);
       say(m?.blurb ?? "", h * 0.63, h * 0.085, "rgba(255,255,255,0.9)", 500);
-      footer("EMILGO Games");
+      footer("LOOTLINE");
       break;
     }
     case "daily": {
@@ -209,7 +209,7 @@ function paintHouse(g: CanvasRenderingContext2D, x: number, y: number, w: number
       line(g, `${t("Seed")} ${info.daily.seed}`, pad, h * 0.45, h * 0.18, tw, "#ffffff", 800);
       const best = info.daily.top[0];
       say(best ? `${t("Best today")} ${fmtTime(best)}` : t("Same city, same dead, for everyone"), h * 0.63, h * 0.085, "rgba(255,255,255,0.9)", 500);
-      footer("Dead Streets · EMILGO Games");
+      footer("Dead Streets · LOOTLINE");
       break;
     }
     case "top": {
@@ -218,7 +218,7 @@ function paintHouse(g: CanvasRenderingContext2D, x: number, y: number, w: number
       line(g, ll ? t("TOP THIS WEEK") : t("FASTEST TO THE MAST"), pad, h * 0.18, h * 0.08, tw, GOLD, 700);
       const rows = ll ? info.top.slice(0, 3).map((r, i) => `${i + 1}. ${r.name} · ${r.score}`) : info.runTop.slice(0, 3).map((s, i) => `${i + 1}. ${fmtTime(s)}`);
       rows.forEach((r, i) => line(g, r, pad, h * (0.38 + i * 0.16), h * 0.12, tw, "#ffffff", 700));
-      footer(ll ? "Lagos Life · EMILGO Games" : "Dead Streets · EMILGO Games");
+      footer(ll ? "Lagos Life · LOOTLINE" : "Dead Streets · LOOTLINE");
       break;
     }
     case "ranks": {
@@ -230,7 +230,7 @@ function paintHouse(g: CanvasRenderingContext2D, x: number, y: number, w: number
       line(g, t("RANK REWARD"), pad, h * 0.2, h * 0.08, tw, GOLD, 700);
       line(g, rankLabel(pick?.rank ?? "pro-1"), pad, h * 0.44, h * 0.18, tw, "#ffffff", 800);
       say(`${t("unlocks")} ${pick?.name ?? ""}`, h * 0.62, h * 0.09, "rgba(255,255,255,0.92)", 500);
-      footer("EMILGO Games");
+      footer("LOOTLINE");
       break;
     }
     case "other": {
@@ -243,7 +243,7 @@ function paintHouse(g: CanvasRenderingContext2D, x: number, y: number, w: number
         line(g, "FREE FOR ALL", pad, h * 0.36, h * 0.2, tw, "#ffffff", 800);
         say(t("Twelve players. Melee only. One city."), h * 0.56, h * 0.09, GOLD, 600);
       }
-      footer("EMILGO Games");
+      footer("LOOTLINE");
       break;
     }
     case "app": {
@@ -253,7 +253,7 @@ function paintHouse(g: CanvasRenderingContext2D, x: number, y: number, w: number
       g.fillRect(0, 0, w, h * 0.12);
       g.fillStyle = GOLD;
       g.fillRect(0, h * 0.12, w, h * 0.02);
-      line(g, "EMILGO", pad, h * 0.46, h * 0.22, tw, EMILGO_GREEN, 800);
+      line(g, "LOOTLINE", pad, h * 0.46, h * 0.22, tw, EMILGO_GREEN, 800);
       if (tall) say(`${t("Live-tracked trips and fare payment")} ${t("for drivers, passengers and parks")}`, h * 0.6, h * 0.085, "#1a1a1a", 600);
       else {
         line(g, t("Live-tracked trips and fare payment"), pad, h * 0.64, h * 0.085, tw, "#1a1a1a", 600);

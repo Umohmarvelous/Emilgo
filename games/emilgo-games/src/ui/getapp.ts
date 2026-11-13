@@ -96,13 +96,13 @@ export function showGetApp(parent: HTMLElement, s: GetAppState, onClose: () => v
   root.setAttribute("aria-label", t("Get the app"));
   root.innerHTML = `<div class="ga-card">
       <span class="ga-k">${esc(t("Enjoying it?"))}</span>
-      <b>${esc(t("Get the EMILGO app"))}</b>
+      <b>${esc(t("Get the app"))}</b>
       <ul>
         <li>${icon("graphics", "", 16)}<span>${esc(t("Sharper graphics and smoother play"))}</span></li>
         <li>${icon("signal", "", 16)}<span>${esc(t("Plays offline, starts in a second"))}</span></li>
-        <li>${icon("trophy", "", 16)}<span>${esc(t("Silo Zone, your rank and your look on every phone"))}</span></li>
+        <li>${icon("trophy", "", 16)}<span>${esc(t("LOOTLINE, your rank and your look on every phone"))}</span></li>
       </ul>
-      <a class="btn primary" data-ga="get" href="${esc(appUrl())}" target="_blank" rel="noopener">${icon("next", "", 16)}${esc(t("Get EMILGO"))}</a>
+      <a class="btn primary" data-ga="get" href="${esc(appUrl())}" target="_blank" rel="noopener">${icon("next", "", 16)}${esc(t("Get the app"))}</a>
       <button class="btn secondary" data-ga="later">${esc(t("Not now"))}</button>
     </div>`;
   const close = (later: boolean) => {

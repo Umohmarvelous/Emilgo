@@ -37,7 +37,7 @@ export const SIGNS: SignSpec[] = [
   { text: "START", bg: null, fg: "#ffffff" },
   { text: "FINISH", bg: null, fg: "#ffffff" },
   { text: "POST NO BILL", bg: null, fg: "#b71c1c" },
-  { text: "EMILGO GAMES", bg: "#16203c", fg: "#ffd700", border: "#12b76a", sub: "BALL HAUNT" },
+  { text: "LOOTLINE", bg: "#16203c", fg: "#ffd700", border: "#12b76a", sub: "BALL HAUNT" },
   { text: "NO SHAKING", bg: null, fg: "#ffd700" },
   { text: "WAKA!", bg: null, fg: "#ffffff" },
 ];

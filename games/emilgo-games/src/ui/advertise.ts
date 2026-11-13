@@ -30,7 +30,7 @@ const RULES = [
 ];
 
 const STEPS: [string, string][] = [
-  ["Sign in", "With an EMILGO account: the one you ride with, or a new one for your business."],
+  ["Sign in", "With your account, or a new one for your business."],
   ["Make your ad", "A picture, a slideshow of up to 6, or a short film (MP4, up to 20 MB)."],
   ["Pick a billboard", "Every board is numbered with its place in the world. Book any free one for 1 or 2 weeks."],
   ["Pay, then go live", "A person checks your ad against the rules, then it runs in every match on that map."],
@@ -112,7 +112,7 @@ export class AdvertiseSheet {
 
   private mount(box: HTMLElement, url: string): void {
     const f = document.createElement("iframe");
-    f.title = t("EMILGO advertiser portal");
+    f.title = t("Advertiser portal");
     // The portal signs in and uploads, and opens a payment in a tab of its own.
     f.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox");
     f.referrerPolicy = "origin";

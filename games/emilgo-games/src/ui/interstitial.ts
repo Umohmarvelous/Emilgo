@@ -51,7 +51,7 @@ function houseAd(parent: HTMLElement, onBefore?: () => void, onAfter?: () => voi
     root.innerHTML = `<div class="ia-card">
         <span class="ia-k">${esc(t("Advertisement"))}</span>
         <div class="ia-art">${icon("billboard", "", 64)}</div>
-        <b>${esc(t("Your brand on a billboard in Silo Zone"))}</b>
+        <b>${esc(t("Your brand on a billboard in LOOTLINE"))}</b>
         <p>${esc(t("Numbered billboards across the city, seen by every player who passes. Book one for 1 or 2 weeks."))}</p>
         <button class="btn primary ia-go" disabled>${esc(t("Continue"))} <span class="ia-n">${HOUSE_AD_SECONDS}</span></button>
       </div>`;
