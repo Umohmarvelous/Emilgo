@@ -433,15 +433,14 @@ export class Screens {
         </div>
       </div>
       <div class="lb-topbar">${navHtml(s)}
-        <div class="lb-tr pa">
-          <button class="ibtn" data-act="tutorial" aria-label="Tutorial">${icon("help")}</button>
-          <button class="ibtn" data-act="emote-quick" aria-label="${esc(t("Emote"))}" title="${esc(t("Emote"))}">${icon("emote", "", 18)}</button>
-          ${host.kind !== "lagoslife" && s.advertise ? `<button class="ibtn adv" data-act="advertise" aria-label="${esc(t("Advertise on our billboards"))}" title="${esc(t("Advertise on our billboards"))}">${icon("billboard", "", 18)}<span>${esc(t("Advertise"))}</span></button>` : ""}
+      <div class="lb-tr">
+        <button class="ibtn" data-act="tutorial" aria-label="Tutorial">${icon("help")}</button>
+        <button class="ibtn" data-act="emote-quick" aria-label="${esc(t("Emote"))}" title="${esc(t("Emote"))}">${icon("emote", "", 18)}</button>
+        ${host.kind !== "lagoslife" && s.advertise ? `<button class="ibtn adv" data-act="advertise" aria-label="${esc(t("Advertise on our billboards"))}" title="${esc(t("Advertise on our billboards"))}">${icon("billboard", "", 18)}<span>${esc(t("Advertise"))}</span></button>` : ""}
 
-          <button class="ibtn" data-act="settings" aria-label="Settings">${icon("gear", "ico-spin")}</button>
-          ${exit}
-        </div>
-      </div>
+        <button class="ibtn" data-act="settings" aria-label="Settings">${icon("gear", "ico-spin")}</button>
+        ${exit}
+      </div></div>
       <div class="lb-center-right">${s.daily
         .map(
           (d) => `<div class="challenge ${d.progress >= d.def.goal ? "done" : ""}">
