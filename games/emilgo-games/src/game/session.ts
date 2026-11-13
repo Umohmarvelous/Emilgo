@@ -342,6 +342,8 @@ export class Game {
   private readonly adFeeds = new Map<string, { at: number; p: Promise<AdFeed | null> }>();
   private ffaWait: { start: StartInfo; log: WireEvent[]; snap?: MatchSnap } | null = null;
   private ffaRes: FfaResultView | null = null;
+  /** v8 (A3): the Free For All practice or run last started, for the pause menu's Restart. */
+  private lastFfa: { kind: "ffa" | "run"; def: ModeDef } | null = null;
   private party: { code: string; members: { id: string; name: string }[]; lead: string } | null = null;
   private hostObj: ModeHost | null = null;
   /** start() has run: until then a resize draws nothing (the boot cover is up). */
@@ -3615,6 +3617,16 @@ export class Game {
         break;
       case "again":
       case "restart":
+        // v8 (A3): Restart in Free For All (or a Dead Streets run) restarts that match, never Red Light, Green Light.
+        if (act === "restart" && this.gm && this.lastFfa) {
+          const was = this.lastFfa;
+          this.paused = false;
+          this.sound.hush(false);
+          this.sound.resume();
+          if (was.kind === "run") this.goRun();
+          else this.practiceFfa(was.def);
+          break;
+        }
         if (this.tut) this.closeTutorial();
         this.paused = false;
         this.sound.hush(false);
@@ -4098,6 +4110,7 @@ export class Game {
   private goRun(): void {
     const def = this.content.manifest.modes.find((d) => d.id === "dead-streets");
     if (!def) return;
+    this.lastFfa = { kind: "run", def };
     this.leaveOnline();
     this.endRound();
     this.mode = "practice";
@@ -4130,6 +4143,7 @@ export class Game {
 
   /** Practice: the mode on your own (there are no bots in Free For All, ever). */
   private practiceFfa(def: ModeDef): void {
+    this.lastFfa = { kind: "ffa", def };
     this.leaveOnline();
     this.endRound();
     this.mode = "practice";
