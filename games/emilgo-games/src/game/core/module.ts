@@ -225,6 +225,11 @@ export interface RuleModule {
   reachFor?(m: Match, c: Contestant): { d: number; take: () => void } | null;
   /** The time is up (before the match ends): a "most" mode names its winner (Match.win). */
   timeUp?(m: Match): void;
+  /**
+   * v8 (A4): past the match's time, keep playing (true): the zone-clock modes have no match clock; they end when the
+   * zone has shut and nobody's left. Nobody comes back while it holds.
+   */
+  overtime?(m: Match): boolean;
   /** The mode's own measure for body i (seconds held, deliveries …): places and XP. */
   objective?(m: Match, i: number): number;
   /**

@@ -1166,7 +1166,8 @@ export class FfaMode implements GameMode {
     }
     h.hud.setMap({ x: target.x, z: target.z, heading: target.heading, out: me.status !== "alive" }, this.marks, null, h.rig.yaw);
     h.hud.setCompass(h.rig.yaw, target, null, this.world.layout.landmarks, pin, goal);
-    h.hud.setTimer(m.phase === "play" ? m.timeLeft : m.settings.time, m.phase === "play" && m.timeLeft <= 30);
+    // v8 (A4): no match clock where the zone is the clock.
+    if (!m.module<ZoneModule>("zone")?.clock) h.hud.setTimer(m.phase === "play" ? m.timeLeft : m.settings.time, m.phase === "play" && m.timeLeft <= 30);
     // The announcer: the time, and stepping outside the circle.
     if (m.phase === "play" && !this.over) {
       const left = m.timeLeft;

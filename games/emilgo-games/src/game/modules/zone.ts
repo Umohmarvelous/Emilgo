@@ -27,6 +27,10 @@ import type { GunsModule } from "./guns";
 import type { TreasureModule } from "./treasure";
 import type { VehiclesModule } from "./vehicles";
 
+/** v8 (A4): seconds the last circle takes to shut completely, and the most played on after (a hard stop). */
+const ZONE_SHUT = 60;
+const ZONE_LAST = 60;
+
 export interface Circle {
   x: number;
   z: number;
@@ -234,7 +238,29 @@ export class ZoneModule implements RuleModule {
     out.x = a.x + (b.x - a.x) * u;
     out.z = a.z + (b.z - a.z) * u;
     out.r = a.r + (b.r - a.r) * u;
+    // v8 (A4): the zone is the clock: once the last circle is shut, it shuts completely (down to nothing).
+    if (this.clock && k === this.phases.length - 1 && u >= 1) {
+      const v = Math.min(1, (t - p.start - p.over) / ZONE_SHUT);
+      out.r = b.r * (1 - v);
+      this.rate = p.rate * 1.5;
+    }
     return out;
+  }
+
+  /** v8 (A4): when the last circle has shut (the zone-clock modes then shut it completely). */
+  private shutAt(): number {
+    const p = this.phases[this.phases.length - 1];
+    return p ? p.start + p.over : 0;
+  }
+
+  /**
+   * v8 (A4): the zone is the clock, so no match clock ends the match: it plays on while anyone is alive, until the
+   * zone has shut completely and a little after (a hard stop, so a match can't hang).
+   */
+  overtime(m: Match): boolean {
+    if (!this.clock || !this.phases.length) return false;
+    if (m.elapsed >= this.shutAt() + ZONE_SHUT + ZONE_LAST) return false;
+    return m.contestants.some((c) => c.status === "alive");
   }
 
   /** Where it's going to be safe: the latest circle announced (or the whole world before any). */
@@ -251,6 +277,9 @@ export class ZoneModule implements RuleModule {
       if (t < p.start) return { left: p.start - t, closing: false };
       if (t < p.start + p.over) return { left: p.start + p.over - t, closing: true };
     }
+    // v8 (A4): then the last circle shuts completely.
+    const end = this.shutAt() + ZONE_SHUT;
+    if (this.clock && t < end) return { left: end - t, closing: true };
     return null;
   }
 

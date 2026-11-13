@@ -543,7 +543,7 @@ export class Match {
       this.interacts();
       for (const m of this.modules) m.step?.(this, dt);
       this.respawns();
-      if (this.elapsed >= this.settings.time && this.phase === "play") {
+      if (this.elapsed >= this.settings.time && this.phase === "play" && !this.modules.some((m) => m.overtime?.(this))) {
         for (const m of this.modules) if (!this.winner) m.timeUp?.(this);
         this.end();
       }
@@ -803,6 +803,8 @@ export class Match {
   }
 
   private respawns(): void {
+    // v8 (A4): past the time (a zone-clock mode's overtime) nobody comes back.
+    if (this.elapsed >= this.settings.time) return;
     for (const c of this.contestants) {
       const at = this.respawnAt[c.index];
       if (at < 0 || this.elapsed < at) continue;

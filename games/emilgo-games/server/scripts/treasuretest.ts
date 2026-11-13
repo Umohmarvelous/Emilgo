@@ -700,5 +700,35 @@ console.log("v7 (H10), the bounty:");
   check(none?.type === "tbounty" && none.id === null && tmOf(copy).bountyOn === -1, "and when nobody does");
 }
 
+console.log("v8 (A4), no match clock: the zone shuts and nobody's left:");
+{
+  const m = fresh(31, 4, undefined, 99, false, live);
+  const z = m.module<ZoneModule>("zone")!;
+  check(!!z.clock, "the live mode's zone is the clock");
+  // Everyone stands at the last circle's centre: alive past the match's old time.
+  const hide = () => {
+    const c = z.now;
+    for (const b of m.contestants) if (b.status === "alive") put(m, b.id, c.x, c.z, b.h);
+  };
+  let ended = false;
+  for (let k = 0; k < Math.round((live.time + 1) / DT); k++) {
+    if (k % 60 === 0) hide();
+    m.step(DT);
+    m.drain();
+    if (m.phase === "ended") ended = true;
+  }
+  check(!ended && m.contestants.some((c) => c.status === "alive"), `past ${live.time} s with people alive: still playing (no clock)`);
+  const r0 = z.now.r;
+  run(m, 61);
+  check(z.now.r < 1 && r0 > z.now.r, `then the last circle shuts completely (${r0.toFixed(0)} m → ${z.now.r.toFixed(1)} m)`);
+  const cl = z.clockAt(live.time + 10);
+  check(!!cl && cl.closing && Math.abs(cl.left - 50) < 0.01, "the watch counts the shutting down");
+  for (let k = 0; k < Math.round(130 / DT) && m.phase !== "ended"; k++) {
+    m.step(DT);
+    m.drain();
+  }
+  check(m.phase === "ended", `it ends once nobody's left (or at the hard stop) at ${m.elapsed.toFixed(0)} s`);
+}
+
 console.log(failures ? `\n${failures} FAILED` : "\nall passed");
 process.exit(failures ? 1 : 0);
