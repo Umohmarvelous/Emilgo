@@ -77,8 +77,10 @@ export interface Member {
  *   1 each        everyone on their own
  *   fixed size    Squad Rally's fours: parties first, then everyone else fills the smallest squads
  *   1 … n         each party is a squad (split past n), everyone else on their own
+ * v8 (A12, `merge`: a public queue): someone who queued alone joins a squad with a free seat (the emptiest first);
+ * when none has one, they drop in alone against the squads. Invite rooms and Lagos Life matches don't merge.
  */
-export function assignSquads(members: readonly Member[], def: ModeDef): number[] {
+export function assignSquads(members: readonly Member[], def: ModeDef, merge = false): number[] {
   const [lo, hi] = def.players.squad;
   const out = new Array<number>(members.length).fill(-1);
   if (hi <= 1) return members.map((_, i) => i);
@@ -112,11 +114,25 @@ export function assignSquads(members: readonly Member[], def: ModeDef): number[]
     return out;
   }
   let next = 0;
+  const size: number[] = [];
   for (const g of parties.values()) for (let k = 0; k < g.length; k += hi) {
     const q = next++;
-    for (const i of g.slice(k, k + hi)) out[i] = q;
+    const part = g.slice(k, k + hi);
+    for (const i of part) out[i] = q;
+    size[q] = part.length;
   }
-  for (const i of solo) out[i] = next++;
+  const partySquads = next;
+  for (const i of solo) {
+    let q = -1;
+    // A party's squad with the most free seats (a lone player helps the thinnest squad most). Never another loner's.
+    if (merge) for (let s = 0; s < partySquads; s++) if (size[s] < hi && (q < 0 || size[s] < size[q])) q = s;
+    if (q < 0) {
+      q = next++;
+      size[q] = 0;
+    }
+    out[i] = q;
+    size[q]++;
+  }
   return out;
 }
 

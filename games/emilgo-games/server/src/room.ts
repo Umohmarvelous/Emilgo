@@ -439,7 +439,8 @@ export class Room {
       members = players.map((p) => ({ seat: p.id, party: p.party }));
     }
     const seed = this.pending?.seed ?? randomInt(0, 2 ** 31);
-    const squads = assignSquads(members, def);
+    // v8 (A12): a public queue merges people who came alone into squads with room.
+    const squads = assignSquads(members, def, this.kind === "quick");
     this.mev = [];
     this.game = new FfaGame(def, seed, roster.map((r) => ({ id: r.id, name: r.name, ...(r.look ? { look: r.look } : {}) })), squads, this.ranked && this.kind === "quick");
     this.inRound.clear();

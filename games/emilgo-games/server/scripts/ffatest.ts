@@ -25,6 +25,7 @@ import type { ZoneModule } from "../../src/game/modules/zone";
 import { matchWorldOf } from "../../src/maps/open/matchWorld";
 import { buildNaijaWorld, SURFACE_OF } from "../../src/maps/open/naija";
 import { online } from "./ffanet";
+import { assignSquads } from "../src/ffa";
 
 let failures = 0;
 export function check(ok: boolean, label: string): void {
@@ -582,6 +583,22 @@ console.log("the phone's copy (mirror):");
   }
   const ms = (performance.now() - t) / 3600;
   check(ms < 0.6, `a 12-player step of Find the Flag with melee costs ${(ms * 1000).toFixed(0)} µs`);
+}
+
+console.log("v8 (A12), solo against squads:");
+{
+  const th = BUILTIN_MANIFEST.modes.find((d) => d.id === "treasure-hunt")!;
+  const mem = (party: string | null, n: number) => Array.from({ length: n }, (_, i) => ({ seat: `${party ?? "solo"}${i}`, party }));
+  const crowd = [...mem("A", 2), ...mem("B", 4), ...mem(null, 4)];
+  const q = assignSquads(crowd, th, true);
+  const sizeOf = (sq: number[]) => sq.reduce((m, x) => m.set(x, (m.get(x) ?? 0) + 1), new Map<number, number>());
+  const a = q[0];
+  check(q[1] === a && q[6] === a && q[7] === a, "two who came alone fill party A's squad (2 → 4)");
+  check(q[8] !== q[9] && ![...sizeOf(q).values()].some((n) => n > th.players.squad[1]), "the rest drop in alone; no squad past 4");
+  const priv = assignSquads(crowd, th, false);
+  check(priv.slice(6).every((x, i, arr) => arr.indexOf(x) === i && !priv.slice(0, 6).includes(x)), "an invite room doesn't merge: they play alone");
+  const allSolo = assignSquads(mem(null, 5), th, true);
+  check(new Set(allSolo).size === 5, "nobody in a party: everyone on their own");
 }
 
 if (process.env.GAME) await online(process.env.GAME, check);
