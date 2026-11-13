@@ -15,7 +15,6 @@ import { ITEM_DEFS } from "../content/items";
 import { type ModeDef } from "../content/modes";
 import { Rng } from "../core/rng";
 import type { Contestant } from "../game/core/body";
-import { badgeOf, botBadge } from "../rank/awards";
 import { FIGURINE_BY_ID, FIGURINES, figurineLook } from "../shop/figurines";
 import { Match, settingsOf, weeklyMutator, type MatchWorld } from "../game/core/match";
 import type { MatchEvent } from "../game/core/module";
@@ -326,8 +325,6 @@ export class FfaMode implements GameMode {
     this.view = new FfaView({ crowd: h.crowd, hud: h.hud, sound: h.sound, me: me.index, layer: h.ui, places: world.layout.landmarks });
     // v6 max (3.11): text chat in an online match (the room's chat: the server cleans every line).
     h.controls.chatBtn.hidden = !online;
-    // v6 max (3.10): the badges worn, over heads: yours, what the others' phones sent, a few for the bots.
-    this.view.badges = m.contestants.map((c, i) => (c === me ? badgeOf(h.settings.awards) : wire[i] ? (wire[i]!.aw ?? "") : botBadge(m.seed, i)));
     h.scene.add(this.ms.group, this.view.group);
     this.cars = m.module<VehiclesModule>("vehicles") ? new VehicleView({ crowd: h.crowd, sound: h.sound, rig: h.rig, me: me.index, stands: m.world.fuel ?? [] }) : null;
     if (this.cars) h.scene.add(this.cars.group);

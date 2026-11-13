@@ -48,7 +48,7 @@ export function awardsBody(s: AwardState): string {
   const head = `<div class="aw-head">
       ${worn ? emblem(s.wear, worn, 56) : emblem("veteran", 0, 56)}
       <span class="grow"><b>${worn ? esc(awardTitle(s.wear, worn)) : esc(t("No badge worn"))}</b>
-        <small>${esc(t("Your worn badge shows over your head in a match and beside your name."))}</small>
+        <small>${esc(t("Your worn badge shows on your profile card, beside your name. Never on your body in a match."))}</small>
         <span class="aw-bar"><i style="width:${Math.round((got / Math.max(1, all)) * 100)}%"></i></span>
         <small class="num">${got} / ${all} ${esc(t("badges"))}</small></span>
       ${worn ? `<button class="btn secondary" data-act="award-wear" data-id="">${esc(t("Take off"))}</button>` : ""}

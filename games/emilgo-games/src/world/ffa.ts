@@ -50,7 +50,6 @@ import type { TreasureModule } from "../game/modules/treasure";
 import { PROP_IDS, type MeleeModule, type PropId, type SwingKind } from "../game/modules/melee";
 import type { Sound } from "../audio/sound";
 import type { Hud, ItemPin, MapMark } from "../ui/hud";
-import { badgeEmblem } from "../ui/awards";
 import { el, fmtTime } from "../ui/dom";
 import { t } from "../ui/i18n";
 import { gameSize } from "../ui/rotate";
@@ -269,8 +268,6 @@ const MAX_GOALS = 6;
 /** Meters over heads within this (metres); squad mates and the flag's holder further. */
 const HEAD_RANGE = 30;
 const FAR_RANGE = 220;
-/** v6 max (3.10): a worn badge shows over a head this close (m). */
-const BADGE_RANGE = 22;
 
 function instanced(geo: BufferGeometry, mat: Material, n: number, colours = false): InstancedMesh {
   const m = new InstancedMesh(geo, mat, n);
@@ -289,8 +286,6 @@ interface Head {
   bar: HTMLElement;
   fill: HTMLElement;
   sig: string;
-  /** v6 max (3.10): the worn badge's emblem (drawn once). */
-  aw: HTMLElement;
 }
 
 export class FfaView {
@@ -304,8 +299,6 @@ export class FfaView {
   private readonly columns: InstancedMesh;
   private readonly glowMats: ShaderMaterial[] = [];
   private readonly heads: Head[] = [];
-  /** v6 max (3.10): each body's worn badge ("veteran.3", "" none): its emblem over the head, near. */
-  badges: string[] = [];
   private readonly headLayer = el("div", "ffa-heads");
   private time = 0;
   /** The newest radio hints (the map draws them), and the holders' pings (each shown 4 s). */
@@ -672,12 +665,10 @@ export class FfaView {
       const bar = el("i", "wob");
       const fill = el("b");
       bar.append(fill);
-      const aw = el("i", "aw");
-      aw.innerHTML = badgeEmblem(this.badges[this.heads.length], 18);
-      root.append(aw, bar, el("i", "mate"), el("i", "brace"), el("i", "carry"));
-      root.classList.toggle("has-aw", aw.innerHTML !== "");
+      // v8 (A6): no badge over the head: worn badges show only on the profile card.
+      root.append(bar, el("i", "mate"), el("i", "brace"), el("i", "carry"));
       this.headLayer.append(root);
-      this.heads.push({ root, bar, fill, sig: "", aw });
+      this.heads.push({ root, bar, fill, sig: "" });
     }
     for (const c of m.contestants) {
       const hd = this.heads[c.index];
@@ -697,11 +688,10 @@ export class FfaView {
         if (on) hd.root.style.transform = `translate(${((_v.x + 1) / 2) * w}px, ${((1 - _v.y) / 2) * h}px)`;
       }
       const near = d < HEAD_RANGE;
-      const sig = `${on ? 1 : 0}${mate ? 1 : 0}${holder ? 1 : 0}${near && (wob > 0.02 || brace) ? 1 : 0}${brace ? 1 : 0}${m.squads[c.index]}${m.module<GadgetsModule>("gadgets")?.wearing[c.index] ?? -1}${near && d < BADGE_RANGE ? 1 : 0}`;
+      const sig = `${on ? 1 : 0}${mate ? 1 : 0}${holder ? 1 : 0}${near && (wob > 0.02 || brace) ? 1 : 0}${brace ? 1 : 0}${m.squads[c.index]}${m.module<GadgetsModule>("gadgets")?.wearing[c.index] ?? -1}`;
       if (sig !== hd.sig) {
         hd.sig = sig;
         hd.root.classList.toggle("on", on);
-        hd.root.classList.toggle("aw-on", near && d < BADGE_RANGE);
         hd.root.classList.toggle("is-mate", mate);
         hd.root.classList.toggle("is-holder", holder);
         hd.root.classList.toggle("is-hit", near && (wob > 0.02 || brace));
