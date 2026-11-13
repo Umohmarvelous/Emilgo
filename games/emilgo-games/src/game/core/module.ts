@@ -64,7 +64,7 @@ export type MatchEvent =
   | { type: "bclaim"; id: string; tg: string }
   /** v7 (H9): the carriers' pulse: who carries enough (body indices), and where they were (everyone's map, TREASURE.pulseShow s). */
   | { type: "tpulse"; who: number[]; x: number[]; z: number[] }
-  | { type: "tre"; t: number; how: "find" | "take" | "give" | "drop" | "loose"; id: string | null; x: number; z: number; h: number; by?: string }
+  | { type: "tre"; t: number; how: "find" | "take" | "give" | "drop" | "loose" | "up"; id: string | null; x: number; z: number; h: number; by?: string }
   | { type: "upl"; id: string; how: "start" | "stop" | "done" }
   /** A Map Print (v5): which box each treasure still in one is in. Only to the seat that used it (Match.whisper). */
   | { type: "tmap"; t: number[]; b: number[] }

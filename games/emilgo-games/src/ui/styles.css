@@ -1931,3 +1931,7 @@ input { font: inherit; color: inherit; }
   .fk-radio .feed-item { white-space: normal; }
   .fk-radio .feed-item:nth-child(3) { display: block; opacity: 0.4; }
 }
+
+/* ── v8 (A9): an uploaded treasure in the line-up: lit, with a green ring (it's on the machine, the squad's) ── */
+.tr-carry .tk-slot.up { border-color: #8fd18a; box-shadow: 0 0 8px rgba(143, 209, 138, 0.55); background: rgba(10, 34, 14, 0.7); }
+.tr-carry .tk-slot.up .tk { opacity: 1; filter: none; }

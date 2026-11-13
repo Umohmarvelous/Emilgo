@@ -108,9 +108,9 @@ export const BUILTIN_MANIFEST: Manifest = {
       // last circle shuts (870 + 90 s), the most carried winning.
       id: "treasure-hunt", v: 3, family: "ffa", minRank: "rookie-1", players: SOLO_OR_SQUAD, map: "max-world", time: 960,
       name: { en: "Treasure Hunt", pcm: "Treasure Hunt" },
-      blurb: { en: "Find the 5 hidden treasures and upload them at the machine. Kill for what others found.", pcm: "Find the 5 treasure wey hide, go upload am for the machine. Kill person collect wetin e find." },
+      blurb: { en: "Find the 4 hidden treasures and upload them at the machine. Kill for what others found.", pcm: "Find the 4 treasure wey hide, go upload am for the machine. Kill person collect wetin e find." },
       respawn: { on: true, delay: 6 },
-      modules: { zone: { ...ZONE_FFA, clock: true }, items: ITEMS, vehicles: CARS, airfall: AIRFALL, melee: MELEE, treasure: { need: 5, boxes: 32, upload: 12, area: 240, heavy: 0.03, heavyAt: 4, traps: 0.25, ringShrink: true, pickpocket: true, pulse: 90, pulseAt: 3, bounty: true } },
+      modules: { zone: { ...ZONE_FFA, clock: true }, items: ITEMS, vehicles: CARS, airfall: AIRFALL, melee: MELEE, treasure: { need: 4, boxes: 32, upload: 12, area: 240, heavy: 0.03, heavyAt: 4, traps: 0.25, ringShrink: true, pickpocket: true, pulse: 90, pulseAt: 3, bounty: true } },
       win: { kind: "most", measure: "treasure.count" },
       ranked: { ...RANKED, "respawn.on": false, "treasure.upload": 18 },
     },

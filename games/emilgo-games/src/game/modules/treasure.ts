@@ -18,6 +18,12 @@
 // zone closes on), so they're in the circle or just outside it, the real ones
 // within TREASURE.core of it. Time up (the last circle shut: the zone is the
 // clock): the most carried wins, then the most still standing.
+//
+// v8 (A9, the owner, 13 Nov): four treasures, and a squad finds and wins together. Any member's find counts for the
+// squad (no hand-over to a leader); any member uploads what they carry; the squad wins once it has uploaded all four
+// (`need`). An uploaded treasure stays on the machine under its uploader's name. A solo player uploads in batches of
+// `soloBatch` (default: everything still needed, as before). Time up: the most uploaded wins, then the most carried,
+// then the most still standing.
 
 import { TREASURE } from "../../config";
 import type { Contestant } from "../core/body";
@@ -51,6 +57,8 @@ export interface Treasure {
   h: number;
   droppedBy: number;
   droppedAt: number;
+  /** v8 (A9): uploaded: on the machine under this body's name (body index), or −1. */
+  up: number;
 }
 
 export class TreasureModule implements RuleModule {
@@ -88,6 +96,10 @@ export class TreasureModule implements RuleModule {
   /** Who is uploading (body index, −1), and how far along, seconds. */
   uploader = -1;
   uploaded = 0;
+  /** v8 (A9): per body, treasures uploaded under their name. */
+  upCount = new Int32Array(0);
+  /** v8 (A10): a solo player uploads once they carry this many (or all that's still needed, if fewer). */
+  readonly soloBatch: number;
   /** Per body: treasures carried, the box being opened and for how long. */
   count = new Int32Array(0);
   private openT = new Float64Array(0);
@@ -108,6 +120,42 @@ export class TreasureModule implements RuleModule {
     this.pulse = Math.max(0, Math.min(600, num("pulse", 0)));
     this.pulseAt = Math.max(1, Math.min(9, Math.floor(num("pulseAt", 3))));
     this.bounty = params.bounty === true;
+    this.soloBatch = Math.max(1, Math.min(this.need, Math.floor(num("soloBatch", this.need))));
+  }
+
+  /** v8 (A9): c plays alone (a squad of one). */
+  solo(m: Match, c: Contestant): boolean {
+    const q = m.squads[c.index];
+    for (const o of m.contestants) if (o !== c && m.squads[o.index] === q) return false;
+    return true;
+  }
+
+  /** v8 (A9): the squad's treasures uploaded, carried, and both (found and kept). */
+  upOf(m: Match, squad: number): number {
+    let n = 0;
+    for (const c of m.contestants) if (m.squads[c.index] === squad) n += this.upCount[c.index] ?? 0;
+    return n;
+  }
+
+  carriedOf(m: Match, squad: number): number {
+    let n = 0;
+    for (const c of m.contestants) if (m.squads[c.index] === squad) n += this.count[c.index] ?? 0;
+    return n;
+  }
+
+  foundOf(m: Match, squad: number): number {
+    return this.upOf(m, squad) + this.carriedOf(m, squad);
+  }
+
+  /** v8 (A9): how many c must carry to start an upload: a squad's member, any; solo, `soloBatch` (or all still needed). */
+  batchFor(m: Match, c: Contestant): number {
+    const left = Math.max(1, this.need - this.upOf(m, m.squads[c.index]));
+    return this.solo(m, c) ? Math.min(this.soloBatch, left) : 1;
+  }
+
+  /** v8 (A9): c carries enough to upload. */
+  canUpload(m: Match, c: Contestant): boolean {
+    return (this.count[c.index] ?? 0) >= this.batchFor(m, c);
   }
 
   /**
@@ -197,6 +245,7 @@ export class TreasureModule implements RuleModule {
   init(m: Match): void {
     const n = m.contestants.length;
     this.count = new Int32Array(n);
+    this.upCount = new Int32Array(n);
     this.openT = new Float64Array(n);
     this.openOn = new Int32Array(n).fill(-1);
     this.pickedAt = new Float64Array(n).fill(-99);
@@ -250,14 +299,14 @@ export class TreasureModule implements RuleModule {
       // v7: with an area, the treasures hide in the boxes nearest the machine (inside TREASURE.core when it has enough).
       const inner = this.area > 0 ? this.boxes.filter((b) => within(b.x, b.z, TREASURE.core)) : [];
       const order = secret.shuffle((inner.length >= this.need * 2 ? inner : this.boxes).map((b) => b.index));
-      for (let k = 0; k < this.need; k++) this.treasures.push({ index: k, box: order[k % order.length], holder: -1, x: 0, z: 0, h: 0, droppedBy: -1, droppedAt: -99 });
+      for (let k = 0; k < this.need; k++) this.treasures.push({ index: k, box: order[k % order.length], holder: -1, x: 0, z: 0, h: 0, droppedBy: -1, droppedAt: -99, up: -1 });
       // v7 (H5): one empty chest in four (`traps`) is trapped, from its own secret stream.
       if (this.traps > 0) {
         const real = new Set(this.treasures.map((t) => t.box));
         const empty = this.secretTraps(m, this.boxes.filter((b) => !real.has(b.index)).map((b) => b.index));
         for (const b of empty.slice(0, Math.round(empty.length * this.traps))) this.trapped.add(b);
       }
-    } else for (let k = 0; k < this.need; k++) this.treasures.push({ index: k, box: -2, holder: -1, x: 0, z: 0, h: 0, droppedBy: -1, droppedAt: -99 });
+    } else for (let k = 0; k < this.need; k++) this.treasures.push({ index: k, box: -2, holder: -1, x: 0, z: 0, h: 0, droppedBy: -1, droppedAt: -99, up: -1 });
   }
 
   private secretTraps(m: Match, ids: number[]): number[] {
@@ -357,7 +406,7 @@ export class TreasureModule implements RuleModule {
     }
     // Loose treasures: the first to step onto one takes it.
     for (const tr of this.treasures) {
-      if (tr.holder >= 0 || tr.box >= 0) continue;
+      if (tr.holder >= 0 || tr.box >= 0 || tr.up >= 0) continue;
       for (const c of m.contestants) {
         if (!this.canAct(m, c)) continue;
         if (c.index === tr.droppedBy && t - tr.droppedAt < TREASURE.noRetake) continue;
@@ -366,20 +415,7 @@ export class TreasureModule implements RuleModule {
         break;
       }
     }
-    // Squads: a mate close to the leader hands over.
-    for (const tr of this.treasures) {
-      if (tr.holder < 0) continue;
-      const c = m.contestants[tr.holder];
-      const lead = this.leaderOf(m, m.squads[c.index]);
-      if (lead === c.index || lead < 0) continue;
-      const l = m.contestants[lead];
-      if (l.status === "alive" && Math.hypot(l.x - c.x, l.z - c.z) <= TREASURE.hand) {
-        this.count[c.index]--;
-        this.count[lead]++;
-        tr.holder = lead;
-        m.emit({ type: "tre", t: tr.index, how: "give", id: l.id, x: l.x, z: l.z, h: l.h });
-      }
-    }
+    // v8 (A9): no hand-over: a squad's finds are the squad's, and any member uploads what they carry.
     // Everyone carried moves with its carrier (for the map and the drop).
     for (const tr of this.treasures) {
       if (tr.holder < 0) continue;
@@ -399,22 +435,38 @@ export class TreasureModule implements RuleModule {
     // The upload.
     if (this.uploader >= 0) {
       const c = m.contestants[this.uploader];
-      if (!this.canAct(m, c) || !this.inRing(m, c) || this.count[this.uploader] < this.need) {
+      if (!this.canAct(m, c) || !this.inRing(m, c) || !this.canUpload(m, c)) {
         m.emit({ type: "upl", id: c.id, how: "stop" });
         this.uploader = -1;
         this.uploaded = 0;
       } else {
         this.uploaded += dt;
         if (this.uploaded >= this.uploadTime) {
+          // v8 (A9): what they carry goes onto the machine under their name; the squad wins at all of them.
+          for (const tr of this.treasures) {
+            if (tr.holder !== c.index) continue;
+            tr.holder = -1;
+            tr.up = c.index;
+            this.count[c.index]--;
+            this.upCount[c.index]++;
+            const p = this.machine ?? c;
+            tr.x = p.x;
+            tr.z = p.z;
+            tr.h = p.h;
+            m.emit({ type: "tre", t: tr.index, how: "up", id: c.id, x: tr.x, z: tr.z, h: tr.h });
+          }
           m.emit({ type: "upl", id: c.id, how: "done" });
-          return void m.win(c);
+          this.uploader = -1;
+          this.uploaded = 0;
+          const q = m.squads[c.index];
+          if (this.upOf(m, q) >= this.need) return void m.win(c, q);
         }
       }
     }
     if (this.uploader < 0) {
       for (const c of m.contestants) {
-        // Only a squad's leader uploads (on your own, you are your leader).
-        if (this.count[c.index] >= this.need && this.canAct(m, c) && this.inRing(m, c) && this.leaderOf(m, m.squads[c.index]) === c.index) {
+        // v8 (A9): anyone carrying enough uploads (a squad's member: any; solo: `soloBatch`).
+        if (this.count[c.index] > 0 && this.canUpload(m, c) && this.canAct(m, c) && this.inRing(m, c)) {
           this.uploader = c.index;
           this.uploaded = 0;
           m.emit({ type: "upl", id: c.id, how: "start" });
@@ -426,6 +478,7 @@ export class TreasureModule implements RuleModule {
 
   private take(m: Match, tr: Treasure, c: Contestant, how: "find" | "take"): void {
     tr.box = -1;
+    tr.up = -1;
     tr.holder = c.index;
     this.count[c.index]++;
     m.emit({ type: "tre", t: tr.index, how, id: c.id, x: c.x, z: c.z, h: c.h });
@@ -497,23 +550,25 @@ export class TreasureModule implements RuleModule {
    * standing; still a tie, nobody.
    */
   timeUp(m: Match): void {
-    const by = new Map<number, { n: number; up: number }>();
+    // v8 (A9): the most uploaded, then the most carried, then the most still standing.
+    const by = new Map<number, { u: number; n: number; up: number }>();
     for (const c of m.contestants) {
       const q = m.squads[c.index];
-      const s = by.get(q) ?? { n: 0, up: 0 };
+      const s = by.get(q) ?? { u: 0, n: 0, up: 0 };
+      s.u += this.upCount[c.index];
       s.n += this.count[c.index];
       if (c.status === "alive") s.up++;
       by.set(q, s);
     }
-    const sorted = [...by.entries()].sort((a, b) => b[1].n - a[1].n || b[1].up - a[1].up);
-    if (!sorted.length || sorted[0][1].n <= 0) return;
-    if (sorted[1] && sorted[1][1].n === sorted[0][1].n && sorted[1][1].up === sorted[0][1].up) return;
+    const sorted = [...by.entries()].sort((a, b) => b[1].u - a[1].u || b[1].n - a[1].n || b[1].up - a[1].up);
+    if (!sorted.length || sorted[0][1].u + sorted[0][1].n <= 0) return;
+    if (sorted[1] && sorted[1][1].u === sorted[0][1].u && sorted[1][1].n === sorted[0][1].n && sorted[1][1].up === sorted[0][1].up) return;
     const q = sorted[0][0];
     m.win(m.contestants[this.leaderOf(m, q)] ?? null, q);
   }
 
   objective(_m: Match, i: number): number {
-    return this.count[i] ?? 0;
+    return (this.count[i] ?? 0) + (this.upCount[i] ?? 0);
   }
 
   // ── The online client's copy ──
@@ -564,13 +619,20 @@ export class TreasureModule implements RuleModule {
       const tr = this.treasures[e.t];
       if (!tr) return;
       if (tr.holder >= 0) this.count[tr.holder] = Math.max(0, this.count[tr.holder] - 1);
+      if (tr.up >= 0) this.upCount[tr.up] = Math.max(0, this.upCount[tr.up] - 1);
       const c = e.id ? m.get(e.id) : null;
       tr.box = -1;
+      tr.up = -1;
       tr.x = e.x;
       tr.z = e.z;
       tr.h = e.h;
       if (e.how === "drop" || e.how === "loose" || !c) tr.holder = -1;
-      else {
+      else if (e.how === "up") {
+        // v8 (A9): on the machine under their name.
+        tr.holder = -1;
+        tr.up = c.index;
+        this.upCount[c.index]++;
+      } else {
         tr.holder = c.index;
         this.count[c.index]++;
       }
@@ -579,7 +641,7 @@ export class TreasureModule implements RuleModule {
       if (e.how === "start" && c) {
         this.uploader = c.index;
         this.uploaded = 0;
-      } else if (e.how === "stop") {
+      } else if (e.how === "stop" || e.how === "done") {
         this.uploader = -1;
         this.uploaded = 0;
       }

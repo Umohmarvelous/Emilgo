@@ -174,26 +174,40 @@ console.log("squads:");
   hold(m, "p1", true);
   run(m, TREASURE.open + 0.1);
   hold(m, "p1", false);
-  check(tm.count[1] === 1, "a mate finds one");
+  check(tm.count[1] === 1 && tm.foundOf(m, 0) === 1, "a mate finds one: the squad's");
+  // v8 (A9): no hand-over; any member uploads what they carry; the squad wins at all of them uploaded.
   const c1 = m.get("p1")!;
   put(m, "p0", c1.x + 2, c1.z, c1.h);
   run(m, DT * 2);
-  check(tm.count[1] === 0 && tm.count[0] === 1 && tr.holder === 0, "they meet: it goes to the leader");
-  // A mate can't upload: give P1 all five, keep the leader far, stand P1 in the ring.
-  for (const x of tm.treasures) {
-    if (x.holder >= 0) tm.count[x.holder]--;
-    x.box = -1;
-    x.holder = 1;
-  }
-  tm.count[1] = 5;
+  check(tm.count[1] === 1 && tm.count[0] === 0 && tr.holder === 1, "they meet: nothing is handed over");
   const p = tm.machine!;
   put(m, "p0", p.x + 80, p.z, p.h);
   put(m, "p1", p.x + 2, p.z, p.h);
-  run(m, 0.3);
-  check(tm.uploader < 0, "only the leader uploads");
-  m.eliminate(m.get("p0")!, "shot");
-  run(m, 0.3);
-  check(tm.leaderOf(m, 0) === 1 && tm.uploader === 1, "the leader down for good: the next one leads, and uploads");
+  const ev: MatchEvent[] = [];
+  run(m, 0.3, ev);
+  check(tm.uploader === 1, "a mate (not the leader) uploads what they carry");
+  run(m, tm.uploadTime, ev);
+  check(tr.up === 1 && tm.upCount[1] === 1 && tm.count[1] === 0 && tm.upOf(m, 0) === 1 && !m.winner, "one uploaded, under their name: not a win yet");
+  check(ev.some((e) => e.type === "tre" && e.how === "up" && e.id === "p1"), "the upload told, treasure by treasure");
+  // The rest, carried by the leader: uploaded, the squad wins.
+  for (const x of tm.treasures) {
+    if (x.up >= 0) continue;
+    if (x.holder >= 0) tm.count[x.holder]--;
+    x.box = -1;
+    x.holder = 0;
+    tm.count[0]++;
+  }
+  put(m, "p1", p.x + 80, p.z, p.h);
+  put(m, "p0", p.x + 2, p.z, p.h);
+  run(m, tm.uploadTime + 0.5);
+  check(m.winner?.id === "p0" && m.squads[0] === 0 && tm.upOf(m, 0) === tm.need, `the squad wins once all ${tm.need} are up`);
+  // A rival squad's carrier is not counted for them.
+  const n = fresh(8, 4, [0, 0, 1, 1]);
+  const tn = tmOf(n);
+  tn.treasures[0].box = -1;
+  tn.treasures[0].holder = 2;
+  tn.count[2] = 1;
+  check(tn.foundOf(n, 1) === 1 && tn.foundOf(n, 0) === 0, "each squad counts its own");
 }
 
 console.log("time up:");
@@ -204,6 +218,13 @@ console.log("time up:");
   tm.count[0] = 1;
   tm.timeUp(m);
   check(m.winner?.id === "p2", "the most treasures wins");
+  // v8 (A9): uploaded counts first.
+  const u = fresh(9, 4);
+  const tu = tmOf(u);
+  tu.count[2] = 3;
+  tu.upCount[1] = 1;
+  tu.timeUp(u);
+  check(u.winner?.id === "p1", "the most uploaded wins over the most carried");
   const n = fresh(9, 4);
   const tn = tmOf(n);
   tn.count[1] = 2;
@@ -331,9 +352,9 @@ console.log("v7, 12 Nov, the live mode (the v6 rules, the chests round the machi
   const m = fresh(11, 6, undefined, 99, false, live);
   const tm = tmOf(m);
   const c = tm.machine!;
-  check(!!c && tm.need === 5 && tm.area > 0, "a machine, all 5 to find");
+  check(!!c && tm.need === 4 && tm.area > 0, "a machine, all 4 to find (v8)");
   check(tm.boxes.length >= 24 && tm.boxes.every((b) => Math.hypot(b.x - c.x, b.z - c.z) <= tm.area + 0.01), `${tm.boxes.length} boxes, every one within ${tm.area} m of the machine`);
-  check(tm.treasures.length === 5 && tm.treasures.every((t) => Math.hypot(tm.boxes[t.box].x - c.x, tm.boxes[t.box].z - c.z) <= TREASURE.core + 0.01), `5 real, all within ${TREASURE.core} m of it`);
+  check(tm.treasures.length === 4 && tm.treasures.every((t) => Math.hypot(tm.boxes[t.box].x - c.x, tm.boxes[t.box].z - c.z) <= TREASURE.core + 0.01), `4 real, all within ${TREASURE.core} m of it`);
   const zone = m.module<ZoneModule>("zone")!;
   check(zone.clock, "the zone is the clock");
   check(zone.circles.slice(1, 4).every((q) => Math.hypot(q.x - c.x, q.z - c.z) <= q.r * 0.3 + 1), "the first three circles keep the machine within 0.3 of their radius");
@@ -350,7 +371,7 @@ console.log("v7, 12 Nov, the live mode (the v6 rules, the chests round the machi
   check(ev.some((e) => e.type === "tbox" && e.found === 2) && ev.some((e) => e.type === "tre" && e.how === "find" && e.t === 2), "the find told (the box, then the treasure taken)");
   // Ranked: no respawn, the longer upload.
   const r = settingsOf(live, true);
-  check(r.respawn.on === false && r.modules.treasure?.upload === 18 && r.modules.treasure?.need === 5, "Ranked: no respawn, 18 s to upload, still all 5");
+  check(r.respawn.on === false && r.modules.treasure?.upload === 18 && r.modules.treasure?.need === 4, "Ranked: no respawn, 18 s to upload, still all 4");
 }
 
 console.log("v7 (H4), heavy loot:");
@@ -698,6 +719,30 @@ console.log("v7 (H10), the bounty:");
   const none = round({ type: "tbounty", id: null });
   if (none) tmOf(copy).apply(copy, none);
   check(none?.type === "tbounty" && none.id === null && tmOf(copy).bountyOn === -1, "and when nobody does");
+}
+
+console.log("v8 (A9), the copy follows an upload:");
+{
+  const srv = fresh(40, 4, [0, 0, 1, 1], 99, false, live);
+  const ph = fresh(40, 4, [0, 0, 1, 1], 0, true, live);
+  const ts = tmOf(srv);
+  const tp = tmOf(ph);
+  const tr = ts.treasures[1];
+  const b = ts.boxes[tr.box];
+  put(srv, "p1", b.x + 0.6, b.z, b.h);
+  hold(srv, "p1", true);
+  const ev: MatchEvent[] = [];
+  run(srv, TREASURE.open + 0.1, ev);
+  hold(srv, "p1", false);
+  const p = ts.machine!;
+  put(srv, "p1", p.x + 2, p.z, p.h);
+  run(srv, ts.uploadTime + 0.5, ev);
+  const wire = (e: MatchEvent) => decodeEvent(JSON.parse(JSON.stringify(encodeEvent(e, (id) => srv.get(id)?.index ?? -1))), (i) => ph.contestants[i]?.id ?? null);
+  for (const e of ev) {
+    const d = wire(e);
+    if (d) tp.apply(ph, d);
+  }
+  check(tp.treasures[1].up === 1 && tp.upCount[1] === 1 && tp.count[1] === 0 && tp.upOf(ph, 0) === 1 && tp.uploader === -1, "the copy has it on the machine under P1's name");
 }
 
 console.log("v8 (A4), no match clock: the zone shuts and nobody's left:");

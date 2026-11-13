@@ -36,14 +36,14 @@ interface Words {
 export const MODE_WORDS: Record<string, Words> = {
   "treasure-hunt": {
     // v7, 12 Nov: the v6 rules back; the chests nearer the zone; no hints of where.
-    text: "Five treasures are hidden in chests among many empty ones: a diamond, gold bars, silver bars, an emerald and a ruby. The chests stand round the upload machine, and the zone closes on it. Hold the interact button at a chest to open it. Real and empty chests look the same.",
-    win: "Carry all 5 treasures to the machine and stay in its ring while they upload. There is no clock: if nobody uploads before the last circle shuts, the most treasures carried wins.",
+    text: "Four treasures are hidden in chests among many empty ones: a gold bar, a silver bar, an emerald and a diamond. The chests stand round the upload machine, and the zone closes on it. Hold the interact button at a chest to open it. Real and empty chests look the same.",
+    win: "Carry treasures to the machine and stay in its ring while they upload. Upload all 4 to win. In a squad, any member's find counts for everyone and anyone uploads what they carry. There is no clock: if nobody gets all 4 up before the zone shuts and nobody's left, the most uploaded wins.",
     tips: [
       "Kill a carrier and everything they found drops where they fell: walk over it to take it.",
       "Treasure is heavy: each one you carry slows you a little, and with 4 or more you can't sprint or slide.",
       "Some empty chests are trapped: they shriek and fire a red flare everyone near can see. Opening is a gamble.",
-      "Die in the ring and you lose them all. Clear the area before you upload.",
-      "In a squad, only your leader uploads. Walk up to them to hand over what you found, then protect them.",
+      "Die in the ring and you drop what you carry. Clear the area before you upload.",
+      "In a squad you win together: every member's find counts, and whoever carries treasure can upload it. Protect whoever is at the machine.",
       "Someone carrying all but one is marked on everyone's map. Outside the zone the gas wears you down: a Med Kit holds it off.",
     ],
   },

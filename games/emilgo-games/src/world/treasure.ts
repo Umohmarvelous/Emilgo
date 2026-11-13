@@ -101,7 +101,7 @@ const _e = new Euler();
 
 /** v7: what each kind of treasure is called (the feed). */
 export const TREASURE_KIND_NAME: Record<TreasureKind, string> = {
-  diamond: "the diamond", gold: "the gold bars", silver: "the silver bars", emerald: "the emerald", ruby: "the ruby",
+  diamond: "the diamond", gold: "the gold bar", silver: "the silver bar", emerald: "the emerald", ruby: "the ruby",
   sapphire: "the sapphire", pearl: "the pearls", crown: "the crown", amethyst: "the amethyst",
 };
 
@@ -750,12 +750,17 @@ export class TreasureView {
           // v7 (H3): it rises out of the chest; the feed names it. (The count is read after the "tre" that follows.)
           this.rising.set(e.found, { at: this.time, box: e.box });
           const what = t(TREASURE_KIND_NAME[kindOf(e.found)]);
+          // v8 (A9): the squad's count (found and kept: carried plus uploaded), one more for this find if not yet read.
+          const q = m.squads[me.index];
+          const n = Math.min(tm.need, tm.foundOf(m, q) + ((tm.treasures[e.found]?.holder ?? -1) >= 0 ? 0 : c && m.sameSquad(c, me) ? 1 : 0));
           if (c === me) {
-            const n = Math.min(tm.need, tm.count[me.index] + (tm.treasures[e.found]?.holder === me.index ? 0 : 1));
             hud.pushFeed(`${t("You found")} ${what}! ${n}/${tm.need}`, "safe");
             this.o.sound?.voice.say(n >= tm.need ? "tre_all" : "tre_found");
-          }
-          else if (c) hud.pushFeed(`${c.name} ${t("found")} ${what}`, m.sameSquad(c, me) ? "safe" : "info");
+          } else if (c && m.sameSquad(c, me)) {
+            // v8 (A9): a teammate's find is the squad's.
+            hud.pushFeed(`${t("Your teammate found")} ${what}! ${n}/${tm.need}`, "safe");
+            this.o.sound?.voice.say(n >= tm.need ? "tre_all" : "tre_mate");
+          } else if (c) hud.pushFeed(`${c.name} ${t("found")} ${what}`, "info");
         } else if (e.trap && b) {
           // v7 (H5): trapped: it shrieks and fires a red flare 30 m up; everyone near knows.
           this.traps.fire(b.x, b.h, b.z, this.time);
@@ -790,12 +795,13 @@ export class TreasureView {
         } else if (e.how === "take") {
           if (c === me) {
             this.o.sound?.treasure(true);
-            hud.pushFeed(`${t("You took")} ${t(TREASURE_KIND_NAME[kindOf(e.t)])}! ${tm.count[me.index]}/${tm.need}`, "safe");
-            if (tm.count[me.index] >= tm.need) this.o.sound?.voice.say("tre_all");
+            const n = tm.foundOf(m, m.squads[me.index]);
+            hud.pushFeed(`${t("You took")} ${t(TREASURE_KIND_NAME[kindOf(e.t)])}! ${n}/${tm.need}`, "safe");
+            if (n >= tm.need) this.o.sound?.voice.say("tre_all");
           }
-        } else if (e.how === "give") {
-          if (c === me) hud.pushFeed(t("A squad mate handed you a treasure"), "safe");
-          else if (c && m.sameSquad(c, me)) hud.pushFeed(t("Treasure handed to your leader"), "safe");
+        } else if (e.how === "up") {
+          // v8 (A9): on the machine, under the uploader's name.
+          this.flashes.push({ x: e.x, y: e.h + 1, z: e.z, at: this.time, life: 1.2, r: 1.4 });
         }
       } else if (e.type === "upl") {
         const c = who(e.id);
@@ -805,11 +811,17 @@ export class TreasureView {
           this.o.sound?.uploadAlarm();
           this.o.sound?.voice.say(c === me ? "tre_upload" : m.sameSquad(c, me) ? "tre_upload" : "tre_enemy_upload");
           if (c === me) hud.pushFeed(t("Uploading: stay in the ring"), "safe");
-          else hud.pushFeed(`${m.sameSquad(c, me) ? t("Your leader") : c.name} ${t("is uploading the treasures")}${m.sameSquad(c, me) ? "" : `: ${t("stop them")}`}`, m.sameSquad(c, me) ? "safe" : "out");
+          else hud.pushFeed(`${m.sameSquad(c, me) ? t("Your teammate") : c.name} ${t("is uploading treasures")}${m.sameSquad(c, me) ? "" : `: ${t("stop them")}`}`, m.sameSquad(c, me) ? "safe" : "out");
         } else if (e.how === "stop") {
           if (c === me) hud.pushFeed(t("Upload stopped"), "out");
           else if (!m.sameSquad(c, me)) hud.pushFeed(t("Their upload was stopped"), "safe");
-        } else this.o.sound?.uploadBeep(1, true);
+        } else {
+          this.o.sound?.uploadBeep(1, true);
+          // v8 (A9): a batch is on the machine: the squad's count.
+          const up = tm.upOf(m, m.squads[c.index]);
+          if (c === me || m.sameSquad(c, me)) hud.pushFeed(`${t("Uploaded")}: ${up}/${tm.need}`, "safe");
+          else hud.pushFeed(`${c.name} ${t("uploaded")}: ${up}/${tm.need}`, "out");
+        }
       }
     }
     if (dropped) {
@@ -825,11 +837,12 @@ export class TreasureView {
     const me = m.contestants[this.o.me];
     if (!tm || me.status !== "alive" || m.phase !== "play") return null;
     if (tm.inRing(m, me)) {
-      const lead = tm.leaderOf(m, m.squads[me.index]);
+      // v8 (A9): anyone carrying enough uploads it (a squad's member: any; solo: a batch).
+      const need = tm.batchFor(m, me);
       const label =
         tm.uploader === me.index ? t("Uploading… stay in the ring") :
-        lead !== me.index && m.contestants.some((c) => m.squads[c.index] === m.squads[me.index] && c !== me) ? t("Only your leader can upload") :
-        tm.count[me.index] < tm.need ? `${t("Need all")} ${tm.need} ${t("treasures")} (${tm.count[me.index]}/${tm.need})` : t("Uploading…");
+        tm.uploader >= 0 ? t("Wait: an upload is running") :
+        tm.count[me.index] < need ? (tm.count[me.index] ? `${t("Carry")} ${need} ${t("to upload")} (${tm.count[me.index]}/${need})` : t("Nothing to upload")) : t("Uploading…");
       return { kind: "job", label, ico: "upload", progress: tm.uploader === me.index ? tm.uploaded / tm.uploadTime : 0, d: 0 };
     }
     const b = tm.boxFor(me);
@@ -842,17 +855,19 @@ export class TreasureView {
     const tm = this.tm(m);
     if (!tm) return "";
     const me = m.contestants[this.o.me];
-    const squad = (q: number) => m.contestants.reduce((a, c) => a + (m.squads[c.index] === q ? tm.count[c.index] : 0), 0);
+    // v8 (A9): a squad's count is found and kept (carried plus uploaded); uploaded shown when there are some.
+    const q0 = m.squads[me.index];
     let best = 0;
-    for (const q of new Set(m.squads)) if (q !== m.squads[me.index]) best = Math.max(best, squad(q));
-    const mine = squad(m.squads[me.index]);
+    for (const q of new Set(m.squads)) if (q !== q0) best = Math.max(best, tm.foundOf(m, q));
+    const mine = tm.foundOf(m, q0);
+    const up = tm.upOf(m, q0);
     if (tm.uploader === me.index) return t("Uploading: stay in the ring");
     if (tm.uploader >= 0 && tm.uploader !== me.index) {
       const c = m.contestants[tm.uploader];
-      return m.sameSquad(c, me) ? t("Protect your leader at the machine") : `${t("Stop the upload at the machine")}!`;
+      return m.sameSquad(c, me) ? t("Protect your teammate at the machine") : `${t("Stop the upload at the machine")}!`;
     }
-    if (mine >= tm.need) return t("All treasures found: get to the machine");
-    return `${t("Treasures")}: ${t("you")} ${mine}/${tm.need} · ${t("best rival")} ${best}`;
+    if (tm.count[me.index] > 0 && tm.canUpload(m, me)) return `${t("Get to the machine and upload")} (${tm.count[me.index]})`;
+    return `${t("Treasures")}: ${t("you")} ${mine}/${tm.need}${up ? ` (${up} ${t("up")})` : ""} · ${t("best rival")} ${best}`;
   }
 
   /** Every frame. Returns the compass's pin. */
@@ -968,6 +983,14 @@ export class TreasureView {
         }
       }
       if (tr.box !== -1) continue;
+      // v8 (A9): uploaded: circling slowly over the machine, out of play.
+      if (tr.up >= 0) {
+        const p = tm.machine;
+        if (!p) continue;
+        const a = this.time * 0.9 + (tr.index * Math.PI * 2) / tm.need;
+        gem(tr.index, p.x + Math.cos(a) * 0.7, p.h + 3.3, p.z + Math.sin(a) * 0.7, 0.6, a);
+        continue;
+      }
       if (tr.holder >= 0) {
         const c = m.contestants[tr.holder];
         const k = carriedBy.get(tr.holder) ?? 0;
@@ -1102,25 +1125,21 @@ export class TreasureView {
         pm.scale.set(r, 1, r);
         (pm.material as MeshBasicMaterial).opacity = 0.85 * (1 - u);
       }
-      // Carrying them all (or a squad's leader with them): the machine is where to go.
-      const lead = tm.leaderOf(m, m.squads[me.index]);
-      if (tm.count[me.index] >= tm.need || (up && tm.uploader !== me.index)) aim(p.x, p.z, "goal", -1000);
-      else if (lead !== me.index && tm.count[me.index] > 0) {
-        const l = m.contestants[lead];
-        if (l && l.status === "alive") aim(l.x, l.z, "goal", -500);
-      }
+      // v8 (A9): carrying enough to upload (or an upload running): the machine is where to go.
+      if ((tm.count[me.index] > 0 && tm.canUpload(m, me)) || (up && tm.uploader !== me.index)) aim(p.x, p.z, "goal", -1000);
       if (up && tm.uploader !== me.index) marks.push({ x: p.x, z: p.z, kind: "ping" });
       // v6 (the owner said yes to the suggestion): a rival one treasure short of all of them shows on everyone's
       // map and compass, so the end of a match always has a fight. Called out once in the feed.
       for (const c of m.contestants) {
-        if (c === me || c.status !== "alive" || m.sameSquad(c, me) || tm.count[c.index] < tm.need - 1) continue;
+        // v8 (A9): a rival squad one short of all four, and this one carrying.
+        if (c === me || c.status !== "alive" || m.sameSquad(c, me) || !tm.count[c.index] || tm.foundOf(m, m.squads[c.index]) < tm.need - 1) continue;
         // v6 max: camouflage hides even a carrier.
         if (m.module<GadgetsModule>("gadgets")?.camo(c.index)) continue;
         marks.push({ x: c.x, z: c.z, kind: "ping", label: c.name });
         aim(c.x, c.z, "hot", -200);
         if (!this.warned.has(c.index)) {
           this.warned.add(c.index);
-          this.o.hud?.pushFeed(`${c.name} ${t("holds")} ${tm.count[c.index]}/${tm.need} ${t("treasures: on your compass")}`, "out");
+          this.o.hud?.pushFeed(`${c.name} ${t("holds")} ${tm.foundOf(m, m.squads[c.index])}/${tm.need} ${t("treasures: on your compass")}`, "out");
           this.o.sound?.voice.say("tre_carrier");
         }
       }
@@ -1140,7 +1159,8 @@ export class TreasureView {
   private drawCarry(m: Match, tm: TreasureModule): void {
     const me = m.contestants[this.o.me];
     let sig = m.phase === "play" ? "p" : "";
-    if (sig) for (const tr of tm.treasures) sig += tr.holder === me.index ? "2" : tr.holder >= 0 && m.sameSquad(m.contestants[tr.holder], me) ? "1" : "0";
+    // v8 (A9): "3", uploaded by your squad.
+    if (sig) for (const tr of tm.treasures) sig += tr.up >= 0 && (tr.up === me.index || m.sameSquad(m.contestants[tr.up], me)) ? "3" : tr.holder === me.index ? "2" : tr.holder >= 0 && m.sameSquad(m.contestants[tr.holder], me) ? "1" : "0";
     // v7 (H4): what the load costs you.
     const share = tm.speedShare(me.index);
     const laden = tm.laden(me.index);
@@ -1155,7 +1175,7 @@ export class TreasureView {
     tm.treasures.forEach((tr, j) => {
       const st = sig[j + 1];
       const k = kindOf(tr.index);
-      html += `<i class="tk-slot${st === "2" ? " mine" : st === "1" ? " mate" : ""}" role="img" aria-label="${t(TREASURE_KIND_NAME[k])}${st === "2" ? `: ${t("you carry it")}` : st === "1" ? `: ${t("your squad carries it")}` : ""}">${kindIcon(k)}</i>`;
+      html += `<i class="tk-slot${st === "3" ? " up" : st === "2" ? " mine" : st === "1" ? " mate" : ""}" role="img" aria-label="${t(TREASURE_KIND_NAME[k])}${st === "3" ? `: ${t("uploaded")}` : st === "2" ? `: ${t("you carry it")}` : st === "1" ? `: ${t("your squad carries it")}` : ""}">${kindIcon(k)}</i>`;
     });
     if (share < 1) {
       const cost = `−${Math.round((1 - share) * 100)}%`;
@@ -1177,8 +1197,8 @@ export class TreasureView {
     if (sig !== this.panelSig) {
       this.panelSig = sig;
       this.panel.className = `tr-upload${c ? ` on ${sig}` : ""}`;
-      this.panelTitle.textContent = mine ? t("Uploading treasures") : mate ? t("Your leader is uploading") : c ? `${c.name} ${t("is uploading")}` : "";
-      this.panelNote.textContent = mine ? t("Stay in the ring. If you die, you lose them all.") : mate ? t("Protect them") : t("Stop them before it finishes");
+      this.panelTitle.textContent = mine ? t("Uploading treasures") : mate ? t("Your teammate is uploading") : c ? `${c.name} ${t("is uploading")}` : "";
+      this.panelNote.textContent = mine ? t("Stay in the ring. If you die, you drop what you carry.") : mate ? t("Protect them") : t("Stop them before it finishes");
     }
     if (c) {
       this.panelFill.style.transform = `scaleX(${prog.toFixed(3)})`;
@@ -1205,7 +1225,7 @@ export class TreasureView {
   /** Does body i carry them all (marked over the head from far, like a flag's holder)? */
   carriesAll(m: Match, i: number): boolean {
     const tm = this.tm(m);
-    return !!tm && tm.count[i] >= tm.need;
+    return !!tm && tm.count[i] > 0 && tm.foundOf(m, m.squads[i]) >= tm.need;
   }
 
   dispose(): void {

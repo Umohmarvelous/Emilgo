@@ -32,13 +32,13 @@ import type { Sound } from "./sound";
 export type LineId =
   | "start_treasure" | "start_flag" | "start_hold" | "start_deliver" | "start_rally" | "start_royale" | "start_generic"
   | "zone_closing" | "zone_outside" | "zone_final" | "time_two" | "time_thirty"
-  | "tre_found" | "tre_all" | "tre_upload" | "tre_enemy_upload" | "tre_lost"
+  | "tre_found" | "tre_all" | "tre_upload" | "tre_enemy_upload" | "tre_lost" | "tre_mate"
   | "flag_taken" | "flag_enemy" | "airdrop" | "print" | "serum"
   | "you_down" | "enemy_down" | "mate_down" | "tre_carrier" | "victory" | "defeat";
 
 /** What each line says (the recorded clip says the same). */
 export const LINES: Record<LineId, string> = {
-  start_treasure: "Find the five treasures, and upload them at the machine.",
+  start_treasure: "Find the four treasures, and upload them at the machine.",
   start_flag: "Capture the flag and hold position. Do not reveal your location.",
   start_hold: "Take the flag and hold it. Every second counts.",
   start_deliver: "Grab the flags, and deliver them to the drop zones.",
@@ -51,10 +51,11 @@ export const LINES: Record<LineId, string> = {
   time_two: "Two minutes remaining.",
   time_thirty: "Thirty seconds.",
   tre_found: "Treasure found.",
-  tre_all: "You have all five treasures. Get to the machine.",
+  tre_all: "All four treasures found. Get to the machine.",
   tre_upload: "Upload started. Hold the ring.",
   tre_enemy_upload: "Enemy uploading. Stop them.",
   tre_lost: "You lost your treasures.",
+  tre_mate: "Your teammate found a treasure.",
   flag_taken: "You have the flag.",
   flag_enemy: "The enemy has the flag.",
   airdrop: "Supply drop incoming.",
@@ -69,7 +70,7 @@ export const LINES: Record<LineId, string> = {
 };
 
 /** Seconds before the same line may be said again. */
-const COOLDOWN: Partial<Record<LineId, number>> = { zone_outside: 25, tre_found: 4, airdrop: 20, flag_enemy: 15, tre_enemy_upload: 10, enemy_down: 2.2, mate_down: 3, tre_carrier: 20 };
+const COOLDOWN: Partial<Record<LineId, number>> = { zone_outside: 25, tre_found: 4, tre_mate: 4, airdrop: 20, flag_enemy: 15, tre_enemy_upload: 10, enemy_down: 2.2, mate_down: 3, tre_carrier: 20 };
 /** A line still waiting after this long isn't worth saying. */
 const STALE_MS = 3500;
 /** The clips' fetch waits this long after the lobby shows (the lobby's own downloads first). */
