@@ -58,10 +58,13 @@ export const POWER_RGB = {
 export const RISE_SECONDS = 1.5;
 
 const RANGE = 70;
+/** v8 (A17): the nearest after-image's strength (additive: it glows). */
+const GHOST_A = 0.42;
 const MAX_BODIES = 10;
 const MAX_SHOCKS = 6;
-const GHOSTS = 3;
-const MAX_GHOST_BODIES = 3;
+/** Speed's after-images: copies per body (3 frames apart), and bodies at once. v8 (A17): Low too, fewer. */
+const GHOSTS = [2, 3, 3] as const;
+const MAX_GHOST_BODIES = [2, 3, 3] as const;
 
 const FLAME_VERT = /* glsl */ `
 attribute vec4 aAt;    // x, y, z, size
@@ -240,6 +243,8 @@ export class PowerView {
   private readonly fx: BodyFx[] = [];
   private readonly ghosts: { mesh: SkinnedMesh[]; who: number }[] = [];
   private readonly ghostMat: MeshBasicMaterial[] = [];
+  private readonly ghostN: number;
+  private readonly ghostMax: number;
   private time = 0;
   /** Called when a shockwave goes off (the mode's sound and flash): who, and which booster. */
   onShock: (who: number, kind: number) => void = () => {};
@@ -291,11 +296,12 @@ export class PowerView {
     this.shocks.renderOrder = 6;
     this.group.add(this.shocks);
 
-    // After-images: a faint blue copy of the body per step back.
-    if (tier > 0) {
-      for (let k = 0; k < GHOSTS; k++) {
-        this.ghostMat.push(new MeshBasicMaterial({ color: 0x3fa8ff, transparent: true, opacity: 0.32 * (1 - k / GHOSTS), blending: AdditiveBlending, depthWrite: false }));
-      }
+    // After-images: a glowing blue copy of the body per step back. v8 (A17, "speed ghosting back"): they were
+    // Medium and up only, so most phones (Low) never showed them; now every tier, Low with two copies on two bodies.
+    this.ghostN = GHOSTS[tier];
+    this.ghostMax = MAX_GHOST_BODIES[tier];
+    for (let k = 0; k < this.ghostN; k++) {
+      this.ghostMat.push(new MeshBasicMaterial({ color: 0x5cc4ff, transparent: true, opacity: GHOST_A * (1 - k / this.ghostN), blending: AdditiveBlending, depthWrite: false }));
     }
   }
 
@@ -405,7 +411,7 @@ export class PowerView {
         ns++;
       }
       // Speed's after-images, while it runs.
-      if (f.kind === 2 && this.ghostMat.length && ghostBodies < MAX_GHOST_BODIES) {
+      if (f.kind === 2 && this.ghostMat.length && ghostBodies < this.ghostMax) {
         const sp = Math.hypot(c.vx, c.vz);
         this.trail(f, c.x, c.h + c.y, c.z);
         if (sp > 3.5 && f.trailN >= 12) this.ghostsFor(ghostBodies++, i, f, c.heading, f.a * Math.min(1, (sp - 3.5) / 3));
@@ -433,7 +439,7 @@ export class PowerView {
     f.trailN = Math.min(12, f.trailN + 1);
   }
 
-  /** Three faint copies of body i, 3, 6 and 9 frames back, in the body's pose now. */
+  /** Glowing copies of body i, 3, 6 (and 9) frames back, in the body's pose now. */
   private ghostsFor(slot: number, i: number, f: BodyFx, heading: number, a: number): void {
     const h = this.crowd.human(i);
     if (!h) return;
@@ -459,7 +465,7 @@ export class PowerView {
       gm.position.set(t[back * 3], t[back * 3 + 1], t[back * 3 + 2]);
       gm.quaternion.setFromAxisAngle(UP, heading);
       gm.scale.copy(h.mesh.scale);
-      (gm.material as MeshBasicMaterial).opacity = 0.32 * (1 - k / GHOSTS) * a;
+      (gm.material as MeshBasicMaterial).opacity = GHOST_A * (1 - k / this.ghostN) * a;
       gm.visible = a > 0.02;
     });
   }
