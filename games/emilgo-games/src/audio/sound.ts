@@ -809,7 +809,9 @@ export class Sound {
    * loaded.
    */
   jump(): void {
-    if (this.sample("voice-jump", 0.5, 1)) return;
+    // v8 (A13, "a new, weightier jump sound"): still one take, nothing layered: the deepest of the three (attack3),
+    // played lower and fuller, so the push off the ground has weight.
+    if (this.sample("voice-jump2", 0.62, 0.86)) return;
     const t = this.now;
     this.tone(310, t, 0.15, { type: "sawtooth", gain: 0.022, to: 235, attack: 0.012 });
     this.tone(620, t, 0.11, { type: "sine", gain: 0.02, to: 470, attack: 0.012 });

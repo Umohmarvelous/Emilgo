@@ -244,9 +244,11 @@ export const MOVE = {
    * 27 m/s², 0.58 s in the air (it was 1.2 m under 20 m/s², 0.69 s): snappier, still over anything waist-high.
    * v6 max (10 Nov, "jump a little higher"): 1.45 m under 31 m/s², 0.61 s in the air. What a jump can land
    * on stays 1.6 m (space.ts AIR_STEP), so a 1.8 m fence still stops you.
+   * v8 (A13, "jump significantly higher"): 2.0 m under 36 m/s², 0.67 s in the air. Landing is still capped by
+   * AIR_STEP (1.6 m), so the same fences stop you.
    */
-  gravity: 31,
-  jumpHeight: 1.45,
+  gravity: 36,
+  jumpHeight: 2.0,
   /**
    * v6, the tactical sprint (the owner: "create and build the sprint moves like cod-style"): a sprint begun with
    * at least `tacFrom` stamina opens with `tacFor` s at `tac` m/s, then runs on at `sprint`. Free For All only
