@@ -91,6 +91,8 @@ export interface ModeResult {
   kills?: number;
   /** v7 (H10): bounties you claimed. */
   bounties?: number;
+  /** v8 (A1): the end screen's grid: damage dealt, seconds survived, armour reached (plates, 0–4), and who put you down. */
+  stats?: { damage: number; survived: number; armour: number; killer?: { who: string; how: string; m: number; heads: number } };
   /** Where you went (§10.22): x, z every second, and 1 where you had the objective in hand. */
   trail?: [number, number, number][];
   /** A Dead Streets run: what it did, and where it went (t, x, z, the floor's height, a second apart) for the server's check. */

@@ -186,6 +186,8 @@ export class FfaMode implements GameMode {
   private kills = 0;
   /** v7 (H10): bounties claimed. */
   private bounties = 0;
+  /** v8 (A1): the end screen's stats: damage you dealt rivals, your peak armour, when you first went down, who did it. */
+  private readonly stat = { damage: 0, armour: 0, downAt: -1, killer: null as { who: string; how: string; m: number; heads: number } | null, headsTaken: 0 };
   /** v6 max (3.10): what you did this match, for the awards (rank/awards.ts MatchFeats). */
   private readonly feats = { heads: 0, deaths: 0, deadAt: -9, treasures: 0, uploads: 0, crates: 0, items: 0, boosters: [] as string[], downs: 0, helps: 0, swum: 0 };
   /** Dead Streets' screen side (a run only). */
@@ -723,6 +725,25 @@ export class FfaMode implements GameMode {
     }
   }
 
+  /** v8 (A1): the end screen's numbers: damage dealt to rivals, head shots taken, and the shot that put you down. */
+  private endStats(e: MatchEvent, m: Match, me: Contestant): void {
+    const st = this.stat;
+    if (e.type === "dmg") {
+      if (e.by === me.id && e.tg !== me.id) {
+        const tg = m.get(e.tg);
+        if (tg && !m.sameSquad(tg, me)) st.damage += e.amt;
+      }
+      if (e.tg === me.id && e.head && e.by && e.by !== me.id) st.headsTaken++;
+    } else if (e.type === "kill" && e.tg === me.id && st.downAt < 0 && m.phase === "play") {
+      st.downAt = m.elapsed;
+      const by = e.by && e.by !== me.id ? m.get(e.by) : null;
+      if (by && e.how !== "zone") {
+        const how = e.how === "blast" ? "Blast" : e.how === "melee" ? "Melee" : GUN_NAMES[e.how] ?? "Shot";
+        st.killer = { who: by.name || t("A rival"), how, m: Math.round(Math.hypot(by.x - me.x, by.z - me.z)), heads: st.headsTaken };
+      } else if (e.how === "zone") st.killer = { who: "", how: "Zone", m: 0, heads: 0 };
+    }
+  }
+
   private onEvent(e: MatchEvent): void {
     const h = this.host;
     const m = this.src.match;
@@ -735,6 +756,7 @@ export class FfaMode implements GameMode {
       }
     }
     if (e.type === "bclaim" && e.id === me.id) this.bounties++;
+    this.endStats(e, m, me);
     this.tally(e, m, me);
     if (e.type === "kill" && e.tg === me.id && e.by && e.by !== me.id && e.how !== "zone" && m.phase === "play") this.killedBy(m, me, e);
     switch (e.type) {
@@ -1347,6 +1369,7 @@ export class FfaMode implements GameMode {
       if (g) {
         health = g.hp[me.index] / GUNS.hp;
         armour = g.armour[me.index];
+        if (armour > this.stat.armour) this.stat.armour = armour;
         tag = `${t("Armour")} ${Math.round(armour)}`;
       }
     }
@@ -1652,6 +1675,12 @@ export class FfaMode implements GameMode {
       measure: measureName(m),
       kills: this.kills,
       ...(this.bounties ? { bounties: this.bounties } : {}),
+      stats: {
+        damage: Math.round(this.stat.damage),
+        survived: this.stat.downAt >= 0 ? this.stat.downAt : m.elapsed,
+        armour: Math.min(4, Math.ceil(this.stat.armour / 25 - 0.01)),
+        ...(this.stat.killer ? { killer: this.stat.killer } : {}),
+      },
       feats: {
         mode: this.src.def.id,
         online: !!this.online,

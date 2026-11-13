@@ -26,7 +26,7 @@ import { PRODUCTS, PRODUCT_BY_ID } from "../shop/catalog";
 import type { FriendState } from "../social/friends";
 import { EMOTES, EMOTE_BY_ID, type EmoteId } from "../social/emotes";
 import { HOODIE_COLORS, HOODIE_DESIGNS, type HoodieDesign, type Look } from "../world/human/wardrobe";
-import { awardsBody, badgeEmblem, unlockedHtml } from "./awards";
+import { awardTitle, awardsBody, badgeEmblem, emblem } from "./awards";
 import { FIGURINES, type FigurineDef } from "../shop/figurines";
 import { boardBody, cardBody, inboxBody, profileBody, threadBody, type ProfileView } from "./profile";
 import { esc, fmtTime, ordinal } from "./dom";
@@ -114,6 +114,8 @@ export interface FfaResultView {
   /** The rewards, line by line (online: the XP each earned), and your kills. */
   rewards?: { label: string; xp: number; note?: string }[];
   kills?: number;
+  /** v8 (A1): the end screen's grid and the killer (modes/types.ts ModeResult stats). */
+  stats?: { damage: number; survived: number; armour: number; killer?: { who: string; how: string; m: number; heads: number } };
   /** v6: the CP this match paid, line by line (shop/boosts cpForMatch). */
   cp?: number;
   /** v6: today's chest, while unopened today (game/chest.ts), and whether it was opened on this screen. v7: the day streak. */
@@ -186,6 +188,38 @@ function rewardsHtml(r: FfaResultView): string {
   return `<div class="pm-rewards" data-rewards>${rows
     .map((x, i) => `<div class="rw" style="--i:${i}"><span>${esc(t(x.label))}${x.note ? ` <small>${esc(x.note)}</small>` : ""}</span><b class="num" data-count="${Math.round(x.xp)}">${x.xp < 0 ? "−" : "+"}0</b></div>`)
     .join("")}</div>`;
+}
+
+const ROMAN = ["I", "II", "III", "IV", "V"];
+
+/**
+ * v8 (A1): concept A's XP block: XP +N (it rolls), where the rank stands ("LEGENDARY II → III" on the way up), the bar,
+ * and a rank up's badge (hidden until the roll ends, then it pops). Practice: no XP.
+ */
+function xpHtml(r: FfaResultView): string {
+  if (!r.online) return `<div class="lbl"><span>${esc(t("Practice: no XP. Play online to rank up.")).toUpperCase()}</span></div>`;
+  const k = r.rank;
+  const next = k.top ? "" : ` → ${ROMAN[k.division] ?? ""}`;
+  const head = `<div class="lbl"><span>XP <b data-xpn>${r.xp === null ? "…" : "+0"}</b>${r.xpNote ? ` <small>${esc(r.xpNote)}</small>` : ""}</span><span>${esc(k.name.toUpperCase())}${r.rankUp ? "" : next}</span></div>`;
+  const pct = k.top ? 1 : k.into / Math.max(1, k.need);
+  const bar = `<div class="track"><i style="transform:scaleX(${r.xp === null ? pct : 0})"></i></div>`;
+  const up = r.rankUp
+    ? `<div class="ek-rank up"><div class="badge">${ROMAN[k.division - 1] ?? ""}</div><div><b>${esc(t("Rank up")).toUpperCase()} · ${esc(k.name.toUpperCase())}</b><small>${esc(t("A new rank on the ladder")).toUpperCase()}</small></div></div>`
+    : "";
+  return head + bar + up;
+}
+
+/** v8 (A1): the awards this match reached, as loot cards by rarity (Rare, Epic, Legendary, Mythic by step). */
+const RARITY: [string, string][] = [["#3a9bff", "Rare"], ["#b65cff", "Epic"], ["#ffb020", "Legendary"], ["#ff3b30", "Mythic"]];
+function lootHtml(list: readonly Unlock[]): string {
+  const cards = list
+    .slice(0, 4)
+    .map((u, i) => {
+      const [c, name] = RARITY[Math.max(0, Math.min(3, u.tier - 1))];
+      return `<div class="ek-card${u.tier >= 3 ? " gold" : ""}" style="--c:${c};animation-delay:${2.9 + i * 0.35}s">${emblem(u.id, u.tier, 30)}<b>${esc(awardTitle(u.id, u.tier).toUpperCase())}</b><small>${esc(t(name)).toUpperCase()} · +${u.cp} CP</small></div>`;
+    })
+    .join("");
+  return `<div class="ek-loot">${cards}${list.length > 4 ? `<span class="small">+${list.length - 4} ${esc(t("more in Awards"))}</span>` : ""}</div>`;
 }
 
 /** Stake chips (whole naira of the world's game money) and their street names. */
@@ -1079,17 +1113,24 @@ export class Screens {
     }
   }
 
-  /** A Free For All match's results: your place, everyone's, the XP. */
+  /**
+   * A Free For All match's results. v8 (A1): concept A, Field Kit: MISSION COMPLETE or KIA slams in over the
+   * winner's circle; the place line; the XP bar rolls (a tick per 50); the rank-up badge pops with a chime; the stats
+   * grid; award cards flip in by rarity (a gold glint on Legendary). The daily chest, the streak, CP, and the match
+   * report (the table and its commends, the play of the game, the heat map, the rewards line by line) are all kept.
+   */
   ffaResults(r: FfaResultView, plates: { name: string; line: string; me: boolean }[], returnIn: number): void {
-    const head = r.won ? "Victory" : r.place > 0 ? `${ordinal(r.place)} of ${r.sides}` : "Match over";
-    const primary =
+    const U = (s: string) => esc(t(s)).toUpperCase();
+    const again =
       r.online === "match"
-        ? `<button class="btn primary" data-act="vmenu" autofocus>${icon("trophy", "", 16)}Another match</button>`
+        ? `<button class="ek-btn" data-act="vmenu" autofocus>${U("Another match")}</button>`
         : r.online === "private"
-          ? `<button class="btn primary" data-act="room" autofocus>${icon("back", "", 16)}Back to the room</button>`
-          : r.online === "quick"
-            ? `<button class="btn primary" data-act="ffa-again" autofocus>${icon("bolt", "", 16)}Play again</button>`
-            : `<button class="btn primary" data-act="ffa-again" autofocus>${icon("refresh", "", 16)}Practice again</button>`;
+          ? `<button class="ek-btn" data-act="room" autofocus>${U("Back to the room")}</button>`
+          : `<button class="ek-btn" data-act="ffa-again" autofocus>${U("Play again")}</button>`;
+    const lobbyBtn = `<button class="ek-btn" data-act="menu">${U(r.won ? "Continue" : r.online ? "Leave" : "Lobby")}</button>`;
+    const acts = r.won
+      ? `${lobbyBtn}${again}`
+      : `<button class="ek-btn dim" data-ek="spec">${U("Spectate")}</button>${lobbyBtn}${again}`;
     // The top five, and you (wherever you came).
     const mine = r.rows.findIndex((x) => x.me);
     const shown = r.rows.filter((_, i) => i < 5 || i === mine);
@@ -1100,54 +1141,131 @@ export class Screens {
         return `<tr class="${x.me ? "me" : ""}"><td class="num">${x.place}</td><td>${esc(x.name)}${x.me && x.name !== "You" ? " · You" : ""} ${commend}</td><td class="num">${r.measure ? (Number.isInteger(x.objective) ? x.objective : x.objective.toFixed(1)) : ""}</td></tr>`;
       })
       .join("");
-    // v4: the cinematic first (letterbox, the word, the line), then the card under it. A tap skips it.
-    const mineRow = r.rows.find((x) => x.me);
-    const line = r.runLine ?? [r.place > 0 && (r.won || r.place > 1) ? `${ordinal(r.place)} ${t("of")} ${r.sides}` : t("Time up"), r.measure && mineRow && mineRow.objective > 0 ? `${Number.isInteger(mineRow.objective) ? mineRow.objective : mineRow.objective.toFixed(1)} ${t(r.measure)}` : ""].filter(Boolean).join(" · ");
-    const cine = `<div class="cine ${r.won ? "win" : "lose"}" data-cine><i class="lb t"></i><i class="lb b"></i><div class="ct"><span class="k">${esc(t(r.mode)).toUpperCase()}</span><b>${esc(t(r.won ? "Victory" : "Defeat")).toUpperCase()}</b><span class="p">${esc(line)}</span></div></div>`;
+    // The place line: "1ST OF 12 · TREASURE HUNT"; on a defeat, what put you down ("5TH OF 12 · SHOTGUN · 12 m").
+    const k = r.stats?.killer;
+    const place = r.place > 0 ? `${ordinal(r.place)} ${t("of")} ${r.sides}` : t("Match over");
+    const sub = r.runLine
+      ? r.runLine
+      : r.won
+        ? `${place} · ${t(r.mode)}`
+        : [place, k ? (k.how === "Zone" ? t("The zone") : t(k.how)) : t(r.mode), k && k.m ? `${k.m} m` : ""].filter(Boolean).join(" · ");
+    // The rank line under the bar: a rank up's badge and chime, or who killed you.
+    const killed = !r.won && k && k.who ? `<div class="ek-rank killed"><div><b>${U("Killed by")} ${esc(k.who.toUpperCase())}</b><small>${[U(k.how), k.m ? `${k.m} m` : "", k.heads ? `${k.heads} ${U(k.heads > 1 ? "Head shots" : "Head shot")}` : ""].filter(Boolean).join(" · ")}</small></div></div>` : "";
+    const st = r.stats;
+    const grid = `<div class="ek-stats">
+        <div><b class="num">${r.kills ?? 0}</b><small>${U("Kills")}</small></div>
+        <div><b class="num">${(st?.damage ?? 0).toLocaleString("en-US")}</b><small>${U("Damage")}</small></div>
+        <div><b class="num">${fmtTime(st?.survived ?? r.seconds)}</b><small>${U("Survived")}</small></div>
+        <div><b class="num">T${st?.armour ?? 0}</b><small>${U("Armour reached")}</small></div>
+      </div>`;
+    const report = `<div class="ek-report" data-ek-report aria-hidden="true">
+        <div class="ek-rhead"><b>${U("Match report")}</b><button class="mini" data-ek="report" aria-label="${esc(t("Close"))}">${icon("close", "", 14)}</button></div>
+        <table class="ffa-table"><thead><tr><th>#</th><th>Player</th><th>${esc(r.measure)}</th></tr></thead><tbody>${rows}</tbody></table>
+        ${r.runLine ? `<div class="pm-play"><span class="label">${t("Your run")}</span><span class="small">${esc(r.runLine)}</span><span class="small" data-run-note>${esc(r.runNote ?? "")}</span></div>` : ""}
+        ${r.board?.length ? `<div class="pm-play" data-board><span class="label">${t("Best times")}</span><span class="small">${r.board.map((b, i) => `${i + 1}. <b class="num">${fmtTime(b.secs)}</b>${b.you ? ` · ${t("You")}` : ""}`).join("<br>")}</span></div>` : ""}
+        ${r.play ? `<div class="pm-play"><span class="label">${t("Play of the game")}</span><span class="small">${esc(r.play)}</span></div>` : ""}
+        ${r.runMap ? `<div class="pm-heat"><span class="label">${t("Your run")}</span><canvas width="140" height="140" data-runmap></canvas></div>` : ""}
+        ${r.trail && r.trail.length > 4 && !r.runMap ? `<div class="pm-heat"><span class="label">${t("Where you went")}</span><canvas width="120" height="120" data-heat></canvas></div>` : ""}
+        ${rewardsHtml(r)}
+        ${r.runMap ? `<button class="btn secondary" data-act="photo">${icon("fpv", "", 16)}Photo</button>` : ""}
+      </div>`;
     this.mount(
       "results",
-      `${cine}<div class="pm-head"><span class="h">${esc(r.mode)}</span><span class="sub ${r.won ? "win" : "lose"}">${head}</span></div>
+      `<div class="ek ${r.won ? "win" : "lose"}" data-ek>
+       <div class="ek-shade"></div>
        <div class="pm-return glass" data-return>${returnIn > 0 ? `Returning to lobby in <span class="num">${returnIn}</span>` : ""}</div>
        ${r.chest ? chestHtml(r.chest) : ""}
        ${r.streak ? streakHtml(r.streak) : ""}
        <div class="pm-plates">${plates
-         .map((p, i) => `<div class="plate glass" data-plate="${i}" style="left:-999px"><span class="pl">${i + 1}</span><span class="pn"><b>${esc(p.name)}${p.me ? " · You" : ""}</b><small class="num">${esc(p.line)}</small></span></div>`)
+         .map((p, i) => `<div class="plate glass" data-plate="${i}" style="left:-999px"><span class="pl">${i + 1}</span><span class="pn"><b>${esc(p.name)}${p.me && p.name !== "You" ? " · You" : ""}</b><small class="num">${esc(p.line)}</small></span></div>`)
          .join("")}</div>
-       <div class="pm-card glass">
-         <table class="ffa-table"><thead><tr><th>#</th><th>Player</th><th>${esc(r.measure)}</th></tr></thead><tbody>${rows}</tbody></table>
-         ${r.runLine ? `<div class="pm-play"><span class="label">${t("Your run")}</span><span class="small">${esc(r.runLine)}</span><span class="small" data-run-note>${esc(r.runNote ?? "")}</span></div>` : ""}
-         ${r.board?.length ? `<div class="pm-play" data-board><span class="label">${t("Best times")}</span><span class="small">${r.board.map((b, i) => `${i + 1}. <b class="num">${fmtTime(b.secs)}</b>${b.you ? ` · ${t("You")}` : ""}`).join("<br>")}</span></div>` : ""}
-         ${r.play ? `<div class="pm-play"><span class="label">${t("Play of the game")}</span><span class="small">${esc(r.play)}</span></div>` : ""}
-         ${r.runMap ? `<div class="pm-heat"><span class="label">${t("Your run")}</span><canvas width="140" height="140" data-runmap></canvas></div>` : ""}
-         ${r.trail && r.trail.length > 4 && !r.runMap ? `<div class="pm-heat"><span class="label">${t("Where you went")}</span><canvas width="120" height="120" data-heat></canvas></div>` : ""}
-         ${rewardsHtml(r)}
-         <div class="pm-xp" data-rank-line>${r.online ? rankLine(r) : `<span class="small">Practice: no XP. Play online to rank up.</span>`}</div>
+       <div class="ek-left">
+         <div class="ek-title"><h1>${U(r.won ? "Mission complete" : "KIA")}</h1><p>${esc(sub).toUpperCase()}</p></div>
+         <div class="ek-xp" data-rank-line>${xpHtml(r)}</div>
+         ${killed}
+         ${r.awards?.length ? lootHtml(r.awards) : ""}
          ${r.cp ? `<div class="pm-cp"><b>+${r.cp} CP</b><small>${esc((r.cpParts ?? []).map((p) => `${t(p.label)} +${p.cp}`).join(" · "))}</small></div>` : ""}
-         ${r.awards?.length ? unlockedHtml(r.awards) : ""}
          ${r.online === "match" ? `<div class="status" data-match-outcome>${esc(r.matchNote ?? "Sending the result to Lagos Life…")}</div>` : ""}
          ${r.completed?.length ? `<div class="status ok">${icon("check", "", 14)} Daily done: ${r.completed.map((c) => esc(t(c))).join(", ")}</div>` : ""}
-         <div class="pm-actions">
-           ${primary}
-           ${r.runMap ? `<button class="btn secondary" data-act="photo">${icon("fpv", "", 16)}Photo</button>` : ""}
-           <button class="btn secondary" data-act="menu">${icon("home", "", 16)}${r.online ? "Leave" : "Lobby"}</button>
-         </div>
+       </div>
+       ${grid}
+       <div class="ek-acts"><button class="ek-btn dim ek-rep" data-ek="report">${icon("trophy", "", 14)}${U("Report")}</button>${acts}</div>
+       ${report}
+       <button class="ek-back ek-btn" data-ek="spec">${U("Back")}</button>
        </div>`,
     );
-    const cineEl = this.root.querySelector<HTMLElement>("[data-cine]");
-    if (cineEl) {
-      this.root.firstElementChild?.classList.add("cined");
-      const done = () => {
-        cineEl.classList.add("gone");
-        this.root.firstElementChild?.classList.remove("cined");
-      };
-      cineEl.addEventListener("pointerdown", done, { once: true });
-      setTimeout(done, matchMedia("(prefers-reduced-motion: reduce)").matches ? 900 : 2900);
-    }
+    const ek = this.root.querySelector<HTMLElement>("[data-ek]")!;
+    ek.addEventListener("click", (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLElement>("[data-ek]");
+      if (!b || b === ek) return;
+      if (b.dataset.ek === "spec") ek.classList.toggle("spec");
+      else if (b.dataset.ek === "report") {
+        const open = ek.classList.toggle("rep");
+        ek.querySelector("[data-ek-report]")?.setAttribute("aria-hidden", open ? "false" : "true");
+      }
+      this.cue?.("ui");
+    });
+    this.rollXp(r);
+    this.flipLoot(r.awards ?? []);
     this.countRewards();
     const heat = this.root.querySelector<HTMLCanvasElement>("canvas[data-heat]");
     if (heat && r.trail) this.drawHeat(heat, r.trail);
     const rm = this.root.querySelector<HTMLCanvasElement>("canvas[data-runmap]");
     if (rm && r.runMap) this.drawRunMap(rm, r.runMap);
+  }
+
+  /** v8 (A1): the end screen's sounds (the session plays them): the XP's tick, the rank-up chime, a card's flip. */
+  cue: ((k: "tick" | "rankup" | "flip" | "glint" | "ui") => void) | null = null;
+  private xpRaf = 0;
+
+  /** v8 (A1): the XP rolls up from what the match started at (a tick per 50), then a rank up's badge pops with its chime. */
+  private rollXp(r: FfaResultView): void {
+    cancelAnimationFrame(this.xpRaf);
+    const box = this.root.querySelector<HTMLElement>("[data-rank-line]");
+    const n = box?.querySelector<HTMLElement>("[data-xpn]");
+    const bar = box?.querySelector<HTMLElement>(".track i");
+    if (!box || !n || !bar || r.xp === null || !r.online) return;
+    const xp = Math.max(0, r.xp);
+    const k = r.rank;
+    const to = k.top ? 1 : k.into / Math.max(1, k.need);
+    const from = r.rankUp ? 0 : Math.max(0, (k.into - xp) / Math.max(1, k.need));
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const t0 = performance.now() + (still ? 0 : 600);
+    const dur = still ? 1 : 2200;
+    let ticks = 0;
+    let popped = false;
+    const step = () => {
+      if (!n.isConnected) return;
+      const u = Math.max(0, Math.min(1, (performance.now() - t0) / dur));
+      const e = 1 - (1 - u) ** 3;
+      const v = Math.round(xp * e);
+      n.textContent = `+${v.toLocaleString("en-US")}`;
+      bar.style.transform = `scaleX(${from + (to - from) * e})`;
+      const tk = Math.floor(v / 50);
+      if (tk > ticks && !still) {
+        ticks = tk;
+        this.cue?.("tick");
+      }
+      if (u >= 1 && !popped) {
+        popped = true;
+        const rk = box.querySelector<HTMLElement>(".ek-rank");
+        if (rk) {
+          rk.classList.add("on");
+          this.cue?.("rankup");
+        }
+      }
+      if (u < 1) this.xpRaf = requestAnimationFrame(step);
+    };
+    this.xpRaf = requestAnimationFrame(step);
+  }
+
+  /** v8 (A1): the award cards flip in one by one, each with its whoosh; Legendary and up glint in gold. */
+  private flipLoot(list: readonly Unlock[]): void {
+    if (!list.length || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    list.slice(0, 4).forEach((u, i) => setTimeout(() => {
+      if (this.current !== "results") return;
+      this.cue?.(u.tier >= 3 ? "glint" : "flip");
+    }, 2900 + i * 350));
   }
 
   /** v6: the daily chest opens (its CP is already paid): it shakes, the lid flies up, the CP rises out. */
@@ -1252,8 +1370,9 @@ export class Screens {
   updateFfaRank(r: FfaResultView): void {
     const el = this.root.querySelector<HTMLElement>("[data-rank-line]");
     if (!el || !r.online) return;
-    el.innerHTML = rankLine(r);
+    el.innerHTML = xpHtml(r);
     translateTree(el);
+    this.rollXp(r);
   }
 
   maps(selected: string, cat: MapCategory): void {

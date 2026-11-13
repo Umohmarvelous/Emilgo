@@ -1539,6 +1539,30 @@ export class Sound {
     const t = this.now;
     this.tone(880, t, 0.05, { type: "sine", gain: 0.08 });
   }
+
+  /** v8 (A1): the end screen's XP roll, one dry tick per 50 XP. */
+  xpTick(): void {
+    if (this.busy(VOICE_CAP - 8)) return;
+    const t = this.now;
+    this.noise(t, 0.01, { gain: 0.05, freq: 4200, type: "highpass" });
+    this.tone(1480, t, 0.035, { type: "square", gain: 0.018, attack: 0.002 });
+  }
+
+  /** v8 (A1): a rank up: a rising bright chime over a soft low hit. */
+  rankChime(): void {
+    const t = this.now;
+    this.tone(90, t, 0.4, { type: "sine", gain: 0.22, to: 60 });
+    for (const [k, f] of [hz(76), hz(79), hz(83), hz(88)].entries()) this.tone(f, t + k * 0.07, 0.7 - k * 0.1, { type: "triangle", gain: 0.12, attack: 0.004 });
+    for (let k = 0; k < 5; k++) this.tone(2600 + k * 260, t + 0.3 + k * 0.04, 0.06, { type: "sine", gain: 0.03 });
+  }
+
+  /** v8 (A1): a loot card flips in: a short airy whoosh; Legendary and up add a gold glint. */
+  cardFlip(gold = false): void {
+    const t = this.now;
+    this.noise(t, 0.16, { gain: 0.06, freq: 1800, type: "bandpass" });
+    this.tone(320, t, 0.12, { type: "sine", gain: 0.05, to: 520 });
+    if (gold) for (let k = 0; k < 4; k++) this.tone(3100 + k * 340, t + 0.12 + k * 0.05, 0.12, { type: "sine", gain: 0.035, attack: 0.003 });
+  }
 }
 
 function clamp01(v: number): number {

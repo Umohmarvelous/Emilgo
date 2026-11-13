@@ -579,6 +579,8 @@ export class Game {
     };
     this.hud.pauseBtn.addEventListener("click", () => this.pause());
     this.screens.handle((act, node) => this.action(act, node));
+    // v8 (A1): the end screen's sounds: the XP's tick per 50, the rank-up chime, the cards' flips and gold glint.
+    this.screens.cue = (k) => (k === "tick" ? this.sound.xpTick() : k === "rankup" ? this.sound.rankChime() : k === "ui" ? this.sound.ui() : this.sound.cardFlip(k === "glint"));
 
     // ── Host lifecycle ──
     host.onPause(() => this.hostPause());
@@ -4337,6 +4339,7 @@ export class Game {
     this.pendingGain = null;
     // The rewards, line by line (the server's total is the one that counts: it adds the day's first match).
     this.ffaRes.kills = r.kills ?? 0;
+    if (r.stats) this.ffaRes.stats = r.stats;
     // v6: CP for every match, COD-style: more for a win, a high place, kills, and a higher rank.
     const pay = cpForMatch({ won: r.won, place: me?.place ?? 0, sides: this.ffaRes.sides, kills: r.kills ?? 0, online: !!online, division: rankOf(this.rankXp).k, seconds: r.seconds });
     this.settings.cp += pay.cp;
