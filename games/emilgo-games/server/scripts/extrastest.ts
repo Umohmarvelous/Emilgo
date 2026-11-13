@@ -1050,7 +1050,21 @@ console.log("v7, the backpedal:");
   check(Math.abs(sp - MOVE.run * MOVE.back) < 0.3 && !c.sprinting, `at ${MOVE.back} of the run, never sprinting (${sp.toFixed(1)} m/s)`);
   m.setInput("p0", 1, 0);
   runFor(m, 1.2);
-  check(Math.abs(Math.atan2(Math.sin(c.heading - Math.PI / 2), Math.cos(c.heading - Math.PI / 2))) < 0.2, "sideways: she turns and runs that way as before");
+  check(Math.abs(Math.atan2(Math.sin(c.heading - Math.PI / 2), Math.cos(c.heading - Math.PI / 2))) < 0.2, "sideways at a sprint: she turns and runs that way");
+  m.setInput("p0", 0, 0);
+  // v8 (A14), the COD strafe: sideways, not sprinting: the torso and face stay forward; she still moves sideways.
+  m.setButtons("p0", false, 0, 0);
+  m.setAim("p0", -Math.PI, 0, false, false, 0, 0);
+  runFor(m, 0.6);
+  const x0 = c.x;
+  m.setInput("p0", 1, 0);
+  runFor(m, 1.2);
+  const f2 = Math.atan2(Math.sin(c.heading), Math.cos(c.heading));
+  check(c.x > x0 + 4 && Math.abs(f2) < 0.15, `strafe: she moves sideways (${(c.x - x0).toFixed(1)} m) still facing the camera's way (heading ${f2.toFixed(2)})`);
+  m.setInput("p0", 0.4, 1);
+  runFor(m, 1);
+  const f3 = Math.atan2(c.vx, c.vz);
+  check(Math.abs(Math.atan2(Math.sin(c.heading - f3), Math.cos(c.heading - f3))) < 0.2, "mostly forward: she faces where she runs, as before");
   m.setInput("p0", 0, 0);
 }
 

@@ -388,11 +388,13 @@ export function mocapPose(a: AnimState, out: Pose): boolean {
     mix(QB, QU, (1 - runArms) * (1 - air * 0.5) * (1 - dw), UPPER);
   }
 
-  // Strafing while aiming: the hips toward the way you go, the chest back to the aim.
-  if (a.aimW > 0.05 && speed > 0.4) {
-    let rel = a.moveYaw;
-    if (Math.abs(rel) > 1.95) rel = rel > 0 ? rel - Math.PI : rel + Math.PI;
-    const yaw = Math.max(-1.1, Math.min(1.1, rel)) * a.aimW * Math.min(1, speed / 1.2);
+  // Strafing while aiming: the hips toward the way you go, the chest back to the aim. v8 (A14): the same for any
+  // sideways move the body faces away from (the COD strafe: the torso and face stay forward), aiming or not.
+  let rel = a.moveYaw;
+  if (Math.abs(rel) > 1.95) rel = rel > 0 ? rel - Math.PI : rel + Math.PI;
+  const sw = Math.max(a.aimW, Math.max(0, Math.min(1, (Math.abs(rel) - 0.35) / 0.35)));
+  if (sw > 0.05 && speed > 0.4) {
+    const yaw = Math.max(-1.1, Math.min(1.1, rel)) * sw * Math.min(1, speed / 1.2);
     yawBone(QB, BONE_INDEX.hips, yaw);
     yawBone(QB, BONE_INDEX.spine, -yaw * 0.45);
     yawBone(QB, BONE_INDEX.chest, -yaw * 0.55);

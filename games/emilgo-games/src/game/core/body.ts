@@ -13,6 +13,9 @@ import type { ActKind } from "../combat";
 import { collideWalls } from "../pens";
 import type { Space } from "./space";
 
+/** v8 (A14): pushing more than this far (radians) to the side of where the camera looks is a strafe. */
+const STRAFE_AT = 0.5;
+
 export type Status = "alive" | "finished" | "eliminated";
 /**
  * moved: caught by the doll; time: the clock ran out; noball: every ball was
@@ -234,10 +237,15 @@ export function moveContestant(c: Contestant, dt: number, course: Course = DEFAU
   const m = Math.hypot(ix, iz);
   // v7: pushing back from where the camera looks: a backpedal, still facing it (COD-style), slower, no sprint.
   let back = false;
+  // v8 (A14), the COD strafe: pushing sideways from where the camera looks keeps the torso and face forward (the
+  // legs carry it sideways). A sprint still turns the body to where it runs.
+  let strafe = false;
   if (c.face !== undefined && m > 0.1 && c.stance < 2) {
     const d = Math.atan2(ix, iz) - c.face;
-    back = Math.abs(Math.atan2(Math.sin(d), Math.cos(d))) > MOVE.backAt;
+    const a = Math.abs(Math.atan2(Math.sin(d), Math.cos(d)));
+    back = a > MOVE.backAt;
     if (back) wantSprint = false;
+    strafe = !back && a > STRAFE_AT && !wantSprint;
   }
   const bst = c.bst;
   let top: number = c.stance === 2 ? MOVE.prone * bst.crouch : c.stance === 1 ? MOVE.crouch * bst.crouch : (m < MOVE.runAt ? MOVE.walk * (m / MOVE.runAt) : MOVE.run) * bst.speed;
@@ -296,7 +304,7 @@ export function moveContestant(c: Contestant, dt: number, course: Course = DEFAU
   // Face where you are going; keep the last facing when standing still (or knocked back). Backpedalling, face the camera's way.
   const sp = Math.hypot(c.vx, c.vz);
   if (sp > 0.3 && c.stun <= 0) {
-    const want = back ? c.face! : Math.atan2(c.vx, c.vz);
+    const want = back || (strafe && !c.sprinting) ? c.face! : Math.atan2(c.vx, c.vz);
     let d = want - c.heading;
     d = Math.atan2(Math.sin(d), Math.cos(d));
     const maxTurn = MOVE.turnRate * dt;
