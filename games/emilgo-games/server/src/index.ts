@@ -59,6 +59,13 @@
 //
 // Billboards (SPEC-V3 §8; ads.ts): SUPABASE_URL, SUPABASE_ANON_KEY and GAME_ADS_KEY.
 // Without them every board shows EMILGO Games' own (house) boards.
+// v8 (A8): the owner's switch (switches.ts; off by default): GET /billboards, POST /billboards { on } with
+// ADMIN_TOKEN, or BILLBOARDS=on at start. Off: house boards only, no booking, no Advertise button.
+//   GET  /advertise             the advertiser portal (portal.ts): sign in, make an ad, book a board, pay
+//   POST /ads/v1/checkout       book + the checkout (billing.ts); GET /ads/v1/verify/<ref>
+//   POST /ads/v1/webhook/<paystack|flutterwave>   the provider's confirmation
+//   AD_BILLING_KEY (24+ chars), CHECKOUT (paystack | flutterwave), PAYSTACK_SECRET_KEY, or FLUTTERWAVE_SECRET_KEY
+//   and FLUTTERWAVE_WEBHOOK_HASH. No key: test mode (no money moves).
 //   TICKET_SECRET         32+ chars; signs ownership tickets. Required when running several processes
 //
 //   SITE_DIR              a web build of the game to serve at / (site.ts). Unset = no pages, as on the docker-compose server
@@ -68,7 +75,10 @@ import { createServer, type IncomingMessage } from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
 
 import { familyOn, liveOffList, NET } from "../../src/config";
-import { loadSwitches, saveSwitches } from "./switches";
+import { billboardsOn, loadBillboardSwitch, loadSwitches, offForPhones, saveSwitches, setBillboards } from "./switches";
+import { Billing } from "./billing";
+import { checkoutFromEnv } from "./checkout";
+import { portalHtml } from "./portal";
 import { cleanName, ERROR_TEXT, parseClient, type ClientMsg, type ErrorCode } from "../../src/net/protocol";
 import { now } from "./clock";
 import { Lobby } from "./lobby";
@@ -120,6 +130,7 @@ const vatarCfg = vatarConfigFromEnv(process.env);
 const vatar = vatarCfg ? new VatarApi(vatarCfg) : null;
 // Match events, without player ids or names: enough to operate, nothing to leak.
 loadSwitches();
+loadBillboardSwitch();
 const lobby = new Lobby(vatar, (event, info) => {
   console.log(`match ${event} ${JSON.stringify(info)}`);
   analytics.track(`match_${event}`, info as Props);
@@ -170,6 +181,10 @@ function withStreak(look: WireLook, streak: number): WireLook {
 
 // Billboards (SPEC-V3 §8): the feed per match, the seconds seen added up and sent each minute.
 const billboards = new Billboards(adsBackendFromEnv(process.env));
+billboards.paused = () => !billboardsOn();
+// v8 (A8): booking and paying for a board (billing.ts), through the checkout adapter (checkout.ts).
+const billing = new Billing(process.env, checkoutFromEnv(process.env));
+if (!billing.checkout.live) console.log(`billboards: no ${billing.checkout.id} key: checkouts run in test mode (no money moves)`);
 setInterval(() => void billboards.flush(), 60_000).unref();
 const adCalls = new Map<string, number[]>();
 
@@ -292,6 +307,21 @@ const site = process.env.SITE_DIR ? loadSite(process.env.SITE_DIR) : null;
 if (process.env.SITE_DIR && !site) console.warn(`SITE_DIR ${process.env.SITE_DIR} has no index.html: serving no pages`);
 
 const http = createServer((req, res) => {
+  // v8 (A8): the advertiser portal, its payments, and the owner's switch.
+  if (req.url === "/advertise" || req.url?.startsWith("/advertise?")) {
+    if (req.method !== "GET") return void res.writeHead(405).end();
+    const page = portalHtml({ on: billboardsOn(), sb: billing.publicConfig(), provider: billing.checkout.id, live: billing.checkout.live });
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "Referrer-Policy": "same-origin" }).end(page);
+    return;
+  }
+  if (req.url?.startsWith("/ads/v1/checkout") || req.url?.startsWith("/ads/v1/verify/") || req.url?.startsWith("/ads/v1/webhook/")) {
+    billingRoute(req, res, new URL(req.url, "http://local"));
+    return;
+  }
+  if (req.url === "/billboards") {
+    billboardSwitchRoute(req, res);
+    return;
+  }
   if (req.url?.startsWith("/ads/v1/")) {
     adsRoute(req, res, new URL(req.url, "http://local"));
     return;
@@ -414,6 +444,80 @@ wss.on("connection", (socket: WebSocket, req: IncomingMessage) => {
   socket.on("error", () => socket.terminate());
 });
 
+/** This request's own origin (for the portal's return address): https behind a proxy, else as it came. */
+function originOf(req: IncomingMessage): string | null {
+  const host = String(req.headers.host ?? "");
+  if (!/^[a-z0-9.-]+(:\d+)?$/i.test(host)) return null;
+  const proto = process.env.TRUST_PROXY === "1" ? String(req.headers["x-forwarded-proto"] ?? "https").split(",")[0].trim() : "http";
+  return `${proto === "http" ? "http" : "https"}://${host}`;
+}
+
+/**
+ * v8 (A8): the portal's booking and payment check, and the providers' webhooks (billing.ts). All refused while the
+ * owner's switch is off (a webhook still settles a payment already made: the money moved).
+ */
+function billingRoute(req: IncomingMessage, res: import("node:http").ServerResponse, url: URL): void {
+  const reply = (r: { status: number; body: unknown }): void => void res.writeHead(r.status, { "Content-Type": "application/json", "Cache-Control": "no-store" }).end(JSON.stringify(r.body));
+  const auth = String(req.headers.authorization ?? "");
+  const jwt = auth.startsWith("Bearer ") && auth.length < 4000 ? auth.slice(7) : null;
+  const hook = url.pathname.startsWith("/ads/v1/webhook/");
+  if (!hook && !billboardsOn()) return reply({ status: 503, body: { error: "Billboards aren't open yet." } });
+  if (url.pathname.startsWith("/ads/v1/verify/") && req.method === "GET") {
+    void billing.verify(jwt, decodeURIComponent(url.pathname.slice("/ads/v1/verify/".length))).then(reply, () => reply({ status: 500, body: { error: "Please try again." } }));
+    return;
+  }
+  if (req.method !== "POST") return reply({ status: 405, body: {} });
+  let raw = "";
+  req.on("data", (c) => {
+    raw += c;
+    if (raw.length > 65536) req.destroy();
+  });
+  req.on("end", () => {
+    if (hook) {
+      void billing.webhook(url.pathname.slice("/ads/v1/webhook/".length), req.headers, raw).then(reply, () => reply({ status: 500, body: {} }));
+      return;
+    }
+    let body: Record<string, unknown> = {};
+    try {
+      body = JSON.parse(raw) ?? {};
+    } catch {
+      return reply({ status: 400, body: { error: "bad_request" } });
+    }
+    void billing.book(jwt, body, originOf(req)).then(reply, () => reply({ status: 500, body: { error: "Please try again." } }));
+  });
+}
+
+/**
+ * v8 (A8): the owner's billboards switch. GET /billboards: { on } (anyone). POST /billboards { on: true|false } with
+ * the admin token: turn the whole feature on or off now, and tell every phone (the lobby's Advertise button).
+ */
+function billboardSwitchRoute(req: IncomingMessage, res: import("node:http").ServerResponse): void {
+  const json = { "Content-Type": "application/json", "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" };
+  if (req.method === "GET") return void res.writeHead(200, json).end(JSON.stringify({ on: billboardsOn() }));
+  if (req.method !== "POST") return void res.writeHead(405).end();
+  const token = process.env.ADMIN_TOKEN;
+  if (!token || token.length < 24 || String(req.headers.authorization ?? "") !== `Bearer ${token}`) return void res.writeHead(404).end();
+  let raw = "";
+  req.on("data", (c) => {
+    raw += c;
+    if (raw.length > 1024) req.destroy();
+  });
+  req.on("end", () => {
+    let on: unknown = null;
+    try {
+      on = JSON.parse(raw)?.on;
+    } catch {
+      on = null;
+    }
+    if (typeof on !== "boolean") return void res.writeHead(400, json).end(JSON.stringify({ error: "send { \"on\": true } or { \"on\": false }" }));
+    setBillboards(on);
+    const off = offForPhones(liveOffList());
+    for (const p of peers.values()) if (p.connected) p.send({ t: "modes", off });
+    console.log(`billboards: ${on ? "on" : "off"}`);
+    res.writeHead(200, json).end(JSON.stringify({ on }));
+  });
+}
+
 /**
  * The live kill switch. GET /modes: what's off (anyone). POST /modes { off: [...] }
  * with the admin token: turn those off and everything else back on, say so to
@@ -421,7 +525,7 @@ wss.on("connection", (socket: WebSocket, req: IncomingMessage) => {
  */
 function switchRoute(req: IncomingMessage, res: import("node:http").ServerResponse): void {
   const json = { "Content-Type": "application/json", "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" };
-  if (req.method === "GET") return void res.writeHead(200, json).end(JSON.stringify({ off: liveOffList() }));
+  if (req.method === "GET") return void res.writeHead(200, json).end(JSON.stringify({ off: offForPhones(liveOffList()) }));
   if (req.method !== "POST") return void res.writeHead(405).end();
   const token = process.env.ADMIN_TOKEN;
   if (!token || token.length < 24 || String(req.headers.authorization ?? "") !== `Bearer ${token}`) return void res.writeHead(404).end();
@@ -438,7 +542,7 @@ function switchRoute(req: IncomingMessage, res: import("node:http").ServerRespon
       off = null;
     }
     if (!off) return void res.writeHead(400, json).end(JSON.stringify({ error: "off must be a list of mode ids or games" }));
-    for (const p of peers.values()) if (p.connected) p.send({ t: "modes", off });
+    for (const p of peers.values()) if (p.connected) p.send({ t: "modes", off: offForPhones(off) });
     console.log(`modes: off = ${off.join(", ") || "(none)"}`);
     res.writeHead(200, json).end(JSON.stringify({ off }));
   });
@@ -457,7 +561,7 @@ function hello(fresh: Peer, socket: WebSocket, msg: Extract<ClientMsg, { t: "hel
     const previous = old.socket;
     old.attach(socket);
     if (previous && previous !== socket) previous.close(4002, "replaced");
-    old.send({ t: "welcome", id: old.id, token: old.token, s: now(), name: old.name, off: liveOffList(), ...counts() });
+    old.send({ t: "welcome", id: old.id, token: old.token, s: now(), name: old.name, off: offForPhones(liveOffList()), ...counts() });
     pingSoon(old);
     lobby.roomOf(old)?.rejoined(old);
     if (old.fid) presence.identify(old, old.fid, [...old.friendFids]);
@@ -468,7 +572,7 @@ function hello(fresh: Peer, socket: WebSocket, msg: Extract<ClientMsg, { t: "hel
   fresh.name = cleanName(msg.name, () => `Guest ${1000 + Math.floor(Math.random() * 9000)}`);
   peers.set(fresh.id, fresh);
   byToken.set(fresh.token, fresh);
-  fresh.send({ t: "welcome", id: fresh.id, token: fresh.token, s: now(), name: fresh.name, off: liveOffList(), ...counts() });
+  fresh.send({ t: "welcome", id: fresh.id, token: fresh.token, s: now(), name: fresh.name, off: offForPhones(liveOffList()), ...counts() });
   pingSoon(fresh);
   return fresh;
 }

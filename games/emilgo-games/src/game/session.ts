@@ -357,6 +357,8 @@ export class Game {
   private readonly cards: HowTo;
   /** v7 (2.9): the advertiser portal inside the game (the web host). */
   private readonly adSheet: AdvertiseSheet;
+  /** v8 (A8): the owner's billboards switch is on (the server's word, kept for an offline start). */
+  private boardsOpen = false;
 
   // Lagos Life matches
   private vmatch: MatchView | null = null;
@@ -475,7 +477,9 @@ export class Game {
     });
     this.tutorial = new TutorialPlayer(ui);
     this.cards = new HowTo(ui);
-    this.adSheet = new AdvertiseSheet(ui);
+    this.adSheet = new AdvertiseSheet(ui, () => this.server);
+    // v8 (A8): the owner's billboards switch, as the server last said (off until a server says it's on).
+    this.boardsOpen = host.load("boards-on") === "1";
     this.cards.staked = !!host.matches;
     this.tutorial.onClose(() => this.endTutorial());
     this.countdown = new Countdown(this.hud, (last) => this.sound.countTick(last));
@@ -753,6 +757,7 @@ export class Game {
     const daily = ensureDaily(this.settings.daily);
     this.stage.setDummy(false);
     this.screens.lobby({
+      advertise: this.boardsOpen,
       money: this.moneyNow,
       host: this.host,
       settings: this.settings,
@@ -1111,8 +1116,12 @@ export class Game {
 
   /** The live kill switch: remember what's off (a phone offline keeps the last word) and redraw a menu that's open. */
   private applyModesOff(off: readonly string[]): void {
-    setLiveOff(off);
-    this.host.save("modes-off", JSON.stringify(off));
+    setLiveOff(off.filter((x) => x !== "billboards"));
+    this.host.save("modes-off", JSON.stringify(off.filter((x) => x !== "billboards")));
+    // v8 (A8): "billboards" in the list is the owner's switch, off.
+    this.boardsOpen = !off.includes("billboards");
+    this.host.save("boards-on", this.boardsOpen ? "1" : "0");
+    if (!this.boardsOpen && this.adSheet.open) this.adSheet.close();
     if (this.screens.name === "play") this.showPlay();
     else if (this.screens.name === "lobby") this.showLobby();
   }
@@ -3328,7 +3337,7 @@ export class Game {
         // A tap while the ad is up buys nothing more (it would skip the ad).
         if (this.adShowing) break;
         this.adShowing = true;
-        void showInterstitial(this.uiRoot, () => this.sound.hush(true), () => this.sound.hush(false)).then(() => {
+        void showInterstitial(this.uiRoot, () => this.sound.hush(true), () => this.sound.hush(false), this.boardsOpen).then(() => {
           this.adShowing = false;
           this.buyBoost(b.id);
         });
@@ -3646,6 +3655,7 @@ export class Game {
         // v6 (the owner: "ads purchase in a place players can see it"): the advertiser portal, where a business
         // books a numbered billboard for 1 or 2 weeks. The app opens its own over the game; the web, since v7 (2.9),
         // a sheet inside the game with the portal in it, never a browser tab. Never in Lagos Life.
+        if (!this.boardsOpen) break;
         if (this.host.kind === "emilgo") (this.host as unknown as { advertise(): void }).advertise();
         else if (this.host.kind === "web") this.adSheet.intro();
         break;

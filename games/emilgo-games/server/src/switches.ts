@@ -41,3 +41,44 @@ export function saveSwitches(list: unknown): string[] | null {
   }
   return off;
 }
+
+// ── v8 (A8): the owner's billboards switch ──
+// Off by default. While off: no paid ads in any match (every board shows the house's own), the portal says
+// billboards aren't open, nothing can be booked, and the lobby's Advertise button is hidden. The owner turns it on
+// or off at any time, kept across restarts in DATA_DIR/billboards.json:
+//   curl -X POST https://<server>/billboards -H "Authorization: Bearer $ADMIN_TOKEN" -d '{"on":true}'
+// BILLBOARDS=on (or off) in the environment sets it at start, over the saved value.
+
+const boardsFile = (): string => join(process.env.DATA_DIR || "./data", "billboards.json");
+let boardsOn = false;
+
+export function loadBillboardSwitch(log: (line: string) => void = console.log): void {
+  try {
+    boardsOn = JSON.parse(readFileSync(boardsFile(), "utf8"))?.on === true;
+  } catch {
+    boardsOn = false;
+  }
+  const env = (process.env.BILLBOARDS ?? "").trim().toLowerCase();
+  if (env === "on" || env === "1" || env === "true") boardsOn = true;
+  else if (env === "off" || env === "0" || env === "false") boardsOn = false;
+  log(`billboards: ${boardsOn ? "on" : "off"}`);
+}
+
+export function billboardsOn(): boolean {
+  return boardsOn;
+}
+
+export function setBillboards(on: boolean): void {
+  boardsOn = on;
+  try {
+    mkdirSync(dirname(boardsFile()), { recursive: true });
+    writeFileSync(boardsFile(), JSON.stringify({ on }));
+  } catch (e) {
+    console.error("billboards: couldn't save the switch", e);
+  }
+}
+
+/** What the phones are told is off: the modes, and "billboards" while the switch is off (the lobby hides Advertise). */
+export function offForPhones(off: readonly string[]): string[] {
+  return boardsOn ? [...off] : [...off, "billboards"];
+}

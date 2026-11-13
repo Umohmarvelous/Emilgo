@@ -1,7 +1,7 @@
 // v7 (2.9, the owner: "I want the advert screen to be inside the game, not
 // outside on a browser just like lagoslife"). The lobby's Advertise button on
 // the web opens this sheet over the game: what a board is and what it costs to
-// book, then the EMILGO advertiser portal itself, framed inside the sheet. The
+// book, then the advertiser portal itself, framed inside the sheet (v8, A8: served by the game server at /advertise). The
 // player never leaves the game, and closing the sheet puts them back in the
 // lobby where they were. In the EMILGO app the button opens the app's own
 // portal screen over the game instead (app/games/redlight.tsx); Lagos Life
@@ -16,9 +16,15 @@ import { el, esc } from "./dom";
 import { t, translateTree } from "./i18n";
 import { icon } from "./icons";
 
-/** The portal's address (VITE_ADVERTISE_URL, else the EMILGO site's). */
-export function advertiseUrl(): string {
-  return (import.meta.env.VITE_ADVERTISE_URL as string | undefined) ?? "https://emilgo.app/advertise";
+/**
+ * The portal's address: VITE_ADVERTISE_URL, else (v8, A8) the game server's own /advertise (server/src/portal.ts),
+ * so it's reachable wherever the game's server is. Null with no server.
+ */
+export function advertiseUrl(server: string | null): string | null {
+  const set = import.meta.env.VITE_ADVERTISE_URL as string | undefined;
+  if (set) return set;
+  if (!server) return null;
+  return `${server.replace(/^ws(s?):\/\//, "http$1://").replace(/\/+$/, "")}/advertise`;
 }
 
 /** The rules every ad is checked against (src/services/billboards.ts BILLBOARD_RULES, the app's copy decides). */
@@ -46,7 +52,10 @@ export class AdvertiseSheet {
   /** Each opening of the portal; an answer for an older one is dropped. */
   private run = 0;
 
-  constructor(parent: HTMLElement) {
+  constructor(
+    parent: HTMLElement,
+    private readonly serverOf: () => string | null = () => null,
+  ) {
     this.root.dataset.ui = "1";
     this.root.setAttribute("role", "dialog");
     this.root.setAttribute("aria-label", "Advertise on our billboards");
@@ -58,7 +67,10 @@ export class AdvertiseSheet {
       if (a === "close") this.close();
       else if (a === "book") this.portal();
       else if (a === "back") this.intro();
-      else if (a === "tab") window.open(advertiseUrl(), "_blank", "noopener");
+      else if (a === "tab") {
+        const u = advertiseUrl(this.serverOf());
+        if (u) window.open(u, "_blank", "noopener");
+      }
     });
   }
 
@@ -101,7 +113,8 @@ export class AdvertiseSheet {
     </div>`;
     translateTree(this.root);
     const box = this.root.querySelector<HTMLElement>(".adv-frame")!;
-    const url = advertiseUrl();
+    const url = advertiseUrl(this.serverOf());
+    if (!url) return this.unreachable(box);
     // A frame shows the browser's own broken page when the portal can't be
     // reached, and says nothing about it: ask first (an opaque answer is enough).
     fetch(url, { mode: "no-cors", cache: "no-store", signal: AbortSignal.timeout(SLOW_MS) }).then(

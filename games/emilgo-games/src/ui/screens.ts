@@ -267,6 +267,8 @@ export interface LobbyState {
   badge: boolean;
   /** Free For All's mode on the card (its name), or null for Ball Haunt. */
   ffa: string | null;
+  /** v8 (A8): the owner's billboards switch is on: the Advertise button shows. */
+  advertise: boolean;
   /** v4 Lobby A: the week's next drop (full-bleed behind), this week's rotation, your squad, your loadout. */
   drop?: { name: string; line: string };
   rotation?: { name: string; url: string; on: boolean }[];
@@ -433,7 +435,7 @@ export class Screens {
       <div class="lb-topbar">${navHtml(s)}
       <div class="lb-tr">
         <button class="ibtn" data-act="tutorial" aria-label="Tutorial">${icon("help")}</button>
-        ${host.kind !== "lagoslife" ? `<button class="ibtn adv" data-act="advertise" aria-label="${esc(t("Advertise on our billboards"))}" title="${esc(t("Advertise on our billboards"))}">${icon("billboard", "", 18)}<span>${esc(t("Advertise"))}</span></button>` : ""}
+        ${host.kind !== "lagoslife" && s.advertise ? `<button class="ibtn adv" data-act="advertise" aria-label="${esc(t("Advertise on our billboards"))}" title="${esc(t("Advertise on our billboards"))}">${icon("billboard", "", 18)}<span>${esc(t("Advertise"))}</span></button>` : ""}
 
         <button class="ibtn" data-act="settings" aria-label="Settings">${icon("gear", "ico-spin")}</button>
         ${exit}

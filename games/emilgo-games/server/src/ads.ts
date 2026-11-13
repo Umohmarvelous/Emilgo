@@ -170,6 +170,9 @@ export class Billboards {
   }
 
   /** GET /ads/v1/match: the creatives for this map's boards, and a report token. */
+  /** v8 (A8): the owner's billboards switch is off (switches.ts billboardsOn). */
+  paused: () => boolean = () => false;
+
   async feed(map: string, host: string): Promise<{ status: number; body: unknown }> {
     if (host === "lagoslife") {
       this.stats.refused++;
@@ -178,6 +181,8 @@ export class Billboards {
     if (host !== "emilgo" && host !== "web") return { status: 400, body: { error: "bad_request" } };
     const slots = boardIds(map);
     if (!slots) return { status: 404, body: { error: "no_such_map" } };
+    // v8 (A8): the owner's switch off: no paid ads anywhere (every board shows the house's own).
+    if (this.paused()) return { status: 200, body: { v: 1, map, ads: [], tok: this.token() } };
     const now = this.clock();
     let entry = this.cache.get(map);
     if (!entry || now - entry.at > FEED_TTL_MS) {

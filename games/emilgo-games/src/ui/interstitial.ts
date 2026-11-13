@@ -18,7 +18,7 @@ type AdBreak = (o: { type: string; name: string; beforeAd?: () => void; afterAd?
 /** Seconds before the house ad can be closed. */
 export const HOUSE_AD_SECONDS = 5;
 
-export function showInterstitial(parent: HTMLElement, onBefore?: () => void, onAfter?: () => void): Promise<void> {
+export function showInterstitial(parent: HTMLElement, onBefore?: () => void, onAfter?: () => void, house = true): Promise<void> {
   const ab = (window as unknown as { adBreak?: AdBreak }).adBreak;
   if (typeof ab === "function") {
     return new Promise((done) => {
@@ -38,6 +38,8 @@ export function showInterstitial(parent: HTMLElement, onBefore?: () => void, onA
       setTimeout(end, 45_000);
     });
   }
+  // v8 (A8): the house ad sells billboards: none while the owner's switch has them off.
+  if (!house) return Promise.resolve();
   return houseAd(parent, onBefore, onAfter);
 }
 
