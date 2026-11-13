@@ -1,34 +1,53 @@
 #!/bin/zsh
-# The announcer, recorded once (v6 2.12): one voice on every phone, like COD.
-# Run on the Mac from anywhere; about 2 GB the first time (the speech model and
-# its Python libraries, kept in tools/audio/in/, git-ignored), then a minute.
+# The announcer, recorded once: one voice on every phone, like COD.
 #
-#   games/emilgo-games/tools/audio/voice.sh              every line → assets-site/voice/
-#   AUDITION=1 games/emilgo-games/tools/audio/voice.sh   one line in 8 voices, to choose by ear
-#   VOICE="zf_xiaoyi:0.8,af_heart:0.2" games/emilgo-games/tools/audio/voice.sh   that voice instead
-#   SPEED=1.05 ...                                       a touch quicker
-#   SET=us games/emilgo-games/tools/audio/voice.sh       v7 (2.10): the American woman → assets-site/voice-us/
-#   SET=us AUDITION=1 ...                                her line in 8 American voices
+# v8 (A18, the owner, 13 Nov): ONE male, authoritative American voice, by ElevenLabs. Put the key in
+# games/emilgo-games/tools/audio/.env (git-ignored; never printed), copied from .env.example:
+#   ELEVENLABS_API_KEY=…            your ElevenLabs key (a free account: about 10,000 characters a month, enough for
+#                                   every line; the free plan is non-commercial: move to a paid plan before launch)
+#   ELEVENLABS_VOICE_ID=…           the voice (pick a deep, authoritative American man in ElevenLabs' Voice Library)
+#   ELEVENLABS_MODEL=…              optional (default eleven_multilingual_v2)
+# then run, from anywhere:
+#   games/emilgo-games/tools/audio/voice.sh              every line → assets-site/voice/ (a re-run speaks only new or
+#                                                        changed lines), then scripts/deploy-site.sh ships them
+# Until the key is there, the clips already in assets-site/voice/ play (and a line with no clip is said by the
+# phone's own voice, an American man's).
 #
-# The model: Kokoro-82M (Apache-2.0). English words in a Mandarin woman's voice
-# (blended with a fifth of an English one, so every word stays clear).
-# Then: scripts/deploy-site.sh ships assets-site/voice/ with the site; the
-# EMILGO app streams the clips from the site. Lines added to src/audio/voice.ts
-# later: run this again (a line with no clip is said by the phone's own voice).
+# Without a key (or KOKORO=1) it falls back to the old way: Kokoro-82M (Apache-2.0) on this Mac, about 2 GB the
+# first time (kept in tools/audio/in/, git-ignored):
+#   KOKORO=1 AUDITION=1 games/emilgo-games/tools/audio/voice.sh   one line in 8 voices, to choose by ear
+#   KOKORO=1 VOICE="am_michael" games/emilgo-games/tools/audio/voice.sh
 set -e
 G="$(cd "$(dirname "$0")/../.." && pwd)"
 T="$G/tools/audio"
-# v7 (2.10): two announcers. zh: the Mandarin-accented woman (voice/); us: an American woman (voice-us/).
-SET="${SET:-zh}"
-case "$SET" in
-  zh) DIR=voice ;;
-  us) DIR=voice-us; export VOICE="${VOICE:-af_heart}" ;;
-  *) echo "SET is zh or us"; exit 1 ;;
-esac
-export AUDITION_SET="$SET"
+# v8: one announcer, one folder.
+DIR=voice
 W="$T/in/$DIR"
 VENV="$T/in/voice-venv"
 mkdir -p "$W"
+
+# v8 (A18): the ElevenLabs key, from the git-ignored .env (exported quietly; never echoed).
+if [ -f "$T/.env" ]; then
+  set -a
+  source "$T/.env"
+  set +a
+fi
+if [ -z "$KOKORO" ] && [ -n "$ELEVENLABS_API_KEY" ]; then
+  if [ -z "$ELEVENLABS_VOICE_ID" ]; then
+    echo "Set ELEVENLABS_VOICE_ID in $T/.env (the male American voice's id from ElevenLabs), then run again."
+    exit 1
+  fi
+  echo "Recording every line with ElevenLabs (voice $ELEVENLABS_VOICE_ID) …"
+  node "$T/voice.mjs" lines "$W/lines.json"
+  node "$T/voice.mjs" eleven "$W/lines.json" "$W/eleven"
+  node "$T/voice.mjs" encode "$W/eleven" "$G/assets-site/$DIR"
+  echo ""
+  echo "Done. Hear them in a match (npm run dev); ship them with scripts/deploy-site.sh."
+  exit 0
+fi
+echo "(No ELEVENLABS_API_KEY in $T/.env: using the local Kokoro model instead.)"
+export AUDITION_SET=us
+export VOICE="${VOICE:-am_michael}"
 
 # Kokoro needs Python 3.10–3.12.
 PY=""
@@ -54,7 +73,7 @@ if [ -n "$AUDITION" ]; then
   "$VENV/bin/python" "$T/voice_speak.py" "$W/lines.json" "$W/audition" --audition
   echo ""
   echo "Listen to $W/audition, then run again with the one you like, e.g."
-  if [ "$SET" = us ]; then echo "  SET=us VOICE=\"af_bella\" $0"; else echo "  VOICE=\"zf_xiaoyi:0.8,af_heart:0.2\" $0"; fi
+  echo "  KOKORO=1 VOICE=\"am_michael\" $0"
   open "$W/audition" 2>/dev/null || true
   exit 0
 fi

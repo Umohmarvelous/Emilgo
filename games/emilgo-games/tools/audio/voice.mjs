@@ -4,6 +4,8 @@
 //
 //   node tools/audio/voice.mjs lines  [lines.json]            the words (src/audio/voice.ts LINES) as JSON
 //   node tools/audio/voice.mjs encode [wav dir] [out dir]      WAVs → <id>.mp3 + index.json + CREDITS.txt
+//   node tools/audio/voice.mjs eleven [lines.json] [wav dir]   v8 (A18): every line spoken by ElevenLabs → WAVs
+//        (ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID from the environment; the key is never printed)
 //
 // Each clip: silence trimmed, levelled (speech over the effects, never past
 // −1 dBFS), mono MP3 at 32 kbps (LAME takes it to 22 kHz): a few KB a line,
@@ -117,8 +119,64 @@ function encode(a) {
   return Buffer.concat(parts);
 }
 
+/** A WAV file (16-bit mono) around raw PCM. */
+function wavOf(pcm, rate) {
+  const h = Buffer.alloc(44);
+  h.write("RIFF", 0, "latin1");
+  h.writeUInt32LE(36 + pcm.length, 4);
+  h.write("WAVEfmt ", 8, "latin1");
+  h.writeUInt32LE(16, 16);
+  h.writeUInt16LE(1, 20);
+  h.writeUInt16LE(1, 22);
+  h.writeUInt32LE(rate, 24);
+  h.writeUInt32LE(rate * 2, 28);
+  h.writeUInt16LE(2, 32);
+  h.writeUInt16LE(16, 34);
+  h.write("data", 36, "latin1");
+  h.writeUInt32LE(pcm.length, 40);
+  return Buffer.concat([h, pcm]);
+}
+
+/**
+ * v8 (A18): every line in one ElevenLabs voice (the owner's choice: a male, authoritative American), as 24 kHz PCM,
+ * into WAVs the encoder takes. A line already spoken in the same voice is kept (a re-run costs only new lines).
+ */
+async function eleven(linesFile, outDir) {
+  const key = (process.env.ELEVENLABS_API_KEY ?? "").trim();
+  const voice = (process.env.ELEVENLABS_VOICE_ID ?? "").trim();
+  const model = (process.env.ELEVENLABS_MODEL ?? "eleven_multilingual_v2").trim();
+  if (!key || !voice) throw new Error("ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID must be set (tools/audio/.env)");
+  const lines = JSON.parse(readFileSync(linesFile, "utf8"));
+  mkdirSync(outDir, { recursive: true });
+  const tag = `elevenlabs:${voice}:${model}`;
+  const same = existsSync(join(outDir, "voice.txt")) && readFileSync(join(outDir, "voice.txt"), "utf8").split("\n")[0] === tag;
+  let chars = 0;
+  for (const [id, text] of Object.entries(lines)) {
+    const file = join(outDir, `${id}.wav`);
+    const said = join(outDir, `${id}.txt`);
+    if (same && existsSync(file) && existsSync(said) && readFileSync(said, "utf8") === text) continue;
+    const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voice)}?output_format=pcm_24000`, {
+      method: "POST",
+      headers: { "xi-api-key": key, "Content-Type": "application/json", Accept: "audio/pcm" },
+      body: JSON.stringify({ text, model_id: model, voice_settings: { stability: 0.55, similarity_boost: 0.8, style: 0.25, use_speaker_boost: true } }),
+    });
+    if (!res.ok) {
+      const why = (await res.text().catch(() => "")).slice(0, 300).replace(key, "***");
+      throw new Error(`ElevenLabs refused "${id}" (${res.status}): ${why}`);
+    }
+    writeFileSync(file, wavOf(Buffer.from(await res.arrayBuffer()), 24000));
+    writeFileSync(said, text);
+    chars += text.length;
+    console.log(id.padEnd(18), `${text.length} chars`);
+  }
+  writeFileSync(join(outDir, "voice.txt"), `${tag}\n`);
+  console.log(`${chars} characters spoken this run (the free plan has about 10,000 a month; non-commercial)`);
+}
+
 const [cmd, a1, a2] = process.argv.slice(2);
-if (cmd === "lines") {
+if (cmd === "eleven") {
+  await eleven(a1 ?? join(WORK, "lines.json"), a2 ?? join(WORK, "wav"));
+} else if (cmd === "lines") {
   const file = a1 ?? join(WORK, "lines.json");
   mkdirSync(dirname(file), { recursive: true });
   const lines = readLines();
@@ -147,11 +205,14 @@ if (cmd === "lines") {
   }
   writeFileSync(join(out, "index.json"), JSON.stringify(ids));
   const voice = existsSync(join(wavs, "voice.txt")) ? readFileSync(join(wavs, "voice.txt"), "utf8").split("\n")[0] : "?";
+  const el = voice.startsWith("elevenlabs:");
   writeFileSync(
     join(out, "CREDITS.txt"),
     [
-      "EMILGO Games: the announcer's lines (v6 2.12).",
-      `Spoken by Kokoro-82M (https://huggingface.co/hexgrad/Kokoro-82M, Apache-2.0), voice ${voice}.`,
+      "LOOTLINE: the announcer's lines.",
+      el
+        ? `Spoken by ElevenLabs (https://elevenlabs.io), voice ${voice.split(":")[1]}, model ${voice.split(":")[2]}. A commercial game needs a paid ElevenLabs plan.`
+        : `Spoken by Kokoro-82M (https://huggingface.co/hexgrad/Kokoro-82M, Apache-2.0), voice ${voice}.`,
       "Made with tools/audio/voice.sh; the words are src/audio/voice.ts LINES.",
       "",
     ].join("\n"),

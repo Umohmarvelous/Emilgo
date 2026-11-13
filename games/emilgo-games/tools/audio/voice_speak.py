@@ -30,8 +30,9 @@ AUDITION = [
 ]
 # v7 (2.10): the American announcer's audition (SET=us): Kokoro's American women, alone and blended.
 AUDITION_US = [
-    "af_heart", "af_bella", "af_nicole", "af_aoede",
-    "af_kore", "af_sarah", "af_heart:0.6,af_bella:0.4", "af_heart:0.6,af_nicole:0.4",
+    # v8 (A18): one male, authoritative American announcer: Kokoro's American men, alone and blended.
+    "am_michael", "am_adam", "am_onyx", "am_fenrir",
+    "am_eric", "am_liam", "am_michael:0.6,am_onyx:0.4", "am_adam:0.6,am_michael:0.4",
 ]
 AUDITION_LINE = "start_treasure"
 

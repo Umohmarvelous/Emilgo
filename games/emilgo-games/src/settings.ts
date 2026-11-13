@@ -32,8 +32,6 @@ export interface Settings {
   sfxVol: number;
   /** v5 (3.6): the announcer's voice (directions, who is eliminated). */
   voice: boolean;
-  /** v7 (2.10): whose voice: the Mandarin-accented woman (v5) or an American woman. */
-  announcer: "zh" | "us";
   /** The songs on/off (her warning hum stays); their volume. */
   music: boolean;
   musicVol: number;
@@ -211,7 +209,6 @@ export function defaults(host: Host): Settings {
     sound: true,
     sfxVol: 1,
     voice: true,
-    announcer: "zh",
     music: true,
     musicVol: 0.8,
     master: 1,
@@ -387,7 +384,6 @@ export function loadSettings(host: Host): Settings {
     out.musicVol = clamp(out.musicVol, 0, 1);
     out.sfxVol = clamp(out.sfxVol, 0, 1);
     out.adsAudio = out.adsAudio === true;
-    if (out.announcer !== "zh" && out.announcer !== "us") out.announcer = base.announcer;
     out.adsVol = clamp(Number(out.adsVol), 0, 1);
     if (out.lang !== "en" && out.lang !== "pcm") out.lang = base.lang;
     out.cp = Math.max(0, Math.floor(clamp(out.cp, 0, 1e7)));

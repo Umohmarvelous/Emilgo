@@ -433,14 +433,15 @@ export class Screens {
         </div>
       </div>
       <div class="lb-topbar">${navHtml(s)}
-      <div class="lb-tr">
-        <button class="ibtn" data-act="tutorial" aria-label="Tutorial">${icon("help")}</button>
-        <button class="ibtn" data-act="emote-quick" aria-label="${esc(t("Emote"))}" title="${esc(t("Emote"))}">${icon("emote", "", 18)}</button>
-        ${host.kind !== "lagoslife" && s.advertise ? `<button class="ibtn adv" data-act="advertise" aria-label="${esc(t("Advertise on our billboards"))}" title="${esc(t("Advertise on our billboards"))}">${icon("billboard", "", 18)}<span>${esc(t("Advertise"))}</span></button>` : ""}
+        <div class="lb-tr pa">
+          <button class="ibtn" data-act="tutorial" aria-label="Tutorial">${icon("help")}</button>
+          <button class="ibtn" data-act="emote-quick" aria-label="${esc(t("Emote"))}" title="${esc(t("Emote"))}">${icon("emote", "", 18)}</button>
+          ${host.kind !== "lagoslife" && s.advertise ? `<button class="ibtn adv" data-act="advertise" aria-label="${esc(t("Advertise on our billboards"))}" title="${esc(t("Advertise on our billboards"))}">${icon("billboard", "", 18)}<span>${esc(t("Advertise"))}</span></button>` : ""}
 
-        <button class="ibtn" data-act="settings" aria-label="Settings">${icon("gear", "ico-spin")}</button>
-        ${exit}
-      </div></div>
+          <button class="ibtn" data-act="settings" aria-label="Settings">${icon("gear", "ico-spin")}</button>
+          ${exit}
+        </div>
+      </div>
       <div class="lb-center-right">${s.daily
         .map(
           (d) => `<div class="challenge ${d.progress >= d.def.goal ? "done" : ""}">
@@ -1429,7 +1430,6 @@ export class Screens {
         ${sw("sound", "Sound effects")}
         ${range("sfxVol", "Sound effects volume", "Lasers, hits, footsteps, the drum", !s.sound)}
         ${sw("voice", "Announcer", "A voice for your orders and for who is eliminated (your phone's own speech voice until recorded lines arrive)")}
-        <div class="row-set${s.voice ? "" : " off"}"><span class="lbl"><b>Announcer voice</b><small>Whose voice gives your orders</small></span>${seg("announcer", s.announcer, [["zh", "Mandarin-accented"], ["us", "American"]])}</div>
         ${ads ? `${sw("adsAudio", "Ads audio", "Sound from a billboard's film, when its advertiser allows it. Off: always silent")}
         ${range("adsVol", "Ads volume", "Billboard films", !s.adsAudio)}` : ""}
         ${sw("haptics", "Vibration")}
@@ -1832,12 +1832,15 @@ function navHtml(s: LobbyState): string {
     { label: "Leaderboard", ico: "trophy", act: "tab", tab: "board" },
     { label: "Invite", ico: "invite", act: "invite", off: s.online !== "ready" },
   ];
-  return `<nav class="lb-nav" aria-label="${esc(t("Sections"))}">${items
-    .map(
-      (it) =>
-        `<button class="nv${it.tab === "lobby" ? " on" : ""}" data-act="${it.act}"${it.tab ? ` data-tab="${it.tab}"` : ""}${it.off ? " disabled" : ""} aria-label="${esc(t(it.label))}">${icon(it.ico, "", 18)}<span>${esc(t(it.label))}</span>${it.extra ?? ""}</button>`,
-    )
-    .join("")}</nav>`;
+  return `
+      <nav class="lb-nav nt" aria-label="${esc(t("Sections"))}">${items
+        .map(
+          (it) =>
+            `<button class="nv${it.tab === "lobby" ? " on" : ""}" data-act="${it.act}"${it.tab ? ` data-tab="${it.tab}"` : ""}${it.off ? " disabled" : ""} aria-label="${esc(t(it.label))}">${icon(it.ico, "", 18)}<span>${esc(t(it.label))}</span>${it.extra ?? ""}</button>`,
+        )
+          .join("")}
+      </nav>
+    `;
 }
 
 /** v7 (3.1): the lobby's career line: matches, wins, the win rate, kills (the last 30 matches), the day streak. */

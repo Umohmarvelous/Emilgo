@@ -16,9 +16,9 @@
 //   3. Nothing (an app's web view without speech): the lines stay as text in
 //      the feed, as before.
 //
-// Two voices (v7 2.10, Settings → Announcer voice): the Mandarin-accented
-// woman above, or an American woman. Each has its own recorded set (voice/ and
-// voice-us/, tools/audio/voice.sh and SET=us) and its own pick of phone voice.
+// v8 (A18, the owner, 13 Nov): ONE announcer, a male, authoritative American voice, recorded with ElevenLabs
+// (tools/audio/voice.sh with ELEVENLABS_API_KEY in tools/audio/.env) into the same voice/ folder; until those
+// clips are made, the lines already there play. The phone's own voice: an American man's. No choice in Settings.
 //
 // Names are never spoken (they can't be recorded ahead): she says "Enemy
 // eliminated" and the name shows on screen, as COD does.
@@ -82,10 +82,6 @@ const BASE =
   (import.meta.env.VITE_VOICE_BASE as string | undefined) ??
   (__HOST_BUILD__ === "emilgo" ? "https://milgogames.pages.dev/voice/" : `${import.meta.env.BASE_URL}voice/`);
 
-/** v7 (2.10): the two announcers. */
-export type VoiceSet = "zh" | "us";
-/** Each set's folder: the American's sits beside the Mandarin-accented one's. */
-const baseOf = (set: VoiceSet): string => (set === "us" ? BASE.replace(/voice\/?$/, "voice-us/") : BASE);
 
 interface Said {
   text: string;
@@ -95,25 +91,13 @@ interface Said {
   urgent: boolean;
 }
 
-/**
- * Women's voices by name, best first (the platforms don't say which voices are
- * women's): Mandarin ones for the accent, then English ones. Apple: Tingting,
- * Yu-shu, Meijia, Sinji, Flo, Shelley, Sandy; Google: 普通话; Microsoft:
- * Xiaoxiao, Huihui, Yaoyao.
- */
-const ZH_WOMEN = [/tingting|ting-ting/i, /google 普通话/i, /xiaoxiao/i, /yu-shu/i, /huihui/i, /yaoyao/i, /meijia|mei-jia/i, /sinji|hiumaan/i, /google 國語/i, /^flo\b/i, /^shelley\b/i, /^sandy\b/i];
-const EN_WOMEN = /samantha|karen|moira|tessa|victoria|zira|aria|jenny|google us english|google uk english female|serena|fiona|catherine|kathy/i;
-/** Mandarin men's voices on Apple: never picked while a woman's is there. */
-const ZH_MEN = /li-mu|eddy|grandpa|reed|rocko|yunyang|kangkang/i;
-/** American women's voices, best first: Apple, Google, Microsoft. */
-const US_WOMEN = [/^samantha\b/i, /^ava\b/i, /^allison\b/i, /^susan\b/i, /^nicky\b/i, /google us english/i, /\baria\b/i, /\bjenny\b/i, /\bzira\b/i, /\bmichelle\b/i];
-/** American men's voices: never picked while a woman's is there. */
-const US_MEN = /\balex\b|\bfred\b|\btom\b|\baaron\b|\bguy\b|\bdavid\b|\bmark\b|\bchristopher\b|\beric\b|\bjunior\b|\bralph\b/i;
+/** v8 (A18): American men's phone voices, best first: Apple, Microsoft, then others. */
+const US_MEN = [/^alex\b/i, /^aaron\b/i, /^evan\b/i, /^nathan\b/i, /^tom\b/i, /^fred\b/i, /\bguy\b/i, /\bchristopher\b/i, /\beric\b/i, /\bdavid\b/i, /\bmark\b/i, /\bandrew\b/i, /\bbrian\b/i, /google us english male/i];
+/** Women's names to pass over (the platforms don't say which voices are whose). */
+const WOMEN = /samantha|ava|allison|susan|nicky|karen|moira|tessa|victoria|zira|aria|jenny|michelle|serena|fiona|catherine|kathy|female|google us english$|google uk english female/i;
 
 export class Voice {
   enabled = true;
-  /** Whose voice (Settings → Announcer voice). */
-  private set: VoiceSet = "zh";
   private queue: Said[] = [];
   private speaking = false;
   private readonly last = new Map<string, number>();
@@ -147,22 +131,6 @@ export class Voice {
     this.say(who === "you" ? "you_down" : who === "mate" ? "mate_down" : "enemy_down");
   }
 
-  /**
-   * v7 (2.10): switch announcer. The other's clips are let go and this one's
-   * fetched the next time the lobby asks (or now, if it already has).
-   */
-  use(set: VoiceSet): void {
-    if (set === this.set) return;
-    this.set = set;
-    this.picked = null;
-    this.clips = null;
-    this.bytes.clear();
-    this.buffers.clear();
-    const asked = this.clipsAsked;
-    this.clipsAsked = false;
-    if (asked) this.prepare();
-  }
-
   /** Say a line straight away, past the cooldown: Settings plays it when the voice changes. */
   preview(): void {
     this.last.delete("start_generic");
@@ -184,18 +152,15 @@ export class Voice {
   prepare(delayMs = 0): void {
     if (this.clipsAsked) return;
     this.clipsAsked = true;
-    const set = this.set;
     window.setTimeout(() => {
-      fetch(`${baseOf(set)}index.json`)
+      fetch(`${BASE}index.json`)
         .then((r) => (r.ok ? r.json() : null))
         .then((j: unknown) => {
-          // Switched again while this was on its way: the newer set's list wins.
-          if (set !== this.set) return;
           const ids = Array.isArray(j) ? j.filter((x): x is string => typeof x === "string" && x in LINES) : [];
           this.clips = new Set(ids);
           for (const id of ids) this.fetchClip(id);
         })
-        .catch(() => set === this.set && (this.clips = new Set()));
+        .catch(() => (this.clips = new Set()));
     }, delayMs);
   }
 
@@ -207,7 +172,7 @@ export class Voice {
   private fetchClip(id: string): Promise<ArrayBuffer | null> {
     let p = this.bytes.get(id);
     if (!p) {
-      p = fetch(`${baseOf(this.set)}${id}.mp3`)
+      p = fetch(`${BASE}${id}.mp3`)
         .then((r) => (r.ok ? r.arrayBuffer() : null))
         .catch(() => null);
       this.bytes.set(id, p);
@@ -261,9 +226,9 @@ export class Voice {
       u.voice = v;
       u.lang = v.lang;
     } else u.lang = "en-US";
-    // A calm, clear operator: a touch quick, a touch high (the American: her own pitch).
-    u.rate = 1.04;
-    u.pitch = this.set === "us" ? 1 : 1.08;
+    // v8 (A18): an authoritative operator: measured, a touch low.
+    u.rate = 1;
+    u.pitch = 0.9;
     u.volume = Math.min(1, this.sound.levelOf("sfx") * 1.1);
     let over = false;
     const end = () => {
@@ -283,27 +248,15 @@ export class Voice {
     }
   }
 
-  /**
-   * The voice. Mandarin-accented: a Mandarin woman's, else any Mandarin, else an
-   * English woman's, else English. American: an American woman's, else any
-   * American but a man's, else an English woman's, else English.
-   */
+  /** v8 (A18): the voice: an American man's, else any English man's, else any American, else English. */
   private voice(): SpeechSynthesisVoice | null {
     if (this.picked) return this.picked;
     const all = this.synth?.getVoices() ?? [];
-    if (this.set === "us") {
-      const us = all.filter((v) => /^en[-_]us/i.test(v.lang));
-      const en = all.filter((v) => /^en/i.test(v.lang));
-      let best: SpeechSynthesisVoice | undefined;
-      for (const re of US_WOMEN) if ((best = us.find((v) => re.test(v.name)))) break;
-      this.picked = best ?? us.find((v) => !US_MEN.test(v.name)) ?? en.find((v) => EN_WOMEN.test(v.name)) ?? us[0] ?? en[0] ?? null;
-      return this.picked;
-    }
-    const zh = all.filter((v) => /^zh|^cmn/i.test(v.lang));
+    const us = all.filter((v) => /^en[-_]us/i.test(v.lang));
     const en = all.filter((v) => /^en/i.test(v.lang));
     let best: SpeechSynthesisVoice | undefined;
-    for (const re of ZH_WOMEN) if ((best = zh.find((v) => re.test(v.name)))) break;
-    this.picked = best ?? zh.find((v) => !ZH_MEN.test(v.name) && /cn|hans/i.test(v.lang)) ?? en.find((v) => EN_WOMEN.test(v.name)) ?? zh[0] ?? en[0] ?? null;
+    for (const re of US_MEN) if ((best = us.find((v) => re.test(v.name)) ?? en.find((v) => re.test(v.name)))) break;
+    this.picked = best ?? us.find((v) => !WOMEN.test(v.name)) ?? en.find((v) => !WOMEN.test(v.name)) ?? us[0] ?? en[0] ?? null;
     return this.picked;
   }
 
