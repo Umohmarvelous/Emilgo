@@ -1108,17 +1108,24 @@ export function buildOpenWorld(L: OpenLayout, spec: TierSpec, opts: { night?: bo
  * Build it in slices of `slice` ms between frames (SPEC-V3 §6.2: the world is
  * built after the lobby is up, in idle time), so the lobby never stalls.
  */
-export async function buildOpenWorldIdle(L: OpenLayout, spec: TierSpec, opts: { night?: boolean } = {}, slice = 8): Promise<OpenWorld> {
+export async function buildOpenWorldIdle(L: OpenLayout, spec: TierSpec, opts: { night?: boolean; onStep?: (n: number, done: boolean) => void } = {}, slice = 8): Promise<OpenWorld> {
   // The library's textures first (v4 rework R4); without them the game's own.
   const lib = await loadWorldLibrary(spec, !!opts.night, L).catch(() => null);
   const g = steps(L, spec, opts, lib);
+  // v8 (A2): the pre-match's streaming bar counts the build's steps.
+  let n = 0;
   for (;;) {
     const t = performance.now();
     for (;;) {
       const r = g.next();
-      if (r.done) return r.value;
+      n++;
+      if (r.done) {
+        opts.onStep?.(n, true);
+        return r.value;
+      }
       if (performance.now() - t > slice) break;
     }
+    opts.onStep?.(n, false);
     await new Promise<void>((res) => (typeof requestIdleCallback === "function" ? requestIdleCallback(() => res(), { timeout: 50 }) : setTimeout(res, 0)));
   }
 }

@@ -1601,7 +1601,7 @@ export class Screens {
    * world builds. A radio line. Free For All in amber, Dead
    * Streets red-black with lightning behind.
    */
-  matchLoading(s: { kind: "ffa" | "run"; mode: string; goal: string; time: number; map: string; players: { name: string; rank: string; squad: number; me: boolean }[]; best?: number; daily?: string; top?: number[]; drop?: string; kit?: [string, string, string][] }): void {
+  matchLoading(s: { kind: "ffa" | "run"; mode: string; goal: string; time: number; map: string; players: { name: string; rank: string; squad: number; me: boolean }[]; best?: number; daily?: string; top?: number[]; drop?: string; kit?: [string, string, string][]; size?: number; tips?: string[] }): void {
     // v4 rework: radio chatter in the player's language (English, or Pidgin when chosen); no minibus slang.
     const pcm = getLang() === "pcm";
     const lines = s.kind === "run"
@@ -1609,8 +1609,8 @@ export class Screens {
         ? ["Oya, the Mast dey wait. No waste time o!", "Torch battery na life. No play with am.", "If you hear drum, run go find cover!"]
         : ["Command: the Mast is waiting. Move.", "Watch your torch battery. It's your life.", "Hear the drum? Find cover. Now."]
       : pcm
-        ? ["Oya, the flag dey hide for arcade side o!", "Zone don dey close. Shine your eye!", "Na who sharp pass go win today o!"]
-        : ["Command: the flag is hidden near the arcade.", "The zone is closing. Eyes open.", "Weapons free. Last squad standing wins.", "Vehicles on the roads. Watch your six."];
+        ? ["Oya, the treasure dey hide for chest o!", "Zone don dey close. Shine your eye!", "Na who sharp pass go win today o!"]
+        : ["Command: the treasures are in the chests.", "The zone is closing. Eyes open.", "Weapons free. Last squad standing wins."];
     const line = lines[Math.floor(Math.random() * lines.length)];
     const cards = s.players
       .map((p) => `<div class="ld-card ${p.me ? "me" : ""}" style="--sq:${SQUAD_COLORS[p.squad % SQUAD_COLORS.length]}"><span class="bar"></span><b>${esc(p.name)}</b><small>${esc(p.rank)}</small>${p.me ? `<span class="tick">${icon("check", "", 12)}</span>` : ""}</div>`)
@@ -1620,18 +1620,46 @@ export class Screens {
          ${s.daily ? `<span class="small">${esc(t("Daily Run"))}: <b>${esc(s.daily)}</b></span>` : ""}
          ${s.top?.length ? `<span class="small">${esc(t("Today's best"))}: ${s.top.slice(0, 3).map((x, i) => `${i + 1}. <b class="num">${fmtTime(x)}</b>`).join(" · ")}</span>` : ""}`
       : "";
-    // v4: the drop's name big over its picture (the stage behind), and what you carry in, Field Kit cards.
-    const drop = s.drop ? `<div class="ld-drop"><span class="k">${esc(t(s.kind === "run" ? "Tonight" : "Dropping into"))}</span><b>${esc(t(s.drop)).toUpperCase()}</b></div>` : "";
     const kit = s.kit?.length ? `<div class="ld-kit">${s.kit.map(([slot, name, col]) => `<div class="fk-card" style="--c:${col}"><span class="s">${esc(t(slot)).toUpperCase()}</span><span class="n">${esc(t(name)).toUpperCase()}</span></div>`).join("")}</div>` : "";
+    // v8 (A2): the concept: the place big, mode · goal, three tips, the player slots filling, the streaming bar, DROPPING IN.
+    const size = Math.max(1, Math.min(12, s.size ?? 12), s.players.length);
+    const slots = Array.from({ length: size }, (_, i) => {
+      const p = s.players[i];
+      return p
+        ? `<i class="pm-slot on${p.me ? " me" : ""}" style="--sq:${SQUAD_COLORS[p.squad % SQUAD_COLORS.length]};animation-delay:${0.4 + i * 0.12}s" title="${esc(p.name)}"><b>${esc((p.name || "?").slice(0, 2).toUpperCase())}</b></i>`
+        : `<i class="pm-slot"></i>`;
+    }).join("");
+    const tips = (s.tips ?? []).slice(0, 3).map((x, i) => `<div class="pm-tip" style="animation-delay:${0.5 + i * 0.15}s"><span>${["◆", "◎", "▲"][i]}</span>${esc(t(x))}</div>`).join("");
     this.mount(
       "room",
-      `<div class="loadscreen ${s.kind}${s.drop ? " v4" : ""}">
-        ${drop}
-        <div class="ld-people">${cards}</div>
-        <div class="ld-map glass"><span class="label">${esc(s.map)}</span><b class="ld-mode">${esc(s.mode)}</b><span class="small">${esc(s.goal)}</span>${s.time > 0 ? `<span class="small">${Math.round(s.time / 60)} min</span>` : ""}${extra}${kit}<span class="ld-radio pdesc">“${esc(line)}”</span><button class="btn secondary ld-cancel" data-act="leave-room">Cancel</button></div>
-        <div class="ld-sign pdesc"><span class="ld-route">${["Building world", "Spawning items", s.kind === "run" ? "Waking the dead" : "Syncing players"].map((x, i) => `<i class="stop" style="animation-delay:${i * 1.1}s"></i><span>${esc(t(x))}</span>`).join("")}</span></div>
+      `<div class="loadscreen pm8 ${s.kind}">
+        <div class="pm8-shade"></div>
+        <div class="pm8-head"><div class="k">${esc(t(s.mode)).toUpperCase()} · ${esc(t(s.map)).toUpperCase()}</div><b>${esc(t(s.drop ?? s.map)).toUpperCase()}</b><p>${esc(t(s.goal))}${s.time > 0 ? ` · ${Math.round(s.time / 60)} min` : ""}</p></div>
+        <div class="pm8-tips">${tips}</div>
+        <div class="pm8-side">
+          <button class="ek-btn dim ld-cancel" data-act="leave-room">${esc(t("Cancel")).toUpperCase()}</button>
+          <div class="ld-people">${cards}</div>
+          ${kit}${extra}
+          <span class="ld-radio">“${esc(line)}”</span>
+        </div>
+        <div class="pm8-slots">${slots}</div>
+        <div class="pm8-bar"><i data-ld-bar></i></div>
+        <div class="pm8-cap"><span data-ld-what>${esc(t(s.kind === "run" ? "Waking the dead" : "Streaming the world")).toUpperCase()} <b data-ld-pct>0%</b></span> · <b>${s.players.length} / ${size}</b> ${esc(t(s.kind === "run" ? "ready" : "players ready")).toUpperCase()}</div>
+        <div class="pm8-drop"><span>${esc(t("Dropping in")).toUpperCase()}</span><b data-ld-eta>0:--</b></div>
       </div>`,
     );
+  }
+
+  /** v8 (A2): the world build's progress (0…1) and the seconds left (−1: not known yet), on the pre-match. */
+  loadProgress(u: number, secs: number): void {
+    if (this.current !== "room") return;
+    const bar = this.root.querySelector<HTMLElement>("[data-ld-bar]");
+    if (!bar) return;
+    bar.style.transform = `scaleX(${Math.max(0.02, Math.min(1, u))})`;
+    const pct = this.root.querySelector<HTMLElement>("[data-ld-pct]");
+    if (pct) pct.textContent = `${Math.round(u * 100)}%`;
+    const eta = this.root.querySelector<HTMLElement>("[data-ld-eta]");
+    if (eta) eta.textContent = u >= 1 ? "0:00" : secs >= 0 ? `0:${String(Math.min(59, Math.ceil(secs))).padStart(2, "0")}` : "0:--";
   }
 
   /** A short holding card while the server answers. */

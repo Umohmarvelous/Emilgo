@@ -2432,6 +2432,8 @@ export class Game {
       players: players?.length ? players.map((p) => (p.me ? { ...p, rank: me.rank } : p)) : [me],
       drop: art?.name ?? "Spooky World",
       kit,
+      size: kind === "run" ? 1 : Math.max(players?.length ?? 1, def.players.max),
+      tips: loadTips(kind, def, guns),
       ...(kind === "run" ? { best: this.settings.runBest, ...(this.settings.runDaily ? { daily: new Date().toISOString().slice(0, 10) } : {}), top: this.dailyTop } : {}),
     });
   }
@@ -3907,13 +3909,33 @@ export class Game {
   }
 
   /** Naija World for this graphics tier: built once, in slices between frames, then kept. */
+  /**
+   * v8 (A2): the pre-match's streaming bar: the world build's steps over the last build's count on this phone (the
+   * first build eases towards full instead), and an honest seconds-left from the pace so far.
+   */
+  private buildSteps(id: string): (n: number, done: boolean) => void {
+    const key = `world-steps-${id}-${this.spec.tier}`;
+    const total = Number(this.host.load(key)) || 0;
+    const t0 = performance.now();
+    return (n, done) => {
+      if (done) {
+        this.host.save(key, String(n));
+        this.screens.loadProgress(1, 0);
+        return;
+      }
+      const u = total > 0 ? Math.min(0.98, n / total) : 1 - Math.exp(-n / 400);
+      const secs = u > 0.05 ? ((performance.now() - t0) / 1000) * ((1 - u) / u) : -1;
+      this.screens.loadProgress(u, secs);
+    };
+  }
+
   private ensureNaija(map = "naija-world"): Promise<OpenWorld> {
     const tier = this.spec.tier;
     const id = map.startsWith("max-world") ? "max-world" : "naija-world";
     if (this.naija && this.naija.tier === tier && this.naija.id === id) return this.naija.p;
     if (this.naija?.w && !this.gm) this.naija.w.dispose();
     const slot: { tier: Tier; id: string; p: Promise<OpenWorld>; w: OpenWorld | null } = { tier, id, p: Promise.resolve(null as unknown as OpenWorld), w: null };
-    slot.p = this.loadV3().then((v) => v.buildOpenWorldIdle(id === "max-world" ? v.buildMaxWorld() : v.buildNaijaWorld(), this.spec, {}, id === "max-world" ? 16 : 8)).then((w) => {
+    slot.p = this.loadV3().then((v) => v.buildOpenWorldIdle(id === "max-world" ? v.buildMaxWorld() : v.buildNaijaWorld(), this.spec, { onStep: this.buildSteps(id) }, id === "max-world" ? 16 : 8)).then((w) => {
       // Low has no grade pass: the look reaches the lights instead.
       if (tier === 0) gradeLights(w.group, LOOKS.naija);
       slot.w = w;
@@ -4061,7 +4083,7 @@ export class Game {
     if (this.spooky && this.spooky.tier === tier) return this.spooky.p;
     if (this.spooky?.w && !this.gm) this.spooky.w.dispose();
     const slot: { tier: Tier; p: Promise<OpenWorld>; w: OpenWorld | null } = { tier, p: Promise.resolve(null as unknown as OpenWorld), w: null };
-    slot.p = this.loadV3().then((v) => v.buildOpenWorldIdle(v.buildSpookyWorld(), this.spec, { night: true })).then((w) => {
+    slot.p = this.loadV3().then((v) => v.buildOpenWorldIdle(v.buildSpookyWorld(), this.spec, { night: true, onStep: this.buildSteps("spooky-world") })).then((w) => {
       slot.w = w;
       return w;
     });
@@ -4171,6 +4193,8 @@ export class Game {
 
   /** The mode is on: the game view, its loop, its controls. */
   private beginFfa(gm: FfaMode): void {
+    // v8 (A2): DROPPING IN: the drop's whoosh as the pre-match gives way.
+    if (this.screens.name === "room") this.sound.dropWhoosh();
     if (this.world) this.scene.remove(this.world.group);
     if (this.dollObj) this.dollObj.root.visible = false;
     this.props?.setup([], []);
@@ -4707,3 +4731,16 @@ function stickEl(): HTMLDivElement {
   return s;
 }
 
+/** v8 (A2): the pre-match's three tips, for this mode (short, one line each). */
+function loadTips(kind: "ffa" | "run", def: ModeDef, guns: boolean): string[] {
+  if (kind === "run") return ["Watch your torch battery: it is your life.", "Hear the drum? Find cover, now.", "Head shots drop the dead fastest."];
+  const m = def.modules as Record<string, unknown>;
+  const tips: string[] = [];
+  if (m.treasure) tips.push("Treasures hide in chests. Carry them to a scan machine to upload.");
+  if (m.flags) tips.push("Find the flag in the stash spots and hold it.");
+  if (m.zone) tips.push("The zone closes in. Stay outside too long and the sky finishes you.");
+  if (guns) tips.push("Aim (ADS) slows you but tightens your spread.");
+  tips.push("Pick up armour plates: more plates, harder to drop.");
+  tips.push("Billboards show this week's events.");
+  return tips.slice(0, 3);
+}

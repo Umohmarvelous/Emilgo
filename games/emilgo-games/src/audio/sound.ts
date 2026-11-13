@@ -1540,6 +1540,14 @@ export class Sound {
     this.tone(880, t, 0.05, { type: "sine", gain: 0.08 });
   }
 
+  /** v8 (A2): DROPPING IN: a rising wind rush with a low thump at its end. */
+  dropWhoosh(): void {
+    const t = this.now;
+    this.noise(t, 0.7, { gain: 0.12, freq: 900, type: "bandpass" });
+    this.noise(t + 0.15, 0.55, { gain: 0.06, freq: 2600, type: "bandpass" });
+    this.tone(70, t + 0.55, 0.35, { type: "sine", gain: 0.25, to: 42 });
+  }
+
   /** v8 (A1): the end screen's XP roll, one dry tick per 50 XP. */
   xpTick(): void {
     if (this.busy(VOICE_CAP - 8)) return;
