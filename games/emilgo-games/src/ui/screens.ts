@@ -24,7 +24,7 @@ import { LOOK_PRESETS, type Settings } from "../settings";
 import { BOOSTS, BOOST_BY_ID, BOOST_ROUNDS, BOOST_SLOTS, type Boost, type BoostId } from "../shop/boosts";
 import { PRODUCTS, PRODUCT_BY_ID } from "../shop/catalog";
 import type { FriendState } from "../social/friends";
-import { EMOTES, EMOTE_BY_ID, type EmoteId } from "../social/emotes";
+// import { EMOTES, EMOTE_BY_ID, type EmoteId } from "../social/emotes";
 import { HOODIE_COLORS, HOODIE_DESIGNS, type HoodieDesign, type Look } from "../world/human/wardrobe";
 import { awardTitle, awardsBody, badgeEmblem, emblem } from "./awards";
 import { FIGURINES, type FigurineDef } from "../shop/figurines";
@@ -34,6 +34,10 @@ import { SPOOKY_ROUTE } from "../maps/open/route";
 import { divisionIndex } from "../content/validate";
 import { getLang, t, translateTree } from "./i18n";
 import { icon } from "./icons";
+
+
+import { EMOTE_BUTTONS, EMOTE_BY_ID, EMOTES, isEmoteOff, type EmoteId } from "../social/emotes";
+
 
 export interface ResultInfo {
   outcome: "finished" | "moved" | "time" | "noball";
@@ -648,31 +652,71 @@ export class Screens {
     });
   }
 
+  // emotes(selected: EmoteId | null, owned: ReadonlySet<string>, wheel: EmoteId[], slot: number, canBuy: boolean): void {
+  //   const packOwned = owned.has("emotes_owambe");
+  //   const tiles = EMOTES.map((e) => {
+  //     const locked = !!e.pack && !packOwned;
+  //     return `<button class="tile ${selected === e.id ? "on" : ""} ${locked ? "locked" : ""}" data-act="emote-pick" data-id="${e.id}">
+  //       ${locked ? `<span class="lock">${icon("lock", "", 14)}</span>` : ""}${icon(e.icon, "", 26)}<span class="t">${esc(e.label)}</span>${e.from ? `<span class="s">${esc(t(e.from))}</span>` : ""}
+  //       ${wheel.includes(e.id) ? `<span class="owned">Wheel</span>` : ""}
+  //     </button>`;
+  //   }).join("");
+  //   const slots = wheel
+  //     .map(
+  //       (id, i) =>
+  //         `<button class="tile ${slot === i ? "on" : ""}" data-act="emote-slot" data-i="${i}" style="min-height:58px">${icon(EMOTE_BY_ID[id].icon, "", 20)}<span class="s">${i + 1} · ${esc(EMOTE_BY_ID[id].label)}</span></button>`,
+  //     )
+  //     .join("");
+  //   this.sheet(
+  //     "emotes",
+  //     "Emotes",
+  //     `<p class="note">Tap an emote to see it. Pick a wheel slot below, then an emote to put there. Hold the emote button in a round to use the wheel.</p>
+  //      <div class="grid">${tiles}</div>
+  //      <div class="label" style="margin:14px 0 8px">Emote wheel</div>
+  //      <div class="grid hide" style="grid-template-columns:repeat(4,1fr)">${slots}</div>
+  //      ${!packOwned && EMOTES.some((e) => e.pack) ? `<div class="status" style="margin-top:12px">${icon("lock", "", 14)} Wobble, Shuffle and Hero come with the Party emote pack${canBuy ? ` · ${naira(PRODUCT_BY_ID.emotes_owambe.price)} in the Store` : " (inside Lagos Life)"}.</div>` : ""}`,
+  //   );
+  // }
+
   emotes(selected: EmoteId | null, owned: ReadonlySet<string>, wheel: EmoteId[], slot: number, canBuy: boolean): void {
-    const packOwned = owned.has("emotes_owambe");
-    const tiles = EMOTES.map((e) => {
-      const locked = !!e.pack && !packOwned;
-      return `<button class="tile ${selected === e.id ? "on" : ""} ${locked ? "locked" : ""}" data-act="emote-pick" data-id="${e.id}">
-        ${locked ? `<span class="lock">${icon("lock", "", 14)}</span>` : ""}${icon(e.icon, "", 26)}<span class="t">${esc(e.label)}</span>${e.from ? `<span class="s">${esc(t(e.from))}</span>` : ""}
-        ${wheel.includes(e.id) ? `<span class="owned">Wheel</span>` : ""}
+  const packOwned = owned.has("emotes_owambe");
+  // Disabled emotes stay on screen so the player sees *why* they're dead — faded, locked, unclickable.
+  const tiles = EMOTE_BUTTONS.map(({ emote: e, disabled, reason }) => {
+    const packLocked = !!e.pack && !packOwned;
+    const locked = disabled || packLocked;
+    const tip = disabled
+      ? `${t("Disabled")}${reason ? `: ${t(reason)}` : ""}`
+      : packLocked
+        ? t("Owambe emote pack")
+        : "";
+    const attrs = disabled
+      ? `disabled aria-disabled="true"`              // no data-act → click handler ignores it
+      : `data-act="emote-pick" data-id="${e.id}"`;
+    return `<button class="tile ${selected === e.id && !disabled ? "on" : ""} ${locked ? "locked" : ""}${disabled ? " off" : ""}" ${attrs} title="${esc(tip)}">
+      ${locked ? `<span class="lock">${icon("lock", "", 14)}</span>` : ""}${icon(e.icon, "", 26)}<span class="t">${esc(e.label)}</span>${e.from ? `<span class="s">${esc(t(e.from))}</span>` : ""}
+      ${wheel.includes(e.id) ? `<span class="owned">Wheel</span>` : ""}
+    </button>`;
+  }).join("");
+  // Wheel slots: keep them selectable so a disabled slot can still be re-assigned,
+  // but show the faded + lock state when they hold a dead emote.
+  const slots = wheel
+    .map((id, i) => {
+      const off = isEmoteOff(EMOTE_BY_ID[id]);
+      return `<button class="tile ${slot === i ? "on" : ""}${off ? " off" : ""}" data-act="emote-slot" data-i="${i}" style="min-height:58px" ${off ? `title="${esc(t("Disabled"))}"` : ""}>
+        ${icon(EMOTE_BY_ID[id].icon, "", 20)}<span class="s">${i + 1} · ${esc(EMOTE_BY_ID[id].label)}</span>${off ? `<span class="lock">${icon("lock", "", 14)}</span>` : ""}
       </button>`;
-    }).join("");
-    const slots = wheel
-      .map(
-        (id, i) =>
-          `<button class="tile ${slot === i ? "on" : ""}" data-act="emote-slot" data-i="${i}" style="min-height:58px">${icon(EMOTE_BY_ID[id].icon, "", 20)}<span class="s">${i + 1} · ${esc(EMOTE_BY_ID[id].label)}</span></button>`,
-      )
-      .join("");
-    this.sheet(
-      "emotes",
-      "Emotes",
-      `<p class="note">Tap an emote to see it. Pick a wheel slot below, then an emote to put there. Hold the emote button in a round to use the wheel.</p>
-       <div class="grid">${tiles}</div>
-       <div class="label" style="margin:14px 0 8px">Emote wheel</div>
-       <div class="grid" style="grid-template-columns:repeat(4,1fr)">${slots}</div>
-       ${!packOwned && EMOTES.some((e) => e.pack) ? `<div class="status" style="margin-top:12px">${icon("lock", "", 14)} Wobble, Shuffle and Hero come with the Party emote pack${canBuy ? ` · ${naira(PRODUCT_BY_ID.emotes_owambe.price)} in the Store` : " (inside Lagos Life)"}.</div>` : ""}`,
-    );
-  }
+    })
+    .join("");
+  this.sheet(
+    "emotes",
+    "Emotes",
+    `<p class="note">Tap an emote to see it. Pick a wheel slot below, then an emote to put there. Hold the emote button in a round to use the wheel.</p>
+     <div class="grid">${tiles}</div>
+     <div class="label" style="margin:14px 0 8px">Emote wheel</div>
+     <div class="grid hide" style="grid-template-columns:repeat(4,1fr)">${slots}</div>
+     ${!packOwned && EMOTES.some((e) => e.pack) ? `<div class="status" style="margin-top:12px">${icon("lock", "", 14)} Some emotes come with the Party emote pack${canBuy ? ` · ${naira(PRODUCT_BY_ID.emotes_owambe.price)} in the Store` : " (inside Lagos Life)"}.</div>` : ""}`,
+  );
+}
 
   /** v6 max (3.11): your profile: every stat, the awards, the history, privacy, the way to your messages. */
   profile(p: ProfileView): void {
@@ -716,7 +760,11 @@ export class Screens {
     this.sheet(
       "loadout",
       "Loadout",
-      `<button class="md" style="margin: auto" data-act="emotes">${icon("wheel", "", 18)}<span class="grow" ><b>Edit the wheel</b><small>${s.wheel.map((id) => EMOTE_BY_ID[id].label).join(" · ")}</small></span>${icon("next", "", 16)}</button>
+
+      // <button class="md" style="margin: auto" data-act="emotes">${icon("wheel", "", 18)}<span class="grow" ><b>Edit the wheel</b><small>${s.wheel.map((id) => EMOTE_BY_ID[id].label).join(" · ")}</small></span>${icon("next", "", 16)}</button>
+
+      `
+    
        <button class="md" style="margin: 8px auto 0" data-act="boosts">${icon("bolt", "", 18)}<span class="grow"><b>Boosts</b><small>${s.boostsOn.length ? s.boostsOn.map((id) => `${BOOST_BY_ID[id].name} (${s.boosts[id] ?? 0})`).join(" · ") : `None on · ${s.cp} CP`}</small></span>${icon("next", "", 16)}</button>`,
     );
   }
@@ -886,7 +934,7 @@ export class Screens {
   }
 
   boardLoading(): void {
-    this.sheet("board", "Leaderboard", `<p class="note">Loading…</p>`, { side: "right" });
+    this.sheet("board", "Leaderboardj", `<p class="note">Loading…</p>`, { side: "right" });
   }
 
   board(b: Leaderboard | null, error: unknown): void {

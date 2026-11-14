@@ -61,7 +61,7 @@ import { getLang, setLang, t, translateTree } from "../ui/i18n";
 import { Rotator, gameSize } from "../ui/rotate";
 import { EMOTE_PACK, PRODUCT_BY_ID, fromWire, toWireLook, type WireLook } from "../shop/catalog";
 import { ShopClient } from "../shop/client";
-import { EMOTE_BY_ID, EMOTES, type EmoteId } from "../social/emotes";
+// import { EMOTE_BY_ID, EMOTES, type EmoteId } from "../social/emotes";
 import { Hud, type MapMark } from "../ui/hud";
 import { QuickChat } from "../ui/quickchat";
 import { Scoreboard } from "../ui/scoreboard";
@@ -71,6 +71,21 @@ import { NetStatus } from "../ui/netstatus";
 import { showInterstitial } from "../ui/interstitial";
 import { artForMap, nextDrop } from "../ui/places";
 import { KITS } from "../world/human/gear";
+
+
+
+import {
+  DISABLED_EMOTES,
+  EMOTE_ALL,
+  EMOTE_BY_ID,
+  EMOTES,
+  canSendEmote,
+  isEmoteLive,
+  isEmoteOff,
+  type EmoteId,
+} from "../social/emotes";
+
+
 
 /** Dead Streets' run weapons, as the lobby's loadout names them. */
 const RUN_WEAPON_NAME: Record<string, string> = { pistol: "Pistol", dane: "Dane gun", pestle: "Thunder Pestle", flame: "Gen-Set Torch" };
@@ -124,6 +139,7 @@ import type { Highlights, Moment, MomentKind } from "./highlights";
 import { PHASES, prePlay } from "./phases";
 import type { Clip, DollPose, Recorder } from "./replay";
 import type { Cause, Contestant, RedLightRound, RoundEvent, RoundView } from "./rules";
+
 
 const ME = "me";
 const MATCH_STILL_ON = "The match is still on. The result comes when the round ends.";
@@ -448,6 +464,7 @@ export class Game {
     this.bubbles = new Bubbles(bubbleLayer);
     this.chat = new ChatPanel(ui, this.controls.chatBtn);
     this.wheel = new EmoteWheel(ui);
+    this.wheel.setLocked(DISABLED_EMOTES);
     this.spectateBtn = document.createElement("button");
     this.spectateBtn.className = "spectate-btn btn secondary";
     this.spectateBtn.dataset.ui = "1";
@@ -521,8 +538,21 @@ export class Game {
       else if (a.kind === "report") this.net?.send({ t: "report", id: a.seat, reason: a.reason });
       else this.chat.add({ from: "", name: "", text: this.chat.isMuted(a.seat) ? `Muted ${a.name}.` : `Unmuted ${a.name}.`, mine: false, system: true });
     });
-    this.wheel.onEmote((id) => this.sendEmote(id));
+    
+    // this.wheel.onEmote((id) => this.sendEmote(id));
+    // this.wheel.onLocked(() => this.hud.pushFeed("Owambe emote pack: in the Store", "info"));
+
+
+    this.wheel.onEmote((id) => {
+      if (!isEmoteLive(id)) {
+        this.hud.pushFeed(`${t(EMOTE_BY_ID[id].label)}: ${t("disabled")}`, "info");
+        return;
+      }
+      this.sendEmote(id);
+    });
     this.wheel.onLocked(() => this.hud.pushFeed("Owambe emote pack: in the Store", "info"));
+
+
     this.controls.onWheel = (open, x, y) => {
       if (open) this.wheel.open(x, y);
       else this.wheel.release();
@@ -2306,13 +2336,25 @@ export class Game {
           if (c) this.crowd.talk(c.index, m.text);
         }
         break;
+      // case "emote":
+      //   if (m.from !== this.seatId && !this.chat.isMuted(m.from)) {
+      //     if (this.round?.get(m.from)) this.playEmote(m.from, m.e);
+      //     else {
+      //       // v8 (A15): in the waiting room, on their figure in the circle.
+      //       this.stage.emoteMember(m.from, m.e);
+      //     }
+      //     if (!this.round && this.settings.chat) {
+      //       const who = this.room?.players.find((p) => p.id === m.from)?.name ?? "Someone";
+      //       this.chat.add({ from: m.from, name: who, text: EMOTE_BY_ID[m.e].label, mine: false });
+      //     }
+      //   }
+      //   break;
+
+
       case "emote":
-        if (m.from !== this.seatId && !this.chat.isMuted(m.from)) {
+        if (m.from !== this.seatId && !this.chat.isMuted(m.from) && isEmoteLive(m.e)) {
           if (this.round?.get(m.from)) this.playEmote(m.from, m.e);
-          else {
-            // v8 (A15): in the waiting room, on their figure in the circle.
-            this.stage.emoteMember(m.from, m.e);
-          }
+          else this.stage.emoteMember(m.from, m.e);
           if (!this.round && this.settings.chat) {
             const who = this.room?.players.find((p) => p.id === m.from)?.name ?? "Someone";
             this.chat.add({ from: m.from, name: who, text: EMOTE_BY_ID[m.e].label, mine: false });
@@ -2936,27 +2978,57 @@ export class Game {
 
   // ── Social ────────────────────────────────────────────────────────────────
 
+  // private sendEmote(id: EmoteId): void {
+  //   const round = this.round;
+  //   if (!round) {
+  //     // In a room: show it on your character and tell the room. v8 (A15): the lobby and the results too.
+  //     const seen = this.stage.emote(id);
+  //     if (!seen) this.screens.toast(`${t("You")}: ${t(EMOTE_BY_ID[id].label)}`);
+  //     if (this.room) this.net?.send({ t: "emote", e: id });
+  //     addProgress(this.settings.daily, "emotes", 1);
+  //     return;
+  //   }
+  //   this.playEmote(this.meId, id);
+  //   if (this.mode === "online") this.net?.send({ t: "emote", e: id });
+  //   this.haptic("tap");
+  //   addProgress(this.settings.daily, "emotes", 1);
+  // }
+
   private sendEmote(id: EmoteId): void {
-    const round = this.round;
-    if (!round) {
-      // In a room: show it on your character and tell the room. v8 (A15): the lobby and the results too.
-      const seen = this.stage.emote(id);
-      if (!seen) this.screens.toast(`${t("You")}: ${t(EMOTE_BY_ID[id].label)}`);
-      if (this.room) this.net?.send({ t: "emote", e: id });
-      addProgress(this.settings.daily, "emotes", 1);
-      return;
-    }
-    this.playEmote(this.meId, id);
-    if (this.mode === "online") this.net?.send({ t: "emote", e: id });
-    this.haptic("tap");
-    addProgress(this.settings.daily, "emotes", 1);
+  // A disabled emote is a dead button everywhere: no animation, no network, no score.
+  if (!canSendEmote(id, { ownsPack: this.owned().has(EMOTE_PACK) })) {
+    this.screens.toast(`${t(EMOTE_BY_ID[id].label)}: ${t("disabled")}`);
+    return;
   }
+  const round = this.round;
+  if (!round) {
+    const seen = this.stage.emote(id);
+    if (!seen) this.screens.toast(`${t("You")}: ${t(EMOTE_BY_ID[id].label)}`);
+    if (this.room) this.net?.send({ t: "emote", e: id });
+    addProgress(this.settings.daily, "emotes", 1);
+    return;
+  }
+  this.playEmote(this.meId, id);
+  if (this.mode === "online") this.net?.send({ t: "emote", e: id });
+  this.haptic("tap");
+  addProgress(this.settings.daily, "emotes", 1);
+}
+
+  // private playEmote(seat: string, id: EmoteId): void {
+  //   const c = this.round?.get(seat);
+  //   if (!c || c.status === "eliminated") return;
+  //   this.crowd.emote(c.index, id);
+  //   this.bubbles.show(c.index, EMOTE_BY_ID[id].icon);
+  // }
+
 
   private playEmote(seat: string, id: EmoteId): void {
-    const c = this.round?.get(seat);
-    if (!c || c.status === "eliminated") return;
-    this.crowd.emote(c.index, id);
-    this.bubbles.show(c.index, EMOTE_BY_ID[id].icon);
+  // A disabled emote never plays: not from this phone, not from a bot, not from the server.
+  if (!isEmoteLive(id)) return;
+  const c = this.round?.get(seat);
+  if (!c || c.status === "eliminated") return;
+  this.crowd.emote(c.index, id);
+  this.bubbles.show(c.index, EMOTE_BY_ID[id].icon);
   }
 
   /** Practice only: a few CPUs react (labelled CPU, as always). */
@@ -3175,11 +3247,28 @@ export class Game {
       case "emotes":
         this.showEmotes();
         break;
+      // case "emote-pick": {
+      //   const id = d.id as EmoteId;
+      //   this.emoteSel = id;
+      //   this.stage.emote(id);
+      //   const e = EMOTE_BY_ID[id];
+      //   const free = !e.pack || this.owned().has(EMOTE_PACK);
+      //   if (this.wheelSlot >= 0 && free) {
+      //     this.settings.wheel[this.wheelSlot] = id;
+      //     this.wheelSlot = -1;
+      //     saveSettings(this.host, this.settings);
+      //     this.wheel.setSlots(this.settings.wheel);
+      //   }
+      //   this.showEmotes();
+      //   break;
+      // }
       case "emote-pick": {
         const id = d.id as EmoteId;
+        const e = EMOTE_BY_ID[id];
+        // Disabled: the tile is there, faded and locked; clicking does nothing.
+        if (!e || isEmoteOff(e)) break;
         this.emoteSel = id;
         this.stage.emote(id);
-        const e = EMOTE_BY_ID[id];
         const free = !e.pack || this.owned().has(EMOTE_PACK);
         if (this.wheelSlot >= 0 && free) {
           this.settings.wheel[this.wheelSlot] = id;
