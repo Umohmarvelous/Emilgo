@@ -8,7 +8,7 @@
 #   BUILD=lagoslife games/emilgo-games/scripts/deploy-site.sh                 (the site Lagos Life frames)
 set -e
 G="$(cd "$(dirname "$0")/.." && pwd)"
-SERVER="${SERVER:-wss://emilgo-games.fly.dev}"
+SERVER="${SERVER:-wss://lootline.fly.dev}"
 PROJECT=milgogames
 OUT="$(mktemp -d)"
 SRC="$(mktemp -d)"

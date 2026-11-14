@@ -1,9 +1,9 @@
-# The EMILGO Games server on Fly.io: https://emilgo-games.fly.dev for now
+# The LOOTLINE Games server on Fly.io: https://lootline.fly.dev for now
 # (https://api.emilgo.app once the domain is bought): the game's pages at /,
 # wss:// for its matches, /vatar-webhook for Lagos Life. Run fly commands from
 # games/emilgo-games. The pages are built with the local assets-site/ folder.
 #
-#   fly apps create emilgo-games
+#   fly apps create lootline
 #   fly volumes create emilgo_data --region lhr --size 1
 #   fly secrets set TICKET_SECRET=… ADMIN_TOKEN=…            (and the Vatar keys when you have them)
 #   fly deploy
@@ -21,14 +21,14 @@
 # Secrets (VATAR_*, TICKET_SECRET, ADMIN_TOKEN, SUPABASE_*) live only in
 # `fly secrets`, never here.
 
-app = "emilgo-games"
+app = "lootline"
 primary_region = "lhr"
 
 [build]
   dockerfile = "server/Dockerfile"
 
   [build.args]
-    VITE_GAMES_SERVER = "wss://emilgo-games.fly.dev"
+    VITE_GAMES_SERVER = "wss://lootline.fly.dev"
 
 [env]
   PORT = "8787"
@@ -39,7 +39,7 @@ primary_region = "lhr"
   # The pages allowed to connect: this server's own pages, the game's site, the
   # test site, and the copy inside the EMILGO app (its WebView's base URL,
   # app/games/redlight.tsx).
-  GAMES_ORIGINS = "https://emilgo-games.fly.dev,https://play.emilgo.app,https://milgogames.pages.dev,https://games.emilgo.local"
+  GAMES_ORIGINS = "https://lootline.fly.dev,https://play.emilgo.app,https://milgogames.pages.dev,https://games.emilgo.local"
 
 [[mounts]]
   source = "emilgo_data"

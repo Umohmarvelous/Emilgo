@@ -11,7 +11,7 @@
 // SERVER=https://… picks another server (default: the Fly one). With several
 // nodes, run it once per node.
 
-const server = (process.env.SERVER || "https://emilgo-games.fly.dev").replace(/\/$/, "");
+const server = (process.env.SERVER || "https://lootline.fly.dev").replace(/\/$/, "");
 const [cmd, ...ids] = process.argv.slice(2);
 
 async function now() {

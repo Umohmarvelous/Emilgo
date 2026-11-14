@@ -366,27 +366,27 @@ MAX_PER_IP=100000 …index.mjs; node server/dist/loadtest.mjs --clients 1200 --s
 Everything below needs your accounts; none of it is code.
 
 The addresses (30 Oct 2026). **Now, with no domain:** players use
-**https://milgogames.pages.dev**; the server is **https://emilgo-games.fly.dev**
+**https://milgogames.pages.dev**; the server is **https://lootline.fly.dev**
 (Fly.io, London, `fly.toml`). **Later, with `emilgo.app`:** play.emilgo.app and
 api.emilgo.app (steps 1 and the `certs`/custom-domain parts below); the bare
 `emilgo.app` is kept for the EMILGO app's own site.
 
 1. **Later: buy `emilgo.app`** (Cloudflare → Domain Registration, or any registrar).
 2. **Host the server** on Fly.io, from `games/emilgo-games`:
-   `brew install flyctl`, `fly auth login`, `fly apps create emilgo-games`,
+   `brew install flyctl`, `fly auth login`, `fly apps create lootline`,
    `fly volumes create emilgo_data --region lhr --size 1`,
    `fly secrets set TICKET_SECRET=… ADMIN_TOKEN=…`, `fly deploy`,
-   `https://emilgo-games.fly.dev/health` should say `ok`. (With the domain:
+   `https://lootline.fly.dev/health` should say `ok`. (With the domain:
    `fly certs add api.emilgo.app` and the DNS records it prints, grey cloud.)
 3. **Host the game**: `scripts/deploy-site.sh` (builds the last commit against
-   `wss://emilgo-games.fly.dev`; the web build, with no Lagos Life SDK). **For
+   `wss://lootline.fly.dev`; the web build, with no Lagos Life SDK). **For
    the site Lagos Life frames, deploy with `BUILD=lagoslife`**: the web build
    can't talk to Lagos Life. Check the `content-security-policy:
    frame-ancestors …` header on the live URL. (With the domain: Pages →
    `milgogames` → Custom domains → `play.emilgo.app`, and
    `SERVER=wss://api.emilgo.app scripts/deploy-site.sh`.)
 4. **Get test keys** at `lagoslife.app/developers/keys`: Game URL =
-   `https://milgogames.pages.dev`; Webhook URL = `https://emilgo-games.fly.dev/vatar-webhook`
+   `https://milgogames.pages.dev`; Webhook URL = `https://lootline.fly.dev/vatar-webhook`
    (change both when the domain comes).
    Put the test secret, results secret and webhook secret in with
    `fly secrets set VATAR_SECRET=… VATAR_RESULTS_SECRET=… VATAR_WEBHOOK_SECRET=…`.
