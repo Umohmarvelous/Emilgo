@@ -2216,6 +2216,68 @@ border: 1px solid rgba(107, 106, 82, 0.35);
     linear-gradient(rgba(5,8,10,.8), transparent 20%, transparent 70%, rgba(5,8,10,.8));
 }
 
+/* ── Clean Ops: the Lagos Life money chip (top bar, next to CP) ───────── */
+.lobby-cops .cops-money {
+  display: inline-flex !important;
+  align-items: center;
+  gap: .3em;
+  padding: .3em .55em;
+  color: #ffb020;
+  font-family: var(--cops-body);
+  font-size: .72em;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+  border-radius: 0;
+  transition: background 0.15s, border-color 0.15s;
+}
+.lobby-cops .cops-money:hover,
+.lobby-cops .cops-money:focus-visible {
+  outline: none;
+}
+.lobby-cops .cops-money svg.i {
+  width: 1.15em;
+  height: 1.15em;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+}
+.lobby-cops .cops-money b {
+  color: #ffd76a;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+/* Never hide the money chip in portrait; the wallet only shrinks a touch. */
+@media (orientation: portrait) {
+  .lobby-cops .cops-money {
+    padding: .25em .45em;
+    font-size: .65em;
+  }
+  .lobby-cops .cops-money svg.i { width: 1.05em; height: 1.05em; }
+}
+
+/* ── Clean Ops: empty friends row (dash + 0), matching the filled rows ── */
+.lobby-cops .cops-fr.empty-row {
+  cursor: pointer;
+  opacity: 0.6;
+}
+.lobby-cops .cops-fr.empty-row:hover { opacity: 0.85; }
+.lobby-cops .cops-fr.empty-row .nm {
+  font-weight: 800;
+  letter-spacing: .04em;
+  min-width: 1.6em;
+  color: var(--cops-w);
+}
+.lobby-cops .cops-fr.empty-row em { color: var(--cops-dim); }
+
+/* ── Clean Ops: portrait — friends strip shows the empty row too ─────── */
+@media (orientation: portrait) {
+  .lobby-cops .cops-fr.empty-row {
+    flex: 0 0 auto;
+    min-width: 4.5em;
+  }
+}
+
 .lobby-cops .cops-ui {
   position: absolute; inset: 0;
   display: grid;
@@ -2301,7 +2363,7 @@ border: 1px solid rgba(107, 106, 82, 0.35);
 }
 
 /* ── Left column ── */
-.lobby-cops .cops-left { grid-area: left; display: flex; flex-direction: column; gap: .5em; align-self: start; margin-top: .6em; }
+.lobby-cops .cops-left { grid-area: left; display: flex; flex-direction: column; gap: .5em; align-self: start; margin-top: 2em; }
 .lobby-cops .cops-banner {
   position: relative; height: 6.4em;
   background: center/cover; border: 1px solid var(--cops-line); overflow: hidden;
@@ -2319,10 +2381,15 @@ border: 1px solid rgba(107, 106, 82, 0.35);
 .lobby-cops .cops-lbl {
   font-size: .56em; font-weight: 800; letter-spacing: .2em;
   color: var(--cops-g); text-transform: uppercase;
+  display:flex; flex-direction: row;
+  justify-content: space-between; gap: 5;
+  text-align: flex-start;
+  margin-top: 4em;
 }
+
 .lobby-cops .cops-orders { display: flex; flex-direction: column; gap: .15em; }
 .lobby-cops .cops-orders .lbl {
-  display: flex; justify-content: space-between; margin-bottom: 7em;
+  display: flex; justify-content: space-between; margin-bottom: 2em; margin-top: 7em;
   font-size: .56em; font-weight: 800; letter-spacing: .2em;
   color: var(--cops-g); text-transform: uppercase;
 }
@@ -2381,7 +2448,7 @@ border: 1px solid rgba(107, 106, 82, 0.35);
 .lobby-cops .cops-plate .mic { color: var(--cops-dim); stroke-width: 2; }
 
 /* ── Mode tabs, card, options ── */
-.lobby-cops .cops-modes { grid-area: modes; display: flex; border-bottom: 1px solid var(--cops-line); }
+.lobby-cops .cops-modes { grid-area: modes; display: none; border-bottom: 1px solid var(--cops-line); }
 .lobby-cops .cops-modes button {
   flex: 1; padding: .45em 0; font-size: .6em; font-weight: 800; letter-spacing: .12em;
   color: var(--cops-dim); position: relative; text-transform: uppercase;
@@ -2590,7 +2657,7 @@ border: 1px solid rgba(107, 106, 82, 0.35);
   .lobby-cops .cops-cur.n { display: none; }
   .lobby-cops .cops-left { margin-top: 0; }
   .lobby-cops .cops-left .cops-orders { display: none; }
-  .lobby-cops .cops-banner { height: 5em; }
+  .lobby-cops .cops-banner { height: 5em; display: none; }
   .lobby-cops .cops-mid { padding-bottom: 0; }
   .lobby-cops .cops-plinth { width: 5.6em; height: 12em; }
   .lobby-cops .cops-plinth.me { width: 9.5em; }
@@ -2675,4 +2742,35 @@ border: 1px solid rgba(107, 106, 82, 0.35);
 /* ── Reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
   .lobby-cops .cops-play::after { animation: none; }
+}
+
+
+
+
+
+/* ── Clean Ops: hide the friends panel on phones (both orientations) ────
+   "Phone" = smallest dimension under 500px. That catches every phone in
+   portrait (≤ ~430px wide) and landscape (≤ ~430px tall) while leaving
+   every tablet (≥ 744px) and laptop untouched. */
+@media (max-width: 500px), (max-height: 500px) {
+  .lobby-cops .cops-friends {
+    display: none !important;
+  }
+}
+
+/* Landscape phone: the friends panel lived in the 3rd grid column. With it
+   gone, collapse that column to two so the layout fills the width instead
+   of leaving an empty ~18em block at the top right. */
+@media (max-height: 500px) and (orientation: landscape) {
+  .lobby-cops .cops-ui {
+    grid-template-columns: 14em 1fr;
+    grid-template-areas:
+      "top top"
+      "left mid"
+      "left modes"
+      "stats mode"
+      "stats opts"
+      "stats play";
+    column-gap: .8em;
+  }
 }

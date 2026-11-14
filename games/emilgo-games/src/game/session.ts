@@ -781,14 +781,37 @@ export class Game {
   }
 
   /** Ask the host for the player's money, at most every 30 s (a lobby can redraw often); the slot updates when it answers. */
+  // private refreshMoney(): void {
+  //   if (Date.now() - this.moneyAt < 30_000) return;
+  //   this.moneyAt = Date.now();
+  //   void this.host.money().then((n) => {
+  //     this.moneyNow = n;
+  //     if (this.screens.name === "lobby") this.screens.setMoney(n);
+  //   });
+  // }
+
+
+
+
   private refreshMoney(): void {
-    if (Date.now() - this.moneyAt < 30_000) return;
+    // Re-fetch at most every 10 s. On success we push the number into the
+    // lobby's [data-money] chip; on failure we leave it showing the placeholder.
+    if (Date.now() - this.moneyAt < 10_000) return;
     this.moneyAt = Date.now();
-    void this.host.money().then((n) => {
-      this.moneyNow = n;
-      if (this.screens.name === "lobby") this.screens.setMoney(n);
-    });
+    void this.host.money()
+      .then((n) => {
+        this.moneyNow = n;
+        if (this.screens.name === "lobby") this.screens.setMoney(n);
+      })
+      .catch(() => {
+        // Lagos Life isn't answering right now: keep whatever we last had.
+        if (this.screens.name === "lobby") this.screens.setMoney(this.moneyNow);
+      });
   }
+
+
+
+
 
   // private showLobby(): void {
   //   this.screens.avatarPick = this.settings.avatar;
@@ -4065,9 +4088,20 @@ private lobbyA(): Pick<LobbyState, "drop" | "rotation" | "squad" | "loadout" | "
         if (this.host.kind === "emilgo") (this.host as unknown as { advertise(): void }).advertise();
         else if (this.host.kind === "web") this.adSheet.intro();
         break;
+
+      // case "money":
+      //   this.screens.toast(this.moneyNow === null ? "Your Lagos Life money shows here once Lagos Life shares it with games." : "Your Lagos Life money.", 3200);
+      //   break;
+
       case "money":
-        this.screens.toast(this.moneyNow === null ? "Your Lagos Life money shows here once Lagos Life shares it with games." : "Your Lagos Life money.", 3200);
-        break;
+        this.screens.toast(
+          this.moneyNow === null
+            ? t("Your Lagos Life money shows here once Lagos Life shares it with games.")
+            : `${t("Your Lagos Life money")}: ${naira(this.moneyNow)}`,
+          3200,
+        );
+      break;
+
       case "back":
         if (this.round && this.paused) this.screens.pause(this.host, this.mode === "online");
         else if (this.screens.name === "maps") this.showPlay();

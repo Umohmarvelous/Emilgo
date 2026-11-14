@@ -297,10 +297,9 @@ export interface LobbyState {
 
 
   // /** Career line under the drop: [value, label] pairs. Computed by the session. */
-  // career?: [string, string][];
-
-
   career?: [string, string][];
+
+
   /**
    * Clean Ops friends panel: party members first (kind "party"), then friends
    * (kind "friend") with their state, then recent players you could add
@@ -558,7 +557,7 @@ export class Screens {
     }).join("");
 
     // Daily orders (up to 3).
-    const orders = s.daily.slice(0, 3).map((d) => {
+    const orders = s.daily.slice(0, 5).map((d) => {
       const p = Math.min(d.progress, d.def.goal);
       const done = d.progress >= d.def.goal;
       return `<div class="cops-ol${done ? " done" : ""}">${icon(done ? "check" : "target", "", 16)}<span>${esc(t(d.def.label))}</span><b>${p}/${d.def.goal}</b><span class="bar"><i style="width:${(p / d.def.goal) * 100}%"></i></span></div>`;
@@ -629,54 +628,75 @@ export class Screens {
           <nav class="cops-nav" aria-label="${esc(t("Sections"))}">${navHtml}</nav>
         
 
-          <div class="cops-right">
-            <span class="cops-cur"><i class="dot"></i>${settings.cp} CP</span>
-            ${s.money !== null ? `<span class="cops-cur n"><i class="dot n"></i>${naira(s.money)}</span>` : ""}
-            ${util}
-          </div>
-
-
+        <div class="cops-right">
+          <span class="cops-cur"><i class="dot"></i>${settings.cp} CP</span>
+          <button class="cops-money" data-act="money" type="button" aria-label="${esc(t("Your Lagos Life money"))}">₦<b data-money>${s.money === null ? "— -" : naira(s.money)}</b>
+          </button>
+          ${util}
         </div>
-        <div class="cops-left">
-          <div class="cops-banner"${s.drop?.img ? ` style="background-image:url(${esc(s.drop.img)})"` : ""}>
-            <span class="tx">
-              <span class="cops-lbl">${esc(t("Next drop"))}</span>
-              <b>${esc(s.drop?.name || "Meridian City")}</b>
-              <i>${esc(s.drop?.line || "")}</i>
-            </span>
-          </div>
-          <div class="cops-orders">
-            <span class="lbl">${esc(t("Daily orders"))} <em>${ordersDone}/${orders.length || 3}</em></span>
-            ${orders || ""}
-          </div>
+      </div>
+
+
+      <div class="cops-left">
+        <div class="cops-banner"${s.drop?.img ? ` style="background-image:url(${esc(s.drop.img)})"` : ""}>
+          <span class="tx">
+            <span class="cops-lbl">${esc(t("Next drop"))}</span>
+            <b>${esc(s.drop?.name || "Meridian City")}</b>
+            <i>${esc(s.drop?.line || "")}</i>
+          </span>
         </div>
 
 
-
-        <div class="cops-mid">${plinths}</div>
-
-
-      
-        
-        <div class="cops-friends" aria-label="${esc(t("Friends"))}">
-          <span class="cops-lbl">${esc(t("Friends"))} · <span data-fon>${s.friends.online ?? "—"}</span> ${esc(t("online"))} · <span data-fin>${s.friends.inMatch ?? "—"}</span> ${esc(t("in match"))}</span>
-          ${(s.friendsList ?? []).slice(0, 10).map((f) => {
-            const stateLabel = f.kind === "party"
-              ? t("In your party")
-              : f.state === "on" ? t("In the lobby") : f.state === "busy" ? t("In a match") : t("Offline");
-            const dot = f.state === "busy" ? "busy" : f.state === "off" ? "off" : "";
-            return `<div class="cops-fr">
-              <i class="d${dot ? ` ${dot}` : ""}"></i>
-              <span class="nm">${esc(f.name)}</span>
-              <em>${esc(stateLabel)}</em>
-              ${f.canInvite ? `<button data-act="finvite" data-name="${esc(f.name)}">${esc(f.kind === "recent" ? t("Add") : t("Invite")).toUpperCase()}</button>` : ""}
-            </div>`;
-          }).join("")}
-          ${(s.friendsList?.length ?? 0) === 0
-            ? `<span class="cops-fr empty">${esc(t("No friends yet. Tap Friends to add some."))}</span>`
-            : ""}
+        <div class="cops-orders">
+          <span class="lbl">${esc(t("Daily orders"))} <em>${ordersDone}/${orders.length || 5}</em></span>
+          ${orders || ""}
         </div>
-        
+      </div>
+
+
+
+
+
+      <div class="cops-friends" aria-label="${esc(t("Friends"))}">
+          <span class="cops-lbl">
+            ${esc(t("Friends"))} 
+            <div> 
+            <span data-fon>${s.friends.online ?? 0}</span> ${esc(t("online"))}
+            </div>
+            <div>
+            <span data-fin>${s.friends.inMatch ?? 0}</span> ${esc(t("in match"))}
+            </div>
+          </span>
+          ${
+            (s.friendsList ?? []).length
+              ? (s.friendsList ?? []).slice(0, 10).map((f) => {
+                  const stateLabel = f.kind === "party"
+                    ? t("In your party")
+                    : f.state === "on"
+                      ? t("In the lobby")
+                      : f.state === "busy"
+                        ? t("In a match")
+                        : t("Offline");
+                  const dotCls = f.state === "busy" ? "busy" : f.state === "off" ? "off" : "";
+                  return `<div class="cops-fr">
+                    <i class="d${dotCls ? ` ${dotCls}` : ""}"></i>
+                    <span class="nm">${esc(f.name)}</span>
+                    <em>${esc(stateLabel)}</em>
+                    ${f.canInvite ? `<button data-act="finvite" data-name="${esc(f.name)}">${esc(f.kind === "recent" ? t("Add") : t("Invite")).toUpperCase()}</button>` : ""}
+                  </div>`;
+                }).join("")
+              : // Empty state: exact layout, no dummy names. "-" for the name, "0" in the header counts above.
+                `<div class="cops-fr empty-row" data-act="tab" data-tab="friends" role="button" tabindex="0">
+                  <i class="d off"></i>
+                  <span class="nm">-</span>
+                  <em>0</em>
+                </div>`
+          }
+        </div>
+
+
+
+
         <div class="cops-mid">${plinths}</div>
 
 
