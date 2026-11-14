@@ -101,17 +101,17 @@ Read these in order:
 
 1. This file.
 2. [SPEC-V5.md](SPEC-V5.md): v5's order, questions and Status (v5 wins over v4).
-2. [SPEC-V4.md](SPEC-V4.md): v4's answers, Decisions and Status (v4 wins over v3 where they differ).
-3. [SPEC-V3.md](SPEC-V3.md): the owner's answers, Decisions, the 11 phases and Status (v3 wins over everything below). The brief word for word: [SPEC-V3-ORIGINAL.md](SPEC-V3-ORIGINAL.md).
-4. [SPEC-V2.md](SPEC-V2.md) (Ball Haunt's rules; SPEC-V3's Phase 11 decisions change the doll, the song and the lasers):
+3. [SPEC-V4.md](SPEC-V4.md): v4's answers, Decisions and Status (v4 wins over v3 where they differ).
+4. [SPEC-V3.md](SPEC-V3.md): the owner's answers, Decisions, the 11 phases and Status (v3 wins over everything below). The brief word for word: [SPEC-V3-ORIGINAL.md](SPEC-V3-ORIGINAL.md).
+5. [SPEC-V2.md](SPEC-V2.md) (Ball Haunt's rules; SPEC-V3's Phase 11 decisions change the doll, the song and the lasers):
    - the owner's answers, the Decisions table and the 8 phases;
    - the **Status** section for what each finished phase built.
-5. [SPEC-ORIGINAL.md](SPEC-ORIGINAL.md): the owner's own full spec (§1–§11), word for word. Every `§` in this file and in SPEC-V2 points into it. Where it disagrees with SPEC-V2's Answers and Decisions, SPEC-V2 wins.
-6. [README.md](README.md):
+6. [SPEC-ORIGINAL.md](SPEC-ORIGINAL.md): the owner's own full spec (§1–§11), word for word. Every `§` in this file and in SPEC-V2 points into it. Where it disagrees with SPEC-V2's Answers and Decisions, SPEC-V2 wins.
+7. [README.md](README.md):
    - §1, the Lagos Life rules the game must keep;
    - §4, the architecture;
    - §5, how to run it and test it.
-7. [UPGRADE.md](UPGRADE.md) only for history. Where it disagrees with SPEC-V2, SPEC-V2 wins.
+8. [UPGRADE.md](UPGRADE.md) only for history. Where it disagrees with SPEC-V2, SPEC-V2 wins.
 
 ## How the owner works (follow these)
 
@@ -360,9 +360,9 @@ npm --prefix games/emilgo-games run typecheck   # client + server
 - The ad stack: `supabase/migrations/migration_game_billboards.sql`, its test `supabase/tests/test_game_billboards.sql` (not yet run: run it in the SQL editor after the migration).
 - The app: the portal `app/advertise/index.tsx`, `src/services/billboards.ts`; checkouts and webhooks `server/adBilling.ts` (registered in `server/routes.ts`; Paystack's webhook in `server/paystack.ts` hands billboard charges to it); the review queue `components/admin/BillboardReviews.tsx` (the Ad console's Billboards tab).
 
-### Billboards: the owner's steps (nothing here is done for you)
+### ++Billboards: the owner's steps (nothing here is done for you)++
 
-1. Run `supabase/migrations/migration_game_billboards.sql`, then `supabase/tests/test_game_billboards.sql` (it rolls itself back; every row should say PASS).
+1. ++Run supabase/migrations/migration_game_billboards.sql++, then `supabase/tests/test_game_billboards.sql` (it rolls itself back; every row should say PASS).
 2. Make two long random secrets (32+ characters each). In the SQL editor:
 
    `UPDATE public.game_ads_config SET game_key_hash = encode(extensions.digest('<GAME_ADS_KEY>', 'sha256'), 'hex'), billing_key_hash = encode(extensions.digest('<AD_BILLING_KEY>', 'sha256'), 'hex');`

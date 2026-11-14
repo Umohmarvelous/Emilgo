@@ -59,7 +59,7 @@ export class Rotator {
   ) {
     this.button.dataset.ui = "1";
     this.button.setAttribute("aria-label", "Rotate the game");
-    this.button.innerHTML = `${icon("rotate", "rot-anim", 22)}<span>Tap to rotate</span>`;
+    this.button.innerHTML = `${icon("rotate", "rot-anim", 22)}<span class="rotate">Tap to rotate</span>`;
     this.button.addEventListener("click", () => {
       this.hide();
       this.onTap();

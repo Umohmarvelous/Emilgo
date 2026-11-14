@@ -53,7 +53,7 @@ export const FEATURES: { ballHaunt: boolean; freeForAll: boolean; deadStreets: b
    * vehicles' code stays: true brings them back (the worlds' props stay out).
    */
   vehicles: false,
-  deadStreets: true,
+  deadStreets: false,
 };
 
 /**

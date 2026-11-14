@@ -428,19 +428,24 @@ export class Screens {
         <button class="avatar" data-avatar data-act="avatar" aria-label="${esc(t("Change your avatar"))}"></button>
         <div class="who">
           <span class="nm" data-name></span>
+
+
           <span class="lv" title="${rk.into.toLocaleString()} / ${rk.need.toLocaleString()} XP${s.rankSaved ? "" : " (this device)"}"><b>${esc(rk.name.toUpperCase())}</b><span class="bar gold"><i style="width:${rk.top ? 100 : Math.round((rk.into / rk.need) * 100)}%"></i></span>${settings.founder ? `<span class="founder">FOUNDER</span>` : ""}${honourTitle(settings.honour) ? `<span class="founder honour">${esc(t(honourTitle(settings.honour)!).toUpperCase())}</span>` : ""}</span>
+
+
           <span class="meta">${settings.form ? `<span class="form" title="${esc(t("Form: your last five online matches"))}">FORM <b>${[...settings.form].map((x) => `<i class="${x === "W" ? "w" : "l"}">${x}</i>`).join("")}</b></span>` : ""}${settings.streak >= 2 ? `<span class="streak">STREAK <b>${settings.streak}</b></span>` : ""}${liveRun(settings.awards) >= 2 ? `<span class="dayrun" title="${esc(t("Days in a row played"))}">${icon("fire", "", 11)}<b>${liveRun(settings.awards)}</b>${settings.awards.shield ? icon("shield", "", 10) : ""}</span>` : ""}${s.board ? `<span>BOARD <b>${esc(s.board)}</b></span>` : ""}${s.dms ? `<span class="dm-new">${icon("chat", "", 11)}<b>${s.dms > 9 ? "9+" : s.dms}</b></span>` : ""}<span>BEST <b>${settings.best || 0}</b></span><span>CP <b>${settings.cp}</b></span><span class="money" data-act="money" role="button" tabindex="0" aria-label="${esc(t("Your Lagos Life money"))}">${icon("wallet", "", 11)}<b data-money>${s.money === null ? "₦ —" : naira(s.money)}</b></span></span>
         </div>
       </div>
       <div class="lb-topbar">${navHtml(s)}
-      <div class="lb-tr">
-        <button class="ibtn" data-act="tutorial" aria-label="Tutorial">${icon("help")}</button>
-        <button class="ibtn" data-act="emote-quick" aria-label="${esc(t("Emote"))}" title="${esc(t("Emote"))}">${icon("emote", "", 18)}</button>
-        ${host.kind !== "lagoslife" && s.advertise ? `<button class="ibtn adv" data-act="advertise" aria-label="${esc(t("Advertise on our billboards"))}" title="${esc(t("Advertise on our billboards"))}">${icon("billboard", "", 18)}<span>${esc(t("Advertise"))}</span></button>` : ""}
+        <div class="lb-tr">
+          <button class="ibtn" data-act="tutorial" aria-label="Tutorial">${icon("help")}</button>
+          <button class="ibtn" data-act="emote-quick" aria-label="${esc(t("Emote"))}" title="${esc(t("Emote"))}">${icon("emote", "", 18)}</button>
+          ${host.kind !== "lagoslife" && s.advertise ? `<button class="ibtn adv" data-act="advertise" aria-label="${esc(t("Advertise on our billboards"))}" title="${esc(t("Advertise on our billboards"))}">${icon("billboard", "", 18)}<span>${esc(t("Advertise"))}</span></button>` : ""}
 
-        <button class="ibtn" data-act="settings" aria-label="Settings">${icon("gear", "ico-spin")}</button>
-        ${exit}
-      </div></div>
+          <button class="ibtn" data-act="settings" aria-label="Settings">${icon("gear", "ico-spin")}</button>
+          ${exit}
+        </div>
+      </div>
       <div class="lb-center-right">${s.daily
         .map(
           (d) => `<div class="challenge ${d.progress >= d.def.goal ? "done" : ""}">
@@ -553,7 +558,7 @@ export class Screens {
   /** The player's Lagos Life money beside CP (null: Lagos Life hasn't said). */
   setMoney(n: number | null): void {
     const e = this.root.querySelector<HTMLElement>("[data-money]");
-    if (e) e.textContent = n === null ? "₦ —" : naira(n);
+    if (e) e.textContent = n === null ? "-" : naira(n);
   }
 
   /** Live friend counts on the lobby. */
@@ -1068,7 +1073,8 @@ export class Screens {
              <span class="small">${party.members.map((p) => esc(p.name) + (p.id === party.lead ? " (leader)" : "")).join(", ")}</span>
              ${lead ? "" : `<span class="small">The leader picks the game.</span>`}
              <button class="btn secondary" style="height:30px;padding:0 10px;align-self:flex-start" data-act="party-leave">Leave the party</button>`
-          : `<div class="label">Party</div><span class="small pdesc">Up to 4: one squad, matched together.</span>
+          : `
+          <span class="small pdesc">Up to 4: one squad, matched together.</span>
              <div class="row"><button class="btn secondary" style="height:30px;padding:0 10px" data-act="party-make">${icon("invite", "", 14)}Make a party</button></div>
              <form class="join party-join"><input name="pcode" maxlength="${NET.codeLength}" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="PARTY CODE" aria-label="Party code" /><button class="btn secondary" type="button" data-act="party-join">Join</button></form>`
         : "";
@@ -1085,7 +1091,7 @@ export class Screens {
     const card =
       s.mode === "lagos"
         ? `<div class="label">Lagos Life match</div><span class="small pdesc">The Flag Duel on the market: the flag stands in the open, on your map. The first to take it and hold it for 10 s wins. Guns, the zone and items are on. Every staked match plays the same.</span>`
-        : `<div class="label">Mode</div><div class="seg wrap ffa-modes">${seg || `<span class="small">No mode here yet.</span>`}</div>
+        : `<div class="seg wrap ffa-modes">${seg || `<span class="small">No mode here yet.</span>`}</div>
            ${ranked}
            ${s.mutator ? `<span class="small mu pdesc">${icon("star", "", 12)} ${esc(t("This week"))}: ${esc(t(s.mutator))}</span>` : ""}
            ${p ? `<span class="small pdesc">${esc(p.blurb.en)} ${p.players.min === p.players.max ? `${p.players.max} players` : `${p.players.min}–${p.players.max} players`}${p.players.squad[1] > 1 ? `, squads of ${p.players.squad[0] === p.players.squad[1] ? p.players.squad[0] : `up to ${p.players.squad[1]}`}` : ""}${p.modules.zone?.clock === true ? "" : `, ${Math.round(p.time / 60)} min`}.</span>` : ""}`;
@@ -1095,14 +1101,14 @@ export class Screens {
       "play",
       `<div class="playscreen">
         <div class="head"><button class="ibtn glass" data-act="back" aria-label="Back">${icon("back")}</button><span class="h">Play</span><span class="grow"></span></div>
-        <div class="games">${games}</div>
+        <div class="games ">${games}</div>
         <div class="modes">${modes}${join}
           ${s.error ? `<div class="status error" role="alert">${esc(s.error)}</div>` : ""}
           ${s.connecting ? `<div class="status">Connecting…</div>` : ""}
         </div>
         <div class="side">
           <div class="glass mapcard">
-            <div class="row"><b>Meridian Max</b></div>
+            <div class=" pdesc"><b>Meridian Max</b></div>
             <span class="small pdesc">One world, 2 km across: the city in the middle, then Ironwood Forest, Glass District, Windmere Ridge, Harbour Yard, Frostline, Black Refinery, Dune Sea, Old Airfield, Mangrove Sink, Neon Row and The Arena. The zone closes in; stay outside too long and the sky finishes you.</span>
           </div>
           <div class="glass gamecard">${card}${partyBox}</div>
@@ -1779,7 +1785,7 @@ export class Screens {
        <div style="display:flex;flex-wrap:wrap;gap:6px">${chips}</div>
        <p class="note" style="margin-top:6px">${esc(stakeTier(stake))}${stake ? ` · winner takes ${naira(payoutOf(stake, seats))} of a ${naira(stake * seats)} pot` : ""}</p>
        <div class="label" style="margin:10px 0 6px">Players</div><span class="seg">${segs}</span>
-       <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px">
+       <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px; ">
          <button class="btn primary" data-act="vcreate" ${off}>${busy ? "One moment" : `Create match${stake ? ` · ${naira(stake)}` : ""}`}</button>
          <button class="btn secondary" data-act="vquick" ${off}>${icon("bolt", "", 16)}Quick match · 2 players${stake ? ` · ${naira(stake)}` : ""}</button>
          <form class="join"><input name="vcode" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="CODE" aria-label="Lagos Life match code" ${off} /><button class="btn secondary" type="button" data-act="vjoin" ${off}>Join</button></form>
@@ -1826,13 +1832,13 @@ function navHtml(s: LobbyState): string {
     { label: "Emotes", ico: "emote", act: "emotes" },
     { label: "Store", ico: "store", act: "tab", tab: "store" },
     { label: "Friends", ico: "friends", act: "tab", tab: "friends", extra: badge(s.dms) },
-    { label: "Clan", ico: "clan", act: "tab", tab: "clan", extra: `<span class="soon">Soon</span>` },
+    { label: "Clan", ico: "clan", act: "tab", tab: "clan", extra: `<span class="soon">Coming Soon</span>` },
     { label: "Awards", ico: "medal", act: "awards", extra: badge(s.awards?.fresh) },
     { label: "Leaderboard", ico: "trophy", act: "tab", tab: "board" },
     { label: "Invite", ico: "invite", act: "invite", off: s.online !== "ready" },
   ];
   return `
-      <nav class="lb-nav nt" aria-label="${esc(t("Sections"))}">${items
+      <nav class="lb-nav" aria-label="${esc(t("Sections"))}">${items
         .map(
           (it) =>
             `<button class="nv${it.tab === "lobby" ? " on" : ""}" data-act="${it.act}"${it.tab ? ` data-tab="${it.tab}"` : ""}${it.off ? " disabled" : ""} aria-label="${esc(t(it.label))}">${icon(it.ico, "", 18)}<span>${esc(t(it.label))}</span>${it.extra ?? ""}</button>`,
@@ -1847,7 +1853,7 @@ function careerHtml(st: Settings): string {
   const played = st.played || 0;
   const kills = st.history.reduce((a, h) => a + (h.kills || 0), 0);
   const cell = (v: string, label: string, title = label) => `<span title="${esc(t(title))}"><b>${esc(v)}</b><i>${esc(t(label))}</i></span>`;
-  return `<div class="lb-career"><span class="h">${esc(t("Career"))}</span><div class="row">${cell(String(played), "Matches")}${cell(String(st.wins || 0), "Wins")}${cell(played ? `${Math.round(((st.wins || 0) / played) * 100)}%` : "—", "Win rate")}${cell(String(kills), "Kills", "Kills, last 30 matches")}${cell(String(liveRun(st.awards)), "Days", "Days in a row played")}</div></div>`;
+  return `<div class="lb-career"><div class="row">${cell(String(played), "Matches")}${cell(String(st.wins || 0), "Wins")}${cell(played ? `${Math.round(((st.wins || 0) / played) * 100)}%` : "—", "Win rate")}${cell(String(kills), "Kills", "Kills, last 30 matches")}${cell(String(liveRun(st.awards)), "Days", "Days in a row played")}</div></div>`;
 }
 
 function ago(at: number): string {

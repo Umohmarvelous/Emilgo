@@ -141,10 +141,10 @@ async function boot(): Promise<void> {
   loadOperators().catch((e) => console.warn("operators unavailable", e));
   loadFonts();
   showArt();
-  progress(0.25, "Loading Lagos...");
+  progress(0.25, "Loading Model...");
   const host = await detectHost();
   mark("host");
-  progress(0.55, "Waking the city...");
+  progress(0.55, "Fetching api...");
   const settings = loadSettings(host);
 
   const canvas = document.getElementById("scene") as HTMLCanvasElement;
@@ -166,7 +166,7 @@ async function boot(): Promise<void> {
     }
     return;
   }
-  progress(1, "Oya");
+  progress(1, "ALMOST DONE...");
   game.start();
   // Development only: a handle for automated play-testing. Not in production builds.
   if (import.meta.env.DEV) (window as unknown as { __game: Game }).__game = game;

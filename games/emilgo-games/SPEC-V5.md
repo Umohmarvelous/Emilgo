@@ -73,7 +73,7 @@ The owner left the questions below to my recommendations: health bars only while
 ## Questions for the owner
 
 1. **Health bars.** The brief says both "every player must have one" and "only when they are being shot at". Built: only while being shot.
-2. **Voice.** Chinese-accented English, or Mandarin? Recommended: English with a Mandarin accent, an adult woman's voice from an open-licence speech model. Names ("player X is eliminated") can't be recorded in advance, so the phone's own speech voice would read them, and it will differ from phone to phone.
+2. Voice. Chinese-accented English, or Mandarin? Recommended: English with a Mandarin accent, an adult woman's voice from an open-licence speech model. Names ("player X is eliminated") can't be recorded in advance, so the phone's own speech voice would read them, and it will differ from phone to phone.
 3. **Zone grace.** 3.5 minutes outside in a 9 minute match means nobody is pushed until late. Built: 3.5 minutes as asked. Recommended: 3.5 in the first circles, down to 1 in the last two.
 4. **Growth.** On 2 Nov the answer was "no giants". "Grown to the max" here: bigger body, or same size with heavier armour and a fiercer look? Recommended: same size.
 5. **Which old items.** Taken out: see 1.2. Kept: Adrenaline Shot, Field Flask, Big Bag, Smoke Canister, Decoy Flag, Pulse Scanner, Squad Disguise, Zone Shield, Fuel Jerrycan, Van Key. Say if any should stay or go.
@@ -96,16 +96,16 @@ The owner left the questions below to my recommendations: health bars only while
 
 ## Decisions
 
-| Topic | Decision |
-|---|---|
-| Zone in a mode on part of a world | The staked duel and Compound Wars keep the hard edge: their arena is the play area |
-| Zone in a car | A bullet can't reach you there, so no slow loss either: the laser comes 60 s after the grace, unless you're driving fast |
-| Matches on the big world | Still 12 players in most modes, 24 in the Royale and big Flag: the queue test and server sizing assume it. Worth raising once there are real players |
-| Network test | A hidden mode `city-flag` (tag `dev`, opened only by `BALL_HAUNT=1`) keeps the old small city and stash spots, so ffatest still plays a quick full match |
-| Protocol | 16. **`fly deploy` is needed** before the test site plays online again |
-| Old skin tones | Stay in the save data; the suit ignores them and draws fair skin |
-| Designs | The Nigerian-era names are now Geometric, Washed, Urban camo, Digital camo, Tiger stripe, Carbon weave, Gold trim, Titan; ids and rank locks unchanged, so nobody loses one |
-| Billboards on the big world | They show house boards. `mx-` boards aren't in the Supabase migration yet, so they can't be sold until a row is added for each |
+| Topic                             | Decision                                                                                                                                                                    |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Zone in a mode on part of a world | The staked duel and Compound Wars keep the hard edge: their arena is the play area                                                                                          |
+| Zone in a car                     | A bullet can't reach you there, so no slow loss either: the laser comes 60 s after the grace, unless you're driving fast                                                    |
+| Matches on the big world          | Still 12 players in most modes, 24 in the Royale and big Flag: the queue test and server sizing assume it. Worth raising once there are real players                        |
+| Network test                      | A hidden mode `city-flag` (tag `dev`, opened only by `BALL_HAUNT=1`) keeps the old small city and stash spots, so ffatest still plays a quick full match                    |
+| Protocol                          | 16. `fly deploy` **is needed** before the test site plays online again                                                                                                      |
+| Old skin tones                    | Stay in the save data; the suit ignores them and draws fair skin                                                                                                            |
+| Designs                           | The Nigerian-era names are now Geometric, Washed, Urban camo, Digital camo, Tiger stripe, Carbon weave, Gold trim, Titan; ids and rank locks unchanged, so nobody loses one |
+| Billboards on the big world       | They show house boards. `mx-` boards aren't in the Supabase migration yet, so they can't be sold until a row is added for each                                              |
 
 ## Toggling a mode
 
