@@ -1310,7 +1310,7 @@ import type { EmoteId } from "../social/emotes";
 import { circleRadius, circleSpots } from "../flow/waitingRoom";
 import { bark, canvasTexture, danfoSkin, flagNg, foliage, frond, glow, mural, paving, plaster, tiled, wood, zinc } from "./tex";
 
-export type StageMode = "lobby" | "squad" | "podium";
+export type StageMode = "lobby" | "squad" | "podium" | "lineup";
 /** Where a panel covers the screen, so the character can step aside. */
 export type Framing = "center" | "left-panel" | "right-panel" | "bottom-panel" | "full";
 
@@ -1645,14 +1645,55 @@ export class LobbyStage {
     this.members = next;
     const spots = circleSpots(next.length + 1);
     this.squadR = circleRadius(next.length + 1);
-    this.members.forEach((m, i) => {
+  //   this.members.forEach((m, i) => {
+  //     const s = spots[i + 1];
+  //     m.human.mesh.position.set(s.x, 0, s.z);
+  //     m.human.mesh.rotation.y = s.facing;
+  //   });
+  //   this.backDirty = true;
+  // }
+
+
+
+
+  this.members.forEach((m, i) => {
       const s = spots[i + 1];
       m.human.mesh.position.set(s.x, 0, s.z);
       m.human.mesh.rotation.y = s.facing;
     });
+    if (this.mode === "lineup") this.arrangeLineup();
     this.backDirty = true;
   }
 
+  /**
+   * Clean Ops lineup: you in the middle, up to four squadmates either side,
+   * all on the same visual "plinth line" (the CSS provides the glow). The
+   * camera in `frame()` looks straight at you, so the lineup reads like the
+   * mockup: one taller silhouette flanked by three smaller ones.
+   */
+  private arrangeLineup(): void {
+    if (!this.me) return;
+    this.me.mesh.position.set(0, 0, 0);
+    this.me.mesh.rotation.y = 0;
+    const slots: [number, number, number][] = [
+      [-1.5, 0, 0.3],
+      [1.5, 0, 0.3],
+      [-3.0, 0, 0.7],
+      [3.0, 0, 0.7],
+    ];
+    this.members.forEach((m, i) => {
+      const s = slots[i];
+      if (!s) {
+        m.human.mesh.position.set(0, -20, 0);
+        return;
+      }
+      m.human.mesh.position.set(s[0], s[1], s[2]);
+      m.human.mesh.rotation.y = -s[0] * 0.1;
+    });
+  }
+
+
+  
   setPodium(looks: Look[], kits: (Kit | null)[] = [], meAt = -1): void {
     this.podiumMe = meAt;
     for (const h of this.podium) h.dispose();
@@ -1685,11 +1726,19 @@ export class LobbyStage {
     this.near.visible = !pod;
     for (const s of this.spots) s.visible = pod;
     if (this.me) this.me.mesh.visible = !pod;
-    for (const m of this.members) m.human.mesh.visible = mode === "squad";
+  //   for (const m of this.members) m.human.mesh.visible = mode === "squad";
+  //   this.backDirty = true;
+  //   this.yaw = 0;
+  //   this.zoom = 1;
+  // }
+
+    for (const m of this.members) m.human.mesh.visible = mode === "squad" || mode === "lineup";
+    if (mode === "lineup") this.arrangeLineup();
     this.backDirty = true;
     this.yaw = 0;
     this.zoom = 1;
   }
+
 
   setFraming(f: Framing): void {
     if (f !== this.framing) this.backDirty = true;
@@ -1786,18 +1835,36 @@ export class LobbyStage {
       high = 2.4 + r * (r > 2 ? 2 : 1.3);
       lookY = 0.6;
       lookZ = -r * 0.9;
+    // } else if (this.mode === "podium") {
+    //   dist = 6.4;
+    //   lookY = 1.25;
+      // }
+
     } else if (this.mode === "podium") {
       dist = 6.4;
       lookY = 1.25;
+    } else if (this.mode === "lineup") {
+      // Clean Ops: see the whole line of people, camera close to the crowd.
+      dist = 6.5 / z;
+      high = 1.15;
+      lookY = 1.05;
     }
+
+
     const portrait = this.aspect < 1;
     if (this.framing === "left-panel" && !portrait) side = -dist * 0.22;
     if (this.framing === "right-panel" && !portrait) side = dist * 0.22;
     if (this.framing === "bottom-panel" || ((this.framing === "left-panel" || this.framing === "right-panel") && portrait)) lift = -0.5 / z;
+    // if (portrait && this.mode !== "podium") {
+    //   dist *= this.mode === "squad" ? 1.7 : 1.25;
+    //   lookY -= 0.5;
+    // }
+
     if (portrait && this.mode !== "podium") {
-      dist *= this.mode === "squad" ? 1.7 : 1.25;
-      lookY -= 0.5;
+      dist *= this.mode === "squad" ? 1.7 : this.mode === "lineup" ? 1.55 : 1.25;
+      lookY -= this.mode === "lineup" ? 0.15 : 0.5;
     }
+
     this.wantPos.set(side, high + lift * 0.2, dist);
     this.wantLook.set(side, lookY + lift, lookZ);
     const k = 1 - Math.exp(-dt * 5);
@@ -1809,7 +1876,13 @@ export class LobbyStage {
     this.camLook.lerp(this.wantLook, k);
     this.camera.position.copy(this.camPos);
     this.camera.lookAt(this.camLook);
-    this.camera.fov = portrait ? 46 : 34;
+    // this.camera.fov = portrait ? 46 : 34;
+
+    this.camera.fov =
+      this.mode === "lineup"
+        ? portrait ? 52 : 42
+        : portrait ? 46 : 34;
+        
     this.camera.aspect = this.aspect;
     this.camera.updateProjectionMatrix();
     if (this.camPos.distanceToSquared(this.lastCam) > 0.0004) this.backDirty = true;

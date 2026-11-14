@@ -15,7 +15,10 @@ import { CATEGORIES, MAPS, SKY_LABEL, SKY_STATES, mapOf, thumbSvg, type MapCateg
 import type { GameEntry, ModeEntry } from "../content/catalog";
 import { BUILTIN_MANIFEST } from "../content/modes";
 import type { RoomInfo, WireCard } from "../net/protocol";
-import { liveRun, type AwardState, type Unlock } from "../rank/awards";
+
+import { type AwardState, type Unlock } from "../rank/awards";
+// (nothing else needed: naira, t, esc, icon, avatarInner are already imported above)
+
 import type { DmThread } from "../social/profile";
 import type { Rank } from "../rank/ladder";
 import type { Host, Leaderboard, MatchView } from "../platform/types";
@@ -26,7 +29,7 @@ import { PRODUCTS, PRODUCT_BY_ID } from "../shop/catalog";
 import type { FriendState } from "../social/friends";
 // import { EMOTES, EMOTE_BY_ID, type EmoteId } from "../social/emotes";
 import { HOODIE_COLORS, HOODIE_DESIGNS, type HoodieDesign, type Look } from "../world/human/wardrobe";
-import { awardTitle, awardsBody, badgeEmblem, emblem } from "./awards";
+import { awardTitle, awardsBody, emblem } from "./awards";
 import { FIGURINES, type FigurineDef } from "../shop/figurines";
 import { boardBody, cardBody, inboxBody, profileBody, threadBody, type ProfileView } from "./profile";
 import { esc, fmtTime, ordinal } from "./dom";
@@ -273,11 +276,39 @@ export interface LobbyState {
   ffa: string | null;
   /** v8 (A8): the owner's billboards switch is on: the Advertise button shows. */
   advertise: boolean;
+
+
   /** v4 Lobby A: the week's next drop (full-bleed behind), this week's rotation, your squad, your loadout. */
-  drop?: { name: string; line: string };
+  // drop?: { name: string; line: string };
+  // rotation?: { name: string; url: string; on: boolean }[];
+  // squad?: { name: string; me: boolean }[];
+  // loadout?: { kit: string; armour: number; dead: string };
+
+
+  /** v4 Lobby A: the week's next drop (full-bleed behind), this week's rotation, your squad, your loadout. */
+  drop?: { name: string; line: string; img?: string };
   rotation?: { name: string; url: string; on: boolean }[];
-  squad?: { name: string; me: boolean }[];
+  squad?: { name: string; me: boolean; ready?: boolean; empty?: boolean }[];
   loadout?: { kit: string; armour: number; dead: string };
+  /** Clean Ops: three mode families, the selected one, its tabs, and the current Fill toggle. */
+  modes?: { tab: string; name: string; line: string; img: string; goal: string; map: string }[];
+  selectedMode?: number;
+  fill?: boolean;
+
+
+  // /** Career line under the drop: [value, label] pairs. Computed by the session. */
+  // career?: [string, string][];
+
+
+  career?: [string, string][];
+  /**
+   * Clean Ops friends panel: party members first (kind "party"), then friends
+   * (kind "friend") with their state, then recent players you could add
+   * (kind "recent"). `canInvite` shows the INVITE / ADD button on that row.
+   */
+  friendsList?: { name: string; state: "on" | "busy" | "off"; kind: "party" | "friend" | "recent"; canInvite?: boolean }[];
+
+
   /** v6 max (3.10): the badge worn ("veteran.3", or ""), and awards reached but not looked at yet. */
   awards?: { wear: string; fresh: number };
   /** v6 max (3.11): unread direct messages. */
@@ -321,7 +352,7 @@ const MODE_INFO: Record<PlayMode, { name: string; sub: string; icon: string }> =
 };
 
 /** Naija World's thumbnail: a market skyline at midday. */
-const NAIJA_THUMB = { ...mapOf("market-square"), id: "naijaworld", colors: ["#6fa8dc", "#f3d9a4", "#8a7a5c", "#3b2a1e", "#f4a259"] } as const satisfies ReturnType<typeof mapOf>;
+// const NAIJA_THUMB = { ...mapOf("market-square"), id: "naijaworld", colors: ["#6fa8dc", "#f3d9a4", "#8a7a5c", "#3b2a1e", "#f4a259"] } as const satisfies ReturnType<typeof mapOf>;
 
 
 
@@ -421,66 +452,273 @@ export class Screens {
 
   // ── Lobby ──────────────────────────────────────────────────────────────────
 
+  // lobby(s: LobbyState): void {
+  //   const { host, settings } = s;
+  //   const exit = host.can.exit ? `<button class="ibtn glass" data-act="exit" aria-label="Close game">${icon("close")}</button>` : "";
+  //   const rk = s.rank;
+  //   const node = this.mount(
+  //     "lobby",
+  //     `<div class="vignette-lobby"></div>
+  //     <div class="lb-tl profile" data-act="profile" role="button" tabindex="0" aria-label="Your profile">
+  //       <button class="avatar" data-avatar data-act="avatar" aria-label="${esc(t("Change your avatar"))}"></button>
+  //       <div class="who">
+  //         <span class="nm" data-name></span>
+
+
+  //         <span class="lv" title="${rk.into.toLocaleString()} / ${rk.need.toLocaleString()} XP${s.rankSaved ? "" : " (this device)"}"><b>${esc(rk.name.toUpperCase())}</b><span class="bar gold"><i style="width:${rk.top ? 100 : Math.round((rk.into / rk.need) * 100)}%"></i></span>${settings.founder ? `<span class="founder">FOUNDER</span>` : ""}${honourTitle(settings.honour) ? `<span class="founder honour">${esc(t(honourTitle(settings.honour)!).toUpperCase())}</span>` : ""}</span>
+
+
+  //         <span class="meta">${settings.form ? `<span class="form" title="${esc(t("Form: your last five online matches"))}">FORM <b>${[...settings.form].map((x) => `<i class="${x === "W" ? "w" : "l"}">${x}</i>`).join("")}</b></span>` : ""}${settings.streak >= 2 ? `<span class="streak">STREAK <b>${settings.streak}</b></span>` : ""}${liveRun(settings.awards) >= 2 ? `<span class="dayrun" title="${esc(t("Days in a row played"))}">${icon("fire", "", 11)}<b>${liveRun(settings.awards)}</b>${settings.awards.shield ? icon("shield", "", 10) : ""}</span>` : ""}${s.board ? `<span>BOARD <b>${esc(s.board)}</b></span>` : ""}${s.dms ? `<span class="dm-new">${icon("chat", "", 11)}<b>${s.dms > 9 ? "9+" : s.dms}</b></span>` : ""}<span>BEST <b>${settings.best || 0}</b></span><span>CP <b>${settings.cp}</b></span><span class="money" data-act="money" role="button" tabindex="0" aria-label="${esc(t("Your Lagos Life money"))}">${icon("wallet", "", 11)}<b data-money>${s.money === null ? "₦ —" : naira(s.money)}</b></span></span>
+  //       </div>
+  //     </div>
+  //     <div class="lb-topbar">${navHtml(s)}
+  //       <div class="lb-tr">
+  //         <button class="ibtn" data-act="tutorial" aria-label="Tutorial">${icon("help")}</button>
+  //         <button class="ibtn" data-act="emote-quick" aria-label="${esc(t("Emote"))}" title="${esc(t("Emote"))}">${icon("emote", "", 18)}</button>
+  //         ${host.kind !== "lagoslife" && s.advertise ? `<button class="ibtn adv" data-act="advertise" aria-label="${esc(t("Advertise on our billboards"))}" title="${esc(t("Advertise on our billboards"))}">${icon("billboard", "", 18)}<span>${esc(t("Advertise"))}</span></button>` : ""}
+
+  //         <button class="ibtn" data-act="settings" aria-label="Settings">${icon("gear", "ico-spin")}</button>
+  //         ${exit}
+  //       </div>
+  //     </div>
+  //     <div class="lb-center-right">${s.daily
+  //       .map(
+  //         (d) => `<div class="challenge ${d.progress >= d.def.goal ? "done" : ""}">
+  //           <div class="top">${icon(d.progress >= d.def.goal ? "check" : "target", "", 14)}<span>${esc(d.def.label)}</span><b>${Math.min(d.progress, d.def.goal)}/${d.def.goal}</b></div>
+  //           <div class="bar"><i style="width:${Math.round((Math.min(d.progress, d.def.goal) / d.def.goal) * 100)}%"></i></div>
+  //         </div>`,
+  //       )
+  //       .join("")}
+  //       <div class="label pdesc" style="text-align:center">Daily · resets at midnight</div>
+  //       ${careerHtml(settings)}
+  //     </div>
+  //     <button class="lb-bl friends-w" data-act="friends" aria-label="Friends">
+  //       <div class="row"><span class="label">Friends</span>${icon("friends", "", 16)}</div>
+  //       <div class="row"><i class="dot ${s.friends.online ? "on" : ""}"></i>Online<b class="num" data-fon>${s.friends.online ?? "—"}</b></div>
+  //       <div class="row"><i class="dot busy"></i>In match<b class="num" data-fin>${s.friends.inMatch ?? "—"}</b></div>
+  //     </button>
+
+  //     <button class="lb-br glass-fill store-w" data-act="store" aria-label="Store">
+  //       <span class="art">${icon("store", "ico-bob")}</span>
+  //       <span class="art-t"><span class="h" style="display:block">Store</span><span class="small pdesc">${s.shop ? "Boosts · outfits · emotes" : "Boosts · try the looks"}</span></span>
+  //     </button>
+
+  //     <div class="lb-name glass">${s.awards?.wear ? badgeEmblem(s.awards.wear, 20, "lb-emb") : ""}<span data-name></span>${s.badge ? `<span class="badge-star">${icon("star", "", 12)}</span>` : ""}</div>
+  //     ${this.modeCard(s)}
+  //     ${this.lobbyA(s)}
+  //     <button class="lb-play" data-act="start" aria-label="Play">PLAY</button>`,
+  //     "lobby",
+  //   );
+  //   node.classList.add("lobby-a");
+  //   this.setPlayer(node, host);
+  // }
+
+
+
+
+
+
+
   lobby(s: LobbyState): void {
     const { host, settings } = s;
-    const exit = host.can.exit ? `<button class="ibtn glass" data-act="exit" aria-label="Close game">${icon("close")}</button>` : "";
     const rk = s.rank;
-    const node = this.mount(
-      "lobby",
-      `<div class="vignette-lobby"></div>
-      <div class="lb-tl profile" data-act="profile" role="button" tabindex="0" aria-label="Your profile">
-        <button class="avatar" data-avatar data-act="avatar" aria-label="${esc(t("Change your avatar"))}"></button>
-        <div class="who">
-          <span class="nm" data-name></span>
+    const xpPct = rk.top ? 100 : Math.round((rk.into / rk.need) * 100);
+    const lvl = Math.max(1, Math.round((s.rank.into || 1) / 100));
+
+    // Util (help, emote, advertise, settings, exit).
+    const util = `
+      <button class="cops-ib" data-act="tutorial" aria-label="${esc(t("How to play"))}">${icon("help")}</button>
+      <button class="cops-ib" data-act="emote-quick" aria-label="${esc(t("Emote"))}">${icon("emote")}</button>
+      ${host.kind !== "lagoslife" && s.advertise ? `<button class="cops-ib adv" data-act="advertise" aria-label="${esc(t("Advertise on our billboards"))}">${icon("billboard")}<span>${esc(t("Advertise"))}</span></button>` : ""}
+      <button class="cops-ib" data-act="settings" aria-label="${esc(t("Settings"))}">${icon("gear")}</button>
+      ${host.can.exit ? `<button class="cops-ib" data-act="exit" aria-label="${esc(t("Close game"))}">${icon("close")}</button>` : ""}
+    `;
+
+    // Nav — same actions as before, restyled.
+    const nav = [
+      { label: "Lobby", ico: "home", act: "tab", tab: "lobby", on: true },
+      { label: "Loadout", ico: "loadout", act: "loadout" },
+      { label: "Customize", ico: "customize", act: "customize" },
+      { label: "Emotes", ico: "emote", act: "emotes" },
+      { label: "Store", ico: "store", act: "tab", tab: "store" },
+      { label: "Friends", ico: "friends", act: "tab", tab: "friends", badge: s.dms ? true : false },
+      { label: "Clan", ico: "clan", act: "tab", tab: "clan", soon: true },
+      { label: "Awards", ico: "medal", act: "awards", badge: !!(s.awards?.fresh) },
+      { label: "Leaderboard", ico: "trophy", act: "tab", tab: "board" },
+      { label: "Invite", ico: "invite", act: "invite", off: s.online !== "ready" },
+    ] as const;
+    const navHtml = nav.map((n) => {
+      const attrs = [
+        `class="cops-nv${(n as { on?: boolean }).on ? " on" : ""}"`,
+        n.act === "tab" ? `data-act="tab" data-tab="${n.tab}"` : `data-act="${n.act}"`,
+        (n as { off?: boolean }).off ? "disabled" : "",
+        `aria-label="${esc(t(n.label))}"`,
+      ].filter(Boolean).join(" ");
+      return `<button ${attrs}>${icon(n.ico, "", 18)}<span>${esc(t(n.label))}</span>${(n as { badge?: boolean }).badge ? `<i class="bdg"></i>` : ""}${(n as { soon?: boolean }).soon ? `<i class="soon">SOON</i>` : ""}</button>`;
+    }).join("");
+
+    // Daily orders (up to 3).
+    const orders = s.daily.slice(0, 3).map((d) => {
+      const p = Math.min(d.progress, d.def.goal);
+      const done = d.progress >= d.def.goal;
+      return `<div class="cops-ol${done ? " done" : ""}">${icon(done ? "check" : "target", "", 16)}<span>${esc(t(d.def.label))}</span><b>${p}/${d.def.goal}</b><span class="bar"><i style="width:${(p / d.def.goal) * 100}%"></i></span></div>`;
+    }).join("");
+    const ordersDone = s.daily.filter((d) => d.progress >= d.def.goal).length;
+
+    // Career line.
+    const career = s.career ?? [["0", "Matches"], ["0", "Wins"], ["—", "Win rate"], ["0", "Kills"], ["0", "Days"]];
+    const careerHtml = career.map(([v, l]) => `<span><b class="cops-num">${esc(v)}</b><i>${esc(t(l))}</i></span>`).join("");
+
+    // Squad (padded to 4 with empty slots).
+    const slots: { name: string; me: boolean; ready?: boolean; empty?: boolean }[] = [...(s.squad ?? [{ name: host.player.name || "You", me: true, ready: true }])];
+    while (slots.length < 4) slots.push({ name: "", me: false, ready: false, empty: true });
+    // Center the row on your "me" plinth by ordering: two on each side.
+    const meIdx = slots.findIndex((x) => x.me);
+    const me = slots.splice(meIdx < 0 ? 0 : meIdx, 1)[0];
+    const lefts = slots.filter((_, i) => i % 2 === 0);
+    const rights = slots.filter((_, i) => i % 2 === 1);
+    const row = [...lefts, me, ...rights];
+    const plinths = row.map((sq) => {
+      if (!sq) return "";
+      if (sq.empty) {
+        return `<button class="cops-plinth empty" data-act="invite" aria-label="${esc(t("Invite"))}"><span class="base"></span><span class="cops-plate">${icon("plus", "", 14)}${esc(t("Invite")).toUpperCase()}</span></button>`;
+      }
+      if (sq.me) {
+        return `<div class="cops-plinth me"><span class="base"></span><span class="cops-plate">${icon("check", "", 14)}${esc(sq.name)} · ${esc(rk.name.toUpperCase())}</span></div>`;
+      }
+      return `<div class="cops-plinth"><span class="base"></span><span class="cops-plate">${icon("check", "", 14)}${esc(sq.name)}</span></div>`;
+    }).join("");
+
+    // Mode tabs.
+    const modes = s.modes ?? [
+      { tab: "Free For All", name: "Free For All", line: "", img: "", goal: "", map: "" },
+      { tab: "Survival", name: "Dead Streets", line: "", img: "", goal: "", map: "" },
+      { tab: "Party", name: "Ball Haunt", line: "", img: "", goal: "", map: "" },
+    ];
+    const sel = Math.max(0, Math.min(modes.length - 1, s.selectedMode ?? 0));
+    const m = modes[sel];
+    const modeTabs = modes.map((md, i) =>
+      `<button class="${i === sel ? "on" : ""}" data-act="setmode" data-i="${i}">${esc(t(md.tab)).toUpperCase()}</button>`,
+    ).join("");
+
+    // Fill / Squad / Region.
+    const solo = s.mode === "solo";
+    const fill = s.fill !== false;
+
+    // Loadout summary line.
+    const kitLine = s.loadout?.kit ? `${s.loadout.kit} · ${esc(t("loot primary"))} · ${esc(t("melee"))}` : "Pistol · loot primary · melee";
+
+    //   <div class="cops-right">
+    //         <span class="cops-cur"><i class="dot"></i>${settings.cp} CP</span>
+    //         ${s.money !== null ? `<span class="cops-cur n"><i class="dot n"></i>${naira(s.money)}</span>` : ""}
+    //         ${util}
+    // </div>
+          
+    const html = `
+      <div class="cops-shade"></div>
+      <div class="cops-ui">
+        <div class="cops-top">
+          <button class="cops-prof" data-act="profile" aria-label="${esc(t("Profile"))}">
+            <div class="cops-av">${esc((host.player.name || "Y").charAt(0).toUpperCase())}<span class="lvl">${lvl}</span></div>
+            <div class="cops-who">
+              <div class="nm" data-name>${esc(host.player.name || "You")}</div>
+              <div class="rk">${esc(rk.name.toUpperCase())} · ${xpPct}%</div>
+              <div class="cops-xp"><i style="width:${xpPct}%"></i></div>
+            </div>
+          </button>
+          <nav class="cops-nav" aria-label="${esc(t("Sections"))}">${navHtml}</nav>
+        
+
+          <div class="cops-right">
+            <span class="cops-cur"><i class="dot"></i>${settings.cp} CP</span>
+            ${s.money !== null ? `<span class="cops-cur n"><i class="dot n"></i>${naira(s.money)}</span>` : ""}
+            ${util}
+          </div>
 
 
-          <span class="lv" title="${rk.into.toLocaleString()} / ${rk.need.toLocaleString()} XP${s.rankSaved ? "" : " (this device)"}"><b>${esc(rk.name.toUpperCase())}</b><span class="bar gold"><i style="width:${rk.top ? 100 : Math.round((rk.into / rk.need) * 100)}%"></i></span>${settings.founder ? `<span class="founder">FOUNDER</span>` : ""}${honourTitle(settings.honour) ? `<span class="founder honour">${esc(t(honourTitle(settings.honour)!).toUpperCase())}</span>` : ""}</span>
-
-
-          <span class="meta">${settings.form ? `<span class="form" title="${esc(t("Form: your last five online matches"))}">FORM <b>${[...settings.form].map((x) => `<i class="${x === "W" ? "w" : "l"}">${x}</i>`).join("")}</b></span>` : ""}${settings.streak >= 2 ? `<span class="streak">STREAK <b>${settings.streak}</b></span>` : ""}${liveRun(settings.awards) >= 2 ? `<span class="dayrun" title="${esc(t("Days in a row played"))}">${icon("fire", "", 11)}<b>${liveRun(settings.awards)}</b>${settings.awards.shield ? icon("shield", "", 10) : ""}</span>` : ""}${s.board ? `<span>BOARD <b>${esc(s.board)}</b></span>` : ""}${s.dms ? `<span class="dm-new">${icon("chat", "", 11)}<b>${s.dms > 9 ? "9+" : s.dms}</b></span>` : ""}<span>BEST <b>${settings.best || 0}</b></span><span>CP <b>${settings.cp}</b></span><span class="money" data-act="money" role="button" tabindex="0" aria-label="${esc(t("Your Lagos Life money"))}">${icon("wallet", "", 11)}<b data-money>${s.money === null ? "₦ —" : naira(s.money)}</b></span></span>
         </div>
-      </div>
-      <div class="lb-topbar">${navHtml(s)}
-        <div class="lb-tr">
-          <button class="ibtn" data-act="tutorial" aria-label="Tutorial">${icon("help")}</button>
-          <button class="ibtn" data-act="emote-quick" aria-label="${esc(t("Emote"))}" title="${esc(t("Emote"))}">${icon("emote", "", 18)}</button>
-          ${host.kind !== "lagoslife" && s.advertise ? `<button class="ibtn adv" data-act="advertise" aria-label="${esc(t("Advertise on our billboards"))}" title="${esc(t("Advertise on our billboards"))}">${icon("billboard", "", 18)}<span>${esc(t("Advertise"))}</span></button>` : ""}
-
-          <button class="ibtn" data-act="settings" aria-label="Settings">${icon("gear", "ico-spin")}</button>
-          ${exit}
+        <div class="cops-left">
+          <div class="cops-banner"${s.drop?.img ? ` style="background-image:url(${esc(s.drop.img)})"` : ""}>
+            <span class="tx">
+              <span class="cops-lbl">${esc(t("Next drop"))}</span>
+              <b>${esc(s.drop?.name || "Meridian City")}</b>
+              <i>${esc(s.drop?.line || "")}</i>
+            </span>
+          </div>
+          <div class="cops-orders">
+            <span class="lbl">${esc(t("Daily orders"))} <em>${ordersDone}/${orders.length || 3}</em></span>
+            ${orders || ""}
+          </div>
         </div>
-      </div>
-      <div class="lb-center-right">${s.daily
-        .map(
-          (d) => `<div class="challenge ${d.progress >= d.def.goal ? "done" : ""}">
-            <div class="top">${icon(d.progress >= d.def.goal ? "check" : "target", "", 14)}<span>${esc(d.def.label)}</span><b>${Math.min(d.progress, d.def.goal)}/${d.def.goal}</b></div>
-            <div class="bar"><i style="width:${Math.round((Math.min(d.progress, d.def.goal) / d.def.goal) * 100)}%"></i></div>
-          </div>`,
-        )
-        .join("")}
-        <div class="label pdesc" style="text-align:center">Daily · resets at midnight</div>
-        ${careerHtml(settings)}
-      </div>
-      <button class="lb-bl friends-w" data-act="friends" aria-label="Friends">
-        <div class="row"><span class="label">Friends</span>${icon("friends", "", 16)}</div>
-        <div class="row"><i class="dot ${s.friends.online ? "on" : ""}"></i>Online<b class="num" data-fon>${s.friends.online ?? "—"}</b></div>
-        <div class="row"><i class="dot busy"></i>In match<b class="num" data-fin>${s.friends.inMatch ?? "—"}</b></div>
-      </button>
 
-      <button class="lb-br glass-fill store-w" data-act="store" aria-label="Store">
-        <span class="art">${icon("store", "ico-bob")}</span>
-        <span class="art-t"><span class="h" style="display:block">Store</span><span class="small pdesc">${s.shop ? "Boosts · outfits · emotes" : "Boosts · try the looks"}</span></span>
-      </button>
 
-      <div class="lb-name glass">${s.awards?.wear ? badgeEmblem(s.awards.wear, 20, "lb-emb") : ""}<span data-name></span>${s.badge ? `<span class="badge-star">${icon("star", "", 12)}</span>` : ""}</div>
-      ${this.modeCard(s)}
-      ${this.lobbyA(s)}
-      <button class="lb-play" data-act="start" aria-label="Play">PLAY</button>`,
-      "lobby",
-    );
-    node.classList.add("lobby-a");
+
+        <div class="cops-mid">${plinths}</div>
+
+
+      
+        
+        <div class="cops-friends" aria-label="${esc(t("Friends"))}">
+          <span class="cops-lbl">${esc(t("Friends"))} · <span data-fon>${s.friends.online ?? "—"}</span> ${esc(t("online"))} · <span data-fin>${s.friends.inMatch ?? "—"}</span> ${esc(t("in match"))}</span>
+          ${(s.friendsList ?? []).slice(0, 10).map((f) => {
+            const stateLabel = f.kind === "party"
+              ? t("In your party")
+              : f.state === "on" ? t("In the lobby") : f.state === "busy" ? t("In a match") : t("Offline");
+            const dot = f.state === "busy" ? "busy" : f.state === "off" ? "off" : "";
+            return `<div class="cops-fr">
+              <i class="d${dot ? ` ${dot}` : ""}"></i>
+              <span class="nm">${esc(f.name)}</span>
+              <em>${esc(stateLabel)}</em>
+              ${f.canInvite ? `<button data-act="finvite" data-name="${esc(f.name)}">${esc(f.kind === "recent" ? t("Add") : t("Invite")).toUpperCase()}</button>` : ""}
+            </div>`;
+          }).join("")}
+          ${(s.friendsList?.length ?? 0) === 0
+            ? `<span class="cops-fr empty">${esc(t("No friends yet. Tap Friends to add some."))}</span>`
+            : ""}
+        </div>
+        
+        <div class="cops-mid">${plinths}</div>
+
+
+        
+
+        <div class="cops-modes">${modeTabs}</div>
+        <button class="cops-mode" data-act="mode"${m.img ? ` style="background-image:url(${esc(m.img)})"` : ""}>
+          <span class="tx">
+            <b>${esc(m.name)}</b>
+            <i>${esc(m.line)}</i>
+            <span class="map">${icon("target", "", 14)}${esc(m.goal)} <em>· ${esc(m.map)}</em></span>
+          </span>
+          <span class="chg">${icon("swap", "", 12)}MAP</span>
+        </button>
+        <div class="cops-opts">
+          <button class="cops-opt" data-act="size" data-s="${solo ? "squad" : "solo"}">${esc(t("Squad")).toUpperCase()}<b>${solo ? "SOLO" : "SQUAD · 4"}</b></button>
+          <button class="cops-opt" data-act="fill">${esc(t("Fill")).toUpperCase()}<b>${fill ? `${icon("check", "", 12)}ON` : "OFF"}</b></button>
+          <span class="cops-opt">${esc(t("Lagos")).toUpperCase()}<b>${icon("signal", "", 12)}38 ms</b></span>
+        </div>
+        <button class="cops-play" data-act="go" aria-label="${esc(t("Play"))}">
+          ${icon("play", "", 20)}<b>${esc(t("Start")).toUpperCase()}</b>
+        </button>
+        <div class="cops-stats">
+          <div class="cops-career">${careerHtml}</div>
+          <button class="cops-kitln" data-act="loadout">
+            <span class="c">${esc(t("Loadout")).toUpperCase()}<b>${kitLine}</b></span>
+            <span class="sw">${["#b9bcc2", "#ffb020", "#3a9bff", "#ff5a4a"].map((c) => `<i style="--c:${c}"></i>`).join("")}</span>
+          </button>
+        </div>
+      </div>`;
+
+    const node = this.mount("lobby", html, "lobby-cops");
     this.setPlayer(node, host);
   }
+
+
+
+
+
+
+
+
 
   /**
    * v4 Lobby A's own parts: the next drop's name over its picture; the
@@ -488,48 +726,48 @@ export class Screens {
    * Streets' weapon, the suit: black, no armour, v4 rework); your squad's four slots (an empty
    * one invites); this week's rotation.
    */
-  private lobbyA(s: LobbyState): string {
-    const lo = s.loadout;
-    const card = (slot: string, name: string, rar: string, col: string) => `<div class="fk-card" style="--c:${col}"><span class="s">${esc(t(slot)).toUpperCase()} · <b>${esc(t(rar)).toUpperCase()}</b></span><span class="n">${esc(t(name)).toUpperCase()}</span></div>`;
-    const squad = s.squad ?? [];
-    const slots = Array.from({ length: 4 }, (_, i) => {
-      const m = squad[i];
-      if (m) return `<div class="sq${m.me ? " me" : ""}"><span class="ini">${esc(m.name.trim().charAt(0).toUpperCase() || "?")}</span><span class="nm">${esc(m.name)}</span></div>`;
-      return `<button class="sq empty" data-act="invite" ${s.online !== "ready" ? "disabled" : ""} aria-label="Invite"><span class="ini">+</span><span class="nm">${esc(t("Invite"))}</span></button>`;
-    }).join("");
-    return `${s.drop ? `<div class="lb-drop"><span class="k">${esc(t("Next drop"))}</span><b>${esc(t(s.drop.name)).toUpperCase()}</b><span class="l pdesc">${esc(t(s.drop.line))}</span></div>` : ""}
-      ${lo ? `<div class="lb-kit">
-        <span class="h">${esc(t("Loadout"))}</span>
-        ${card("Sidearm", "Pistol", "Common", "#b9bcc2")}
-        ${card("Primary", "Loot: rifle, SMG, shotgun", "Up to Mythic", "#ffb020")}
-        ${card("Melee", "Close quarters", "Backup", "#3a9bff")}
-        ${lo.dead ? card("Dead Streets", lo.dead, "Run weapon", "#ff5a4a") : ""}
-        ${card("Suit", "Black, gloves, boots", "No armour worn", "#8a8f94")}
-      </div>` : ""}
-      <div class="lb-squad">${slots}</div>
-      ${s.rotation?.length ? `<button class="lb-rot" data-act="mode" aria-label="${esc(t("Change mode"))}"><span class="h pdesc">${esc(t("Rotation · this week"))}</span><span class="row">${s.rotation.map((r) => `<span class="th${r.on ? " on" : ""}" style="background-image:url(${r.url})"><b>${esc(t(r.name))}</b></span>`).join("")}</span><span class="pick">${icon("swap", "", 12)}<b>${esc(t(s.rotation.find((r) => r.on)?.name ?? s.ffa ?? "Dead Streets")).toUpperCase()}</b></span></button>` : ""}`;
-  }
+  // private lobbyA(s: LobbyState): string {
+  //   const lo = s.loadout;
+  //   const card = (slot: string, name: string, rar: string, col: string) => `<div class="fk-card" style="--c:${col}"><span class="s">${esc(t(slot)).toUpperCase()} · <b>${esc(t(rar)).toUpperCase()}</b></span><span class="n">${esc(t(name)).toUpperCase()}</span></div>`;
+  //   const squad = s.squad ?? [];
+  //   const slots = Array.from({ length: 4 }, (_, i) => {
+  //     const m = squad[i];
+  //     if (m) return `<div class="sq${m.me ? " me" : ""}"><span class="ini">${esc(m.name.trim().charAt(0).toUpperCase() || "?")}</span><span class="nm">${esc(m.name)}</span></div>`;
+  //     return `<button class="sq empty" data-act="invite" ${s.online !== "ready" ? "disabled" : ""} aria-label="Invite"><span class="ini">+</span><span class="nm">${esc(t("Invite"))}</span></button>`;
+  //   }).join("");
+  //   return `${s.drop ? `<div class="lb-drop"><span class="k">${esc(t("Next drop"))}</span><b>${esc(t(s.drop.name)).toUpperCase()}</b><span class="l pdesc">${esc(t(s.drop.line))}</span></div>` : ""}
+  //     ${lo ? `<div class="lb-kit">
+  //       <span class="h">${esc(t("Loadout"))}</span>
+  //       ${card("Sidearm", "Pistol", "Common", "#b9bcc2")}
+  //       ${card("Primary", "Loot: rifle, SMG, shotgun", "Up to Mythic", "#ffb020")}
+  //       ${card("Melee", "Close quarters", "Backup", "#3a9bff")}
+  //       ${lo.dead ? card("Dead Streets", lo.dead, "Run weapon", "#ff5a4a") : ""}
+  //       ${card("Suit", "Black, gloves, boots", "No armour worn", "#8a8f94")}
+  //     </div>` : ""}
+  //     <div class="lb-squad">${slots}</div>
+  //     ${s.rotation?.length ? `<button class="lb-rot" data-act="mode" aria-label="${esc(t("Change mode"))}"><span class="h pdesc">${esc(t("Rotation · this week"))}</span><span class="row">${s.rotation.map((r) => `<span class="th${r.on ? " on" : ""}" style="background-image:url(${r.url})"><b>${esc(t(r.name))}</b></span>`).join("")}</span><span class="pick">${icon("swap", "", 12)}<b>${esc(t(s.rotation.find((r) => r.on)?.name ?? s.ffa ?? "Dead Streets")).toUpperCase()}</b></span></button>` : ""}`;
+  // }
 
-  private modeCard(s: LobbyState): string {
-    if (s.ffa !== null) {
-      return `<button class="modecard glass" data-act="mode" aria-label="Change mode">
-      <span class="thumb">${thumbSvg(NAIJA_THUMB)}</span>
-      ${icon("swap", "", 18)}
-      <span class="txt art-t"><span class="label">${s.ffa === "Dead Streets" ? "Survival" : "Free For All"}</span>
-      <b>${esc(s.ffa)}</b>
-      <span class="small">${t(s.ffa === "Dead Streets" ? "Spooky World" : "Meridian Max")}</span></span>
-    </button>`;
-    }
-    const map = mapOf(s.settings.map);
-    const mode = MODE_INFO[s.mode];
-    return `<button class="modecard glass" data-act="mode" aria-label="Change mode and map">
-      <span class="thumb">${thumbSvg(map)}</span>
-      ${icon("swap", "", 18)}
-      <span class="txt art-t"><span class="label">Ball Haunt</span>
-      <b>${mode.name}</b>
-      <span class="small">${esc(map.name)}</span></span>
-    </button>`;
-  }
+  // private modeCard(s: LobbyState): string {
+  //   if (s.ffa !== null) {
+  //     return `<button class="modecard glass" data-act="mode" aria-label="Change mode">
+  //     <span class="thumb">${thumbSvg(NAIJA_THUMB)}</span>
+  //     ${icon("swap", "", 18)}
+  //     <span class="txt art-t"><span class="label">${s.ffa === "Dead Streets" ? "Survival" : "Free For All"}</span>
+  //     <b>${esc(s.ffa)}</b>
+  //     <span class="small">${t(s.ffa === "Dead Streets" ? "Spooky World" : "Meridian Max")}</span></span>
+  //   </button>`;
+  //   }
+  //   const map = mapOf(s.settings.map);
+  //   const mode = MODE_INFO[s.mode];
+  //   return `<button class="modecard glass" data-act="mode" aria-label="Change mode and map">
+  //     <span class="thumb">${thumbSvg(map)}</span>
+  //     ${icon("swap", "", 18)}
+  //     <span class="txt art-t"><span class="label">Ball Haunt</span>
+  //     <b>${mode.name}</b>
+  //     <span class="small">${esc(map.name)}</span></span>
+  //   </button>`;
+  // }
 
   /** Refresh the name/avatar if identity arrived after the lobby drew. */
   setPlayer(node: HTMLElement | null, host: Host): void {
@@ -1861,38 +2099,38 @@ export class Screens {
  * the top"): one bar at the top with every section and action: a strip in landscape, a 5 × 2 grid of big buttons in
  * portrait (easy to reach).
  */
-function navHtml(s: LobbyState): string {
-  const badge = (n: number | undefined) => (n ? `<i class="dot-badge">${n > 9 ? "9+" : n}</i>` : "");
-  const items: { label: string; ico: string; act: string; tab?: LobbyTab; extra?: string; off?: boolean }[] = [
-    { label: "Lobby", ico: "home", act: "tab", tab: "lobby" },
-    { label: "Loadout", ico: "loadout", act: "loadout" },
-    { label: "Customize", ico: "customize", act: "customize" },
-    { label: "Emotes", ico: "emote", act: "emotes" },
-    { label: "Store", ico: "store", act: "tab", tab: "store" },
-    { label: "Friends", ico: "friends", act: "tab", tab: "friends", extra: badge(s.dms) },
-    { label: "Clan", ico: "clan", act: "tab", tab: "clan", extra: `<span class="soon">Coming Soon</span>` },
-    { label: "Awards", ico: "medal", act: "awards", extra: badge(s.awards?.fresh) },
-    { label: "Leaderboard", ico: "trophy", act: "tab", tab: "board" },
-    { label: "Invite", ico: "invite", act: "invite", off: s.online !== "ready" },
-  ];
-  return `
-      <nav class="lb-nav" aria-label="${esc(t("Sections"))}">${items
-        .map(
-          (it) =>
-            `<button class="nv${it.tab === "lobby" ? " on" : ""}" data-act="${it.act}"${it.tab ? ` data-tab="${it.tab}"` : ""}${it.off ? " disabled" : ""} aria-label="${esc(t(it.label))}">${icon(it.ico, "", 18)}<span>${esc(t(it.label))}</span>${it.extra ?? ""}</button>`,
-        )
-          .join("")}
-      </nav>
-    `;
-}
+// function navHtml(s: LobbyState): string {
+//   const badge = (n: number | undefined) => (n ? `<i class="dot-badge">${n > 9 ? "9+" : n}</i>` : "");
+//   const items: { label: string; ico: string; act: string; tab?: LobbyTab; extra?: string; off?: boolean }[] = [
+//     { label: "Lobby", ico: "home", act: "tab", tab: "lobby" },
+//     { label: "Loadout", ico: "loadout", act: "loadout" },
+//     { label: "Customize", ico: "customize", act: "customize" },
+//     { label: "Emotes", ico: "emote", act: "emotes" },
+//     { label: "Store", ico: "store", act: "tab", tab: "store" },
+//     { label: "Friends", ico: "friends", act: "tab", tab: "friends", extra: badge(s.dms) },
+//     { label: "Clan", ico: "clan", act: "tab", tab: "clan", extra: `<span class="soon">Coming Soon</span>` },
+//     { label: "Awards", ico: "medal", act: "awards", extra: badge(s.awards?.fresh) },
+//     { label: "Leaderboard", ico: "trophy", act: "tab", tab: "board" },
+//     { label: "Invite", ico: "invite", act: "invite", off: s.online !== "ready" },
+//   ];
+//   return `
+//       <nav class="lb-nav" aria-label="${esc(t("Sections"))}">${items
+//         .map(
+//           (it) =>
+//             `<button class="nv${it.tab === "lobby" ? " on" : ""}" data-act="${it.act}"${it.tab ? ` data-tab="${it.tab}"` : ""}${it.off ? " disabled" : ""} aria-label="${esc(t(it.label))}">${icon(it.ico, "", 18)}<span>${esc(t(it.label))}</span>${it.extra ?? ""}</button>`,
+//         )
+//           .join("")}
+//       </nav>
+//     `;
+// }
 
 /** v7 (3.1): the lobby's career line: matches, wins, the win rate, kills (the last 30 matches), the day streak. */
-function careerHtml(st: Settings): string {
-  const played = st.played || 0;
-  const kills = st.history.reduce((a, h) => a + (h.kills || 0), 0);
-  const cell = (v: string, label: string, title = label) => `<span title="${esc(t(title))}"><b>${esc(v)}</b><i>${esc(t(label))}</i></span>`;
-  return `<div class="lb-career"><div class="row">${cell(String(played), "Matches")}${cell(String(st.wins || 0), "Wins")}${cell(played ? `${Math.round(((st.wins || 0) / played) * 100)}%` : "—", "Win rate")}${cell(String(kills), "Kills", "Kills, last 30 matches")}${cell(String(liveRun(st.awards)), "Days", "Days in a row played")}</div></div>`;
-}
+// function careerHtml(st: Settings): string {
+//   const played = st.played || 0;
+//   const kills = st.history.reduce((a, h) => a + (h.kills || 0), 0);
+//   const cell = (v: string, label: string, title = label) => `<span title="${esc(t(title))}"><b>${esc(v)}</b><i>${esc(t(label))}</i></span>`;
+//   return `<div class="lb-career"><div class="row">${cell(String(played), "Matches")}${cell(String(st.wins || 0), "Wins")}${cell(played ? `${Math.round(((st.wins || 0) / played) * 100)}%` : "—", "Win rate")}${cell(String(kills), "Kills", "Kills, last 30 matches")}${cell(String(liveRun(st.awards)), "Days", "Days in a row played")}</div></div>`;
+// }
 
 function ago(at: number): string {
   const m = Math.max(0, Math.round((Date.now() - at) / 60000));

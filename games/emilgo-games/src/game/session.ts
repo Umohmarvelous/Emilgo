@@ -106,7 +106,9 @@ import type { buildAtlas } from "../world/textures";
 import type { BotBrain } from "./bots";
 import { chestOffer, openChest } from "./chest";
 import { addProgress, ensureDaily, today } from "./progress";
-import { badgeOf, countDay, nextStreakReward, recordMatch, type AwardState } from "../rank/awards";
+
+
+import { badgeOf, countDay, liveRun, nextStreakReward, recordMatch, type AwardState } from "../rank/awards";
 import { initKtx2 } from "../assets/ktx";
 import { dashCp } from "./runner/dash";
 import { DashMode, type DashResult } from "../modes/dash";
@@ -234,8 +236,17 @@ export class Game {
   private tut: { script: TutorialScript; after: "solo" | "menu"; wrapAt: number } | null = null;
 
   // Lobby state
+  // private playMode: PlayMode = "new";
+  // private playError: string | null = null;
+
+
+
   private playMode: PlayMode = "new";
+  /** Clean Ops: "Fill" toggle in the lobby (matched with randoms fills the empty squad slots). */
+  private lobbyFill = true;
   private playError: string | null = null;
+
+
   private customizeTab = "hoodie";
   private emoteSel: EmoteId | null = null;
   private wheelSlot = -1;
@@ -779,15 +790,52 @@ export class Game {
     });
   }
 
-  private showLobby(): void {
+  // private showLobby(): void {
+  //   this.screens.avatarPick = this.settings.avatar;
+  //   this.refreshMoney();
+  //   // The lobby's track (v4 rework: a downloaded CC0 track, streamed).
+  //   this.sound.score.play("lobby");
+  //   // The announcer's recorded lines (v6 2.12), fetched once, a beat after the lobby shows.
+  //   this.sound.voice.prefetch();
+  //   const daily = ensureDaily(this.settings.daily);
+  //   this.stage.setDummy(false);
+  //   this.screens.lobby({
+  //     advertise: this.boardsOpen,
+  //     money: this.moneyNow,
+  //     host: this.host,
+  //     settings: this.settings,
+  //     online: this.onlineAvailability(),
+  //     shop: !!this.shop,
+  //     rank: rankOf(this.rankXp),
+  //     rankSaved: this.settings.rankKnown,
+  //     board: this.rank,
+  //     friends: { ...this.friendCounts(), recent: this.settings.recent.map((r) => r.name) },
+  //     daily: daily.map((def, i) => ({ def, progress: this.settings.daily.progress[i] ?? 0 })),
+  //     mode: this.playMode,
+  //     badge: this.settings.badge && !!this.shop?.owned.has("badge_gold"),
+  //     awards: { wear: badgeOf(this.settings.awards), fresh: this.settings.awards.fresh.length },
+  //     dms: unreadDms(this.settings.dms),
+  //     ffa: !familyOn("ffa") ? "Dead Streets" : this.settings.game === "ffa" || !FEATURES.ballHaunt ? (this.ffaPick()?.name.en ?? "Free For All") : null,
+  //     ...this.lobbyA(),
+  //   });
+  //   this.stage.setFraming("center");
+  // }
+
+
+
+
+
+private showLobby(): void {
     this.screens.avatarPick = this.settings.avatar;
     this.refreshMoney();
-    // The lobby's track (v4 rework: a downloaded CC0 track, streamed).
     this.sound.score.play("lobby");
-    // The announcer's recorded lines (v6 2.12), fetched once, a beat after the lobby shows.
     this.sound.voice.prefetch();
     const daily = ensureDaily(this.settings.daily);
     this.stage.setDummy(false);
+    // Clean Ops: you in the middle, party on plinths either side.
+    this.stage.setMode("lineup");
+    this.stage.setLook(this.myLook(), this.settings.lobbyPose);
+    this.stage.setSquad(this.squadForLineup());
     this.screens.lobby({
       advertise: this.boardsOpen,
       money: this.moneyNow,
@@ -810,24 +858,179 @@ export class Game {
     this.stage.setFraming("center");
   }
 
+  /** The 3D people beside you on plinths (party members, not you). */
+  private squadForLineup(): { id: string; name: string; look: Look }[] {
+    const me = this.seatId ?? this.net?.id ?? "";
+    return (this.party?.members ?? [])
+      .filter((m) => m.id !== me)
+      .slice(0, 3)
+      .map((m, i) => ({ id: m.id, name: m.name, look: randomLook(new Rng(m.id.length * 7 + i)) }));
+  }
+
+
+
+
+
   /** v4 Lobby A's parts: the next drop (also full-bleed behind you), this week's rotation, your squad, your loadout. */
-  private lobbyA(): Pick<LobbyState, "drop" | "rotation" | "squad" | "loadout"> {
+  // private lobbyA(): Pick<LobbyState, "drop" | "rotation" | "squad" | "loadout"> {
+  //   const drop = nextDrop();
+  //   this.stage.setBackdrop(drop.url);
+  //   this.stage.setOperator(KITS[this.myLook().hoodie % KITS.length]);
+  //   if (!this.tryFig) this.stage.setFigurine(this.wornFig());
+  //   const pick = this.ffaPick();
+  //   const rotation = (familyOn("ffa") ? this.content.manifest.rotation : [])
+  //     .filter(modeOn)
+  //     .map((id) => this.content.manifest.modes.find((d) => d.id === id))
+  //     .filter((d): d is NonNullable<typeof d> => !!d)
+  //     .map((d) => ({ name: d.name.en, url: artForMap(d.map).url, on: d.id === pick?.id }));
+  //   const me = this.seatId ?? this.net?.id ?? "";
+  //   const squad = this.party ? this.party.members.map((m) => ({ name: m.name, me: m.id === me })) : [{ name: this.host.player.name || "You", me: true }];
+  //   const kit = KITS[this.myLook().hoodie % KITS.length];
+  //    return { drop, rotation, squad, loadout: { kit: kit.id[0].toUpperCase() + kit.id.slice(1), armour: 0, dead: !familyOn("survival") ? "" : RUN_WEAPON_NAME[this.settings.runWeapon] ?? "Pistol" } };
+  // }
+
+
+
+
+private lobbyA(): Pick<LobbyState, "drop" | "rotation" | "squad" | "loadout" | "modes" | "selectedMode" | "fill" | "career"> {
     const drop = nextDrop();
     this.stage.setBackdrop(drop.url);
     this.stage.setOperator(KITS[this.myLook().hoodie % KITS.length]);
     if (!this.tryFig) this.stage.setFigurine(this.wornFig());
+
+    // Rotation (unchanged).
     const pick = this.ffaPick();
     const rotation = (familyOn("ffa") ? this.content.manifest.rotation : [])
       .filter(modeOn)
       .map((id) => this.content.manifest.modes.find((d) => d.id === id))
       .filter((d): d is NonNullable<typeof d> => !!d)
       .map((d) => ({ name: d.name.en, url: artForMap(d.map).url, on: d.id === pick?.id }));
+
+    // Squad: you plus party (up to 4 total, rest empty).
     const me = this.seatId ?? this.net?.id ?? "";
-    const squad = this.party ? this.party.members.map((m) => ({ name: m.name, me: m.id === me })) : [{ name: this.host.player.name || "You", me: true }];
+    const squad: { name: string; me: boolean; ready?: boolean; empty?: boolean }[] = [
+      { name: this.host.player.name || "You", me: true, ready: true },
+      ...(this.party?.members ?? [])
+        .filter((m) => m.id !== me)
+        .slice(0, 3)
+        .map((m) => ({ name: m.name, me: false, ready: true })),
+    ];
+    while (squad.length < 4) squad.push({ name: "", me: false, ready: false, empty: true });
+
+    // Loadout line.
     const kit = KITS[this.myLook().hoodie % KITS.length];
-    return { drop, rotation, squad, loadout: { kit: kit.id[0].toUpperCase() + kit.id.slice(1), armour: 0, dead: !familyOn("survival") ? "" : RUN_WEAPON_NAME[this.settings.runWeapon] ?? "Pistol" } };
+    const loadout = { kit: kit.id[0].toUpperCase() + kit.id.slice(1), armour: 0, dead: !familyOn("survival") ? "" : RUN_WEAPON_NAME[this.settings.runWeapon] ?? "Pistol" };
+
+    // Mode families for Clean Ops: FFA · Survival · Party.
+    const ffaDef = pick;
+    const ffaMapId = ffaDef?.map ?? "naija-world";
+    const modes = [
+      {
+        tab: "Free For All",
+        name: ffaDef?.name.en ?? "Free For All",
+        line: ffaDef?.blurb.en ?? "The big world, matched with 12 players",
+        img: artForMap(ffaMapId)?.url ?? "",
+        goal: ffaDef?.modules.zone?.clock === true ? "Last team standing" : "Loot · fight · survive",
+        map: ffaMapId.startsWith("max-world") ? "Meridian Max" : "Meridian City",
+      },
+      {
+        tab: "Survival",
+        name: "Dead Streets",
+        line: "Cross the dead city to the Mast",
+        img: artForMap("spooky-world")?.url ?? "",
+        goal: "Survive the night",
+        map: "Spooky World",
+      },
+      {
+        tab: "Party",
+        name: "Ball Haunt",
+        line: "Six party modes · with friends",
+        img: artForMap(this.settings.map)?.url ?? "",
+        goal: "Win the round",
+        map: mapOf(this.settings.map).name,
+      },
+    ];
+    const selectedMode = this.settings.game === "survival" ? 1 : this.settings.game === "rlgl" || this.settings.game === "runner" ? 2 : 0;
+
+    // Career line.
+    const played = this.settings.played || 0;
+    const wins = this.settings.wins || 0;
+    const kills = this.settings.history.reduce((a, h) => a + (h.kills || 0), 0);
+    const career: [string, string][] = [
+      [String(played), "Matches"],
+      [String(wins), "Wins"],
+      [played ? `${Math.round((wins / played) * 100)}%` : "—", "Win rate"],
+      [String(kills), "Kills"],
+      [String(liveRun(this.settings.awards)), "Days"],
+    ];
+
+  //   return {
+  //     drop: { name: drop.name, line: drop.line, img: drop.url },
+  //     rotation,
+  //     squad,
+  //     loadout,
+  //     modes,
+  //     selectedMode,
+  //     fill: this.lobbyFill,
+  //     career,
+  //   };
+  // }
+
+  return {
+      drop: { name: drop.name, line: drop.line, img: drop.url },
+      rotation,
+      squad,
+      loadout,
+      modes,
+      selectedMode,
+      fill: this.lobbyFill,
+      career,
+      friendsList: this.lobbyFriendsList(),
+    };
   }
 
+  /**
+   * The Clean Ops friends panel: party members first ("in your party"),
+   * then your friends list with their state, then recent players you could
+   * add. De-duped by display name; capped at 10 rows.
+   */
+  private lobbyFriendsList(): NonNullable<LobbyState["friendsList"]> {
+    const me = this.seatId ?? this.net?.id ?? "";
+    const out: NonNullable<LobbyState["friendsList"]> = [];
+    const seen = new Set<string>();
+
+    // 1. Party members (people you already invited).
+    for (const m of this.party?.members ?? []) {
+      if (m.id === me || seen.has(m.name)) continue;
+      out.push({ name: m.name, state: "on", kind: "party", canInvite: false });
+      seen.add(m.name);
+    }
+
+    // 2. Friends list.
+    for (const f of this.friends.list) {
+      if (seen.has(f.name)) continue;
+      const st = this.friends.stateOf(f.fid);
+      out.push({
+        name: f.name,
+        state: st === "off" ? "off" : st === "playing" ? "busy" : "on",
+        kind: "friend",
+        canInvite: st !== "off" && this.room?.kind === "private",
+      });
+      seen.add(f.name);
+    }
+
+    // 3. Recent players (previously played with).
+    for (const r of this.settings.recent) {
+      if (out.length >= 10) break;
+      if (seen.has(r.name)) continue;
+      out.push({ name: r.name, state: "on", kind: "recent", canInvite: !!r.seat });
+      seen.add(r.name);
+    }
+
+    return out;
+  }
+
+  
   /** Back to the lobby screen without leaving the stage (closing a panel). */
   private closePanel(): void {
     this.tryOn = null;
@@ -3599,11 +3802,62 @@ export class Game {
         this.playError = null;
         this.showPlay();
         break;
+      // case "pick-mode":
+      //   this.playMode = d.mode as PlayMode;
+      //   this.playError = null;
+      //   this.showPlay();
+      //   break;
+
+
       case "pick-mode":
         this.playMode = d.mode as PlayMode;
         this.playError = null;
         this.showPlay();
         break;
+      // Clean Ops lobby: the three mode tabs set the family directly.
+      case "setmode": {
+        const i = Number(d.i);
+        const games = ["ffa", "survival", "rlgl"] as const;
+        if (games[i] && this.settings.game !== games[i]) {
+          this.settings.game = games[i];
+          saveSettings(this.host, this.settings);
+        }
+        this.showLobby();
+        break;
+      }
+      // Solo vs Squad, straight from the lobby.
+      case "size": {
+        this.playMode = d.s === "solo" ? "solo" : "new";
+        this.showLobby();
+        break;
+      }
+      // Fill: whether empty squad slots are filled with randoms (visual state for now).
+      case "fill": {
+        this.lobbyFill = !this.lobbyFill;
+        this.showLobby();
+        break;
+      }
+
+      // Clean Ops friends panel: invite a friend (private room) or open the
+      // friends/recent tab so you can add someone you've played with.
+      case "finvite": {
+        const name = d.name ?? "";
+        const f = this.friends.list.find((x) => x.name === name);
+        if (f && this.room?.kind === "private") {
+          this.friends.invite(f.fid);
+          this.screens.toast(`${t("Invited")} ${name}`);
+          break;
+        }
+        if (this.onlineAvailability() !== "ready") {
+          this.screens.toast(t("Friends need the game server."));
+          break;
+        }
+        this.friendsTab = f ? "friends" : "recent";
+        this.showFriends();
+        break;
+      }
+
+
       case "maps":
         this.mapCat = mapOf(this.settings.map).category;
         this.frame("full");
