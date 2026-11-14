@@ -76,7 +76,7 @@ import { KITS } from "../world/human/gear";
 
 import {
   DISABLED_EMOTES,
-  EMOTE_ALL,
+  // EMOTE_ALL,
   EMOTE_BY_ID,
   EMOTES,
   canSendEmote,
@@ -2503,22 +2503,52 @@ export class Game {
     });
   }
 
+  // private showWaiting(text: string): void {
+  //   this.view = "lobby";
+  //   this.stage.setMode("lobby");
+  //   this.stage.setDummy(true);
+  //   this.stage.setLook(this.myLook(), this.settings.lobbyPose);
+  //   this.stage.setFraming("center");
+  //   this.screens.waiting(text);
+  // }
+
+
   private showWaiting(text: string): void {
     this.view = "lobby";
     this.stage.setMode("lobby");
-    this.stage.setDummy(true);
+    // "Play with friends" has no practice dummy: no 3D object, no button.
+    const inFriends = this.playMode === "friends";
+    this.stage.setDummy(!inFriends);
     this.stage.setLook(this.myLook(), this.settings.lobbyPose);
     this.stage.setFraming("center");
-    this.screens.waiting(text);
+    this.screens.waiting(text, !inFriends);
   }
 
+
   /** The squad room: everyone in it standing around you on the street. */
+  // private showRoom(): void {
+  //   const net = this.net;
+  //   if (!net || !this.room) return;
+  //   this.view = "lobby";
+  //   this.stage.setMode("squad");
+  //   this.stage.setDummy(true);
+  //   this.stage.setLook(this.myLook(), this.settings.lobbyPose);
+  //   const me = this.seatId ?? net.id;
+  //   this.stage.setSquad(this.room.players.filter((p) => p.id !== me).map((p) => ({ id: p.id, name: p.name, look: fromWire(p.look) })));
+  //   this.stage.setFraming("center");
+  //   this.stage.interactive = true;
+  //   this.loop.setFpsCap(30);
+  //   this.screens.room(this.room, me, net.serverNow(), this.onlineError);
+  // }
+
+
   private showRoom(): void {
     const net = this.net;
     if (!net || !this.room) return;
     this.view = "lobby";
     this.stage.setMode("squad");
-    this.stage.setDummy(true);
+    // A private room is "Play with friends": the practice dummy is off there.
+    this.stage.setDummy(this.room.kind !== "private");
     this.stage.setLook(this.myLook(), this.settings.lobbyPose);
     const me = this.seatId ?? net.id;
     this.stage.setSquad(this.room.players.filter((p) => p.id !== me).map((p) => ({ id: p.id, name: p.name, look: fromWire(p.look) })));
@@ -3660,13 +3690,32 @@ export class Game {
         else if (def) this.cards.show(def.id);
         break;
       }
+      // case "dummy": {
+      //   // The queue mini-game (§10.17): practice shoves while you wait.
+      //   const r = this.stage.shoveDummy();
+      //   this.sound.strike("push", true);
+      //   if (r.down) this.screens.toast(`${t("Down in")} ${r.hits} ${t("shoves")}`);
+      //   break;
+      // }
+
+
+
+
+
       case "dummy": {
+        // No dummy in "Play with friends": the friends room and its pre-room wait.
+        if (this.playMode === "friends" || this.room?.kind === "private") break;
         // The queue mini-game (§10.17): practice shoves while you wait.
         const r = this.stage.shoveDummy();
         this.sound.strike("push", true);
         if (r.down) this.screens.toast(`${t("Down in")} ${r.hits} ${t("shoves")}`);
         break;
       }
+
+
+
+
+
       case "photo": {
         // Photo mode (§3.4 #20): the results away, the camera turning slowly round you; a tap brings them back.
         const el = this.screens.root;
