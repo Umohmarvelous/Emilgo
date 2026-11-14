@@ -220,7 +220,7 @@ console.log("pickups and reloads:");
   put(m, "p0", p.x + 0.5, p.z);
   m.setInteract("p0", 1, false);
   run(m, DT * 2, ev);
-  check(p.taken && g.gun[a.index][1] === p.gun && g.rarity[a.index][1] === p.rarity && g.slot[a.index] === 1 && g.mag[a.index][1] === gunStats((["pistol", "rifle", "smg", "shotgun"] as const)[p.gun], p.rarity).mag, "interact takes a gun: it's your primary, in hand, full");
+  check(p.taken && g.gun[a.index][1] === p.gun && g.rarity[a.index][1] === p.rarity && g.slot[a.index] === 1 && g.mag[a.index][1] === gunStats(GUN_KINDS[p.gun], p.rarity).mag, "interact takes a gun: it's your primary, in hand, full");
   const q = g.pickups.find((x) => x.kind === "gun" && !x.taken && x !== p)!;
   put(m, "p0", q.x + 0.5, q.z);
   const n0 = g.pickups.length;
@@ -243,7 +243,7 @@ console.log("pickups and reloads:");
   check(ev3.some((e) => e.type === "reload" && e.how === "start"), "the trigger on an empty magazine starts a reload");
   m.setAim("p0", 0, 0.5, false, false, 0, 2);
   const ev4 = run(m, 3);
-  const full = gunStats((["pistol", "rifle", "smg", "shotgun"] as const)[g.gun[a.index][s]], g.rarity[a.index][s]).mag;
+  const full = gunStats(GUN_KINDS[g.gun[a.index][s]], g.rarity[a.index][s]).mag;
   check(ev4.some((e) => e.type === "reload" && e.how === "done") && g.mag[a.index][s] === full && g.res[a.index][s] === res - full, "… and fills it from the spare rounds");
   // Walking over ammo and a plate takes them.
   const am = g.pickups.find((x) => x.kind === "ammo" && !x.taken)!;

@@ -62,8 +62,8 @@ export interface Breakable {
 }
 
 /** What a shot hit, for the phone's tracer, puff and hit marker. */
-export type HitKind = "none" | "wall" | "body" | "head" | "car" | "crate" | "drum" | "prop";
-export const HIT_KINDS: readonly HitKind[] = ["none", "wall", "body", "head", "car", "crate", "drum", "prop"];
+export type HitKind = "none" | "wall" | "body" | "head" | "car" | "crate" | "drum" | "prop" | "armour" | "limb";
+export const HIT_KINDS: readonly HitKind[] = ["none", "wall", "body", "head", "car", "crate", "drum", "prop", "armour", "limb"];
 
 const PISTOL = 0;
 
@@ -169,7 +169,7 @@ export class GunsModule implements RuleModule {
     const count = (per: number) => Math.max(1, Math.round(per * area));
     for (let k = 0; k < count(L.guns); k++) {
       const p = place(6);
-      if (p) this.addPickup("gun", 1 + rng.int(0, 2), this.rollRarity(rng), p[0], p[1], p[2]);
+      if (p) this.addPickup("gun", 1 + rng.int(0, GUN_KINDS.length - 2), this.rollRarity(rng), p[0], p[1], p[2]);
     }
     for (let k = 0; k < count(L.ammo); k++) {
       const p = place(4);
@@ -266,17 +266,26 @@ export class GunsModule implements RuleModule {
       this.rlSeen[i] = a.reload;
       const full = gunStats(kind, this.rarity[i][s]).mag;
       if (this.reloadAt[i] < 0 && this.res[i][s] > 0 && this.mag[i][s] < full && (wantReload || (a.trigger && this.mag[i][s] <= 0))) {
-        this.reloadAt[i] = t + K.reload;
+        const isTac = this.mag[i][s] > 0;
+        this.reloadAt[i] = t + (isTac ? K.reload * 0.75 : K.reload);
         m.emit({ type: "reload", id: c.id, how: "start", s, mag: this.mag[i][s], res: this.res[i][s], at: this.reloadAt[i] });
       }
       if (this.reloadAt[i] >= 0 && t >= this.reloadAt[i]) {
         this.reloadAt[i] = -1;
-        const take = Math.min(full - this.mag[i][s], this.res[i][s]);
+        const closedBolt = kind === "rifle" || kind === "pistol" || kind === "smg" || kind === "dmr";
+        const cap = full + (closedBolt && this.mag[i][s] > 0 ? 1 : 0);
+        const take = Math.min(cap - this.mag[i][s], this.res[i][s]);
         this.mag[i][s] += take;
         this.res[i][s] -= take;
         m.emit({ type: "reload", id: c.id, how: "done", s, mag: this.mag[i][s], res: this.res[i][s], at: t });
       }
       if (a.trigger || a.ads) this.aimedAt[i] = t;
+      // Sprint-to-fire / sprint-to-aim delay: breaking out of sprint enforces a 0.16s delay.
+      if (c.sprinting && (a.trigger || a.ads)) {
+        c.sprinting = false;
+        c.inSprint = false;
+        this.nextAt[i] = Math.max(this.nextAt[i], t + 0.16);
+      }
       // Aiming or firing, the body turns to the aim (not mid-swing: a blow keeps its own facing).
       if (t - this.aimedAt[i] < 0.8 && c.act <= 0) c.heading = a.yaw + Math.PI;
       // v6: semi-automatic guns (the pistol, the shotgun) fire once a press; held, single shots at their `hold` rate.
@@ -345,9 +354,13 @@ export class GunsModule implements RuleModule {
     const moving = Math.hypot(c.vx, c.vz) > 0.6;
     const spread = (a.ads ? K.ads : K.hip) * (c.stance === 1 ? 0.8 : c.stance === 2 ? 0.6 : 1) + (moving ? K.move : 0) + (c.y > 0.05 ? K.move * 2 : 0) + this.bloom[i];
     this.bloom[i] = Math.min(K.most, this.bloom[i] + K.bloom);
+
     const [ox, oy, oz] = this.muzzle(m, c, _o);
     const dmg = gunStats(kind, this.rarity[i][s]).dmg;
     const lag = Math.min(GUNS.rewind, c.graceBonus);
+    const vel = K.velocity ?? 750;
+    const dropG = K.drop ?? 9.8;
+
     // Every pellet's damage per target, added up: one hit per target a shot.
     _dealt.clear();
     let end: [number, number, number] = [ox, oy, oz];
@@ -358,27 +371,35 @@ export class GunsModule implements RuleModule {
       const yaw = a.yaw + (Math.cos(ang) * rad) / Math.max(0.3, Math.cos(a.pitch));
       const pitch = a.pitch + Math.sin(ang) * rad;
       const cp = Math.cos(pitch);
-      const dx = -Math.sin(yaw) * cp;
-      const dy = -Math.sin(pitch);
-      const dz = -Math.cos(yaw) * cp;
+      let dx = -Math.sin(yaw) * cp;
+      let dy = -Math.sin(pitch);
+      let dz = -Math.cos(yaw) * cp;
       const hit = this.trace(m, c, ox, oy, oz, dx, dy, dz, K.range, lag);
       const d = hit.t;
+      // Subtle ballistic drop over distance
+      const flightTime = Math.min(K.range, d) / vel;
+      const drop = 0.5 * dropG * flightTime * flightTime;
       const fall = d <= K.near ? 1 : d >= K.far ? K.low : 1 - ((d - K.near) / (K.far - K.near)) * (1 - K.low);
-      const amount = dmg * fall;
+      const amount = dmg * fall * (hit.penetrated ? 0.5 : 1);
       if (p === 0) {
-        end = [ox + dx * d, oy + dy * d, oz + dz * d];
+        end = [ox + dx * d, oy + dy * d - drop, oz + dz * d];
         first = hit.kind;
       }
-      if (hit.kind === "body" || hit.kind === "head") {
+      if (hit.kind === "body" || hit.kind === "head" || hit.kind === "limb" || hit.kind === "armour") {
         const key = hit.index;
         const prev = _dealt.get(key);
-        const v = amount * (hit.kind === "head" ? K.head : 1);
+        const mult = hit.kind === "head" ? K.head : hit.kind === "limb" ? 0.75 : 1;
+        const v = amount * mult;
         _dealt.set(key, { v: (prev?.v ?? 0) + v, head: (prev?.head ?? false) || hit.kind === "head" });
       } else if (hit.kind === "car") this.cars(m)?.hurt(m, this.cars(m)!.cars[hit.index], amount * GUNS.car.perDmg);
       else if (hit.kind === "crate" || hit.kind === "drum") this.hitThing(m, c, this.breakables[hit.index], amount);
       else if (hit.kind === "prop") m.module<MeleeModule>("melee")?.shatter(m, hit.index, c);
-      if (p === 0 && (hit.kind === "body" || hit.kind === "head") && K.pellets > 1) first = hit.kind;
+      if (p === 0 && (hit.kind === "body" || hit.kind === "head" || hit.kind === "limb" || hit.kind === "armour") && K.pellets > 1) first = hit.kind;
     }
+    // Recoil spring impulse: kicks pitch up, subtle yaw drift for following shots
+    a.pitch = Math.max(-0.85, a.pitch - K.recoil);
+    a.yaw += (this.shotRng.next() - 0.5) * (K.recoil * 0.35);
+
     m.emit({ type: "fire", id: c.id, g: GUN_KINDS.indexOf(kind), x: end[0], y: end[1], z: end[2], hit: HIT_KINDS.indexOf(first), mag: this.mag[i][s] });
     for (const [j, d] of _dealt) this.hurt(m, m.contestants[j], d.v, c, d.head, kind);
   }
@@ -388,10 +409,19 @@ export class GunsModule implements RuleModule {
   }
 
   /** The first thing a ray meets: a wall, a rival (rewound by `lag`), a car, a crate or drum, a street prop. */
-  private trace(m: Match, me: Contestant, ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, range: number, lag: number): { t: number; kind: HitKind; index: number } {
+  private trace(m: Match, me: Contestant, ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, range: number, lag: number): { t: number; kind: HitKind; index: number; penetrated?: boolean } {
     let best = m.world.space.ray(ox, oy, oz, dx, dy, dz, range);
     let kind: HitKind = best < range ? "wall" : "none";
     let index = -1;
+    let penetrated = false;
+
+    // Thin barrier penetration check (wooden fences / light cover <= 0.32m)
+    if (best < range && best > 0.5) {
+      const step = 0.32;
+      const after = m.world.space.ray(ox + dx * (best + step), oy + dy * (best + step), oz + dz * (best + step), dx, dy, dz, 0.1);
+      if (after > 0.08) penetrated = true;
+    }
+
     const back = Math.min(GUNS.histTicks - 1, Math.round(lag * 60));
     const slot = (((this.histAt - 1 - back) % GUNS.histTicks) + GUNS.histTicks) % GUNS.histTicks;
     const B = GUNS.body;
@@ -409,7 +439,7 @@ export class GunsModule implements RuleModule {
       if (along < 0 || along > best + 1) continue;
       const top = base + (st === 2 ? 0.55 : st === 1 ? 1.15 : 1.75);
       const r = st === 2 ? B.proneR : B.r;
-      // The head first (it's on top of the body): a ball.
+      // Capsule Hitbox 1: Head & Neck
       const hy = top - B.head;
       const th = sphere(ox, oy, oz, dx, dy, dz, x, hy, z, B.head);
       if (th >= 0 && th < best) {
@@ -417,10 +447,13 @@ export class GunsModule implements RuleModule {
         kind = "head";
         index = o.index;
       }
+      // Capsule Hitbox 2: Torso vs Limbs
       const tb = cylinder(ox, oy, oz, dx, dy, dz, x, z, r, base, top - B.head * 2);
       if (tb >= 0 && tb < best) {
         best = tb;
-        kind = "body";
+        const hitY = oy + dy * tb;
+        const hasArmour = (this.armour[o.index] ?? 0) > 0;
+        kind = hitY < base + 0.65 ? "limb" : hasArmour ? "armour" : "body";
         index = o.index;
       }
     }
@@ -472,7 +505,7 @@ export class GunsModule implements RuleModule {
         index = p.index;
       }
     }
-    return { t: best, kind, index };
+    return { t: best, kind, index, penetrated };
   }
 
   /** Damage on a body (a shot, a blow, a blast): armour first, then health; out at 0. */

@@ -590,7 +590,7 @@ function arm(m: Builder, p: Proportions, rest: Record<BoneName, V3>, o: Outfit, 
   const sh = v3(rest[`upperArm${L}`]);
   const el = v3(rest[`foreArm${L}`]);
   const wr = v3(rest[`hand${L}`]);
-  const start = sh.clone().add(new Vector3(-s * 0.04, -0.004, 0));
+  const start = sh.clone().add(new Vector3(-s * 0.012, 0.004, 0));
   const bulk = o.top.sleeve === "long" ? (o.top.bulk ?? 0) * 0.6 : 0;
   const r = p.arm.map((x, i) => x + (i < 4 ? bulk : bulk * 0.5));
   const lenUp = start.distanceTo(el);
@@ -600,7 +600,7 @@ function arm(m: Builder, p: Proportions, rest: Record<BoneName, V3>, o: Outfit, 
   rod(
     m,
     [start, el, wr.clone().add(new Vector3(0, -0.01, 0))],
-    [r[0] * 0.92, r[0], r[1], r[2], r[3], r[4]],
+    [r[0] * 1.06, r[0], r[1], r[2], r[3], r[4]],
     T.seg,
     Math.round(lerp(5, 14, T.ringK / 1.9)),
     (q) => {

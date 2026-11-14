@@ -15,6 +15,7 @@
 import { loadSamples, sampleBuffer } from "./samples";
 import type { Surface } from "../maps/registry";
 import { RADIO_TRACK, type RadioId } from "./radio";
+import type { GunKind } from "../config";
 import { Music } from "./music";
 import { Voice as Announcer } from "./voice";
 import type { Hit, Song, SungNote, VoiceKind } from "./songs";
@@ -976,7 +977,7 @@ export class Sound {
   // ── Guns (v4 Phase 2): synthesised until the sample layer (Phase 8). `near` 0 … 1. ──
 
   /** A shot: a crack and a body by gun; far off, only the low thump; yours is fullest. */
-  gunshot(kind: "pistol" | "rifle" | "smg" | "shotgun", near: number, mine: boolean): void {
+  gunshot(kind: GunKind, near: number, mine: boolean): void {
     if (near <= 0.03 || this.busy(mine ? VOICE_CAP : VOICE_CAP - 8)) return;
     // v6: no two shots quite alike: a few percent of pitch either way (a rifle's burst stops sounding like a loop).
     if (this.sample(`gun-${kind}`, (mine ? 1 : 0.75) * near, 1 + (Math.random() - 0.5) * (kind === "shotgun" ? 0.06 : 0.1))) return;
@@ -994,15 +995,23 @@ export class Sound {
       }
       return;
     }
-    const len = kind === "rifle" ? 0.11 : kind === "smg" ? 0.065 : 0.09;
-    const body = kind === "rifle" ? 105 : kind === "smg" ? 150 : 170;
-    this.noise(t, len, { gain: (kind === "smg" ? 0.3 : 0.38) * g, freq: 2600 - far * 1800, type: "lowpass" });
-    this.tone(body, t, len + 0.05, { type: "sine", gain: 0.35 * g, to: body * 0.42 });
-    if (near > 0.35) this.noise(t, 0.025, { gain: 0.22 * g, freq: 4200, type: "highpass" });
+    const len = kind === "dmr" ? 0.18 : kind === "lmg" ? 0.13 : kind === "rifle" ? 0.11 : kind === "smg" ? 0.065 : 0.09;
+    const body = kind === "dmr" ? 85 : kind === "lmg" ? 120 : kind === "rifle" ? 105 : kind === "smg" ? 150 : 170;
+    const gainMul = kind === "dmr" ? 0.5 : kind === "lmg" ? 0.42 : kind === "smg" ? 0.3 : 0.38;
+    this.noise(t, len, { gain: gainMul * g, freq: (kind === "dmr" ? 3200 : 2600) - far * 1800, type: "lowpass" });
+    this.tone(body, t, len + 0.05, { type: "sine", gain: (kind === "dmr" ? 0.45 : 0.35) * g, to: body * 0.42 });
+    if (near > 0.35) this.noise(t, 0.025, { gain: 0.25 * g, freq: kind === "dmr" ? 5400 : 4200, type: "highpass" });
+  }
+
+  /** A metallic headshot ping. */
+  headshotPing(): void {
+    const t = this.now;
+    this.tone(2400, t, 0.12, { type: "sine", gain: 0.32, to: 1800 });
+    this.tone(3600, t + 0.02, 0.08, { type: "triangle", gain: 0.18 });
   }
 
   /** A reload: the magazine out, in, the slide. */
-  reload(kind: "pistol" | "rifle" | "smg" | "shotgun", seconds: number): void {
+  reload(kind: GunKind, seconds: number): void {
     // A recorded reload (v4 rework): the handgun's, the rifle's, the shotgun's pump at the end.
     if (kind === "shotgun" ? this.sample("pump", 0.7) : this.sample(kind === "pistol" ? "reload" : "reload-rifle", 0.7)) return;
     const t = this.now;

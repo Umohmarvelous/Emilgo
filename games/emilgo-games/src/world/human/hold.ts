@@ -44,6 +44,8 @@ const GRIPS: Record<GunKind, { r: [number, number, number]; l: [number, number, 
   smg: { r: [-0.01, -0.07, 0.2], l: [0.02, -0.01, 0.42] },
   shotgun: { r: [-0.012, -0.07, 0.25], l: [0.02, -0.02, 0.58] },
   pistol: { r: [-0.005, -0.03, -0.02], l: [0.035, -0.04, 0.0] },
+  dmr: { r: [-0.012, -0.075, 0.26], l: [0.022, -0.015, 0.59] },
+  lmg: { r: [-0.014, -0.075, 0.27], l: [0.025, -0.03, 0.54] },
 };
 
 /** The body a hold needs: its mesh and bones. */
@@ -139,18 +141,20 @@ function turnWorld(bone: Bone, q: Quaternion): void {
 
 const FINGERS = ["index", "middle", "ring", "pinky"] as const;
 
-/** Close the fingers round a grip. */
+/** Close the fingers round a grip, with realistic trigger finger placement. */
 function grip(h: Holder, side: "L" | "R", amount: number): void {
   const s = side === "L" ? 1 : -1;
   for (const f of FINGERS) {
+    const isTrigger = side === "R" && f === "index";
     for (const k of [1, 2] as const) {
       const b = h.bone(`${f}${k}${side}` as BoneName);
-      b.quaternion.setFromAxisAngle(_axis.set(0, 0, 1), -s * 1.2 * amount);
+      const angle = isTrigger ? -s * 0.85 * amount : -s * 1.25 * amount;
+      b.quaternion.setFromAxisAngle(_axis.set(0, 0, 1), angle);
       b.updateMatrix();
     }
   }
   const th = h.bone(`thumb1${side}` as BoneName);
-  th.quaternion.setFromAxisAngle(_axis.set(0, 1, 0), s * 0.6 * amount);
+  th.quaternion.setFromAxisAngle(_axis.set(0, 1, 0), s * 0.65 * amount);
   th.updateMatrix();
 }
 
@@ -162,28 +166,32 @@ export function applyHold(h: Holder, hold: Hold): void {
   _fwd.set(0, 0, 1).applyQuaternion(mesh.quaternion);
   _left.set(1, 0, 0).applyQuaternion(mesh.quaternion);
   const pitch = Math.max(-0.9, Math.min(0.9, hold.pitch));
-  // Aiming, the chest and head lean with the pitch (the arms come with them).
-  if (hold.mode === 1 && Math.abs(pitch) > 0.01) {
-    turnWorld(h.bone("chest"), _lean.setFromAxisAngle(_left, pitch * 0.55));
-    turnWorld(h.bone("neck"), _lean.setFromAxisAngle(_left, pitch * 0.25));
+  // Aiming: chest leans with pitch, neck leans and head cheek-welds towards the optic sightline.
+  if (hold.mode === 1) {
+    if (Math.abs(pitch) > 0.01) {
+      turnWorld(h.bone("chest"), _lean.setFromAxisAngle(_left, pitch * 0.55));
+      turnWorld(h.bone("neck"), _lean.setFromAxisAngle(_left, pitch * 0.25));
+    }
+    // Subtle cheek-weld roll and yaw towards the weapon line
+    turnWorld(h.bone("head"), _lean.setFromAxisAngle(_fwd, 0.08).multiply(_q.setFromAxisAngle(_left, pitch * 0.35)));
   }
   h.bone("upperArmR").getWorldPosition(_sh);
   h.bone("upperArmL").getWorldPosition(_shL);
   const pistol = hold.kind === "pistol";
   if (hold.mode === 1) {
-    // Shouldered (a pistol: out in front, both hands), along the aim.
+    // Shouldered (a pistol: out in front, both hands), firmly anchored in shoulder pocket.
     _dir.copy(_fwd).multiplyScalar(Math.cos(pitch)).addScaledVector(_up, -Math.sin(pitch));
     if (pistol) _butt.copy(_sh).lerp(_shL, 0.5).addScaledVector(_fwd, 0.36 * s).addScaledVector(_up, -0.05 * s).addScaledVector(_dir, 0.06 * s);
-    else _butt.copy(_sh).addScaledVector(_left, 0.07 * s).addScaledVector(_fwd, 0.05 * s);
-    _dir.addScaledVector(_left, pistol ? 0 : 0.04).normalize();
+    else _butt.copy(_sh).addScaledVector(_left, 0.035 * s).addScaledVector(_fwd, 0.04 * s).addScaledVector(_up, -0.015 * s);
+    _dir.addScaledVector(_left, pistol ? 0 : 0.03).normalize();
   } else if (hold.mode === 2) {
     // Across the chest, muzzle up and over the left shoulder.
     _butt.copy(_sh).addScaledVector(_left, 0.02 * s).addScaledVector(_up, -0.32 * s).addScaledVector(_fwd, 0.12 * s);
     _dir.copy(_fwd).multiplyScalar(0.55).addScaledVector(_up, 0.75).addScaledVector(_left, 0.38).normalize();
     if (pistol) _butt.addScaledVector(_up, 0.05 * s);
   } else {
-    // Low ready: the muzzle down and in front.
-    _butt.copy(_sh).addScaledVector(_left, 0.06 * s).addScaledVector(_up, -0.1 * s).addScaledVector(_fwd, 0.08 * s);
+    // Low ready: the muzzle down and in front, tucked close.
+    _butt.copy(_sh).addScaledVector(_left, 0.045 * s).addScaledVector(_up, -0.08 * s).addScaledVector(_fwd, 0.07 * s);
     _dir.copy(_fwd).addScaledVector(_up, -0.6).addScaledVector(_left, 0.3).normalize();
     if (pistol) _butt.addScaledVector(_fwd, 0.18 * s).addScaledVector(_left, 0.08 * s).addScaledVector(_up, -0.12 * s);
   }

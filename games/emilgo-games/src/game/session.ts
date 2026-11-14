@@ -915,7 +915,7 @@ private showLobby(): void {
 
 
 
-private lobbyA(): Pick<LobbyState, "drop" | "rotation" | "squad" | "loadout" | "modes" | "selectedMode" | "fill" | "career"> {
+private lobbyA(): Pick<LobbyState, "drop" | "rotation" | "squad" | "loadout" | "modes" | "selectedMode" | "fill" | "career" | "friendsList"> {
     const drop = nextDrop();
     this.stage.setBackdrop(drop.url);
     this.stage.setOperator(KITS[this.myLook().hoodie % KITS.length]);

@@ -54,7 +54,14 @@ const TINT: readonly [number, number, number][] = [
   [1.35, 0.3, 0.26],
 ];
 /** The muzzle in each gun's own space. */
-const MUZZLE: Record<GunKind, [number, number, number]> = { pistol: [0, 0.11, 0.21], rifle: [0, 0.06, 0.99], smg: [0, 0.045, 0.6], shotgun: [0, 0.055, 0.93] };
+const MUZZLE: Record<GunKind, [number, number, number]> = {
+  pistol: [0, 0.11, 0.21],
+  rifle: [0, 0.06, 0.99],
+  smg: [0, 0.045, 0.6],
+  shotgun: [0, 0.055, 0.93],
+  dmr: [0, 0.045, 1.15],
+  lmg: [0, 0.055, 0.98],
+};
 /** Guns, loot and breakables are drawn this near, by tier (metres); people's guns a little further. */
 const VIEW = [45, 60, 80] as const;
 const HELD_VIEW = [50, 70, 90] as const;
@@ -113,6 +120,35 @@ export function gunGeometry(k: GunKind): BufferGeometry {
         B(0.046, 0.046, 0.17, GRIP, [0, 0.026, 0.6]),
         B(0.03, 0.06, 0.04, GRIP, [0, -0.01, 0.27], [0.2, 0, 0]),
         glow(B(0.005, 0.005, 0.16, 0, [0.024, 0.03, 0.34])),
+      ]);
+    case "dmr":
+      return merge([
+        B(0.038, 0.09, 0.22, GRIP, [0, -0.01, 0.09]),
+        B(0.034, 0.065, 0.28, BODY, [0, 0.04, 0.34]),
+        B(0.022, 0.01, 0.45, DARK, [0, 0.08, 0.45]),
+        C(0.02, 0.22, DARK, [0, 0.115, 0.42]),
+        C(0.024, 0.05, GRIP, [0, 0.115, 0.52]),
+        C(0.018, 0.04, GRIP, [0, 0.115, 0.32]),
+        C(0.01, 0.52, DARK, [0, 0.045, 0.88]),
+        C(0.016, 0.08, DARK, [0, 0.045, 1.14]),
+        B(0.026, 0.12, 0.055, DARK, [0, -0.065, 0.38], [-0.2, 0, 0]),
+        B(0.03, 0.11, 0.04, GRIP, [0, -0.045, 0.28], [0.32, 0, 0]),
+        B(0.036, 0.045, 0.32, BODY, [0, 0.04, 0.65]),
+        glow(B(0.005, 0.005, 0.25, 0, [0.02, 0.04, 0.65])),
+        glow(B(0.005, 0.005, 0.25, 0, [-0.02, 0.04, 0.65])),
+      ]);
+    case "lmg":
+      return merge([
+        B(0.044, 0.11, 0.2, GRIP, [0, 0.01, 0.1]),
+        B(0.048, 0.09, 0.32, BODY, [0, 0.05, 0.36]),
+        B(0.034, 0.12, 0.044, GRIP, [0, -0.05, 0.26], [0.35, 0, 0]),
+        C(0.055, 0.09, DARK, [0, -0.07, 0.42], 10),
+        C(0.016, 0.46, DARK, [0, 0.055, 0.74]),
+        B(0.018, 0.06, 0.14, DARK, [0, 0.13, 0.44], [0.1, 0, 0]),
+        C(0.02, 0.06, DARK, [0, 0.055, 0.96]),
+        B(0.052, 0.055, 0.3, BODY, [0, 0.055, 0.62]),
+        glow(B(0.006, 0.006, 0.26, 0, [0.028, 0.06, 0.62])),
+        glow(B(0.006, 0.006, 0.26, 0, [-0.028, 0.06, 0.62])),
       ]);
     default:
       return merge([
@@ -389,9 +425,17 @@ export class GunsView {
         const hit = HIT_KINDS[e.hit] ?? "none";
         if (hit !== "none") {
           const pv = Math.max(0, 1 - _b.distanceTo(cam) / 40);
-          if (hit === "body" || hit === "head") {
-            if (this.o.blood) this.puff(e.x, e.y, e.z, 0.35, 0.5, 0.55, 0.05, 0.04);
-            else this.puff(e.x, e.y, e.z, 0.3, 0.45, 0.45, 0.42, 0.36);
+          if (hit === "body" || hit === "head" || hit === "limb" || hit === "armour") {
+            if (hit === "head") {
+              if (mine) this.o.sound.headshotPing();
+              this.puff(e.x, e.y, e.z, 0.45, 0.8, 1.2, 0.9, 0.1);
+            } else if (hit === "armour") {
+              this.puff(e.x, e.y, e.z, 0.35, 0.5, 0.4, 0.8, 1.4);
+              this.o.sound.impact(pv, true);
+            } else {
+              if (this.o.blood) this.puff(e.x, e.y, e.z, 0.35, 0.5, 0.55, 0.05, 0.04);
+              else this.puff(e.x, e.y, e.z, 0.3, 0.45, 0.45, 0.42, 0.36);
+            }
           } else if (hit === "car" || hit === "drum") {
             this.puff(e.x, e.y, e.z, 0.18, 0.18, 1.6, 1.1, 0.4);
             this.o.sound.impact(pv, true);
